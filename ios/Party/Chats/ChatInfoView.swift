@@ -4,6 +4,7 @@ import SwiftUI
 struct ChatInfoView: View {
     @ObservedObject var store: ChatsStore
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openGroupPage) private var openGroupPage
     @State private var profile: Conversation.Member?
 
     var body: some View {
@@ -45,8 +46,22 @@ struct ChatInfoView: View {
                         Text("@tout prévient tout le groupe. @annonce (message épinglé en haut, envoyé à tous) est réservé aux admins et organisateurs."
                              + (chat.admin ? "" : " Les admins du groupe choisissent."))
                     }
-                    if chat.member {
-                        // Même écran que Réglages › Groupes : ajouter ou inviter des membres, liens d'invitation.
+                    if chat.member, let openGroupPage {
+                        // Page du groupe (17.11) : couverture, membres, événements, Inviter, réglages (module Événements).
+                        Section {
+                            Button {
+                                Haptics.tap()
+                                dismiss()
+                                openGroupPage.open(chat.id)
+                            } label: {
+                                Label("Gérer le groupe", systemImage: "person.2.badge.gearshape")
+                            }
+                            .accessibilityIdentifier("chat-manage-group")
+                        } footer: {
+                            Text("La page du groupe : membres, événements, invitations et réglages.")
+                        }
+                    } else if chat.member {
+                        // Hors de l'app (aperçus) : l'écran natif d'avant.
                         Section {
                             NavigationLink {
                                 GroupDetailView(store: store.groups, privacy: store.privacy, groupID: chat.id)

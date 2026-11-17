@@ -329,6 +329,20 @@ final class WebModel: ObservableObject {
         Motion.animate(Motion.smooth) { eventChatID = id.lowercased() }
     }
 
+    /// Groupes (17.11) : la page d'un groupe, sa création (« new ») ou la liste (nil), dans l'onglet Événements.
+    func openGroupPage(_ target: String?) {
+        guard let path = GroupLook.pagePath(target) else { return }
+        selectTab("events")
+        webView?.evaluateJavaScript("window.PartyEvents && PartyEvents.open('\(path)')")
+    }
+
+    /// « Discussion » de la page d'un groupe (module Événements) : sa discussion dans l'onglet Discussions natif.
+    func openGroupChat(_ id: String) {
+        guard let chats, let id = UUID(uuidString: id) else { return }
+        chats.requested = id.uuidString.lowercased()
+        selectTab("chats")
+    }
+
     /// Événement créé par l'assistant IA : l'onglet Événements l'ouvre.
     func openEvent(_ id: String) {
         guard id.range(of: "^[0-9a-fA-F-]{36}$", options: .regularExpression) != nil else { return }

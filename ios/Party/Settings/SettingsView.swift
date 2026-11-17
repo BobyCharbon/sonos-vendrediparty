@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var confirmSignOut = false
     @AppStorage(ZicouBubblePrefs.shownKey) private var zicouBubbleShown = true
     @State private var joinLink: JoinLink?
+    @Environment(\.openGroupPage) private var openGroupPage
 
     var body: some View {
         NavigationStack {
@@ -38,11 +39,21 @@ struct SettingsView: View {
                                         hint: "Dépenses partagées : qui a payé, qui doit quoi, remboursements")
                         }
                         .accessibilityIdentifier("settings-tricount")
-                        NavigationLink {
-                            GroupsView(store: store.groups, privacy: store.privacy, moderation: store.moderation)
-                        } label: {
-                            SettingsRow(symbol: "person.3.fill", tint: .blue, title: "Groupes",
-                                        hint: "Les groupes dont tu fais partie ; crée les tiens")
+                        if let openGroupPage {
+                            // Nouvelle liste des groupes (17.11) : celle du module Événements, façon WhatsApp.
+                            Button { openGroupPage.open(nil) } label: {
+                                SettingsRow(symbol: "person.3.fill", tint: .blue, title: "Groupes",
+                                            hint: "Les groupes dont tu fais partie ; crée les tiens")
+                            }
+                            .foregroundStyle(.primary)
+                            .accessibilityIdentifier("settings-groups")
+                        } else {
+                            NavigationLink {
+                                GroupsView(store: store.groups, privacy: store.privacy, moderation: store.moderation)
+                            } label: {
+                                SettingsRow(symbol: "person.3.fill", tint: .blue, title: "Groupes",
+                                            hint: "Les groupes dont tu fais partie ; crée les tiens")
+                            }
                         }
                         NavigationLink {
                             FriendsView(store: store.friends, privacy: store.privacy)

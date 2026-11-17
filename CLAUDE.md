@@ -345,3 +345,18 @@ réglage de prod :
 - Changer un réglage de prod (drapeau, CGU, droit) = refaire la recette des parcours qu'il touche AVANT de le changer.
 - Le rapport dit ce qui a été testé pour de vrai et ce qui ne l'a été qu'avec des faux. Pas de « prêt » sans recette.
 - La production n'est pas un banc d'essai : en cas de doute, ça reste sur develop / le site de test.
+
+## Groupes : nouveau graphisme (17.11)
+- Maquette A « Néon & couvertures » + bulles et QR de B. Chaque groupe a un emoji (liste fermée) et une des 6 couleurs
+  (`member_groups.emoji` / `color`, contraintes + `private.group_look_guard`, migration 20261117100000) ; couverture =
+  dégradé de la couleur + emoji, JAMAIS de photo de couverture (contenu à modérer). Membres Vendredi Party : 🎉 lavande fixe.
+  Mêmes listes : `web/events/src/lib/groups.ts`, `ios/Party/Chats/GroupLook.swift`.
+- Web : `/groups` (liste façon WhatsApp, `my_groups_overview`), `/group/new` (2 étapes : nom/emoji/couleur avec CGU, puis
+  Inviter : lien WhatsApp/Copier/Autre + QR + `group_invite_suggestions` = personnes croisées à un événement, jamais tout
+  le site), `/group/<id>` (page : `group_events`, « Créer un événement pour le groupe » = `/event/new?group=<id>`, groupe
+  coché, « Prévenir » éteint), `/group/<id>/settings` (Modifier, numéro, règles, retirer, liens, quitter, supprimer),
+  `/group/<id>/invite`. Bulles « Tes groupes » en haut d'Événements, étiquette du groupe sur les cartes (mes groupes seulement).
+- iOS : lignes de Discussions avec emoji/couleur (`my_chats`), ✎, « Gérer le groupe » et Réglages › Groupes ouvrent ces
+  pages (`OpenGroupPageAction` → `WebModel.openGroupPage`) ; « Discussion » de la page → `PartyNative.chat.openGroup`.
+- Tests : `tests/test_groups_browser.py`, `tests/supabase_live/test_groupes_graphisme_live.py`,
+  `test_groupes_graphisme_browser_live.py`, `GroupLookTests`.

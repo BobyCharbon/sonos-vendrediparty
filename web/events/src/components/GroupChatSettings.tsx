@@ -120,7 +120,7 @@ export function GroupChatSettings({ groupId, notify, member, canNameAdmins, isAd
         </Rows>
         <T muted size={12}>Les numéros affichés sont ceux que chacun montre dans ce groupe (Réglages › Groupes). Touche un numéro pour appeler.</T>
         {/* Même écran que Réglages › Groupes : ajouter ou inviter des membres, liens d'invitation. */}
-        {member ? <Button small variant="secondary" label="Gérer le groupe (membres, invitations)" onPress={() => router.push(`/groups?open=${groupId}`)} /> : null}
+        {member ? <Button small variant="secondary" label="Gérer le groupe (membres, invitations)" onPress={() => router.push(`/group/${groupId}`)} /> : null}
       </Section>
       <ErrorText error={error} />
     </ScrollView>

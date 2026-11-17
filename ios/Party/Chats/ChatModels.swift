@@ -29,9 +29,12 @@ struct ChatSummary: Codable, Equatable, Identifiable {
     var userID: String?
     var photo: String?
     var blocked = false
+    /// Groupe : son emoji et sa couleur (nouveau graphisme du 17.11, my_chats) ; absents d'un serveur plus ancien.
+    var emoji: String?
+    var color: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, name, member, notify, last, unread, kind, photo, blocked, lastAt = "last_at", userID = "user_id"
+        case id, name, member, notify, last, unread, kind, photo, blocked, emoji, color, lastAt = "last_at", userID = "user_id"
     }
 
     init(from decoder: Decoder) throws {
@@ -47,6 +50,8 @@ struct ChatSummary: Codable, Equatable, Identifiable {
         userID = try c.decodeIfPresent(String.self, forKey: .userID)
         photo = try c.decodeIfPresent(String.self, forKey: .photo)
         blocked = try c.decodeIfPresent(Bool.self, forKey: .blocked) ?? false
+        emoji = try? c.decodeIfPresent(String.self, forKey: .emoji)
+        color = try? c.decodeIfPresent(String.self, forKey: .color)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -62,6 +67,8 @@ struct ChatSummary: Codable, Equatable, Identifiable {
         try c.encodeIfPresent(userID, forKey: .userID)
         try c.encodeIfPresent(photo, forKey: .photo)
         try c.encode(blocked, forKey: .blocked)
+        try c.encodeIfPresent(emoji, forKey: .emoji)
+        try c.encodeIfPresent(color, forKey: .color)
     }
 }
 

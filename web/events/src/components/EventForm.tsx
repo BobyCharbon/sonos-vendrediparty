@@ -15,7 +15,7 @@ import { enter, pressTransition, useChangedSinceMount } from '@/lib/motion';
 import { check, must, supabase } from '@/lib/supabase';
 import { colors, radius } from '@/lib/theme';
 import type { DateMode, EventRow, MemberGroup, PaymentMode, Poll, PollOption, Reminder } from '@/lib/types';
-import { UNLIMITED_PLUS_ONES } from '@/lib/types';
+import { UNLIMITED_PLUS_ONES, VIP_GROUP_KEY } from '@/lib/types';
 
 import { Button, Cascade, Chip, ErrorText, Field, HeaderBack, Input, Reveal, Rows, s, Screen, Section, Segmented, T, ToggleRow } from './ui';
 import { afterPublish } from './InviteStep';
@@ -257,7 +257,8 @@ async function loadDraft(eventId: string): Promise<Draft> {
   };
 }
 
-export function EventForm({ eventId }: { eventId?: string }) {
+/** group : « Créer un événement pour le groupe » (page du groupe, 17.11) : ce groupe déjà coché, sans prévenir le groupe. */
+export function EventForm({ eventId, group }: { eventId?: string; group?: string }) {
   const me = useMe();
   // CGU exigées en prod (terms_enforced) : un nouvel événement les fait accepter avant d'être enregistré.
   const terms = useTermsGate();
@@ -268,6 +269,7 @@ export function EventForm({ eventId }: { eventId?: string }) {
   // Ce qui était là à l'ouverture : la base de « changements non enregistrés » et du « début changé ».
   const [initial, setInitial] = useState<Draft | null>(eventId ? null : emptyDraft);
   const savedEventId = useRef(eventId);
+  const groupPreset = useRef(!eventId && !!group);
   const saving = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -302,6 +304,18 @@ export function EventForm({ eventId }: { eventId?: string }) {
       const loaded = await loadDraft(eventId);
       setInitial(loaded);
       setDraft(loaded);
+    }
+    // Depuis la page d'un groupe : ce groupe coché (Vendredi Party : « Membres Vendredi Party »), « Prévenir » éteint ;
+    // une seule fois (un retour sur l'écran ne défait pas ce qu'on a changé depuis).
+    const preset = groupPreset.current ? (must(groups) as MemberGroup[]).find((g) => g.id === group) : undefined;
+    if (preset) {
+      groupPreset.current = false;
+      const who: AudienceValue = preset.system_key === VIP_GROUP_KEY
+        ? { ...DEFAULT_AUDIENCE, audience: 'invite', vip: true }
+        : { ...DEFAULT_AUDIENCE, audience: 'invite', vip: false, group_ids: [preset.id] };
+      const withGroup = (d: Draft | null) => (d ? { ...d, who, announce_group: false } : d);
+      setDraft(withGroup);
+      setInitial(withGroup);
     }
     // Hors du groupe Vendredi Party, on ne peut pas lui réserver un événement (base : 20261106090000) : public par défaut.
     if (!eventId && !mayUseVip(must(groups) as MemberGroup[], me.id, can('events.manage_all'))) {

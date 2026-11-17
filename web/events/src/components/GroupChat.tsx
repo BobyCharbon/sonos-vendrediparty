@@ -581,7 +581,7 @@ export function GroupChat({ id, direct = false, event = false }: { id: string; d
                   : event ? 'Aucun message pour l’instant. Lance la discussion avec les invités !' : 'Aucun message pour l’instant. Lance la discussion !'}</T>
                 {/* Groupe tout neuf (créé depuis Discussions) : y ajouter du monde, dans Réglages › Groupes. */}
                 {!loadError && kind === 'group' && member && inside.length <= 1 && data?.group.created_by === me.id ? (
-                  <Button small label="Ajouter des membres" onPress={() => router.push(`/groups?open=${id}`)} />
+                  <Button small label="Ajouter des membres" onPress={() => router.push(`/group/${id}/invite`)} />
                 ) : null}
               </View>
             }

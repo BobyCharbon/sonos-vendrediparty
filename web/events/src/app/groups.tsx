@@ -1,247 +1,182 @@
-import { useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
-import { GroupAddSheet } from '@/components/GroupAddSheet';
-import { GroupEventRules } from '@/components/GroupEventRules';
-import { GroupQuickInvite, InviteLinkCard } from '@/components/InviteLinkCard';
-import { NewGroupForm } from '@/components/NewGroupForm';
-import { usePersonText } from '@/components/PersonName';
-import { Avatar, Button, Card, Chip, ConfirmButton, ErrorText, Input, Screen, s, Section, T, ToggleRow } from '@/components/ui';
+import { CreateGroupHero, EmptyGroups, GroupRow, GroupTile } from '@/components/GroupBits';
+import { CLOSE, Icon } from '@/components/HomeHeader';
+import { Button, ErrorText, Input, Reveal, Screen, Skeleton, T, Title } from '@/components/ui';
 import { useAuth, useMe } from '@/lib/auth';
-import { useQuery } from '@/lib/data';
-import { must, supabase } from '@/lib/supabase';
-import { pressTransition } from '@/lib/motion';
-import { belowVip, roleName, roleRank } from '@/lib/roles';
-import { colors } from '@/lib/theme';
-import { VIP_GROUP_KEY, type MemberGroup, type Profile } from '@/lib/types';
+import { useQuery, useRealtime, useSignal } from '@/lib/data';
+import { fetchMyGroups, groupName, type GroupColor } from '@/lib/groups';
+import { duration, enter, pressTransition, transition } from '@/lib/motion';
+import { roleRank } from '@/lib/roles';
+import { supabase } from '@/lib/supabase';
+import { colors, radius } from '@/lib/theme';
 
-type Invitation = { id: string; group_id: string; group: string; invited_by: string | null; at: string };
+type Invitation = { id: string; group_id: string; group: string; emoji?: string; color?: GroupColor; invited_by: string | null; at: string };
+type OtherGroup = { id: string; name: string; emoji: string; color: GroupColor; system_key: string | null; created_by: string | null;
+  member_group_members: { user_id: string }[] };
 
-/** Mes groupes (créés ou dont je fais partie), pour inviter à un événement privé ; modifiables par leur créateur.
- * Les Admins du site (rang Admin et au-dessus, pas les Co-admins) voient aussi tous les autres, dans une section repliée. */
+const SEARCH = ['M11 4a7 7 0 1 0 0 14a7 7 0 1 0 0-14', 'M20 20l-3.5-3.5'];
+const PLUS = ['M12 5v14', 'M5 12h14'];
+const BACK = ['M15 18l-6-6 6-6'];
+
+/**
+ * Groupes (nouveau graphisme du 17.11, maquette A) : une liste façon WhatsApp (dernier message, heure, non lus,
+ * prochain événement), la grande carte « Crée le groupe de ta bande », un état vide qui donne envie. Chaque groupe
+ * s'ouvre sur sa page (/group/<id>) : membres, événements, discussion, réglages. Les Admins du site (rang Admin) voient
+ * aussi les autres groupes, dans une section repliée.
+ */
 export default function GroupsScreen() {
   const me = useMe();
   const { rank } = useAuth();
   // Même critère que la base (private.sees_all_groups) : la base ne renvoie les groupes des autres qu'à eux.
   const siteAdmin = rank >= roleRank('admin');
   const [showAll, setShowAll] = useState(false);
-  // « Gérer le groupe » depuis une discussion : ce groupe s'ouvre déjà déplié (?open=<id>).
-  const params = useLocalSearchParams<{ open?: string }>();
-  const [open, setOpen] = useState<string | null>(typeof params.open === 'string' && params.open ? params.open : null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [guest, setGuest] = useState('');
-  const [invited, setInvited] = useState<string | null>(null);
-  // « + Ajouter » (avis du 14.11) : la feuille « Ajouter au groupe » de ce groupe.
-  const [adding, setAdding] = useState<string | null>(null);
-  // App iPhone : membres de mon répertoire en « Nom du contact · pseudo ».
-  const personText = usePersonText();
 
   const { data, reload, error: loadError } = useQuery(async () => {
-    const [groups, members, privacy, invitations] = await Promise.all([
-      supabase.from('member_groups').select('id, name, created_by, system_key, events_need_approval, announce_mode, member_group_members(user_id)').order('name'),
-      supabase.from('profiles').select('id, display_name, role, avatar_url').eq('status', 'active').order('display_name'),
-      supabase.rpc('my_privacy'),
+    const [groups, invitations, others] = await Promise.all([
+      fetchMyGroups(),
       supabase.rpc('my_group_invitations'),
+      siteAdmin
+        ? supabase.from('member_groups').select('id, name, emoji, color, system_key, created_by, member_group_members(user_id)').order('name')
+        : Promise.resolve({ data: [] as OtherGroup[] }),
     ]);
-    // Vendredi Party en premier : c'est le groupe de tout le monde (VIP et au-dessus).
-    const list = (must(groups) as MemberGroup[]).sort((a, b) => Number(b.system_key === VIP_GROUP_KEY) - Number(a.system_key === VIP_GROUP_KEY));
-    return { groups: list, members: must(members) as Pick<Profile, 'id' | 'display_name' | 'role' | 'avatar_url'>[],
-      phoneGroups: new Set(((privacy.data as { phone_groups?: string[] } | null)?.phone_groups) ?? []),
-      invitations: (invitations.data ?? []) as Invitation[] };
-  }, []);
+    const mine = new Set(groups.map((g) => g.id));
+    return { groups, invitations: (invitations.data ?? []) as Invitation[],
+      others: ((others.data ?? []) as OtherGroup[]).filter((g) => !mine.has(g.id)) };
+  }, [siteAdmin]);
+  // Nouveau message, groupe rejoint ou quitté, nom ou couleur changés : la liste suit sans recharger.
+  useRealtime('groups-list', [{ table: 'group_messages' }, { table: 'member_group_members', filter: `user_id=eq.${me.id}` }], reload);
+  useSignal([`user:${me.id}`], reload);
 
-  async function run(p: PromiseLike<{ error: { message: string } | null }>) {
+  async function answer(inv: Invitation, accept: boolean) {
     setBusy(true);
-    const { error } = await p;
-    setError(error ? (error.message.includes('duplicate') ? 'Déjà dans le groupe.' : 'La modification n’a pas été enregistrée. Réessaie.') : null);
-    await reload();
+    const { error: failed } = await supabase.rpc('answer_group_invitation', { inv: inv.id, accept });
     setBusy(false);
-    return !error;
-  }
-
-  const people = new Map((data?.members ?? []).map((m) => [m.id, m]));
-
-  async function sharePhone(group: string, visible: boolean) {
-    await run(supabase.rpc('set_group_phone_share', { grp: group, visible }));
-  }
-
-  async function answer(inv: string, accept: boolean) {
-    await run(supabase.rpc('answer_group_invitation', { inv, accept }));
-  }
-
-  /** Inviter par surnom (compte existant) ou par numéro (inscrit ou pas : l'invitation l'attend). */
-  async function invite(group: string) {
-    const typed = guest.trim();
-    if (!typed) return;
-    const digits = typed.replace(/\D/g, '');
-    const byPhone = /^[+0-9][0-9 .()-]{6,}$/.test(typed) && digits.length >= 8;
-    const member = byPhone ? null : data?.members.find((m) => m.display_name.toLowerCase() === typed.toLowerCase().replace(/^@/, ''));
-    if (!byPhone && !member) return setError('Personne avec ce surnom. Essaie son numéro de téléphone.');
-    const phone = byPhone ? (digits.startsWith('0') && digits.length === 10 ? `41${digits.slice(1)}` : digits) : null;
-    setBusy(true);
-    const { data: res, error } = await supabase.rpc('invite_to_group', { grp: group, member: member?.id ?? null, phone });
-    setBusy(false);
-    if (error) return setError(error.message.replace(/^\w+: /, ''));
+    if (failed) return setError('La réponse n’a pas été enregistrée. Réessaie.');
     setError(null);
-    setGuest('');
-    setInvited((res as { invited: string }).invited === 'member'
-      ? `${member?.display_name ?? 'La personne'} a reçu ton invitation (Réglages → Groupes).`
-      : 'Invitation gardée pour ce numéro : elle l’attendra dès son inscription.');
+    if (accept) router.push(`/group/${inv.group_id}`);
+    else void reload();
   }
 
-  async function inviteMember(group: string, m: { id: string; display_name: string }) {
-    setBusy(true);
-    const { error } = await supabase.rpc('invite_to_group', { grp: group, member: m.id, phone: null });
-    setBusy(false);
-    if (error) return setError(error.message.replace(/^\w+: /, ''));
-    setError(null);
-    setInvited(`${m.display_name} a reçu ton invitation : il entre dans le groupe dès qu’il accepte (Réglages → Groupes).`);
-  }
-
-  // Mes groupes : créés par moi ou dont je fais partie (Vendredi Party seulement si j'en suis). La base ne renvoie
-  // les autres qu'aux Admins du site : ils vont dans « Tous les groupes (admin) ».
-  const isMine = (g: MemberGroup) => g.created_by === me.id || g.member_group_members.some((m) => m.user_id === me.id);
-  const mine = (data?.groups ?? []).filter(isMine);
-  const others = siteAdmin ? (data?.groups ?? []).filter((g) => !isMine(g)) : [];
-  // « Gérer le groupe » vers un groupe d'un autre : la section admin s'ouvre d'elle-même.
-  const allOpen = showAll || others.some((g) => g.id === open);
-
-  /** Une carte de groupe ; editable : « Modifier » (créateur dans Mes groupes, Admin du site dans Tous les groupes). */
-  function groupCard(g: MemberGroup, editable: boolean) {
-    const system = g.system_key === VIP_GROUP_KEY;
-    const canEdit = editable && !system;
-    const inside = new Set(g.member_group_members.map((m) => m.user_id));
-    const expanded = open === g.id;
-    return (
-      <Card key={g.id}>
-        <View style={[s.row, { justifyContent: 'space-between' }]}>
-          <View style={{ flex: 1 }}>
-            <T weight="bold">{g.name}</T>
-            <T muted size={13} numberOfLines={expanded ? undefined : 1}>
-              {inside.size ? [...inside].map((id) => personText(id, people.get(id)?.display_name ?? '?')).join(', ') : 'Personne pour l’instant'}
-            </T>
-          </View>
-          {canEdit ? (
-            // Comme « + Inviter » d'un événement : le mot est écrit, « + » seul ne disait pas quoi faire.
-            <Pressable accessibilityRole="button" accessibilityLabel={`Ajouter au groupe ${g.name}`} onPress={() => setAdding(g.id)}
-              style={({ pressed }) => [{ minHeight: 40, paddingHorizontal: 14, borderRadius: 20, backgroundColor: colors.action, alignItems: 'center', justifyContent: 'center' },
-                pressTransition, pressed && { transform: [{ scale: 0.92 }] }]}>
-              <T size={15} weight="bold" color={colors.onAction}>+ Ajouter</T>
-            </Pressable>
-          ) : null}
-          {canEdit ? <Button small variant="secondary" label={expanded ? 'Fermer' : 'Modifier'} onPress={() => setOpen(expanded ? null : g.id)} /> : null}
-        </View>
-        {canEdit && g.created_by === me.id ? <GroupQuickInvite id={g.id} name={g.name} /> : null}
-        {inside.size ? (
-          <View style={s.wrap} accessibilityLabel="Membres du groupe : touche une photo pour voir le profil">
-            {[...inside].map((id) => {
-              const m = people.get(id);
-              return m ? <Avatar key={id} id={id} name={m.display_name} photo={m.avatar_url} size={34} /> : null;
-            })}
-          </View>
-        ) : null}
-        {inside.has(me.id) ? (
-          <ToggleRow
-            label="Montrer mon numéro dans ce groupe"
-            hint="Les membres de ce groupe le voient sur ta fiche profil. Caché par défaut."
-            value={!!data?.phoneGroups.has(g.id)}
-            disabled={busy}
-            onChange={(v) => void sharePhone(g.id, v)}
-          />
-        ) : null}
-        {inside.has(me.id) && !system && g.created_by !== me.id ? (
-          // Quitter soi-même (recette du 10.11) : la base le permet (politique « quitter le groupe »), jamais Vendredi Party.
-          <ConfirmButton small label="Quitter le groupe" confirmLabel="Confirmer : quitter le groupe"
-            onConfirm={() => run(supabase.from('member_group_members').delete().eq('group_id', g.id).eq('user_id', me.id).select('user_id').single())} />
-        ) : null}
-        {system ? <T muted size={13}>Tous les Membres VIP et au-dessus, tenu à jour tout seul : passer quelqu’un Membre VIP l’ajoute, le remettre Guest le retire (Administration → Membres).</T> : null}
-        {/* Réglages des événements du groupe (06.11) : son créateur ; Vendredi Party : les Co-admins et plus. */}
-        {(system && rank >= roleRank('coadmin')) || (expanded && canEdit) ? (
-          <GroupEventRules groupId={g.id} needApproval={!!g.events_need_approval} mode={g.announce_mode ?? 'request'} system={system}
-            onSaved={() => void reload()} />
-        ) : null}
-        {expanded && canEdit ? (
-          <>
-            <View style={s.wrap}>
-              {(data?.members ?? []).map((m) => (
-                <Chip
-                  key={m.id}
-                  label={belowVip(m.role) && m.role !== 'basic' ? `${personText(m.id, m.display_name)} · ${roleName(m.role)}` : personText(m.id, m.display_name)}
-                  selected={inside.has(m.id)}
-                  disabled={busy}
-                  onPress={() => inside.has(m.id)
-                    ? run(supabase.from('member_group_members').delete().eq('group_id', g.id).eq('user_id', m.id))
-                    : m.id === me.id
-                      ? run(supabase.from('member_group_members').insert({ group_id: g.id, user_id: m.id }))
-                      // Quelqu'un d'autre : une invitation qu'il accepte (Réglages › Groupes), jamais un ajout d'office
-                      // sans le prévenir (recette du 10.11). Il est prévenu (notification « invitation dans un groupe »).
-                      : void inviteMember(g.id, m)}
-                />
-              ))}
-            </View>
-            <View style={s.row}>
-              <Input accessibilityLabel="Inviter par surnom ou numéro" placeholder="Inviter : surnom ou numéro" value={guest}
-                onChangeText={(v) => { setGuest(v); setInvited(null); }} style={{ flex: 1 }} onSubmitEditing={() => void invite(g.id)} />
-              <Button small label="Inviter" disabled={!guest.trim() || busy} onPress={() => void invite(g.id)} />
-            </View>
-            {invited ? <T muted size={13}>{invited}</T> : null}
-            <InviteLinkCard kind="group" id={g.id} />
-            <ConfirmButton small label="Supprimer le groupe" confirmLabel="Confirmer la suppression" onConfirm={() => run(supabase.from('member_groups').delete().eq('id', g.id))} />
-            <T muted size={13}>Les invités qui ont déjà répondu gardent l’accès à leurs événements.</T>
-          </>
-        ) : null}
-      </Card>
-    );
-  }
-
-  const addingGroup = (data?.groups ?? []).find((g) => g.id === adding);
+  const q = search.trim().toLocaleLowerCase('fr');
+  const groups = (data?.groups ?? []).filter((g) => !q || groupName(g).toLocaleLowerCase('fr').includes(q));
+  const own = (data?.groups ?? []).filter((g) => !g.system);
 
   return (
-    <Screen edges={[]}>
-      <T muted>Un groupe sert à inviter plusieurs personnes d’un coup à un événement (Guests compris). Quelqu’un qui rejoint le groupe plus tard est aussi invité aux événements à venir.</T>
+    <Screen edges={['top']}>
+      <View style={st.head}>
+        {/* Pas d'en-tête : grand titre comme la maquette ; ‹ quand on vient d'un autre écran (Réglages, Événements). */}
+        {router.canGoBack() ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Retour" onPress={() => router.back()}
+            style={({ pressed }) => [st.back, pressTransition, pressed && st.pressed]}>
+            <Icon paths={BACK} />
+          </Pressable>
+        ) : null}
+        <Title level={1} size={34} style={{ flex: 1 }}>Groupes</Title>
+        <Pressable accessibilityRole="button" accessibilityLabel={searchOpen ? 'Fermer la recherche' : 'Chercher un groupe'}
+          onPress={() => { setSearch(''); setSearchOpen(!searchOpen); }}
+          style={({ pressed }) => [st.round, searchOpen && st.roundOn, pressTransition, pressed && st.pressed]}>
+          <Icon paths={searchOpen ? CLOSE : SEARCH} />
+        </Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Nouveau groupe" testID="groups-new" onPress={() => router.push('/group/new')}
+          style={({ pressed }) => [st.round, st.roundAccent, pressTransition, pressed && st.pressed]}>
+          <Icon paths={PLUS} />
+        </Pressable>
+      </View>
+      {searchOpen ? (
+        <View style={enter('drop')}>
+          <Input accessibilityLabel="Chercher un groupe" placeholder="Chercher un groupe…" value={search} onChangeText={setSearch} autoFocus />
+        </View>
+      ) : null}
       <ErrorText error={error ?? loadError} />
 
       {data?.invitations.length ? (
-        <Section title="Invitations reçues">
-          {data.invitations.map((i) => (
-            <Card key={i.id}>
-              <T weight="bold">{i.group}</T>
-              <T muted size={13}>{i.invited_by ?? 'Quelqu’un'} t’invite dans ce groupe</T>
-              <View style={s.row}>
-                <Button small label="Accepter" style={{ flex: 1 }} disabled={busy} onPress={() => void answer(i.id, true)} />
-                <Button small variant="secondary" label="Refuser" style={{ flex: 1 }} disabled={busy} onPress={() => void answer(i.id, false)} />
+        <View style={{ gap: 10 }}>
+          <T size={13} weight="bold" color={colors.muted} style={st.label}>INVITATIONS REÇUES</T>
+          {data.invitations.map((i, n) => (
+            <Reveal key={i.id} index={n} style={st.invite}>
+              <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+                <GroupTile group={{ emoji: i.emoji ?? '👯', color: i.color ?? 'pink' }} size={46} />
+                <View style={{ flex: 1 }}>
+                  <T weight="bold" size={16}>{i.group}</T>
+                  <T muted size={13}>{i.invited_by ?? 'Quelqu’un'} t’invite dans ce groupe</T>
+                </View>
               </View>
-            </Card>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <Button small label="Rejoindre" style={{ flex: 1 }} disabled={busy} onPress={() => void answer(i, true)} />
+                <Button small variant="secondary" label="Refuser" style={{ flex: 1 }} disabled={busy} onPress={() => void answer(i, false)} />
+              </View>
+            </Reveal>
           ))}
-        </Section>
+        </View>
       ) : null}
 
-      <Section title="Nouveau groupe">
-        <NewGroupForm onCreated={(id) => { setOpen(id); void reload(); }} />
-      </Section>
+      {!data && !loadError ? (
+        <View style={{ gap: 10 }} accessibilityRole="progressbar" accessibilityLabel="Chargement des groupes…">
+          <Skeleton height={190} radius={24} />
+          {[0, 1, 2].map((i) => <Skeleton key={i} height={92} radius={radius.lg} style={{ opacity: 1 - i * 0.25 }} />)}
+        </View>
+      ) : null}
 
-      <Section title="Mes groupes">
-        {data && !mine.length ? <T muted>Tu ne fais partie d’aucun groupe pour l’instant.</T> : null}
-        {mine.map((g) => groupCard(g, g.created_by === me.id))}
-      </Section>
+      {data && !own.length && !q ? <EmptyGroups /> : null}
+      {data && own.length && !q ? <CreateGroupHero /> : null}
 
-      {siteAdmin && others.length ? (
-        <Section title="Tous les groupes (admin)">
+      {data && groups.length && (own.length || q) ? (
+        <View style={{ gap: 10 }}>
+          <T size={13} weight="bold" color={colors.muted} style={st.label}>TES GROUPES · {groups.length}</T>
+          {groups.map((g, i) => <GroupRow key={g.id} group={g} index={i} />)}
+        </View>
+      ) : null}
+      {data && !own.length && !q && groups.length ? (
+        <View style={{ gap: 10 }}>
+          <T size={13} weight="bold" color={colors.muted} style={st.label}>TA COMMUNAUTÉ</T>
+          {groups.map((g, i) => <GroupRow key={g.id} group={g} index={i} />)}
+        </View>
+      ) : null}
+      {data && q && !groups.length ? <T muted style={{ textAlign: 'center', padding: 16 }}>Aucun groupe ne s’appelle comme ça.</T> : null}
+
+      {siteAdmin && data?.others.length ? (
+        <View style={{ gap: 10, marginTop: 8 }}>
+          <T size={13} weight="bold" color={colors.muted} style={st.label}>TOUS LES GROUPES (ADMIN)</T>
           <Button small variant="secondary"
-            label={allOpen ? 'Masquer les autres groupes' : `Voir les ${others.length} autres groupe${others.length > 1 ? 's' : ''}`}
-            onPress={() => setShowAll(!allOpen)} />
-          {allOpen ? <T muted size={13}>Groupes dont tu ne fais pas partie : visibles par les Admins seulement.</T> : null}
-          {allOpen ? others.map((g) => groupCard(g, true)) : null}
-        </Section>
-      ) : null}
-
-      {addingGroup ? (
-        <GroupAddSheet visible group={addingGroup} me={me} people={data?.members ?? []}
-          inside={new Set(addingGroup.member_group_members.map((m) => m.user_id))}
-          onClose={() => setAdding(null)} onDone={() => void reload()} />
+            label={showAll ? 'Masquer les autres groupes' : `Voir les ${data.others.length} autres groupe${data.others.length > 1 ? 's' : ''}`}
+            onPress={() => setShowAll(!showAll)} />
+          {showAll ? <T muted size={13}>Groupes dont tu ne fais pas partie : visibles par les Admins seulement.</T> : null}
+          {showAll ? data.others.map((g, i) => (
+            <Reveal key={g.id} index={i}>
+              <Pressable accessibilityRole="link" accessibilityLabel={`Groupe ${groupName(g)} (admin)`} onPress={() => router.push(`/group/${g.id}`)}
+                style={({ pressed }) => [st.other, transition('background-color', duration.fast), pressed && { backgroundColor: colors.surface2 }]}>
+                <GroupTile group={g} size={40} />
+                <View style={{ flex: 1 }}>
+                  <T weight="bold">{groupName(g)}</T>
+                  <T muted size={13}>{g.member_group_members.length} membre{g.member_group_members.length > 1 ? 's' : ''}</T>
+                </View>
+                <T muted size={20}>›</T>
+              </Pressable>
+            </Reveal>
+          )) : null}
+        </View>
       ) : null}
     </Screen>
   );
 }
+
+const st = StyleSheet.create({
+  head: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 52 },
+  round: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: 'transparent' },
+  roundOn: { backgroundColor: colors.surface2, borderColor: colors.accent },
+  roundAccent: { backgroundColor: colors.action, shadowColor: colors.action, shadowOpacity: 0.45, shadowRadius: 14, shadowOffset: { width: 0, height: 5 } },
+  pressed: { opacity: 0.8, transform: [{ scale: 0.94 }] },
+  back: { width: 36, height: 44, marginLeft: -8, alignItems: 'center', justifyContent: 'center' },
+  label: { letterSpacing: 0.8 },
+  invite: { gap: 12, padding: 14, borderRadius: radius.lg, backgroundColor: colors.accentDim, borderWidth: 1, borderColor: '#5A2346' },
+  other: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: radius.lg, backgroundColor: colors.surface,
+    borderWidth: 1, borderColor: colors.line },
+});

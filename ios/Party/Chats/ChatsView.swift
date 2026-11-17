@@ -7,6 +7,7 @@ struct ChatsView: View {
 
     @State private var path: [String] = []
     @State private var creating = false
+    @Environment(\.openGroupPage) private var openGroupPage
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -22,7 +23,11 @@ struct ChatsView: View {
                     // Couper les notifications de toutes les Discussions : 30 min, 1 h, 2 h ou jusqu'à 8 h.
                     ToolbarItem(placement: .navigationBarLeading) { ChatsPauseButton(store: store.pause) }
                     ToolbarItem(placement: .navigationBarTrailing) {
-                        Button { creating = true } label: { Image(systemName: "square.and.pencil") }
+                        // Nouveau groupe (17.11) : la création en 2 étapes du module Événements (nom, emoji, couleur,
+                        // puis Inviter) ; hors de l'app (aperçus), l'ancien champ.
+                        Button { if let openGroupPage { openGroupPage.open("new") } else { creating = true } } label: {
+                            Image(systemName: "square.and.pencil")
+                        }
                             .accessibilityLabel("Nouveau groupe")
                             .accessibilityIdentifier("chats-new-group")
                     }
@@ -152,8 +157,12 @@ private struct ChatRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Initials(name: chat.direct ? contacts.label(for: chat.userID, pseudo: chat.name).primary : chat.name,
-                     photo: chat.direct ? chat.photo : nil, size: 48)
+            if chat.direct || chat.emoji == nil {
+                Initials(name: chat.direct ? contacts.label(for: chat.userID, pseudo: chat.name).primary : chat.name,
+                         photo: chat.direct ? chat.photo : nil, size: 48)
+            } else {
+                GroupTile(emoji: chat.emoji ?? "👯", color: chat.color, size: 48)
+            }
             VStack(alignment: .leading, spacing: 3) {
                 HStack {
                     Text(title).font(.body.weight(.semibold)).lineLimit(1)
