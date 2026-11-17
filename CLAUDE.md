@@ -408,8 +408,12 @@ réglage de prod :
 - Liens publics (`private.agenda_links`, jeton 144 bits, 10 au plus, PERMANENTS par défaut ou 90 jours (`expires_at` null =
   permanent, migration 20261117150000), arrêter / rallumer à la même adresse, vues
   pour le propriétaire seul) ; page `GET /d/<jeton>` rendue par le serveur (app/agenda.py) : vouvoiement, polices système,
-  aucune ressource externe (CSP nonce), noindex / no-referrer, même 404 neutre pour inconnu / arrêté / expiré, rien le jour
-  même (dès demain, ≥ 12 h), 60 jours au plus. Toute adresse depuis PARTY_PUBLIC_URL, jamais un domaine en dur.
+  aucune ressource externe (CSP nonce), noindex / no-referrer, même 404 neutre pour inconnu / arrêté / expiré, délai minimum
+  choisi par lien (`min_notice_min` : sur le moment, 30 min, 1 h, 2 h, 8 h, 12 h par défaut, 24 h, 48 h, 7 jours ; sous 24 h le jour
+  même devient possible ; `agenda_link_set_notice`), 60 jours au plus. Plusieurs durées par lien (`agenda_links.durations`,
+  15 min à 4 h, 6 au plus, `agenda_link_set_durations` ; la plus courte = `duration_min`) : la personne qui réserve choisit
+  (« Durée » sur la page, `slots_by`, `duration` de `agenda_booking_request`, refusée si le lien ne la propose pas ; migration
+  20261117200000). Toute adresse depuis PARTY_PUBLIC_URL, jamais un domaine en dur.
 - Demandes de rendez-vous (option du lien, éteinte par défaut) : créneau réservé 48 h, 5 en attente par lien, 1 par e-mail /
   téléphone, 3 / h par IP hachée (24 h), 20 / jour par lien, champ piège + 3 s de saisie, filtre (lien refusé dans le
   message, motif dit à l'inconnu), Accepter / Refuser / Signaler (`content_reports` : `booking_request`, `agenda_link`) /

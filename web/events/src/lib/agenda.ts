@@ -163,6 +163,12 @@ export function hText(d: Date): string {
 export function spanText(a: Date, b: Date): string {
   return `${hText(a)} – ${hText(b)}`;
 }
+/** Délai minimum avant un rendez-vous : « Sur le moment », « 30 min », « 2 h », « 24 h », « 7 jours ». */
+export function noticeText(minutes: number): string {
+  if (!minutes) return 'Sur le moment';
+  if (minutes >= 2880 && minutes % 1440 === 0) return `${minutes / 1440} jours`;
+  return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h${minutes % 60 ? ` ${pad(minutes % 60)}` : ''}`;
+}
 /** Durée « 1 h », « 1 h 30 », « 45 min ». */
 export function durationText(minutes: number): string {
   if (minutes < 60) return `${minutes} min`;
@@ -499,7 +505,12 @@ export type BookingFields = { first_name: FieldMode; last_name: FieldMode; email
 export type Rule = { days: number[]; from: string; to: string };
 export type Link = {
   id: string; token: string; path: string; name: string; emoji: string | null; display_name: string | null; rules: Rule[];
-  horizon_days: number; duration_min: number; booking_enabled: boolean; booking_fields: BookingFields; message_label: string | null;
+  horizon_days: number; duration_min: number;
+  /** Durées proposées (la personne qui réserve choisit) ; absent = la seule duration_min (liens d'avant). */
+  durations?: number[];
+  /** Délai minimum avant un rendez-vous, en minutes (0 = sur le moment ; 720 par défaut). */
+  min_notice_min?: number;
+  booking_enabled: boolean; booking_fields: BookingFields; message_label: string | null;
   status: 'active' | 'stopped' | 'expired'; expires_at: string | null; stopped_at: string | null; views: number; last_viewed_at: string | null;
   pending: number; created_at: string;
   /** Calendriers qui rendent occupé pour ce lien (id Party / agenda .ics, « ios:<id> ») ; null = tout (liens d'avant). */

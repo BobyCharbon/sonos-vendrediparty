@@ -159,6 +159,9 @@ button,input,textarea,select{font:inherit;color:inherit}a{color:var(--acc)}
 .ib:disabled{opacity:.35;cursor:default}
 .wk{margin:0;display:flex;flex-direction:column;line-height:1.2;min-width:170px;text-align:center}
 .wk b{font-size:17px}.wk span{font-size:13px;color:var(--mut)}
+.dc{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:4px 0 14px}.dcl{font-size:14px;color:var(--mut);margin-right:4px}
+.dc button{min-height:44px;padding:0 16px;border-radius:22px;border:1px solid var(--line);background:var(--bg);cursor:pointer;font-size:15px;font-weight:550;color:var(--fg)}
+.dc button[aria-pressed="true"]{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:650}
 .zb{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:var(--bg);cursor:pointer;font-size:14px}
 .zb u{color:var(--acc);font-weight:600;text-underline-offset:3px}
 .strip{display:grid;grid-template-columns:repeat(var(--n),1fr);gap:6px;margin:14px 0 4px}
@@ -253,6 +256,7 @@ var D=JSON.parse(document.getElementById('agenda-data').textContent);
 var TZ0=D.tz,tz=TZ0,dev=(Intl.DateTimeFormat().resolvedOptions().timeZone||TZ0);
 var booking=!!(D.booking&&!D.booking.full);
 var slots=D.slots.map(function(x){return [new Date(x[0]),new Date(x[1])];});
+var chosenDur=(D.durations&&D.durations.length)?D.durations[0]:null;
 var M=['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
 var MS=['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
 var W=['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
@@ -339,6 +343,11 @@ document.querySelectorAll('[data-view]').forEach(function(b){b.addEventListener(
 document.getElementById('prev').addEventListener('click',function(){if(wi>0){wi--;sel=null;render();}});
 document.getElementById('next').addEventListener('click',function(){if(wi<weeks.length-1){wi++;sel=null;render();}});
 build();wi=Math.max(0,weeks.findIndex(function(w){return w.d.some(function(k){return days[k].s.length;});}));render();
+// Durée : la personne qui réserve choisit ; les créneaux de cette durée remplacent les autres.
+document.querySelectorAll('[data-dur]').forEach(function(b){b.addEventListener('click',function(){var d=+b.dataset.dur,src=(D.slots_by||{})[String(d)];
+ if(!src||d===chosenDur)return;chosenDur=d;document.querySelectorAll('[data-dur]').forEach(function(x){x.setAttribute('aria-pressed',String(x===b));});
+ slots=src.map(function(x){return [new Date(x[0]),new Date(x[1])];});build();
+ wi=Math.max(0,weeks.findIndex(function(w){return w.d.some(function(k){return days[k].s.length;});}));sel=null;render();});});
 // Fuseau : seul l'affichage change.
 var zd=document.getElementById('tzd');document.getElementById('zbtn').addEventListener('click',function(){var ul=document.getElementById('tzl');ul.innerHTML='';
  var zs=[TZ0];if(dev!==TZ0)zs.push(dev);['Europe/Paris','Europe/London','America/Montreal','America/New_York','Africa/Dakar'].forEach(function(z){if(zs.indexOf(z)<0)zs.push(z);});
@@ -357,7 +366,7 @@ function showErr(field,title,text){var where=field&&form.querySelector('[data-fi
 if(form)form.addEventListener('submit',function(ev){ev.preventDefault();clearErr();if(!chosen)return;var btn=form.querySelector('[type=submit]');btn.disabled=true;
  var a={};form.querySelectorAll('[data-answer]').forEach(function(i){a[i.name]=i.value;});
  fetch(location.pathname.replace(/\/$/,'')+'/demande',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'omit',
-  body:JSON.stringify({starts_at:chosen[0].toISOString(),answers:a,site:form.querySelector('[name=site]').value,elapsed:Math.round((Date.now()-opened)/1000)})})
+  body:JSON.stringify({starts_at:chosen[0].toISOString(),duration:chosenDur,answers:a,site:form.querySelector('[name=site]').value,elapsed:Math.round((Date.now()-opened)/1000)})})
  .then(function(r){return r.json().then(function(j){return [r.status,j];});}).then(function(x){if(x[0]===200&&x[1].url){location.assign(x[1].url);return;}btn.disabled=false;var j=x[1]||{};
   showErr(j.field,j.title||null,j.message||'La demande n’est pas partie. Réessayez dans un instant.');
   if(j.code==='slot_taken'||j.code==='full'){var r=el('button','btn ghost','Voir les créneaux à jour');r.type='button';r.addEventListener('click',function(){location.reload();});form.querySelector('.actions').before(r);}})
@@ -464,8 +473,16 @@ def link_page(data: dict, path: str, base: str, nonce: str) -> str:
     name, booking = data["name"], data.get("booking")
     over = "Prendre rendez-vous avec" if booking else "Disponibilités de"
     title = f"{over} {name}"
-    h, m = divmod(int(data["duration_min"]), 60)
-    dur = (f"{h} h" if h else "") + (f" {m:02d}" if h and m else f"{m} min" if m else "")
+    def minutes(n: int) -> str:
+        h, m = divmod(int(n), 60)
+        return (f"{h} h" if h else "") + (f" {m:02d}" if h and m else f"{m} min" if m else "")
+    durations = [int(d) for d in (data.get("durations") or [data["duration_min"]])]
+    dur = minutes(durations[0]) if len(durations) == 1 else ", ".join(minutes(d) for d in durations[:-1]) + " ou " + minutes(durations[-1])
+    # Plusieurs durées : la personne qui réserve choisit (créneaux de chaque durée dans slots_by).
+    chooser = ("" if not booking or len(durations) < 2 else
+               '<div class="dc" role="group" aria-label="Durée du rendez-vous"><span class="dcl">Durée</span>'
+               + "".join(f'<button type="button" data-dur="{d}" aria-pressed="{str(i == 0).lower()}">{esc(minutes(d))}</button>'
+                         for i, d in enumerate(durations)) + '</div>')
     meta = _og(f"{'Prendre rendez-vous' if booking else 'Disponibilités'}", f"{name} — {data['link_name']}",
                f"{base}{path}/apercu.png")
     form = ""
@@ -499,7 +516,8 @@ def link_page(data: dict, path: str, base: str, nonce: str) -> str:
     tz = ('<dialog id="tzd" aria-labelledby="tzt"><div class="dl"><div class="dh"><h2 id="tzt">Afficher les heures de…</h2>'
           '<button type="button" class="x" data-close aria-label="Fermer">✕</button></div><ul class="zl" id="tzl" role="menu"></ul>'
           f'<p class="fine">Seul votre affichage change. {esc(name)} n’en sait rien.</p></div></dialog>')
-    payload = json.dumps({k: data[k] for k in ("name", "tz", "rules", "from", "to", "slots", "booking")}, ensure_ascii=False)
+    payload = json.dumps({**{k: data[k] for k in ("name", "tz", "rules", "from", "to", "slots", "booking")},
+                          "durations": durations, "slots_by": data.get("slots_by") or {}}, ensure_ascii=False)
     body = (f'<main class="pg"><header class="top"><div class="hd"><div class="av" aria-hidden="true">{esc(name[:1].upper())}</div>'
             f'<div><p class="ov">{over}</p><h1 class="nm">{esc(name)}</h1><p class="ln">{esc(data["link_name"])}'
             + (f' <span class="du">{esc(dur)}</span>' if booking else "") + '</p></div></div>'
@@ -509,7 +527,7 @@ def link_page(data: dict, path: str, base: str, nonce: str) -> str:
             f'<p class="wk" aria-live="polite"><b id="wkl"></b><span>{esc(rules_text(data["rules"]))}</span></p>'
             f'<button type="button" class="ib" id="next" aria-label="Semaine suivante">›</button></div>'
             f'<button type="button" class="zb" id="zbtn"><span id="zl">Heure de Zurich</span> <u>Changer</u></button></div>'
-            f'{full}<div id="cal"><noscript>{noscript_list(data)}</noscript></div>{tail}{_footer(True)}</main>'
+            f'{full}{chooser}<div id="cal"><noscript>{noscript_list(data)}</noscript></div>{tail}{_footer(True)}</main>'
             f'{form}{report}{tz}'
             f'<script type="application/json" id="agenda-data">{payload.replace("<", chr(92) + "u003c")}</script>')
     return _shell(title, body, nonce, meta, PAGE_JS)
@@ -613,6 +631,7 @@ class BookingBody(BaseModel):
     answers: dict[str, str] = Field(default_factory=dict)
     site: str = Field(default="", max_length=200)       # champ piège : un humain ne le voit pas
     elapsed: int = Field(default=0, ge=0, le=86400)     # secondes passées sur la page avant l'envoi
+    duration: int | None = Field(default=None, ge=15, le=240)  # durée choisie par la personne (une de celles du lien)
 
 
 class ReportBody(BaseModel):
@@ -761,7 +780,8 @@ def agenda_router(accounts: Accounts, public_url: Callable[[], str], client_ip: 
             return fail("invalid", "La demande n’est pas partie. Prenez le temps de remplir le formulaire, puis réessayez.", 400)
         status, data = db.call("agenda_booking_request", {
             "t": token, "starts_at": body.starts_at, "ip": client_ip(request) or None,
-            "answers": {k: v for k, v in body.answers.items() if k in FIELD_LABELS}})
+            "answers": {k: v for k, v in body.answers.items() if k in FIELD_LABELS},
+            **({"duration": body.duration} if body.duration else {})})
         if status == 200 and isinstance(data, dict) and data.get("secret"):
             return JSONResponse({"ok": True, "url": f"/d/r/{data['secret']}", "status": data["status"]}, headers=plain_headers())
         code, text = refusal(data)

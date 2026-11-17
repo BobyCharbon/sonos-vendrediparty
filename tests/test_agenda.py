@@ -92,6 +92,11 @@ def test_a_request_needs_a_human_and_the_trap_field_empty(db, client):
     assert r.json() == {"ok": True, "url": f"/d/r/{SECRET}", "status": "pending"}
     sent = calls[-1][1]
     assert sent["t"] == TOKEN and sent["ip"] and set(sent["answers"]) == {"first_name", "email"}
+    assert "duration" not in sent  # ancienne page : la durée par défaut du lien
+    # Plusieurs durées (17.11) : la durée choisie par la personne part avec la demande ; hors bornes : refusée ici.
+    client.post(f"/d/{TOKEN}/demande", json={**body, "elapsed": 9, "duration": 90})
+    assert calls[-1][1]["duration"] == 90
+    assert client.post(f"/d/{TOKEN}/demande", json={**body, "elapsed": 9, "duration": 5}).status_code == 422
 
 
 def test_a_filtered_text_says_why_what_did_not_leave_and_whom_to_ask(db, client):

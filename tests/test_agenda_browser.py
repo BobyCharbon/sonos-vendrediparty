@@ -130,6 +130,13 @@ def agenda_services(page, links=None, pending=1, welcome_seen=False):
         elif name == 'agenda_handle_set':
             state['handle'] = body['handle'] or None
             result = {'handle': state['handle']}
+        elif name in ('agenda_link_set_durations', 'agenda_link_set_notice'):
+            row = state['links'][0]
+            if 'durations' in body:
+                row['durations'], row['duration_min'] = body['durations'], body['durations'][0]
+            else:
+                row['min_notice_min'] = body['minutes']
+            result = row
         elif name == 'agenda_link_set_slug':
             row = state['links'][0]
             row['slug'] = body['slug']
@@ -325,6 +332,12 @@ def test_links_empty_state_model_explainer_settings_and_preview(phone, events_or
     page.get_by_role('switch', name='Demandes de rendez-vous').click()
     pw.expect(page.get_by_role('radio', name='Prénom : Obligatoire')).to_have_attribute('aria-checked', 'true')
     page.get_by_role('radio', name='Téléphone : Facultatif').click()
+    # Plusieurs durées (17.11) : 1 h au départ, on ajoute 30 min ; la personne qui réserve choisit. Délai : 2 h avant.
+    durations = page.get_by_test_id('link-durations')
+    durations.get_by_role('button', name='30 min', exact=True).click()
+    pw.expect(page.get_by_text('La personne qui réserve choisit : 30 min, 1 h', exact=False)).to_be_visible()
+    page.get_by_test_id('link-notice').get_by_role('button', name='2 h avant', exact=True).click()
+    pw.expect(page.get_by_text('moins de 2 h', exact=False)).to_be_visible()
     shot(page, 'agenda-14-lien-reglage.png')
     # Ce qui rend occupé (17.11) : tout coché au départ ; on retire « Juste pour moi ». Permanent par défaut.
     party_cal, personal_cal = page.get_by_test_id('link-cal-party'), page.get_by_test_id('link-cal-personal')
@@ -354,6 +367,8 @@ def test_links_empty_state_model_explainer_settings_and_preview(phone, events_or
     pw.expect(page.get_by_test_id('link-address')).to_contain_text('/agenda/ludovic/general-soir', timeout=15000)
     assert rpc_calls(state, 'agenda_handle_set')[-1] == {'handle': 'ludovic'}
     assert rpc_calls(state, 'agenda_link_set_slug')[-1]['slug'] == 'general-soir'
+    assert rpc_calls(state, 'agenda_link_set_durations')[-1]['durations'] == [30, 60]
+    assert rpc_calls(state, 'agenda_link_set_notice')[-1]['minutes'] == 120
     saved = rpc_calls(state, 'agenda_link_save')[-1]['link']
     assert saved['calendars'] == [PARTY_CAL] and saved['permanent'] is True and saved['buffer_before_min'] == 30 and saved['buffer_after_min'] == 30
     assert saved['rules'] == [{'days': [1, 2, 3, 4, 5], 'from': '18:00', 'to': '23:00'}]

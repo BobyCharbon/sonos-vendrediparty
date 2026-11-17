@@ -33,8 +33,9 @@ export default function PronoScreen() {
   }, [native, id]);
   const { data, error, loading, reload } = useQuery(() => rpc<Prono>('prono_get', { id }), [id]);
   useSignal(id ? [`prono:${id}`] : [], reload);
-  const [p, setP] = useState<Prono | null>(null);
-  useEffect(() => { if (data) setP(data); }, [data]);
+  // La réponse d'une action remplace l'affichage jusqu'à la relecture suivante (temps réel, retour) : la plus récente gagne.
+  const [acted, setP] = useState<{ prono: Prono; base: Prono | null | undefined } | null>(null);
+  const p = acted && acted.base === data ? acted.prono : (data ?? acted?.prono ?? null);
   const terms = useTermsGate('Avant de jouer');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -44,7 +45,7 @@ export default function PronoScreen() {
     setBusy(true);
     setErr(null);
     try {
-      setP(await rpc<Prono>(fn, args));
+      setP({ prono: await rpc<Prono>(fn, args), base: data });
       return true;
     } catch (e) {
       if (isTerms(e) && (await terms.ensure())) return act(fn, args);

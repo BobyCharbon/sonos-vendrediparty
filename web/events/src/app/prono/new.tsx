@@ -36,7 +36,7 @@ export default function NewProno() {
   const native = nativePronos();
   useEffect(() => {
     if (native?.create) { native.create({ group: fixedGroup ?? undefined, event: fixedEvent ?? undefined }); goBack(fixedGroup ? `/group/${fixedGroup}` : fixedEvent ? `/event/${fixedEvent}` : '/'); }
-  }, [native]);
+  }, [native, fixedGroup, fixedEvent]);
   const terms = useTermsGate('Avant de lancer un prono');
   const { data, loading } = useQuery(async () => {
     const [groups, people, event] = await Promise.all([

@@ -163,3 +163,40 @@ def test_the_desktop_grid_shows_the_week_in_columns_and_a_dead_link_is_neutral(b
         assert not errors, errors
     finally:
         context.close()
+
+
+def test_the_booker_chooses_the_duration_and_gets_a_slot_of_that_length(browser, party, link):
+    """Plusieurs durées (17.11) : « Durée 30 min / 1 h / 1 h 30 » au-dessus du calendrier ; la demande part avec la durée choisie."""
+    owner, made = link
+    ok(owner.rpc('agenda_link_set_durations', id=made['id'], durations=[30, 60, 90]))
+    ok(owner.rpc('agenda_link_set_notice', id=made['id'], minutes=120))
+    sql("delete from private.agenda_ip_hits where ip_hash = private.agenda_fp('ip', '127.0.0.1')")
+    context = browser.new_context(viewport={'width': 390, 'height': 844}, locale='fr-CH', timezone_id='Europe/Zurich')
+    page = context.new_page()
+    errors = []
+    page.on('pageerror', lambda e: errors.append(str(e)))
+    try:
+        page.goto(f"{party}/d/{made['token']}")
+        pw.expect(page.get_by_text('30 min, 1 h ou 1 h 30')).to_be_visible()
+        durations = page.get_by_role('group', name='Durée du rendez-vous')
+        pw.expect(durations.get_by_role('button', name='30 min')).to_have_attribute('aria-pressed', 'true')
+        shot(page, '07-durees')
+        durations.get_by_role('button', name='1 h 30').click()
+        pw.expect(durations.get_by_role('button', name='1 h 30')).to_have_attribute('aria-pressed', 'true')
+        page.get_by_role('button', name='Voir en liste').click()
+        choice = page.locator('button.ls').first
+        choice.click()
+        pw.expect(page.locator('#ctxz')).to_contain_text('1 h 30')
+        page.get_by_label('Prénom').fill('Nina')
+        page.get_by_label('Adresse e-mail').fill('nina.durand@example.com')
+        page.wait_for_timeout(3200)
+        shot(page, '08-demande-1h30')
+        page.get_by_role('button', name='Demander ce rendez-vous').click()
+        page.wait_for_url(f'{party}/d/r/**')
+        pw.expect(page.get_by_role('heading', name='Demande envoyée')).to_be_visible()
+        row = sql(f"select extract(epoch from ends_at - starts_at)::int s from private.agenda_bookings "
+                  f"where link_id = '{made['id']}' and first_name = 'Nina'")
+        assert row and row[0]['s'] == 90 * 60
+        assert not errors, errors
+    finally:
+        context.close()

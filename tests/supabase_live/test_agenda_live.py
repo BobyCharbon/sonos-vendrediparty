@@ -409,10 +409,68 @@ def test_scheduled_erasures(bookable):
 def test_everything_goes_with_the_account_and_the_notification_has_its_switch():
     rows = sql("""select t.relname t, c.confdeltype d from pg_constraint c join pg_class t on t.oid = c.conrelid
                   where c.contype = 'f' and c.confrelid = 'public.profiles'::regclass and t.relname like 'agenda\\_%'""")
-    assert len(rows) == 9 and {r['d'] for r in rows} == {'c'}, rows
+    assert len(rows) == 10 and {r['d'] for r in rows} == {'c'}, rows  # + agenda_handles (adresse lisible, 17.11)
     assert sql("select column_default d from information_schema.columns where table_name = 'notification_prefs' "
                "and column_name = 'booking_requests'")[0]['d'] == 'true'
     defs = sql("select pg_get_functiondef('private.web_push_allowed(public.notifications)'::regprocedure) w, "
                "pg_get_functiondef('private.may_receive_push(uuid, text)'::regprocedure) m")[0]
     assert "when 'booking_request' then coalesce(prefs.booking_requests, true)" in defs['w'] and "'booking_request'" in defs['m']
     assert sql("select count(*) n from cron.job where jobname = 'agenda-tick'")[0]['n'] == 1
+
+
+def test_several_durations_the_booker_chooses_and_a_minimum_notice(bookable):
+    """Migration 20261117200000 : le lien propose plusieurs durées, la personne qui réserve choisit la sienne ; la base
+    refuse une durée que le lien ne propose pas ; le délai minimum (sur le moment … 7 jours) est choisi par lien."""
+    owner, link, _ = bookable
+    refused(owner.rpc('agenda_link_set_durations', id=link['id'], durations=[20]), 'invalid')
+    refused(owner.rpc('agenda_link_set_durations', id=link['id'], durations=[]), 'invalid')
+    saved = ok(owner.rpc('agenda_link_set_durations', id=link['id'], durations=[60, 30, 30]))
+    assert saved['durations'] == [30, 60] and saved['duration_min'] == 30
+    page = ok(anon('agenda_public_page', t=link['token'], count_view=False))
+    assert page['durations'] == [30, 60] and set(page['slots_by']) == {'30', '60'}
+    for minutes, slots in ((30, page['slots_by']['30']), (60, page['slots_by']['60'])):
+        assert slots and all(at(e) - at(s) == timedelta(minutes=minutes) for s, e in slots)
+    # Réserver une heure (la durée choisie) ; une durée non proposée est refusée.
+    hour = page['slots_by']['60'][0]
+    refused(anon('agenda_booking_request', t=link['token'], starts_at=hour[0], ip='203.0.113.21', duration=45,
+                 answers={'first_name': 'Léa', 'email': 'lea@example.com'}), 'invalid')
+    sent = ok(anon('agenda_booking_request', t=link['token'], starts_at=hour[0], ip='203.0.113.22', duration=60,
+                   answers={'first_name': 'Léa', 'email': 'lea2@example.com'}))
+    assert at(sent['ends_at']) - at(sent['starts_at']) == timedelta(hours=1)
+    # Sans durée (ancienne page) : la durée par défaut, la plus courte.
+    half = ok(anon('agenda_public_page', t=link['token'], count_view=False))['slots_by']['30'][-1]
+    plain = ok(ask(link['token'], half, 'tom@example.com', ip='203.0.113.23'))
+    assert at(plain['ends_at']) - at(plain['starts_at']) == timedelta(minutes=30)
+
+    # Délai minimum : « sur le moment » propose des créneaux dès maintenant ; 7 jours, rien avant une semaine.
+    refused(owner.rpc('agenda_link_set_notice', id=link['id'], minutes=10), 'invalid')
+    assert ok(owner.rpc('agenda_link_set_notice', id=link['id'], minutes=0))['min_notice_min'] == 0
+    now = datetime.now(timezone.utc)
+    soon = ok(anon('agenda_public_page', t=link['token'], count_view=False))
+    assert all(at(s) >= now - timedelta(minutes=1) for s, _ in soon['slots'])
+    ok(owner.rpc('agenda_link_set_notice', id=link['id'], minutes=10080))
+    week = ok(anon('agenda_public_page', t=link['token'], count_view=False))
+    assert week['slots'] and all(at(s) >= now + timedelta(days=7) for s, _ in week['slots'])
+    refused(anon('agenda_booking_request', t=link['token'], starts_at=soon['slots'][0][0], ip='203.0.113.24', duration=30,
+                 answers={'first_name': 'Zoé', 'email': 'zoe@example.com'}), 'slot_taken')
+
+
+def test_a_party_evening_answered_not_coming_never_makes_me_busy(people):
+    """Migration 20261117210000 (analyse du 17.11) : une soirée Party rend occupé ses organisateurs et ceux qui viennent,
+    mais plus personne qui a répondu « Pas présent », même s'il l'organise (la Fondue de l'admin bloquait sa soirée)."""
+    from tests.supabase_live.test_audiences_live import create_event
+    owner, _, admin = people
+    day = (datetime.now(SWISS) + timedelta(days=3)).replace(hour=12, minute=0, second=0, microsecond=0)
+    eid = create_event(admin, 'Agenda : soirée organisée', starts_at=day.isoformat(),
+                       ends_at=(day + timedelta(hours=2)).isoformat())
+    try:
+        sql(f"insert into public.event_organizers (event_id, user_id) values ('{eid}', '{owner.uid}') on conflict do nothing")
+        party = next(c['id'] for c in ok(owner.rpc('agenda_calendars_list')) if c['kind'] == 'party')
+        link = ok(owner.rpc('agenda_link_save', link=link_body(name='Soirées', calendars=[party])))
+        assert not free_at(link['token'], day + timedelta(hours=1))                  # organisateur : occupé
+        sql(f"insert into public.rsvps (event_id, user_id, status) values ('{eid}', '{owner.uid}', 'no') "
+            "on conflict (event_id, user_id) do update set status = 'no'")
+        assert free_at(link['token'], day + timedelta(hours=1))                      # « Pas présent » : libre
+    finally:
+        sql(f"delete from public.events where id = '{eid}'")
+        sql(f"delete from private.agenda_links where user_id = '{owner.uid}'")

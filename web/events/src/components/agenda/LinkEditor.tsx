@@ -6,7 +6,7 @@ import { CheckRow, Divider, FieldChoice, Group, Label, Note, StatusPill } from '
 import { useTermsGate } from '@/components/TermsSheet';
 import { Button, Chip, ConfirmButton, ErrorText, Input, Segmented, T, Toast, ToggleRow } from '@/components/ui';
 import {
-  addDays, agoText, calColor, dateShort, DEFAULT_FIELDS, durationText, errorText, FIELD_LABELS, iosKey, isProfile, isTerms, linkUrl, MODELS,
+  addDays, agoText, calColor, dateShort, DEFAULT_FIELDS, durationText, errorText, FIELD_LABELS, noticeText, iosKey, isProfile, isTerms, linkUrl, MODELS,
   nativeAgenda, rpc, rulesText, slugify, spanText, syncBusyNow, tinyDay, dayKey, WEEK_LETTERS, type BookingFields, type Calendar, type Link, type Model,
   type Links, type NativeCalendar, type Rule,
 } from '@/lib/agenda';
@@ -20,7 +20,9 @@ import { colors, font, radius } from '@/lib/theme';
 /** Demi-heures proposées ; « 24:00 » pour finir à minuit. */
 const HALF = Array.from({ length: 49 }, (_, i) => `${String(Math.floor(i / 2)).padStart(2, '0')}:${i % 2 ? '30' : '00'}`);
 const HORIZONS = [{ days: 14, label: '2 semaines' }, { days: 28, label: '4 semaines' }, { days: 60, label: '60 jours' }];
-const DURATIONS = [30, 60, 90, 120];
+const DURATIONS = [15, 30, 45, 60, 90, 120];
+/** Délai minimum avant un rendez-vous (minutes) : de « sur le moment » à 7 jours. */
+const NOTICES = [0, 30, 60, 120, 480, 720, 1440, 2880, 10080];
 const MARGINS = [0, 30, 60, 90]; // demi-heures : les plages « pris » sont arrondies à 30 min
 
 function modelOf(rules: Rule[]): Model {
@@ -110,7 +112,13 @@ export function LinkEditor({ link, model: startModel, onSaved }: { link: Link | 
   const [display, setDisplay] = useState(link?.display_name && link.display_name !== myFirst ? link.display_name : '');
   const [horizon, setHorizon] = useState(link?.horizon_days ?? 28);
   const [booking, setBooking] = useState(link?.booking_enabled ?? false);
-  const [durationMin, setDuration] = useState(link?.duration_min ?? 60);
+  // Plusieurs durées possibles : la personne qui réserve choisit ; la plus courte sert à l'aperçu.
+  const [durations, setDurations] = useState<number[]>(link?.durations?.length ? link.durations : [link?.duration_min ?? 60]);
+  const durationMin = Math.min(...durations);
+  const [notice, setNotice] = useState(link?.min_notice_min ?? 720);
+  function toggleDuration(d: number) {
+    setDurations((all) => (all.includes(d) ? (all.length > 1 ? all.filter((x) => x !== d) : all) : [...all, d].sort((a, b) => a - b)));
+  }
   const [fields, setFields] = useState<BookingFields>(link?.booking_fields ?? DEFAULT_FIELDS);
   const [label, setLabel] = useState(link?.message_label ?? '');
   const [notify, setNotify] = useState(true);
@@ -223,6 +231,14 @@ export function LinkEditor({ link, model: startModel, onSaved }: { link: Link | 
       if ((readable ? sl : null) !== (saved.slug ?? null)) {
         saved = await rpc<Link>('agenda_link_set_slug', { id: saved.id, slug: readable ? sl : null });
       }
+      // Durées proposées et délai minimum (après le lien, comme son nom).
+      const savedDurations = saved.durations?.length ? saved.durations : [saved.duration_min];
+      if (booking && savedDurations.join(',') !== durations.join(',')) {
+        saved = await rpc<Link>('agenda_link_set_durations', { id: saved.id, durations });
+      }
+      if (booking && (saved.min_notice_min ?? 720) !== notice) {
+        saved = await rpc<Link>('agenda_link_set_notice', { id: saved.id, minutes: notice });
+      }
       // Les plages des calendriers choisis partent tout de suite (sinon : à la prochaine ouverture de Party).
       await syncBusyNow();
       onSaved(saved);
@@ -328,9 +344,20 @@ export function LinkEditor({ link, model: startModel, onSaved }: { link: Link | 
         <ToggleRow label="Demandes de rendez-vous" hint="Éteint au départ. La personne choisit un créneau, tu acceptes ou refuses." value={booking} onChange={setBooking} />
         {booking ? (
           <View style={[{ gap: 10 }, enter('drop')]}>
-            <T size={12} weight="bold" color={colors.muted} style={{ letterSpacing: 0.8 }}>DURÉE D’UN RENDEZ-VOUS</T>
-            <View style={st.wrap}>{DURATIONS.map((d) => <Chip key={d} label={durationText(d)} selected={durationMin === d} onPress={() => setDuration(d)} />)}</View>
-            <Note>La page propose des créneaux de cette durée dans tes heures libres.</Note>
+            <T size={12} weight="bold" color={colors.muted} style={{ letterSpacing: 0.8 }}>DURÉES PROPOSÉES</T>
+            <View style={st.wrap} accessibilityRole="list" testID="link-durations">
+              {DURATIONS.map((d) => <Chip key={d} label={durationText(d)} selected={durations.includes(d)} onPress={() => toggleDuration(d)} />)}
+            </View>
+            <Note>{durations.length > 1
+              ? `La personne qui réserve choisit : ${durations.map(durationText).join(', ')}. La page propose des créneaux de la durée choisie dans tes heures libres.`
+              : 'Coche plusieurs durées pour laisser la personne choisir. La page propose des créneaux de cette durée dans tes heures libres.'}</Note>
+            <T size={12} weight="bold" color={colors.muted} style={{ letterSpacing: 0.8 }}>RÉSERVER AU MOINS…</T>
+            <View style={st.wrap} testID="link-notice">
+              {NOTICES.map((n) => <Chip key={n} label={n ? `${noticeText(n)} avant` : 'Sur le moment'} selected={notice === n} onPress={() => setNotice(n)} />)}
+            </View>
+            <Note>{notice
+              ? `Personne ne peut demander un créneau qui commence dans moins de ${noticeText(notice)}.`
+              : 'On peut demander un créneau qui commence tout de suite (s’il est libre).'}</Note>
             <T size={12} weight="bold" color={colors.muted} style={{ letterSpacing: 0.8 }}>CE QUE LA PERSONNE REMPLIT</T>
             <Group>
               {FIELD_LABELS.map((f, i) => (
