@@ -448,3 +448,28 @@ réglage de prod :
   `user:<id>`). Web : plages des agendas .ics cochés → `agenda_set_busy('web')` (jamais de titre). Tests :
   `tests/test_agenda_browser.py` (base simulée), `tests/supabase_live/test_agenda_web_browser_live.py` (recette réelle).
 - Avant la prod : privacy.tsx (section publique des demandes), CGU, App Privacy (e-mail), phrase EventKit, notes de revue.
+
+## Pronos entre amis (avis f071c5f46e3d, 17.11, migration 20261117180000)
+- Revue de conformité : paris AVEC argent (même payé hors de Party, TWINT, Revolut, Pot commun) = NON (Apple 5.1.1(ix),
+  5.3.4, LJAr, ANJ). Seule voie : « Pronos » POUR L'HONNEUR, des points au classement du groupe. Jamais les mots pari / mise
+  / pot / cagnotte / cote / gain à l'écran, aucun champ d'enjeu, aucun lien de paiement, Pot commun ou bar à côté, jamais
+  de pièces de Zicou, jamais de prono sur l'alcool. La base refuse montants, devises, mise, tournée, TWINT… (`private.prono_text`).
+- Tout par fonctions `prono_*` (schéma private, aucun accès direct). Réponses CACHÉES par la base (organisateur et admins
+  compris) jusqu'au dévoilement : à la fin (`reveal = 'close'`) ou avec le résultat (`'result'`) ; réponse libre : toujours
+  à la fin. Avant : on voit seulement QUI a joué. Après la 1re réponse : question et choix figés, fin déplaçable, Annuler.
+- Qui joue : un de MES groupes (jamais Membres Vendredi Party), les participants d'un événement (« Pronos de la soirée »),
+  des personnes croisées (`private.prono_known`), un lien `/prono/<jeton>` (connexion SMS, profil complet, CGU).
+  Créateur : tout membre au profil complet + CGU ; il joue aussi. Types : choix (2–8), nombre (le plus proche), libre
+  (l'organisateur coche), une personne. Points 1–10 choisis par l'organisateur ; classement par groupe, remise à zéro par qui
+  gère le groupe. L'IA ne crée jamais de prono.
+- Blocage : jamais dans le prono de l'autre ni vu ni notifié. Signaler : `prono` (report_content) et `prono_answer`
+  (`prono_report_answer`, cible « <prono>:<auteur> ») ; « Masquer » cache le prono / la réponse.
+- Notifications `prono_new`, `prono_result`, `prono_due` (pg_cron `pronos-tick`, à l'organisateur) ; interrupteur
+  `notification_prefs.pronos` ; toucher → `/?tab=events&prono=<id>` (écran natif dans l'app iPhone).
+- Web : `/pronos` (Réglages › Autres apps), `/prono/new`, `/prono/<id>`, `/group/<id>/pronos` (liste + classement),
+  `/prono-invite/<jeton>`, carte sur la fiche. iPhone : écrans NATIFS (`ios/Party/Pronos/`, relais
+  `POST /api/account/pronos/rpc`, app/pronos.py, photos signées) ouverts par `PartyNative.pronos` (open / list / create).
+- Avant la prod : CGU (« aucun enjeu d'argent ni de boisson »), privacy.tsx, notes de revue Apple + compte démo dans une
+  version acceptée AVANT l'ouverture, questionnaire d'âge relu (Gambling Non, Simulated Gambling None).
+- Tests : `tests/test_pronos.py`, `tests/supabase_live/test_pronos_live.py`, `test_pronos_browser_live.py` (vrai
+  navigateur), `PronosTests`, recette `ios/PartyUITests/RecettePronosUITests.swift` (Release + serveur local + base de TEST).

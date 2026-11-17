@@ -20,6 +20,7 @@ import { InviteLinkCard } from '@/components/InviteLinkCard';
 import { parseIds } from '@/components/InviteStep';
 import { LinkedText } from '@/components/LinkedText';
 import { CarpoolCard } from '@/components/CarpoolCard';
+import { EventPronos } from '@/components/pronos/EventPronos';
 import { NotifyBanner } from '@/components/NotifyBanner';
 import { BringSection, DatePollSection, ParticipantsSection, PollSection, RsvpCard } from '@/components/EventSections';
 import { Badge, Button, Card, Cascade, ConfirmButton, ErrorText, HeaderAction, HeaderBack, Screen, s, Section, Skeleton, T, Title, Toast } from '@/components/ui';
@@ -422,6 +423,23 @@ export default function EventScreen() {
       {mine?.status === 'yes' && ticketRelevant(ev, data.loadedAt) ? (
         <TicketCard event={ev} me={me} answerKey={`${mine.status}:${mine.waitlisted}:${mine.plus_ones}:${paymentsTick}`} />
       ) : null}
+      {/* Sondages juste après « Présent / Absent » (demande de l'admin, 17.11) : ils étaient trop bas. */}
+      {ev.polls
+        .sort((a, b) => a.sort - b.sort)
+        .map((p) => (
+          <PollSection
+            key={p.id}
+            poll={p}
+            options={p.poll_options}
+            results={pollData.get(p.id)?.results ?? null}
+            voters={pollData.get(p.id)?.voters ?? new Map()}
+            myVotes={new Set(p.poll_options.filter((o) => data.myVotes.has(o.id)).map((o) => o.id))}
+            me={me.id}
+            canManage={canManage}
+            canParticipate={published}
+            onChange={reload}
+          />
+        ))}
       {/* Ordre de la fiche (demande de l'admin, 12.11) : description, ta réponse, puis la carte Invités (repliée).
           Invités (avis 83ebee37aa0f, 11.11) : le même menu ; un invité y voit les chiffres seulement (aucun nom) et ses liens. */}
       {invitesV2On && canManage && published ? (
@@ -469,24 +487,10 @@ export default function EventScreen() {
           onConfirmed={() => setPaymentsSeen((n) => n + 1)} />
       ) : null}
 
-      {ev.polls
-        .sort((a, b) => a.sort - b.sort)
-        .map((p) => (
-          <PollSection
-            key={p.id}
-            poll={p}
-            options={p.poll_options}
-            results={pollData.get(p.id)?.results ?? null}
-            voters={pollData.get(p.id)?.voters ?? new Map()}
-            myVotes={new Set(p.poll_options.filter((o) => data.myVotes.has(o.id)).map((o) => o.id))}
-            me={me.id}
-            canManage={canManage}
-            canParticipate={published}
-            onChange={reload}
-          />
-        ))}
-
       <BringSection items={ev.bring_items} me={me.id} eventId={ev.id} names={data.names} canParticipate={published} onChange={reload} />
+
+      {/* Pronos de la soirée (avis f071c5f46e3d, 17.11) : pour l'honneur, participants et organisation. */}
+      {published ? <EventPronos eventId={ev.id} /> : null}
 
       {ev.forum_enabled && published ? (
         // Dans l'app iPhone : la discussion native (façon WhatsApp) ; ailleurs, sa page.

@@ -31,6 +31,7 @@ from . import pet, pet_coll_store, pet_reactions, pet_store
 from . import tv_zicou
 from . import calendar_feed
 from .agenda import agenda_router
+from .pronos import pronos_router
 from . import pet_pot, tv_star
 # Adresse du déploiement et fonctions en bêta (Compagnon : allumé sur le site de test seulement).
 from .features import COMPAGNON_SOON, TEST_SITE_HOST, bar_enabled, compagnon_enabled, configured_public_url, discussions_enabled, invites_v2_enabled
@@ -1642,6 +1643,7 @@ event_chats = EventChats(group_chats)
 app.include_router(moderation_router(Moderation(group_admin, group_chats)))
 # Agenda (17.11) : page publique des liens de dispo (/d/<jeton>), suivi des demandes (/d/r/<secret>), relais iPhone.
 app.include_router(agenda_router(accounts, configured_public_url, client_ip))
+app.include_router(pronos_router(accounts))
 contact_names = ContactNames(accounts)
 app_invites = AppInvites(accounts, configured_public_url)
 # Billets dans Apple Wallet : certificats dans WALLET_DIR (par défaut DATA_DIR/wallet) ; sans eux, bouton masqué.
@@ -1870,6 +1872,8 @@ class NotificationPatch(BaseModel):
     group_added: bool | None = None
     # Agenda (17.11, migration 20261117140000) : demande de rendez-vous reçue ou annulée par un lien de dispo.
     booking_requests: bool | None = None
+    # Pronos (17.11, migration 20261117180000) : nouveau prono, résultat, résultat à donner.
+    pronos: bool | None = None
     # Billets payants (migration 20261103130000) : quelqu'un dit avoir payé ; mon paiement est confirmé.
     ticket_pay_declared: bool | None = None
     ticket_pay_confirmed: bool | None = None

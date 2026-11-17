@@ -59,6 +59,9 @@ def test_the_organiser_tags_everyone_and_announces_and_the_guest_sees_it_live(br
         orga.get_by_role('menuitem', name='@toutlemonde : Tout le monde : invités et participants').click()
         field.press_sequentially('on commence à 20 h')
         orga.get_by_role('button', name='Envoyer', exact=True).click()
+        # Le message parti (champ vidé, bulle affichée) avant l'annonce : pendant l'envoi, le bouton est désactivé.
+        pw.expect(field).to_have_value('', timeout=FAST)
+        pw.expect(orga.get_by_text('on commence à 20 h', exact=False).first).to_be_visible(timeout=FAST)
         orga.get_by_role('button', name='Faire une annonce').click()
         field.fill('Parking derrière la salle')
         shot(orga, 'de-02-orga-annonce-en-cours')

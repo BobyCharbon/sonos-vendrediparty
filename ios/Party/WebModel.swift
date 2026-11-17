@@ -19,6 +19,8 @@ final class WebModel: ObservableObject {
     @Published var ticketScanOpen = false
     /// Discussion d'un événement ouverte en natif (« Discussion » sur sa fiche, notification) : l'id de l'événement.
     @Published var eventChatID: String?
+    /// Pronos (17.11) : écran natif par-dessus la page (PartyNative.pronos, notification ?prono=<id>).
+    @Published var pronoRoute: PronoRoute?
     /// Données de cette discussion (même écran que Discussions, routes de l'événement).
     private(set) var eventChats: ChatsStore?
     private var ticketScanReply: CheckedContinuation<String?, Never>?
@@ -164,6 +166,14 @@ final class WebModel: ObservableObject {
         if tabs != nil, webView != nil, let booking = Self.bookingRequested(in: target) {
             openAgenda(booking: booking)
             return
+        }
+        // Notification d'un prono (?tab=events&prono=<id>) : le prono en natif, la page reste sur Événements.
+        if let prono = PronoRoute.requested(in: target) {
+            openPronos(.open(prono))
+            var parts = URLComponents(url: target, resolvingAgainstBaseURL: true)
+            let kept = parts?.queryItems?.filter { $0.name != "prono" }
+            parts?.queryItems = kept
+            target = parts?.url ?? target
         }
         // Notification d'un message d'événement (?tab=events&event=<id>&chat=1) : la fiche dans la page, la discussion
         // en natif par-dessus.
@@ -334,6 +344,12 @@ final class WebModel: ObservableObject {
     }
 
     /// « Discussion » d'un événement (sa fiche, une notification) : l'écran natif façon WhatsApp, par-dessus la page.
+    /// Pronos (17.11) : liste, prono ou création, en écran natif par-dessus la page ; la base vérifie les droits.
+    func openPronos(_ route: PronoRoute) {
+        guard settings != nil else { return }
+        Motion.animate(Motion.smooth) { pronoRoute = route }
+    }
+
     func openEventChat(_ id: String) {
         guard id.range(of: "^[0-9a-fA-F-]{36}$", options: .regularExpression) != nil, eventChats != nil else { return }
         Motion.animate(Motion.smooth) { eventChatID = id.lowercased() }

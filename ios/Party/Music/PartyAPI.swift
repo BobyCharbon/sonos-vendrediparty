@@ -172,6 +172,16 @@ final class PartyAPI {
         return (try JSONSerialization.jsonObject(with: try await send(request)) as? [String: Any]) ?? [:]
     }
 
+    /// Pronos (17.11) : relais des fonctions prono_* de la base (POST /api/account/pronos/rpc).
+    func pronosRPC(token: String, fn: String, args: [String: Any] = [:]) async throws -> [String: Any] {
+        guard let url = url("/api/account/pronos/rpc") else { throw PartyAPIError.offline }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["token": token, "fn": fn, "args": args])
+        return (try JSONSerialization.jsonObject(with: try await send(request)) as? [String: Any]) ?? [:]
+    }
+
     /// Pause des notifications : what = "all" (lune) ou "chats" (Discussions) ; span = 30m, 1h, 2h, morning ou off.
     func setNotificationPause(token: String, what: String, span: String) async throws -> EventNotifyState {
         try await postDecoding("/api/account/notifications/pause", body: ["token": token, "what": what, "span": span])

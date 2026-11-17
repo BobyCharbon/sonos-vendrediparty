@@ -13,6 +13,7 @@ enum NativeBridge {
     static let aiHandler = "partyAI"
     static let scanHandler = "partyScan"
     static let chatHandler = "partyChat"
+    static let pronosHandler = "partyPronos"
 
     /// `PartyNative.zicou` : présent seulement dans la BETA (Zicou compilé) ; ailleurs null, la page garde sa pastille.
     private static let zicouScript = AppConfig.zicouBuild
@@ -75,6 +76,15 @@ enum NativeBridge {
             try { window.webkit.messageHandlers.\(chatHandler).postMessage("group:" + id); } catch (e) {}
           }
         },
+        // Pronos (17.11) : écrans natifs (liste, prono, création, classement) par-dessus la page.
+        pronos: {
+          open: function (id) { try { window.webkit.messageHandlers.\(pronosHandler).postMessage("open:" + id); } catch (e) {} },
+          list: function (group) { try { window.webkit.messageHandlers.\(pronosHandler).postMessage(group ? "list:" + group : "list"); } catch (e) {} },
+          create: function (ctx) {
+            var c = ctx || {};
+            try { window.webkit.messageHandlers.\(pronosHandler).postMessage(c.group ? "create:group:" + c.group : c.event ? "create:event:" + c.event : "create"); } catch (e) {}
+          }
+        },
         // « Scanner les billets » (Événements) : lecteur QR d'Apple ; promesse du texte lu, ou null si l'on ferme.
         scan: {
           qr: function () { return window.webkit.messageHandlers.\(scanHandler).postMessage("qr"); }
@@ -128,6 +138,7 @@ enum NativeBridge {
         controller.add(SecretCardsHandler(model: model), name: SecretCardsHandler.handler)
         controller.add(AIHandler(model: model), name: aiHandler)
         controller.add(ChatHandler(model: model), name: chatHandler)
+        controller.add(PronosHandler(model: model), name: pronosHandler)
         controller.addScriptMessageHandler(ScanHandler(model: model), contentWorld: .page, name: scanHandler)
         controller.addScriptMessageHandler(WalletHandler(), contentWorld: .page, name: NativeWallet.handler)
         controller.addScriptMessageHandler(ContactNamesBridge(), contentWorld: .page, name: ContactNamesBridge.handler)
@@ -196,6 +207,23 @@ private final class ChatHandler: NSObject, WKScriptMessageHandler {
         }
         guard body.hasPrefix("event:"), let id = UUID(uuidString: String(body.dropFirst(6))) else { return }
         model?.openEventChat(id.uuidString)  // la base vérifie que la personne peut lire cette discussion
+    }
+}
+
+/// Pronos (module Événements, cadre compris) → écrans natifs ; seuls « open:<uuid> », « list[:<uuid>] » et
+/// « create[:group|event:<uuid>] » sont acceptés (PronoRoute.parse).
+private final class PronosHandler: NSObject, WKScriptMessageHandler {
+    private weak var model: WebModel?
+
+    init(model: WebModel) {
+        self.model = model
+    }
+
+    @MainActor
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard AppConfig.isInternal(message.frameInfo.securityOrigin.url), let body = message.body as? String,
+              let route = PronoRoute.parse(body) else { return }
+        model?.openPronos(route)
     }
 }
 

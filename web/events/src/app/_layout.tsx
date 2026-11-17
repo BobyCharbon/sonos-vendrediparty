@@ -52,7 +52,7 @@ function inPartyShell(): boolean {
   return typeof window !== 'undefined' && window.parent !== window;
 }
 
-const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit|\/invite|\/gifts|\/scan(?:\/[a-f0-9]{64})?|\/bar(?:\/scan|\/manage|\/person\/[a-f0-9-]{36})?)?|share\/[a-f0-9-]{36}|invite\/[a-f0-9-]{36}|group-invite\/[a-f0-9-]{36}|join\/[a-f0-9-]{36}|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|group\/(?:new|[a-f0-9-]{36}(?:\/settings|\/invite)?)|chats(?:\/[a-f0-9-]{36})?|agenda(?:\/(?:calendars|share|free|links(?:\/(?:new|[a-f0-9-]{36}))?|requests(?:\/[a-f0-9-]{36})?))?|activity|announcements|account|admin\/reports|terms|settings\/(?:notifications|subscriptions|profile|privacy))$/i;
+const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit|\/invite|\/gifts|\/scan(?:\/[a-f0-9]{64})?|\/bar(?:\/scan|\/manage|\/person\/[a-f0-9-]{36})?)?|share\/[a-f0-9-]{36}|invite\/[a-f0-9-]{36}|group-invite\/[a-f0-9-]{36}|prono-invite\/[A-Za-z0-9_-]{20,40}|pronos|prono\/(?:new|[a-f0-9-]{36})|join\/[a-f0-9-]{36}|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|group\/(?:new|[a-f0-9-]{36}(?:\/settings|\/invite|\/pronos)?)|chats(?:\/[a-f0-9-]{36})?|agenda(?:\/(?:calendars|share|free|links(?:\/(?:new|[a-f0-9-]{36}))?|requests(?:\/[a-f0-9-]{36})?))?|activity|announcements|account|admin\/reports|terms|settings\/(?:notifications|subscriptions|profile|privacy))$/i;
 /** Pages de passage (accueil du module, connexion, « Faisons connaissance ») : seules à reprendre l'intention gardée. */
 const transitPath = /^\/?(?:sign-in|welcome)?$/i;
 
@@ -126,7 +126,7 @@ function Gate() {
   useEffect(() => {
     // Réglages : ouverts à tout compte connecté ; le reste attend la validation du membre.
     // Réglages, liens d'invitation et lien public : ouverts dès la connexion (ils demandent eux-mêmes le profil complet).
-    const open = intent.current === '/account' || /^\/(?:(?:group-)?invite|join|share)\//.test(intent.current ?? '');
+    const open = intent.current === '/account' || /^\/(?:(?:group-|prono-)?invite|join|share)\//.test(intent.current ?? '');
     if (!loading && session && (active || open) && !profileError && intent.current) {
       const target = intent.current;
       intent.current = null;

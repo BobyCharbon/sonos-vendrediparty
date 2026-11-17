@@ -203,6 +203,14 @@ struct NotificationSettingsView: View {
                 .accessibilityIdentifier("notif-booking-requests")
         }
 
+        // Pronos (17.11) : pour l'honneur ; un seul interrupteur pour les trois notifications.
+        Section("🔮 Pronos") {
+            eventToggle("pronos", "sparkles", .purple, "Pronos",
+                        "Nouveau prono pour toi, résultat dévoilé, résultat à donner quand tes pronos sont fermés",
+                        p.pronos != false)
+                .accessibilityIdentifier("notif-pronos")
+        }
+
         // Mes amis dans Party : chaque type a son interrupteur (aussi sur le web).
         Section("Amis") {
             eventToggle("referral_joins", "envelope.open.fill", .purple, "Quelqu'un rejoint Party grâce à moi",

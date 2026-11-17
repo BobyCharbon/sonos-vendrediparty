@@ -201,6 +201,12 @@ struct ContentView: View {
                 .preferredColorScheme(.dark)
             }
         }
+        // Pronos (17.11) : écrans natifs par-dessus la page (bouton de la page, notification) ; « ✕ » ramène à la page.
+        .fullScreenCover(item: $model.pronoRoute) { route in
+            if let store = model.settings?.pronos {
+                PronoRouteView(store: store, route: route) { model.pronoRoute = nil }
+            }
+        }
         .sheet(isPresented: $model.ticketScanOpen, onDismiss: { model.finishTicketScan(nil) }) {
             QRScannerSheet(title: "Scanner un billet",
                            fallback: "Caméra indisponible : autorise-la pour Party ! dans Réglages, ou tape le code du billet.") { text in

@@ -63,6 +63,13 @@ struct SettingsView: View {
                     Section {
                         // Agenda (17.11) : la page /events/agenda dans l'onglet Événements ; pastille = demandes en attente.
                         AgendaRow(agenda: store.agenda) { open(.agenda) }
+                        // Pronos (17.11) : pour l'honneur ; pastille = à jouer + résultats à donner.
+                        NavigationLink {
+                            PronosListView(store: store.pronos)
+                        } label: {
+                            PronosRow(pronos: store.pronos)
+                        }
+                        .accessibilityIdentifier("settings-pronos")
                         NavigationLink {
                             TricountListView(store: store.tricount, myName: store.account?.name ?? "")
                         } label: {
@@ -340,6 +347,28 @@ private struct SessionNotice: View {
     @ObservedObject var store: AccountStore
 
     var body: some View { AdminNotice(notice: $store.notice) }
+}
+
+/// Réglages › Autres apps › « Pronos » : pastille rouge = pronos à jouer + résultats à donner (relue à l'affichage).
+struct PronosRow: View {
+    @ObservedObject var pronos: PronosStore
+
+    var body: some View {
+        HStack {
+            SettingsRow(symbol: "sparkles", tint: Color(hex: 0x7B6CF6), title: "Pronos", hint: "Devine, joue pour l'honneur, grimpe au classement")
+            Spacer(minLength: 0)
+            if let badge = AgendaRow.badge(pronos.badge) {
+                Text(badge)
+                    .font(.footnote.weight(.semibold)).foregroundStyle(.white)
+                    .padding(.horizontal, 7).frame(minWidth: 22, minHeight: 22)
+                    .background(Color.red, in: Capsule())
+                    .accessibilityLabel("\(pronos.badge) à jouer ou à dévoiler")
+                    .transition(.scale.combined(with: .opacity))
+            }
+        }
+        .motion(Motion.snappy, value: pronos.badge)
+        .task { await pronos.refreshBadge() }
+    }
 }
 
 /// Réglages › Autres apps › « Agenda » : ouvre /events/agenda ; pastille rouge = demandes de rendez-vous en attente,

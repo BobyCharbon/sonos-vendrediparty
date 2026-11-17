@@ -13,6 +13,9 @@ window.PartyEvents = {
     // Agenda (17.11) : notification d'une demande de rendez-vous (?booking=<id>) → la demande dans l'Agenda.
     const booking = params.get('booking') || '';
     if (/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(booking)) return '/events/agenda?booking=' + booking.toLowerCase();
+    // Pronos (17.11) : notification d'un prono (?prono=<id>) → le prono.
+    const prono = params.get('prono') || '';
+    if (/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(prono)) return '/events/prono/' + prono.toLowerCase();
     if (params.get('activity') === '1') return '/events/activity';
     return admin ? '/events/admin' : '/events/';
   },

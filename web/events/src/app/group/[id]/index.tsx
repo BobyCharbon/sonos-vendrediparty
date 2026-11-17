@@ -17,6 +17,7 @@ import { coverGradient, fetchGroupEventIds, fetchMyGroups, groupName, palette, u
 import type { ReportTarget } from '@/lib/moderation';
 import { enter, pressTransition } from '@/lib/motion';
 import { openGroupChat } from '@/lib/nativeChat';
+import { openPronoList } from '@/lib/pronos';
 import { roleRank } from '@/lib/roles';
 import { must, supabase } from '@/lib/supabase';
 import { colors, font, radius } from '@/lib/theme';
@@ -170,6 +171,16 @@ export default function GroupPage() {
                   <UnreadBadge count={overview?.unread ?? 0} />
                 </Pressable>
               ) : null}
+            </Reveal>
+          ) : null}
+
+          {member && !system ? (
+            <Reveal index={3}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Pronos du groupe" testID="group-pronos"
+                onPress={() => openPronoList(id, (path) => router.push(path as never))}
+                style={({ pressed }) => [st.secondary, { flex: 0 }, pressTransition, pressed && { transform: [{ scale: 0.97 }] }]}>
+                <T size={15} weight="bold">🔮  Pronos et classement</T>
+              </Pressable>
             </Reveal>
           ) : null}
 

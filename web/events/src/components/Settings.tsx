@@ -2,6 +2,7 @@ import { router, type Href } from 'expo-router';
 import { Pressable, View } from 'react-native';
 
 import { useAgendaBadge } from '@/lib/agenda';
+import { openPronoList, usePronoBadge } from '@/lib/pronos';
 import { useAuth } from '@/lib/auth';
 import { discussionsOn } from '@/lib/features';
 import { useShellFeedback } from '@/lib/shellFeedback';
@@ -27,6 +28,7 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
   const pause = usePause();
   const feedback = useShellFeedback();
   const agendaPending = useAgendaBadge(profile && eventsOpen && hasCompleteIdentity(profile) ? profile.id : null);
+  const pronoTodo = usePronoBadge(profile && eventsOpen && hasCompleteIdentity(profile) ? profile.id : null);
   if (!profile) return null;
   const complete = hasCompleteIdentity(profile);
   const active = eventsOpen && complete;
@@ -82,6 +84,9 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
           <Card style={{ gap: 0, paddingVertical: 4 }}>
             <LinkRow icon="📅" tint="#D92A73" label="Agenda" hint={agendaPending ? `${agendaPending} demande${agendaPending > 1 ? 's' : ''} de rendez-vous` : 'Ta semaine et qui est libre'}
               badge={agendaPending ? String(agendaPending > 99 ? '99+' : agendaPending) : null} onPress={() => router.push('/agenda?from=settings')} />
+            <RowDivider />
+            <LinkRow icon="🔮" tint="#7B6CF6" label="Pronos" hint={pronoTodo ? `${pronoTodo} à jouer ou à dévoiler` : 'Devine, joue pour l’honneur, grimpe au classement'}
+              badge={pronoTodo ? String(pronoTodo > 99 ? '99+' : pronoTodo) : null} onPress={() => openPronoList(undefined, (path) => router.push(path as never))} />
           </Card>
         </View>
       ) : null}
