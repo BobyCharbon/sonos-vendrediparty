@@ -106,6 +106,9 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   tout puis l'allume ; éteint, les invités voient « ⏳ paiement bientôt possible » sans lien ni bouton, `event_pay_info`
   ne donne aucun lien, `declare_ticket_payment` refuse « J'ai payé ». Tests : `test_paiement_mode_live.py`,
   `test_event_tickets_browser.py`, `test_event_organizer_browser.py`.
+  L'allumer prévient les « Présent » pas encore payés (« 💳 Le paiement est ouvert », texte générique : place, billet,
+  réservation ; interrupteur `event_changed`, une fois par personne, jamais « Sur place » ; migration 20261117135000,
+  `test_paiement_ouvert_notification_live.py`).
   Tout lien de paiement est un vrai lien (`Button href` → `<a target="_blank">`), jamais `Linking.openURL` / `window.open`
   depuis un toucher : Safari en navigation privée l'ignorait (avis du 16.11). La fiche reste ouverte derrière.
 - Bar : devise du bar par événement, francs (défaut) ou euros (« Options » › Devise, `event_bars.currency`,
