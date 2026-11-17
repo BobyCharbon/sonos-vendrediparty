@@ -2,12 +2,13 @@ import { router, type Href } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Image, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Divider, FieldChoice, Group, Label, Note, StatusPill } from '@/components/agenda/Bits';
+import { CheckRow, Divider, FieldChoice, Group, Label, Note, StatusPill } from '@/components/agenda/Bits';
 import { useTermsGate } from '@/components/TermsSheet';
 import { Button, Chip, ConfirmButton, ErrorText, Input, Segmented, T, Toast, ToggleRow } from '@/components/ui';
 import {
-  addDays, agoText, dateShort, DEFAULT_FIELDS, durationText, errorText, FIELD_LABELS, isProfile, isTerms, linkUrl, MODELS, rpc,
-  rulesText, spanText, tinyDay, dayKey, WEEK_LETTERS, type BookingFields, type Link, type Model, type Rule,
+  addDays, agoText, calColor, dateShort, DEFAULT_FIELDS, durationText, errorText, FIELD_LABELS, iosKey, isProfile, isTerms, linkUrl, MODELS,
+  nativeAgenda, rpc, rulesText, spanText, syncBusyNow, tinyDay, dayKey, WEEK_LETTERS, type BookingFields, type Calendar, type Link, type Model,
+  type NativeCalendar, type Rule,
 } from '@/lib/agenda';
 import { useMe } from '@/lib/auth';
 import { enter, pressTransition } from '@/lib/motion';
@@ -64,7 +65,7 @@ export function LinkIntro({ onGo, onCancel }: { onGo: () => void; onCancel: () =
     { icon: '👁️', title: 'Seulement Disponible ou Occupé', text: 'Dans les jours et heures que tu choisis. Jamais le titre, le lieu ni avec qui.' },
     { icon: '🕒', title: 'À partir de demain', text: 'Jamais aujourd’hui. 60 jours au plus.' },
     { icon: '↥', title: 'Il peut être transféré', text: 'Donne-le seulement à qui tu veux.' },
-    { icon: '⏹', title: 'Tu l’arrêtes quand tu veux', text: 'Sinon il s’arrête seul après 90 jours.' },
+    { icon: '⏹', title: 'Tu l’arrêtes quand tu veux', text: 'Permanent, ou 90 jours si tu préfères : tu choisis.' },
   ];
   return (
     <View style={[st.intro, enter('rise')]} testID="link-intro">
@@ -117,10 +118,29 @@ export function LinkEditor({ link, model: startModel, onSaved }: { link: Link | 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [needProfile, setNeedProfile] = useState(false);
+  const [permanent, setPermanent] = useState(link ? link.permanent : true);
+  // Calendriers qui rendent occupé : ceux de Party et des agendas ajoutés avec un lien, et ceux de l'iPhone (app seulement,
+  // noms lus sur l'iPhone). Nouveau lien : tout coché. null tant qu'ils ne sont pas lus (rien n'est alors envoyé : « tout »).
+  const [cals, setCals] = useState<{ party: Calendar[]; phone: NativeCalendar[] | null } | null>(null);
+  const [picked, setPicked] = useState<Set<string> | null>(link?.calendars ? new Set(link.calendars) : null);
+  const native = nativeAgenda();
 
   useEffect(() => {
     void rpc<{ notify: boolean }>('agenda_links').then((l) => setNotify(l.notify !== false)).catch(() => undefined);
     void notifyState().then((s) => setDeviceOff(s !== 'on')).catch(() => undefined);
+    void (async () => {
+      const party = await rpc<Calendar[]>('agenda_calendars_list').catch((): Calendar[] => []);
+      let phone: NativeCalendar[] | null = null;
+      if (native) {
+        try {
+          if ((await native.status()).access === 'full') phone = (await native.calendars()).filter((c) => !c.excluded);
+        } catch { /* sans l'iPhone : les calendriers de Party seulement */ }
+      }
+      setCals({ party, phone });
+      // Nouveau lien, ou lien d'avant (sans liste) : tout ce qui peut rendre occupé est coché.
+      setPicked((p) => p ?? new Set([...party.map((c) => c.id), ...(phone ?? []).map((c) => iosKey(c.id))]));
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- une seule lecture à l'ouverture
   }, []);
 
   // Aperçu : relu un instant après chaque changement (rien n'est enregistré).
@@ -128,11 +148,12 @@ export function LinkEditor({ link, model: startModel, onSaved }: { link: Link | 
   useEffect(() => {
     const n = ++ask.current;
     const t = setTimeout(() => {
-      void rpc<{ slots: [string, string][] }>('agenda_link_preview', { link: { rules, horizon_days: horizon, duration_min: durationMin, booking_enabled: booking } })
+      void rpc<{ slots: [string, string][] }>('agenda_link_preview', { link: { rules, horizon_days: horizon, duration_min: durationMin, booking_enabled: booking,
+        calendars: picked ? [...picked] : null } })
         .then((r) => { if (n === ask.current) setPreview(r.slots ?? []); }).catch(() => { if (n === ask.current) setPreview([]); });
     }, 350);
     return () => clearTimeout(t);
-  }, [rules, horizon, durationMin, booking]);
+  }, [rules, horizon, durationMin, booking, picked]);
 
   function pickModel(m: Model) {
     setModel(m);
@@ -155,7 +176,8 @@ export function LinkEditor({ link, model: startModel, onSaved }: { link: Link | 
     if (!rules.length || rules.some((r) => !r.days.length || r.to <= r.from)) { setError('Choisis au moins un jour et des heures (la fin après le début).'); return; }
     if (pro && !display.trim()) { setError('Écris le nom que verra la personne.'); return; }
     const body = { name: name.trim() || 'Mes dispos', emoji, display_name: pro ? display.trim() : myFirst || null, rules, horizon_days: horizon,
-      duration_min: durationMin, booking_enabled: booking, booking_fields: { ...fields, first_name: 'required' }, message_label: label.trim() || null };
+      duration_min: durationMin, booking_enabled: booking, booking_fields: { ...fields, first_name: 'required' }, message_label: label.trim() || null,
+      permanent, ...(picked ? { calendars: [...picked] } : {}) };
     if (!link && !(await terms.ensure())) return;
     setBusy(true);
     try {
@@ -165,6 +187,8 @@ export function LinkEditor({ link, model: startModel, onSaved }: { link: Link | 
         if (!isTerms(e) || !(await terms.ensure())) throw e;
         saved = await rpc<Link>('agenda_link_save', link ? { link: body, id: link.id } : { link: body });
       }
+      // Les plages des calendriers choisis partent tout de suite (sinon : à la prochaine ouverture de Party).
+      await syncBusyNow();
       onSaved(saved);
     } catch (e) {
       if (isProfile(e)) setNeedProfile(true);
@@ -183,6 +207,15 @@ export function LinkEditor({ link, model: startModel, onSaved }: { link: Link | 
   }
   const shownDays = [...byDay.keys()].sort().slice(0, 5);
   const shownName = pro ? display.trim() || 'Nom pro' : myFirst || 'Toi';
+  const toggle = (key: string, on: boolean) => setPicked((p) => {
+    const next = new Set(p ?? []);
+    if (on) next.add(key); else next.delete(key);
+    return next;
+  });
+  // Calendriers de l'iPhone choisis ailleurs (dans l'app) : gardés, comptés ici sans leur nom.
+  const phoneElsewhere = picked && !cals?.phone ? [...picked].filter((k) => k.startsWith('ios:')).length : 0;
+  const order = { party: 0, personal: 1, ics: 2 } as const;
+  const partyCals = [...(cals?.party ?? [])].sort((a, b) => order[a.kind] - order[b.kind]);
 
   return (
     <View style={{ gap: 12 }}>
@@ -285,6 +318,36 @@ export function LinkEditor({ link, model: startModel, onSaved }: { link: Link | 
         ) : null}
       </View>
 
+      <Label>Ce qui te rend occupé</Label>
+      <Group>
+        {!cals ? <View style={{ padding: 14 }}><T muted size={14}>Lecture de tes calendriers…</T></View> : null}
+        {partyCals.map((c, i) => (
+          <View key={c.id}>
+            {i ? <Divider /> : null}
+            <CheckRow label={c.kind === 'party' ? '🎉 Mes soirées Party' : c.name} testID={`link-cal-${c.kind === 'ics' ? c.id : c.kind}`}
+              hint={c.kind === 'party' ? 'Présent, Peut-être, j’organise' : c.kind === 'personal' ? 'Rendez-vous notés dans Party' : 'Agenda ajouté avec un lien'}
+              checked={!!picked?.has(c.id)} onChange={(v) => toggle(c.id, v)} left={<View style={[st.calDot, { backgroundColor: calColor(c.color) }]} />} />
+          </View>
+        ))}
+        {(cals?.phone ?? []).map((c) => (
+          <View key={c.id}>
+            <Divider />
+            <CheckRow label={c.title} hint={`iPhone · ${c.source}`} checked={!!picked?.has(iosKey(c.id))} onChange={(v) => toggle(iosKey(c.id), v)}
+              left={<View style={[st.calDot, { backgroundColor: c.color }]} />} />
+          </View>
+        ))}
+      </Group>
+      {native && cals && !cals.phone ? (
+        <Button variant="secondary" label="📱 Ajouter les calendriers de mon iPhone" onPress={() => router.push('/agenda/calendars?iphone=1' as Href)} />
+      ) : null}
+      {phoneElsewhere ? <Note icon="📱">Et {phoneElsewhere} calendrier{phoneElsewhere > 1 ? 's' : ''} de ton iPhone, choisi{phoneElsewhere > 1 ? 's' : ''} dans l’app Party.</Note> : null}
+      <Note>Un rendez-vous dans un calendrier coché te rend occupé sur ce lien. Seules les heures partent, jamais le titre. Les demandes de rendez-vous comptent toujours.</Note>
+
+      <Label>Durée du lien</Label>
+      <Segmented<'forever' | 'days'> value={permanent ? 'forever' : 'days'} onChange={(v) => setPermanent(v === 'forever')}
+        options={[{ key: 'forever', label: 'Permanent' }, { key: 'days', label: '90 jours' }]} />
+      <Note>{permanent ? 'Il marche jusqu’à ce que tu l’arrêtes.' : 'Il s’arrête seul après 90 jours. Tu pourras le prolonger.'}</Note>
+
       <Label>Voici ce que verra la personne</Label>
       <View style={st.preview} testID="link-preview">
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -362,10 +425,11 @@ export function LinkCard({ link, onChanged, index = 0 }: { link: Link; onChanged
             <T muted size={13}>{link.views ? `Vu ${link.views} fois${link.last_viewed_at ? ` · dernière fois ${agoText(link.last_viewed_at)}` : ''}` : 'Pas encore vu'}</T>
           </>
         ) : (
-          <T muted size={13}>{link.status === 'stopped' ? `Arrêté le ${dateShort(link.stopped_at ?? link.expires_at)}. Le lien n’affiche plus rien.` : `Expiré le ${dateShort(link.expires_at)}. Le lien n’affiche plus rien.`}</T>
+          <T muted size={13}>{link.status === 'stopped' ? `Arrêté le ${dateShort(link.stopped_at ?? link.created_at)}. Le lien n’affiche plus rien.` : `Expiré le ${dateShort(link.expires_at ?? link.created_at)}. Le lien n’affiche plus rien.`}</T>
         )}
       </Pressable>
-      {live ? (
+      {live && link.permanent ? <T muted size={13}>♾️ Permanent · tu l’arrêtes quand tu veux</T> : null}
+      {live && !link.permanent && link.expires_at ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
           <T muted size={13}>S’arrête seul le {dateShort(link.expires_at)} ·</T>
           <Pressable accessibilityRole="button" accessibilityLabel={`Prolonger ${link.name} de 90 jours`} onPress={() => void act('extend')} style={{ minHeight: 32, justifyContent: 'center' }}>
@@ -417,6 +481,7 @@ const st = StyleSheet.create({
   qrCard: { width: '100%', maxWidth: 360, gap: 12, padding: 20, borderRadius: radius.lg, backgroundColor: colors.surface },
   qr: { width: 240, height: 240, alignSelf: 'center', borderRadius: 12 },
   intro: { gap: 14, padding: 18, borderRadius: 24, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.lineStrong },
+  calDot: { width: 12, height: 12, borderRadius: 6 },
   introIcon: { alignSelf: 'center', width: 64, height: 64, borderRadius: 18, backgroundColor: colors.action, alignItems: 'center', justifyContent: 'center',
     shadowColor: colors.accent, shadowOpacity: 0.5, shadowRadius: 18 },
   introRow: { flexDirection: 'row', gap: 12, padding: 12, alignItems: 'flex-start' },

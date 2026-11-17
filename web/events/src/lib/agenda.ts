@@ -290,7 +290,9 @@ export async function fetchIcs(calendarId: string, from: Date, to: Date): Promis
 
 // ───────────── Pont iPhone (facultatif) ─────────────
 export type NativeAccess = 'full' | 'denied' | 'notDetermined' | 'writeOnly' | 'restricted';
-export type NativeCalendar = { id: string; title: string; color: string; source: string; shown: boolean; countsBusy: boolean };
+export type NativeCalendar = { id: string; title: string; color: string; source: string; shown: boolean; countsBusy: boolean; excluded?: string };
+/** Clé d'un calendrier de l'iPhone dans un lien de dispo (jamais son nom : seul l'iPhone le connaît). */
+export const iosKey = (id: string) => `ios:${id}`;
 type NativeAgenda = {
   status: () => Promise<{ access: NativeAccess }>;
   requestAccess: () => Promise<{ access: NativeAccess }>;
@@ -498,8 +500,12 @@ export type Rule = { days: number[]; from: string; to: string };
 export type Link = {
   id: string; token: string; path: string; name: string; emoji: string | null; display_name: string | null; rules: Rule[];
   horizon_days: number; duration_min: number; booking_enabled: boolean; booking_fields: BookingFields; message_label: string | null;
-  status: 'active' | 'stopped' | 'expired'; expires_at: string; stopped_at: string | null; views: number; last_viewed_at: string | null;
+  status: 'active' | 'stopped' | 'expired'; expires_at: string | null; stopped_at: string | null; views: number; last_viewed_at: string | null;
   pending: number; created_at: string;
+  /** Calendriers qui rendent occupé pour ce lien (id Party / agenda .ics, « ios:<id> ») ; null = tout (liens d'avant). */
+  calendars: string[] | null;
+  /** Sans fin : il ne s'arrête que quand on l'arrête. */
+  permanent: boolean;
 };
 export type Links = { links: Link[]; max: number; missing: null | 'profile' | 'terms'; notify: boolean; pending: number };
 
@@ -553,17 +559,30 @@ export function hoursLeft(iso: string | null, now = Date.now()): string {
 }
 
 /**
- * Web : les agendas ajoutés avec un lien et cochés « comptent comme Occupé » envoient leurs heures prises (début et fin
- * seulement, jamais titre ni lieu) par `agenda_set_busy('web')`. Sans partage ni lien actif, la base refuse : rien ne part.
+ * Web : les agendas ajoutés avec un lien qui comptent (« comptent comme Occupé » pour les groupes, ou choisis par un lien
+ * de dispo) envoient leurs heures prises, calendrier par calendrier (début et fin seulement, jamais titre ni lieu), par
+ * `agenda_set_busy('web')`. Sans partage ni lien actif, la base refuse : rien ne part.
  */
 export async function syncWebBusy(calendars?: Calendar[]): Promise<void> {
   const cals = calendars ?? await rpc<Calendar[]>('agenda_calendars_list');
-  const counted = cals.filter((c) => c.kind === 'ics' && c.counts_busy);
+  const links = await rpc<Links>('agenda_links').then((l) => l.links.filter((x) => x.status === 'active')).catch((): Link[] => []);
+  const forLinks = new Set(links.flatMap((l) => l.calendars ?? []));
+  const counted = cals.filter((c) => c.kind === 'ics' && (c.counts_busy || forLinks.has(c.id)));
   const from = new Date();
   const to = new Date(from.getTime() + 60 * 86400_000);
   const lists = await Promise.all(counted.map((c) => fetchIcs(c.id, from, to).catch((): IcsEvent[] => [])));
-  const blocks = lists.flat().filter((e) => e.busy).map((e) => ({ s: e.starts_at, e: e.ends_at }));
+  const blocks = lists.flatMap((list, i) => list.filter((e) => e.busy)
+    .map((e) => ({ s: e.starts_at, e: e.ends_at, c: counted[i].id, g: counted[i].counts_busy })));
   await rpc('agenda_set_busy', { source: 'web', blocks }).catch(() => undefined);
+}
+
+/** Après un changement des calendriers d'un lien : l'iPhone (ou le web) renvoie aussitôt ses plages « pris ». */
+export async function syncBusyNow(): Promise<void> {
+  const n = nativeAgenda();
+  try {
+    if (n) await n.syncBusy();
+    else await syncWebBusy();
+  } catch { /* Jamais bloquant : la prochaine ouverture renverra. */ }
 }
 
 /** À l'ouverture de l'agenda (une fois par visite) : les plages du web et de l'iPhone suivent, si le partage est actif. */

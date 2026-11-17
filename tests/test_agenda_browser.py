@@ -73,7 +73,9 @@ def agenda_services(page, links=None, pending=1, welcome_seen=False):
                 'emoji': body.get('emoji'), 'display_name': body.get('display_name') or 'Camille', 'rules': body['rules'],
                 'horizon_days': body.get('horizon_days', 28), 'duration_min': body.get('duration_min', 60),
                 'booking_enabled': body.get('booking_enabled', False), 'booking_fields': body.get('booking_fields'),
-                'message_label': body.get('message_label'), 'status': 'active', 'expires_at': iso(at(90, 0)), 'stopped_at': None,
+                'message_label': body.get('message_label'), 'status': 'active',
+                'expires_at': None if body.get('permanent') else iso(at(90, 0)), 'permanent': bool(body.get('permanent')),
+                'calendars': body.get('calendars'), 'stopped_at': None,
                 'views': 0, 'last_viewed_at': None, 'pending': 0, 'created_at': iso(at(0, 9))}
 
     def handle(route):
@@ -315,12 +317,66 @@ def test_links_empty_state_model_explainer_settings_and_preview(phone, events_or
     pw.expect(page.get_by_role('radio', name='Prénom : Obligatoire')).to_have_attribute('aria-checked', 'true')
     page.get_by_role('radio', name='Téléphone : Facultatif').click()
     shot(page, 'agenda-14-lien-reglage.png')
+    # Ce qui rend occupé (17.11) : tout coché au départ ; on retire « Juste pour moi ». Permanent par défaut.
+    party_cal, personal_cal = page.get_by_test_id('link-cal-party'), page.get_by_test_id('link-cal-personal')
+    pw.expect(party_cal).to_have_attribute('aria-checked', 'true', timeout=15000)
+    pw.expect(personal_cal).to_have_attribute('aria-checked', 'true')
+    personal_cal.click()
+    pw.expect(personal_cal).to_have_attribute('aria-checked', 'false')
+    pw.expect(page.get_by_role('tab', name='Permanent')).to_have_attribute('aria-selected', 'true')
+    pw.expect(page.get_by_text('Il marche jusqu’à ce que tu l’arrêtes.')).to_be_visible()
+    page.wait_for_timeout(1000)  # l'aperçu est relu 350 ms après chaque changement
+    assert rpc_calls(state, 'agenda_link_preview')[-1]['link']['calendars'] == [PARTY_CAL]
+    page.get_by_text('Ce qui te rend occupé').scroll_into_view_if_needed()
+    shot(page, 'agenda-14b-lien-calendriers.png')
     page.get_by_role('button', name='Créer le lien').click()
     pw.expect(page.get_by_test_id('link-address')).to_contain_text('/d/k7Qm2xV9abcdefghijklmnop', timeout=15000)
     saved = rpc_calls(state, 'agenda_link_save')[-1]['link']
+    assert saved['calendars'] == [PARTY_CAL] and saved['permanent'] is True
     assert saved['rules'] == [{'days': [1, 2, 3, 4, 5], 'from': '18:00', 'to': '23:00'}]
     assert saved['booking_enabled'] is True and saved['booking_fields']['phone'] == 'optional' and saved['booking_fields']['first_name'] == 'required'
     shot(page, 'agenda-15-lien-cree.png')
+    assert errors == [], errors
+
+
+IPHONE_AGENDA = """
+window.__synced = 0;
+window.PartyNative = { agenda: {
+  status: async () => ({ access: 'full' }), requestAccess: async () => ({ access: 'full' }),
+  calendars: async () => [
+    { id: 'CAL-TRAVAIL', title: 'Travail', color: '#2E86FF', source: 'iCloud', shown: true, countsBusy: false },
+    { id: 'CAL-PERSO', title: 'Perso', color: '#34C759', source: 'Google', shown: true, countsBusy: true },
+    { id: 'CAL-ANNIV', title: 'Anniversaires', color: '#888888', source: 'Anniversaires', shown: true, countsBusy: false, excluded: 'birthdays' },
+  ],
+  setCalendar: async () => ({ ok: true }), events: async () => [],
+  syncBusy: async () => { window.__synced += 1; return { sent: 2, updatedAt: new Date().toISOString() }; },
+  addToPhone: async () => ({ saved: false }),
+} };
+"""
+
+
+def test_in_the_iphone_app_a_link_picks_iphone_calendars_and_sends_them_at_once(phone, events_origin):
+    """App iPhone : les calendriers de l'iPhone (jamais les anniversaires) se cochent par lien ; enregistrer renvoie
+    aussitôt les plages « pris » (pont syncBusy). Lien en 90 jours : « Prolonger » reste possible."""
+    page, errors = phone
+    page.add_init_script(IPHONE_AGENDA)
+    state = agenda_services(page, welcome_seen=True, pending=0)
+    signed_in(page, events_origin, '/agenda/links')
+    page.get_by_test_id('empty-model-week').click()
+    page.get_by_role('button', name='J’ai compris, continuer').click()
+    work = page.get_by_role('checkbox', name='Travail, iPhone · iCloud')
+    pw.expect(work).to_have_attribute('aria-checked', 'true', timeout=15000)
+    pw.expect(page.get_by_role('checkbox', name='Perso, iPhone · Google')).to_have_attribute('aria-checked', 'true')
+    assert page.get_by_text('Anniversaires').count() == 0
+    page.get_by_role('checkbox', name='Perso, iPhone · Google').click()
+    page.get_by_role('tab', name='90 jours').click()
+    page.get_by_text('Ce qui te rend occupé').scroll_into_view_if_needed()
+    shot(page, 'agenda-16-lien-calendriers-iphone.png')
+    page.get_by_role('button', name='Créer le lien').click()
+    pw.expect(page.get_by_test_id('link-address')).to_be_visible(timeout=15000)
+    saved = rpc_calls(state, 'agenda_link_save')[-1]['link']
+    assert sorted(saved['calendars']) == sorted([PARTY_CAL, PERSONAL_CAL, 'ios:CAL-TRAVAIL']) and saved['permanent'] is False
+    assert page.evaluate('window.__synced') == 1
     assert errors == [], errors
 
 

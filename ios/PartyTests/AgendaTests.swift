@@ -25,7 +25,7 @@ struct AgendaTests {
     @Test("Arrondi vers l'extérieur à 30 min : 14:10–15:05 devient 14:00–15:30")
     func roundsOutward() {
         let result = Self.blocks([Self.entry("2026-11-18T14:10:00Z", "2026-11-18T15:05:00Z")])
-        #expect(result == [AgendaBusy.Block(start: Self.at("2026-11-18T14:00:00Z"), end: Self.at("2026-11-18T15:30:00Z"))])
+        #expect(result == [AgendaBusy.Block(start: Self.at("2026-11-18T14:00:00Z"), end: Self.at("2026-11-18T15:30:00Z"), calendar: "perso")])
     }
 
     @Test("Plages qui se chevauchent ou se touchent : une seule")
@@ -37,8 +37,10 @@ struct AgendaTests {
             Self.entry("2026-11-18T13:00:00Z", "2026-11-18T14:00:00Z"),
         ])
         #expect(result.count == 2)
-        #expect(result.first == AgendaBusy.Block(start: Self.at("2026-11-18T09:00:00Z"), end: Self.at("2026-11-18T11:00:00Z")))
-        #expect(AgendaBusy.payload(result).last == ["s": "2026-11-18T13:00:00Z", "e": "2026-11-18T14:00:00Z"])
+        #expect(result.first == AgendaBusy.Block(start: Self.at("2026-11-18T09:00:00Z"), end: Self.at("2026-11-18T11:00:00Z"), calendar: "perso"))
+        let last = AgendaBusy.payload(result).last
+        #expect(last?["s"] as? String == "2026-11-18T13:00:00Z" && last?["e"] as? String == "2026-11-18T14:00:00Z")
+        #expect(last?["c"] as? String == "ios:perso" && last?["g"] as? Bool == true && last?.count == 4)
     }
 
     @Test("Coupé à [maintenant, +60 jours] : le passé et l'au-delà ne partent pas")
@@ -48,7 +50,7 @@ struct AgendaTests {
             Self.entry("2026-11-10T08:00:00Z", "2026-11-10T09:00:00Z"),  // passé
             Self.entry("2027-01-20T08:00:00Z", "2027-01-20T09:00:00Z"),  // > 60 jours
         ])
-        #expect(result == [AgendaBusy.Block(start: Self.at("2026-11-17T10:00:00Z"), end: Self.at("2026-11-17T11:00:00Z"))])
+        #expect(result == [AgendaBusy.Block(start: Self.at("2026-11-17T10:00:00Z"), end: Self.at("2026-11-17T11:00:00Z"), calendar: "perso")])
         let far = Self.blocks([Self.entry("2027-01-15T08:00:00Z", "2027-01-20T09:00:00Z")])
         #expect(far.last?.end == Self.at("2027-01-16T10:00:00Z"))  // 17.11 10:00 + 60 jours
     }
@@ -61,8 +63,26 @@ struct AgendaTests {
             Self.entry("2026-11-18T13:00:00Z", "2026-11-18T13:00:00Z"),
             Self.entry("2026-11-18T15:00:00Z", "2026-11-18T16:00:00Z", availability: .tentative),
         ])
-        #expect(result == [AgendaBusy.Block(start: Self.at("2026-11-18T15:00:00Z"), end: Self.at("2026-11-18T16:00:00Z"))])
+        #expect(result == [AgendaBusy.Block(start: Self.at("2026-11-18T15:00:00Z"), end: Self.at("2026-11-18T16:00:00Z"), calendar: "perso")])
         #expect(Self.blocks([Self.entry("2026-11-18T09:00:00Z", "2026-11-18T10:00:00Z")], busy: []).isEmpty)
+    }
+
+    @Test("Lien de dispo : ses calendriers partent aussi, à part, sans compter pour les groupes")
+    func linkCalendarsAreSentApart() {
+        let result = AgendaBusy.blocks([
+            Self.entry("2026-11-18T09:00:00Z", "2026-11-18T10:00:00Z", calendar: "perso"),
+            Self.entry("2026-11-18T09:30:00Z", "2026-11-18T11:00:00Z", calendar: "travail"),  // chevauche, autre calendrier
+            Self.entry("2026-11-18T13:00:00Z", "2026-11-18T14:00:00Z", calendar: "sport"),    // ni groupes ni lien
+        ], busyCalendars: ["perso"], linkCalendars: ["travail"], now: Self.now, partyHost: Self.host)
+        #expect(result == [
+            AgendaBusy.Block(start: Self.at("2026-11-18T09:00:00Z"), end: Self.at("2026-11-18T10:00:00Z"), calendar: "perso", groups: true),
+            AgendaBusy.Block(start: Self.at("2026-11-18T09:30:00Z"), end: Self.at("2026-11-18T11:00:00Z"), calendar: "travail", groups: false),
+        ])
+        let links: [[String: Any]] = [
+            ["status": "active", "calendars": ["ios:A", "3f2b8c1e-0000-4000-8000-000000000001", "ios:B"]],
+            ["status": "stopped", "calendars": ["ios:C"]], ["status": "active", "calendars": NSNull()],
+        ]
+        #expect(AgendaStore.linkCalendars(links) == ["A", "B"])
     }
 
     @Test("Journée entière : seulement marquée occupée (vacances), jamais un jour férié « disponible »")

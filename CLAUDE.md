@@ -405,7 +405,8 @@ réglage de prod :
   d'office), bloqués exclus, quitter le groupe = arrêt (déclencheur), arrêter = tout effacé ; le serveur ne reçoit que des
   plages « pris » arrondies à 30 min sur 60 jours (`agenda_set_busy`, jamais titre ni lieu). « Qui est libre ? » :
   `agenda_group_free` (ceux qui ne partagent pas : `shares: false`, sans état, jamais « N'a pas partagé »).
-- Liens publics (`private.agenda_links`, jeton 144 bits, 10 au plus, 90 jours, arrêter / rallumer à la même adresse, vues
+- Liens publics (`private.agenda_links`, jeton 144 bits, 10 au plus, PERMANENTS par défaut ou 90 jours (`expires_at` null =
+  permanent, migration 20261117150000), arrêter / rallumer à la même adresse, vues
   pour le propriétaire seul) ; page `GET /d/<jeton>` rendue par le serveur (app/agenda.py) : vouvoiement, polices système,
   aucune ressource externe (CSP nonce), noindex / no-referrer, même 404 neutre pour inconnu / arrêté / expiré, rien le jour
   même (dès demain, ≥ 12 h), 60 jours au plus. Toute adresse depuis PARTY_PUBLIC_URL, jamais un domaine en dur.
@@ -415,6 +416,12 @@ réglage de prod :
   Bloquer l'expéditeur (empreintes) / Couper ; suivi par lien secret `/d/r/<secret>` (Annuler, Effacer mes données, .ics).
   Effacé aussitôt si refus / annulation / 48 h sans réponse, 30 jours après le rendez-vous sinon (pg_cron `agenda-tick`) ;
   l'agenda du membre garde « Rendez-vous · Prénom N. ». Jamais de SMS, d'appel ni de rapprochement avec un compte Party.
+- Chaque lien choisit « Ce qui te rend occupé » (`agenda_links.calendars` : id des calendriers de Party / .ics, `ios:<id>`
+  pour l'iPhone, jamais un nom ; null = tout, liens d'avant ; nouveau lien : tout coché). Les plages arrivent par calendrier
+  (`agenda_busy.cal`, `for_groups`) : « Qui est libre ? » ne lit que les calendriers qui comptent pour les groupes ; l'iPhone
+  envoie aussi ceux choisis par un lien actif (`AgendaStore.linkCalendars`), aussitôt après l'enregistrement du lien
+  (`syncBusyNow`). Les demandes de rendez-vous rendent toujours occupé. Tests : `test_each_link_chooses_the_calendars_*`,
+  `test_a_link_can_be_permanent`, `test_in_the_iphone_app_a_link_picks_iphone_calendars_*`, `AgendaTests`.
 - Notification `booking_request` / `booking_cancelled` sans coordonnée ni texte libre, interrupteur
   `notification_prefs.booking_requests` (allumé) ; pastille `agenda_badge()` + signal `user:<id>`. E-mails : pas en v1,
   point d'accroche `mail_state`, statut `to_confirm` et `private.agenda_settings.double_opt_in`.

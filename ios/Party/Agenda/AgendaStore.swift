@@ -109,8 +109,9 @@ final class AgendaStore: ObservableObject {
 
     // MARK: Mes dispos (envoi des plages « pris »)
 
-    /// Calcule et envoie les plages des calendriers cochés, seulement si le partage est actif (un groupe coché ou un lien
-    /// de dispo actif) : sinon rien ne part, pas même une liste vide.
+    /// Calcule et envoie les plages des calendriers cochés (groupes) et de ceux choisis par un lien de dispo actif,
+    /// seulement si le partage est actif (un groupe coché ou un lien de dispo actif) : sinon rien ne part, pas même une
+    /// liste vide.
     func syncBusy() async -> [String: Any] {
         guard !syncing, let token = await web?.accountToken() else { return ["sent": 0, "updatedAt": NSNull()] }
         syncing = true
@@ -124,13 +125,19 @@ final class AgendaStore: ObservableObject {
             guard let cal = store.calendar(withIdentifier: $0) else { return false }
             return prefs.get($0, excluded: AgendaCalendars.excluded(type: cal.type, title: cal.title)).countsBusy
         })
+        // Calendriers de l'iPhone choisis par un lien de dispo actif (« ios:<id> »), hors calendriers exclus d'office.
+        let links = (try? await rpc(token, "agenda_links") as? [String: Any])?["links"] as? [[String: Any]] ?? []
+        let forLinks = Set(Self.linkCalendars(links).filter {
+            guard let cal = store.calendar(withIdentifier: $0) else { return false }
+            return AgendaCalendars.excluded(type: cal.type, title: cal.title) == nil
+        })
         var entries: [AgendaBusy.Entry] = []
-        if !busy.isEmpty {
-            let calendars = store.calendars(for: .event).filter { busy.contains($0.calendarIdentifier) }
+        if !busy.union(forLinks).isEmpty {
+            let calendars = store.calendars(for: .event).filter { busy.contains($0.calendarIdentifier) || forLinks.contains($0.calendarIdentifier) }
             let end = now.addingTimeInterval(Double(AgendaBusy.horizonDays) * 86_400)
             entries = store.events(matching: store.predicateForEvents(withStart: now, end: end, calendars: calendars)).map(Self.entry)
         }
-        let blocks = AgendaBusy.blocks(entries, busyCalendars: busy, now: now)
+        let blocks = AgendaBusy.blocks(entries, busyCalendars: busy, linkCalendars: forLinks, now: now)
         do {
             let saved = try await rpc(token, "agenda_set_busy", ["source": "device", "blocks": AgendaBusy.payload(blocks)]) as? [String: Any]
             prefs.synced = true
@@ -182,6 +189,14 @@ final class AgendaStore: ObservableObject {
         live?.stop()
         live = nil
         liveAccount = nil
+    }
+
+    /// Identifiants EventKit des calendriers de l'iPhone choisis par les liens de dispo actifs (agenda_links).
+    nonisolated static func linkCalendars(_ links: [[String: Any]]) -> Set<String> {
+        Set(links.filter { $0["status"] as? String == "active" }
+            .flatMap { $0["calendars"] as? [String] ?? [] }
+            .filter { $0.hasPrefix("ios:") }
+            .map { String($0.dropFirst(4)) })
     }
 
     /// Retour au premier plan : pastille relue ; plages renvoyées si cet iPhone partage déjà ses dispos.

@@ -49,11 +49,11 @@ export default function LinkScreen() {
                 <Button small variant="secondary" label="Code QR" style={{ flex: 1 }} onPress={() => setQr(true)} />
               </View>
             ) : <T muted size={13}>Le lien n’affiche plus rien. Rallumé, il garde la même adresse.</T>}
-            <T muted size={13}>{link.views ? `Vu ${link.views} fois` : 'Pas encore vu'} · {link.status === 'active' ? `s’arrête seul le ${dateShort(link.expires_at)}` : link.status === 'stopped' ? 'arrêté' : 'expiré'}</T>
+            <T muted size={13}>{link.views ? `Vu ${link.views} fois` : 'Pas encore vu'} · {link.status === 'active' ? (link.expires_at ? `s’arrête seul le ${dateShort(link.expires_at)}` : 'permanent') : link.status === 'stopped' ? 'arrêté' : 'expiré'}</T>
           </View>
           {link.status === 'active' ? (
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              <Button small variant="secondary" label="Prolonger de 90 jours" style={{ flex: 1 }} onPress={() => void act('extend')} />
+              {link.expires_at ? <Button small variant="secondary" label="Prolonger de 90 jours" style={{ flex: 1 }} onPress={() => void act('extend')} /> : null}
               <Button small variant="danger" label="Arrêter" style={{ flex: 1 }} onPress={() => void act('stop')} />
             </View>
           ) : <Button label="Rallumer ce lien" onPress={() => void act('restart')} />}

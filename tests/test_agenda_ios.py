@@ -32,7 +32,8 @@ def test_the_bridge_offers_the_agreed_contract():
 def test_only_rounded_busy_ranges_leave_the_iphone():
     busy = read("ios/Party/Agenda/AgendaBusy.swift")
     store = read("ios/Party/Agenda/AgendaStore.swift")
-    assert 'blocks.map { ["s": iso($0.start), "e": iso($0.end)] }' in busy  # jamais titre, lieu ni calendrier
+    # Jamais titre, lieu ni nom du calendrier : début, fin, clé « ios:<id> », compte pour les groupes.
+    assert 'blocks.map { ["s": iso($0.start), "e": iso($0.end), "c": key($0.calendar), "g": $0.groups] }' in busy
     assert "static let horizonDays = 60" in busy and "static let step: TimeInterval = 1800" in busy
     assert '"agenda_set_busy", ["source": "device", "blocks": AgendaBusy.payload(blocks)]' in store
     # Rien ne part tant que le partage n'est pas actif (un groupe coché ou un lien de dispo actif).

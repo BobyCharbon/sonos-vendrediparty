@@ -2,8 +2,9 @@ import EventKit
 import Foundation
 
 /// Agenda de Party (17.11) : plages « pris » calculées SUR l'iPhone à partir des calendriers cochés « compte dans mes
-/// dispos ». Seuls début et fin, arrondis vers l'extérieur à 30 min, coupés à [maintenant, +60 jours] et fusionnés,
-/// partent au serveur (agenda_set_busy) : jamais un titre, un lieu, une note ni le nom d'un calendrier.
+/// dispos » (groupes) ou choisis par un lien de dispo. Seuls début et fin, arrondis vers l'extérieur à 30 min, coupés à
+/// [maintenant, +60 jours] et fusionnés calendrier par calendrier, partent au serveur (agenda_set_busy), avec la clé
+/// « ios:<id> » du calendrier et s'il compte pour les groupes : jamais un titre, un lieu, une note ni le nom d'un calendrier.
 enum AgendaBusy {
     static let horizonDays = 60
     static let step: TimeInterval = 1800
@@ -12,7 +13,13 @@ enum AgendaBusy {
     struct Block: Equatable {
         let start: Date
         let end: Date
+        /// Identifiant EventKit du calendrier (envoyé comme « ios:<id> »).
+        var calendar: String = ""
+        /// Compte aussi pour « Qui est libre ? » des groupes (calendrier coché « compte dans mes dispos »).
+        var groups: Bool = true
     }
+
+    static func key(_ calendarID: String) -> String { "ios:" + calendarID }
 
     /// Un rendez-vous de l'iPhone, réduit à ce qui décide s'il compte (testable sans EventKit).
     struct Entry {
@@ -52,31 +59,35 @@ enum AgendaBusy {
         return entry.availability != .free
     }
 
-    /// Plages à envoyer : arrondies vers l'extérieur à 30 min, coupées à [maintenant, +60 jours], fusionnées, 1000 au plus.
-    static func blocks(_ entries: [Entry], busyCalendars: Set<String>, now: Date = Date(),
+    /// Plages à envoyer, calendrier par calendrier : ceux qui comptent pour les groupes (`busyCalendars`) et ceux choisis
+    /// par un lien de dispo (`linkCalendars`). Arrondies vers l'extérieur à 30 min, coupées à [maintenant, +60 jours],
+    /// fusionnées par calendrier, 1000 au plus.
+    static func blocks(_ entries: [Entry], busyCalendars: Set<String>, linkCalendars: Set<String> = [], now: Date = Date(),
                        partyHost: String? = AppConfig.baseURL.host) -> [Block] {
         let from = floor(now), to = from.addingTimeInterval(Double(horizonDays) * 86_400)
+        let wanted = busyCalendars.union(linkCalendars)
         let rounded = entries
-            .filter { counts($0, busyCalendars: busyCalendars, partyHost: partyHost) }
+            .filter { counts($0, busyCalendars: wanted, partyHost: partyHost) }
             .compactMap { entry -> Block? in
                 let start = max(floor(entry.start), from), end = min(ceil(entry.end), to)
-                return end > start ? Block(start: start, end: end) : nil
+                return end > start
+                    ? Block(start: start, end: end, calendar: entry.calendarID, groups: busyCalendars.contains(entry.calendarID)) : nil
             }
-            .sorted { $0.start < $1.start }
+            .sorted { ($0.calendar, $0.start) < ($1.calendar, $1.start) }
         var merged: [Block] = []
         for block in rounded {
-            if let last = merged.last, block.start <= last.end {
-                merged[merged.count - 1] = Block(start: last.start, end: max(last.end, block.end))
+            if let last = merged.last, last.calendar == block.calendar, block.start <= last.end {
+                merged[merged.count - 1] = Block(start: last.start, end: max(last.end, block.end), calendar: last.calendar, groups: last.groups)
             } else {
                 merged.append(block)
             }
         }
-        return Array(merged.prefix(maxBlocks))
+        return Array(merged.sorted { $0.start < $1.start }.prefix(maxBlocks))
     }
 
-    /// Corps de agenda_set_busy : [{"s": ISO, "e": ISO}], rien d'autre.
-    static func payload(_ blocks: [Block]) -> [[String: String]] {
-        blocks.map { ["s": iso($0.start), "e": iso($0.end)] }
+    /// Corps de agenda_set_busy : [{"s": ISO, "e": ISO, "c": "ios:<id>", "g": true}], rien d'autre.
+    static func payload(_ blocks: [Block]) -> [[String: Any]] {
+        blocks.map { ["s": iso($0.start), "e": iso($0.end), "c": key($0.calendar), "g": $0.groups] }
     }
 
     static func iso(_ date: Date) -> String {

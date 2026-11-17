@@ -171,6 +171,63 @@ def test_a_public_link_shows_free_slots_from_tomorrow_only_and_stops_at_the_same
     ok(owner.rpc('agenda_link_set', id=link['id'], action='delete'))
 
 
+def free_at(token: str, when: datetime) -> bool:
+    """Le moment `when` est-il dans une plage libre de la page publique ?"""
+    page = ok(anon('agenda_public_page', t=token, count_view=False))
+    return any(at(s) <= when < at(e) for s, e in page['slots'])
+
+
+def test_each_link_chooses_the_calendars_that_make_me_busy(people, group):
+    """Migration 20261117150000 : un lien ne compte que ses calendriers ; « Qui est libre ? » que ceux des groupes."""
+    owner, friend, _ = people
+    ok(owner.rpc('agenda_set_sharing', groups=[group]))
+    day = (datetime.now(SWISS) + timedelta(days=3)).replace(hour=10, minute=0, second=0, microsecond=0)
+    work, perso = 'ios:TRAVAIL-1', 'ios:PERSO-2'
+    pro = ok(owner.rpc('agenda_link_save', link=link_body(name='Pro', calendars=[work])))
+    every = ok(owner.rpc('agenda_link_save', link=link_body(name='Tout', calendars=[work, perso])))
+    assert pro['calendars'] == [work]
+    ok(owner.rpc('agenda_set_busy', source='device', blocks=[
+        {'s': day.isoformat(), 'e': (day + timedelta(hours=1)).isoformat(), 'c': work, 'g': False},
+        {'s': (day + timedelta(hours=3)).isoformat(), 'e': (day + timedelta(hours=4)).isoformat(), 'c': perso, 'g': True},
+    ]))
+    assert not free_at(pro['token'], day) and free_at(pro['token'], day + timedelta(hours=3))   # perso ne compte pas
+    assert not free_at(every['token'], day) and not free_at(every['token'], day + timedelta(hours=3))
+    # « Qui est libre ? » : seulement le calendrier qui compte pour les groupes (perso), jamais celui du lien seul.
+    me = next(m for m in ok(friend.rpc('agenda_group_free', grp=group))['members'] if m['id'] == owner.uid)
+    busy = [(at(s), at(e)) for s, e in me['busy']]
+    assert any(s <= day + timedelta(hours=3) < e for s, e in busy) and not any(s <= day < e for s, e in busy)
+    # Rendez-vous noté dans Party (« Juste pour moi ») : compte seulement si ce calendrier est choisi.
+    cals = {c['kind']: c['id'] for c in ok(owner.rpc('agenda_calendars_list'))}
+    later = day + timedelta(hours=6)
+    ok(owner.rpc('agenda_item_save', item={'title': 'Dentiste', 'starts_at': later.isoformat(),
+                                           'ends_at': (later + timedelta(hours=1)).isoformat(), 'calendar_id': cals['personal']}))
+    assert free_at(pro['token'], later)
+    ok(owner.rpc('agenda_link_save', link={'calendars': [work, cals['personal']]}, id=pro['id']))
+    assert not free_at(pro['token'], later)
+    refused(owner.rpc('agenda_link_save', link=link_body(calendars=['Travail perso'])), 'forbidden')   # jamais un nom
+    refused(owner.rpc('agenda_set_busy', source='device', blocks=[{'s': day.isoformat(), 'e': later.isoformat(), 'c': 'Agenda de Léa'}]), 'forbidden')
+    ok(owner.rpc('agenda_stop_sharing'))
+    sql(f"delete from private.agenda_links where user_id = '{owner.uid}'")
+    sql(f"delete from public.agenda_items where user_id = '{owner.uid}'")
+
+
+def test_a_link_can_be_permanent(people):
+    owner, _, _ = people
+    link = ok(owner.rpc('agenda_link_save', link=link_body(permanent=True)))
+    assert link['permanent'] and link['expires_at'] is None and link['status'] == 'active'
+    assert anon('agenda_public_page', t=link['token']).json()
+    # Rallumé après un arrêt : toujours permanent, même adresse.
+    ok(owner.rpc('agenda_link_set', id=link['id'], action='stop'))
+    again = ok(owner.rpc('agenda_link_set', id=link['id'], action='restart'))
+    assert again['permanent'] and anon('agenda_public_page', t=link['token']).json()
+    # Repasser à 90 jours, puis de nouveau permanent ; modifier autre chose ne touche pas à la durée.
+    timed = ok(owner.rpc('agenda_link_save', link={'permanent': False}, id=link['id']))
+    assert not timed['permanent'] and at(timed['expires_at']) > datetime.now(timezone.utc) + timedelta(days=89)
+    assert not ok(owner.rpc('agenda_link_save', link={'name': 'Renommé'}, id=link['id']))['permanent']
+    assert ok(owner.rpc('agenda_link_save', link={'permanent': True}, id=link['id']))['expires_at'] is None
+    ok(owner.rpc('agenda_link_set', id=link['id'], action='delete'))
+
+
 def test_ten_links_at_most(people):
     owner, _, _ = people
     for i in range(10):
