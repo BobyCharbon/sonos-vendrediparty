@@ -49,6 +49,8 @@ export function useEventChatPrefs(eventId: string, enabled: boolean, refreshKey:
     const { data, error } = await supabase.rpc('event_chat_prefs_get', { e: eventId });
     if (!error) setPrefs(readPrefs(data));
   }, [eventId, enabled]);
+  // Lecture au montage et à chaque relecture de la fiche : l'état change après la réponse de la base (asynchrone).
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void load(); }, [load, refreshKey]);
   useEffect(() => {
     if (typeof window === 'undefined' || !enabled) return undefined;
@@ -189,10 +191,13 @@ export function EventChatEntry({ eventId, chat, last, authorName, me, onOpen }: 
             <View style={st.muteRow}>
               <T muted size={13}>Sourdine</T>
               {MUTES.map((m) => {
-                const until = m.ms == null ? 'infinity' : new Date(Date.now() + m.ms).toISOString();
                 return (
                   <Pressable key={m.label} accessibilityRole="button" accessibilityLabel={`Sourdine ${m.label}`}
-                    onPress={() => void change('event_chat_mute', { until }, { muted_until: until })}
+                    onPress={() => {
+                      // L'heure de fin se calcule au toucher (jamais pendant l'affichage).
+                      const until = m.ms == null ? 'infinity' : new Date(Date.now() + m.ms).toISOString();
+                      void change('event_chat_mute', { until }, { muted_until: until });
+                    }}
                     style={({ pressed }) => [st.chip, pressed && { opacity: 0.7 }]}>
                     <T size={13} weight="semibold">{m.label}</T>
                   </Pressable>
