@@ -63,9 +63,9 @@ struct EventChatScreen: View {
             .buttonStyle(.plain)
             .disabled(chat == nil)
             // Libellé gardé pour la recette (RecetteDiscussionUITests) : le titre et la date suivent en valeur.
-            .accessibilityLabel("Participants et notifications")
-            .accessibilityValue("\(title), \(subtitle)")
-            .accessibilityHint("Ouvre les infos de la discussion")
+            .accessibilityLabel(title)
+            .accessibilityValue(subtitle)
+            .accessibilityHint("Ouvre les infos de la discussion : participants, notifications, médias")
             .accessibilityIdentifier("event-chat-info")
 
             bell

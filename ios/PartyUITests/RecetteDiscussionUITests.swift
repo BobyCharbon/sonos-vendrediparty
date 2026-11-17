@@ -95,8 +95,17 @@ final class RecetteDiscussionUITests: XCTestCase {
         XCTAssertTrue(banner.label.hasPrefix("Annonce 1 sur") && banner.label.contains("Parking"), "bandeau : la nouvelle annonce en tête (1 sur N, N = annonces de la recette)")
 
         // Infos : participants et notifications.
-        app.buttons.matching(NSPredicate(format: "label == 'Participants et notifications'")).firstMatch.tap()
-        XCTAssertTrue(app.switches["event-chat-notify"].waitForExistence(timeout: 10), "notifications de l'événement")
+        // Cloche de l'en-tête : le niveau des notifications (Mentions seulement par défaut).
+        let bell = app.buttons["event-chat-bell"]
+        XCTAssertTrue(bell.waitForExistence(timeout: 10), "cloche des notifications")
+        bell.tap()
+        XCTAssertTrue(app.buttons["Mentions seulement"].waitForExistence(timeout: 5), "menu de la cloche")
+        shot("cloche")
+        app.buttons["Mentions seulement"].tap()
+        sleep(1)
+        // En-tête : les infos de la discussion (façon « Infos du groupe »).
+        app.buttons["event-chat-info"].tap()
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "event-chat-notify").firstMatch.waitForExistence(timeout: 10), "notifications de l'événement")
         sleep(1)
         shot("infos")
         app.buttons["OK"].tap()
