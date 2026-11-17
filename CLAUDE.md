@@ -380,5 +380,9 @@ réglage de prod :
   notification aux membres (le créateur garde « X a rejoint ton groupe ») ; jamais d'annonce (send_announcement seul).
 - « 🎉 Garder cette bande ? » (`keep_band`) : organisateur, de la fin à 7 jours après, une seule fois (`private.band_offers`),
   INVITATIONS à accepter seulement, jamais ceux qui ont décoché ni ceux partis. `invite_to_group` refuse aussi une personne en blocage avec le créateur du groupe.
+- Un événement qui RÉUNIT ses invités dans un groupe compte parmi les événements du groupe (page, prochain événement de
+  la liste ; `private.group_event_ids`, migration 20261117120000), toujours sous `can_see_event`.
+- Recette iPhone (Release + serveur local + base de TEST) : `ios/PartyUITests/RecetteGroupesUITests.swift` (case cochée,
+  « Absent », groupe dans Discussions, bandeau Quitter, Réglages › Groupes, page du groupe).
 - Tests : `tests/supabase_live/test_invites_groupe_live.py`, `test_invites_groupe_browser_live.py` (recette réelle),
   `tests/test_invites_groupe.py`, `tests/test_invites_groupe_browser.py`, `GuestGroupTests` (iOS).

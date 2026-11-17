@@ -264,3 +264,14 @@ def test_deleting_a_group_with_members_works():
         (select count(*) from public.member_group_members where group_id = g),
         (select count(*) from private.group_departures where group_id = g);""")
     assert "résultat: supprime=1 membres=0 departs=0" in out, out
+
+
+def test_the_gathering_event_shows_on_the_group_page_and_list():
+    """Recette iPhone du 17.11 : l'événement qui réunit ses invités dans le groupe compte parmi les événements du groupe
+    (page du groupe, prochain événement de la liste) pour qui peut le voir (migration 20261117120000)."""
+    out = run(ada_event(days="1 minute") + as_bot("violette") + """
+      r := public.accept_invite_group(a, 'no', true);
+      s := (select string_agg(x->>'id', ',') from jsonb_array_elements(public.group_events(bots)) x);
+      raise exception 'résultat: page=% liste=%', coalesce(s, '') like '%' || e::text || '%',
+        (select x->'next_event'->>'id' from jsonb_array_elements(public.my_groups_overview()) x where x->>'id' = bots::text) = e::text;""")
+    assert "résultat: page=t liste=t" in out, out

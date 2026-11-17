@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type Vie
 
 import { Avatar, T } from './ui';
 import { BADGE_RED } from '@/lib/activityBadge';
-import { dateTile, formatMessageTime, plural } from '@/lib/format';
+import { dateTile, plural } from '@/lib/format';
 import { GROUP_EMOJIS, gradient, groupName, palette, type GroupLook, type GroupOverview } from '@/lib/groups';
 import { ease, enter, pressTransition, reducedMotion } from '@/lib/motion';
 import { colors, font, radius } from '@/lib/theme';
@@ -98,7 +98,10 @@ export function chatTime(iso: string, now = new Date()): string {
   if (days <= 0) return d.toLocaleTimeString('fr-CH', { hour: '2-digit', minute: '2-digit' });
   if (days === 1) return 'hier';
   if (days < 7) return d.toLocaleDateString('fr-CH', { weekday: 'short' });
-  return formatMessageTime(iso).replace(/\s*\d{2}:\d{2}$/, '').replace(/,\s*$/, '');
+  // « 31 oct. » (jamais « 31 oct. à » coupé, vu en recette iPhone du 17.11) ; une autre année : « 31.10.25 ».
+  return d.getFullYear() === now.getFullYear()
+    ? d.toLocaleDateString('fr-CH', { day: 'numeric', month: 'short' })
+    : d.toLocaleDateString('fr-CH', { day: '2-digit', month: '2-digit', year: '2-digit' });
 }
 
 /** Ligne de la liste des groupes (maquette A) : filet de couleur, tuile, nom, heure, dernier message, non lus,
