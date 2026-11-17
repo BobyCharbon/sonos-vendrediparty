@@ -126,7 +126,8 @@ export function withoutAnnounceTag(body: string): string {
 
 /** Fil façon WhatsApp : un séparateur par jour, et les messages d'une même personne regroupés (même jour, moins de
  * 5 min, pas une annonce) : nom en tête de la série, photo en bas. */
-export type TimelineRow<M> = { key: string; day: string } | { key: string; message: M; first: boolean; last: boolean };
+export type TimelineRow<M> = { key: string; day: string } | { key: string; unread: number }
+  | { key: string; message: M; first: boolean; last: boolean };
 const SERIES_MS = 5 * 60 * 1000;
 type TimelineMessage = { id: string; user_id: string; created_at: string; announcement?: boolean; pinned?: boolean };
 
@@ -155,15 +156,18 @@ export function dayLabel(date: Date, now: Date = new Date()): string {
     ? { day: 'numeric', month: 'long' } : { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
-export function chatTimeline<M extends TimelineMessage>(messages: M[], now: Date = new Date()): TimelineRow<M>[] {
+/** unreadFrom : premier message non lu à l'ouverture ; « N nouveaux messages » s'affiche juste avant (WhatsApp). */
+export function chatTimeline<M extends TimelineMessage>(messages: M[], now: Date = new Date(), unreadFrom: string | null = null): TimelineRow<M>[] {
   const rows: TimelineRow<M>[] = [];
   let day: Date | null = null;
+  const from = unreadFrom ? messages.findIndex((m) => m.id === unreadFrom) : -1;
   messages.forEach((m, i) => {
     const date = new Date(m.created_at);
     if (!day || !sameDay(day, date)) {
       day = date;
       rows.push({ key: `day-${m.id}`, day: dayLabel(date, now) });
     }
+    if (i === from) rows.push({ key: 'unread', unread: messages.length - from });
     rows.push({ key: m.id, message: m, first: !joins(messages[i - 1], m), last: !joins(m, messages[i + 1]) });
   });
   return rows;
@@ -204,13 +208,14 @@ export function insertMention(text: string, cursor: number, label: string): { te
   return { text: head + rest, cursor: head.length };
 }
 
-/** Choisir une photo (site : sélecteur du navigateur). */
-export function pickPhoto(): Promise<File | null> {
+/** Choisir une photo (site : sélecteur du navigateur) ; camera : l'appareil photo du téléphone d'abord. */
+export function pickPhoto(camera = false): Promise<File | null> {
   return new Promise((resolve) => {
     if (typeof document === 'undefined') return resolve(null);
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
+    if (camera) input.setAttribute('capture', 'environment');
     input.onchange = () => resolve(input.files?.[0] ?? null);
     input.click();
   });
@@ -306,4 +311,109 @@ export async function uploadChatAudio(groupId: string, audio: { blob: Blob; ext:
     contentType: audio.ext === 'm4a' ? 'audio/mp4' : 'audio/webm', upsert: false });
   if (error) throw new Error('Le message vocal n’a pas pu être envoyé. Réessaie.');
   return path;
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Discussion d'un événement : notifications, sourdine, lu, réglages de l'organisation, médias, recherche
+// (migration 20261117190000 ; la base décide des droits).
+
+export type EventChatPrefs = { level: NotifyLevel; muted_until: string | null; last_read_at: string | null; unread: number };
+export type ChatWriteMode = 'all' | 'staff';
+
+export const NOTIFY_LEVELS: { key: NotifyLevel; label: string; hint: string }[] = [
+  { key: 'all', label: 'Tout', hint: 'Chaque nouveau message' },
+  { key: 'mentions', label: 'Mentions seulement', hint: 'Quand on te cite ou te répond, @toutlemonde, @present et les annonces' },
+  { key: 'none', label: 'Rien', hint: 'Aucune notification de cette discussion' },
+];
+
+export type MuteChoice = '8h' | 'week' | 'always';
+export const MUTE_CHOICES: { key: MuteChoice; label: string }[] = [
+  { key: '8h', label: '8 heures' }, { key: 'week', label: '1 semaine' }, { key: 'always', label: 'Toujours' },
+];
+
+/** Fin de la sourdine envoyée à la base : 'infinity' = toujours. */
+export function muteUntil(choice: MuteChoice, now: Date = new Date()): string {
+  if (choice === 'always') return 'infinity';
+  return new Date(now.getTime() + (choice === '8h' ? 8 * 3_600_000 : 7 * 86_400_000)).toISOString();
+}
+
+const FOREVER_MS = 5 * 365 * 86_400_000;
+
+export function isMuted(mutedUntil: string | null | undefined, now: Date = new Date()): boolean {
+  if (!mutedUntil) return false;
+  if (mutedUntil === 'infinity') return true;
+  const t = Date.parse(mutedUntil);
+  return Number.isFinite(t) && t > now.getTime();
+}
+
+const muteTimeFmt = new Intl.DateTimeFormat('fr-CH', { timeZone: 'Europe/Zurich', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+
+/** « Sourdine jusqu'au mar. 18 nov., 03:15 », « Sourdine : toujours » ; null hors sourdine. */
+export function muteLabel(mutedUntil: string | null | undefined, now: Date = new Date()): string | null {
+  if (!isMuted(mutedUntil, now)) return null;
+  if (mutedUntil === 'infinity' || Date.parse(mutedUntil!) - now.getTime() > FOREVER_MS) return 'Sourdine : toujours';
+  return `Sourdine jusqu’au ${muteTimeFmt.format(new Date(mutedUntil!))}`;
+}
+
+const asObject = (v: unknown) => (v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : null);
+const plain = (message: string | undefined, fallback: string) => (message ? message.replace(/^[\w.]+: /, '') : fallback);
+
+/** Mes réglages de cette discussion ; null si la base ne les connaît pas encore. */
+export async function eventChatPrefs(e: string): Promise<EventChatPrefs | null> {
+  const { data, error } = await supabase.rpc('event_chat_prefs_get', { e });
+  const o = asObject(data);
+  if (error || !o || typeof o.level !== 'string') return null;
+  return { level: o.level as NotifyLevel, muted_until: (o.muted_until as string | null) ?? null,
+    last_read_at: (o.last_read_at as string | null) ?? null, unread: Number(o.unread ?? 0) || 0 };
+}
+
+export async function setEventChatLevel(e: string, level: NotifyLevel): Promise<void> {
+  const { error } = await supabase.rpc('event_chat_set_level', { e, level });
+  if (error) throw new Error('Le réglage n’a pas pu être enregistré. Réessaie.');
+}
+
+/** until : date ISO, 'infinity' (toujours) ou null (réactiver). */
+export async function muteEventChat(e: string, until: string | null): Promise<void> {
+  const { error } = await supabase.rpc('event_chat_mute', { e, until });
+  if (error) throw new Error('La sourdine n’a pas pu être enregistrée. Réessaie.');
+}
+
+export async function markEventChatRead(e: string): Promise<void> {
+  await supabase.rpc('event_chat_mark_read', { e });
+}
+
+export async function saveEventChatSettings(e: string, settings: { write?: ChatWriteMode; description?: string }): Promise<void> {
+  const { error } = await supabase.rpc('event_chat_set_settings', { e, write: settings.write ?? null, description: settings.description ?? null });
+  if (error) throw new Error(plain(error.message, 'Le réglage n’a pas pu être enregistré. Réessaie.'));
+}
+
+export type EventChatMedia = { message_id: string; kind: 'photo' | 'audio' | 'link'; path?: string | null; url?: string | null; at: string;
+  author?: string | null; author_name?: string | null; text?: string | null };
+
+export async function eventChatMedia(e: string, before: string | null = null): Promise<EventChatMedia[]> {
+  const { data, error } = await supabase.rpc('event_chat_media', { e, before, lim: 60 });
+  if (error) throw new Error('Les médias n’ont pas pu être lus.');
+  return Array.isArray(data) ? data as EventChatMedia[] : [];
+}
+
+export type EventChatHit = { message_id: string; at: string; author?: string | null; author_name?: string | null; snippet: string };
+
+export async function eventChatSearch(e: string, q: string): Promise<EventChatHit[]> {
+  const { data, error } = await supabase.rpc('event_chat_search', { e, q });
+  if (error) throw new Error('La recherche n’a pas pu aboutir. Réessaie.');
+  return Array.isArray(data) ? data as EventChatHit[] : [];
+}
+
+/** Premier message d'un autre arrivé après ma dernière lecture (rien si je n'ai jamais rien lu ici). */
+export function firstUnread(messages: { id: string; user_id: string; created_at: string }[], lastReadAt: string | null, me: string): string | null {
+  if (!lastReadAt) return null;
+  const t = Date.parse(lastReadAt);
+  return messages.find((m) => m.user_id !== me && Date.parse(m.created_at) > t)?.id ?? null;
+}
+
+/** Auteur d'un média / d'un résultat de recherche : son nom (author_name) ou son identifiant (author). */
+export function authorOf(item: { author?: string | null; author_name?: string | null }, nameOf: (id: string) => string | null): string {
+  if (item.author_name) return item.author_name;
+  if (item.author && /^[0-9a-f-]{36}$/i.test(item.author)) return nameOf(item.author) ?? '';
+  return item.author ?? '';
 }
