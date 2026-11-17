@@ -397,6 +397,7 @@ final class SettingsStore: ObservableObject {
         case ("group_messages", let v as Bool): p.groupMessages = v
         case ("group_invites", let v as Bool): p.groupInvites = v
         case ("group_joins", let v as Bool): p.groupJoins = v
+        case ("group_added", let v as Bool): p.groupAdded = v
         case ("ticket_pay_declared", let v as Bool): p.ticketPayDeclared = v
         case ("ticket_pay_confirmed", let v as Bool): p.ticketPayConfirmed = v
         case ("ticket_issued", let v as Bool): p.ticketIssued = v

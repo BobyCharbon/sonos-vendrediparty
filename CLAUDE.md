@@ -345,3 +345,25 @@ réglage de prod :
 - Changer un réglage de prod (drapeau, CGU, droit) = refaire la recette des parcours qu'il touche AVANT de le changer.
 - Le rapport dit ce qui a été testé pour de vrai et ce qui ne l'a été qu'avec des faux. Pas de « prêt » sans recette.
 - La production n'est pas un banc d'essai : en cas de doute, ça reste sur develop / le site de test.
+
+## Invités → groupe (17.11, migration 20261117110000)
+- Option par événement `events.guest_group` (éteinte par défaut, jamais allumée par l'IA : hors du schéma de ai_events.py /
+  ai_event_edit.py) : un seul groupe, que l'organisateur gère ET dont il fait partie (`private.manages_guest_group`, garde
+  `events_guest_group_guard`), jamais Membres Vendredi Party. Étape 2 « Qui est invité » et carte Invités › « Régler »
+  (`set_event_guest_group`, « Nouveau groupe » = groupe créé d'un coup, nom filtré, CGU).
+- Case « Rejoindre aussi le groupe « … » de … » DÉCOCHÉE par défaut (RGPD Planet49, Apple 5.1.2), grande, sous les réponses,
+  texte complet (`JOIN_DETAIL`, lib/guestGroup.ts). L'écran envoie `join_group` true/false AVEC la réponse
+  (`accept_invite_group` ; fiche : `set_guest_group_choice`) ; sans paramètre ou false : jamais d'entrée. Coché : entrée pour
+  Je viens, Peut-être ET Pas présent ; en attente d'accord : à l'accord (déclencheur `rsvps_guest_group`). Pas de case sur un
+  sondage de dates. Répondu sans cocher : bouton « Rejoindre le groupe » sur la fiche, sans relance ni notification.
+- Jamais : blocage (organisateur ou créateur du groupe), profil incomplet, personne partie du groupe après la création de
+  l'événement (`private.group_departures` : groupe, personne, date ; noté seulement quand on part soi-même, jamais par la
+  cascade d'un groupe ou d'un compte supprimé ; effacé quand elle revient d'elle-même).
+- Après l'entrée : notification personnelle `group_added` (interrupteur `notification_prefs.group_added`, web + iPhone,
+  `web_push_allowed`, `may_receive_push`, `drop_blocked_notification` ; toucher → discussion du groupe) ; bandeau
+  « Tu es dans le groupe X · Quitter » une fois (`take_group_join_note`, web GroupChat, iOS ConversationView). Aucune
+  notification aux membres (le créateur garde « X a rejoint ton groupe ») ; jamais d'annonce (send_announcement seul).
+- « 🎉 Garder cette bande ? » (`keep_band`) : organisateur, de la fin à 7 jours après, une seule fois (`private.band_offers`),
+  INVITATIONS à accepter seulement, jamais ceux qui ont décoché ni ceux partis. `invite_to_group` refuse aussi une personne en blocage avec le créateur du groupe.
+- Tests : `tests/supabase_live/test_invites_groupe_live.py`, `test_invites_groupe_browser_live.py` (recette réelle),
+  `tests/test_invites_groupe.py`, `tests/test_invites_groupe_browser.py`, `GuestGroupTests` (iOS).

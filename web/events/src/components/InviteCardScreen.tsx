@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Image, Linking, Pressable, StyleSheet, View } from 'react-native';
 
 import { CalendarButton } from './CalendarButton';
+import { GuestGroupCheck } from './GuestGroup';
 import { IdentityForm } from './IdentityForm';
 import { InviteDateVotes } from './InviteDateVotes';
 import { useTermsGate } from './TermsSheet';
@@ -12,7 +13,8 @@ import { useAuth } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
 import { avatarColor, formatLongDay, formatTime, initials } from '@/lib/format';
 import { acceptInvite, fetchInviteCard, unlimited, type Accepted, type InviteCard } from '@/lib/invites';
-import { clearInviteAnswer, peekInviteAnswer, rememberInviteAnswer } from '@/lib/inviteIntent';
+import { clearInviteAnswer, peekInviteAnswer, peekInviteJoin, rememberInviteAnswer } from '@/lib/inviteIntent';
+import { groupLabel } from '@/lib/guestGroup';
 import { canInstallWebApp, insideInstalledApp, installWebApp, isAndroid } from '@/lib/installPrompt';
 import { enter, pressTransition } from '@/lib/motion';
 import { safeHref } from '@/lib/links';
@@ -70,11 +72,13 @@ export function InviteCardScreen({ token }: { token: string | undefined }) {
   const [answer, setAnswer] = useState<Answer | null>(() => (valid && session ? peekInviteAnswer(token!) : null));
   const [done, setDone] = useState<Accepted | null>(null);
   const [refused, setRefused] = useState<string | null>(null);
+  // « Rejoindre aussi le groupe » (17.11) : DÉCOCHÉE par défaut, gardée avec la réponse le temps de la connexion.
+  const [join, setJoin] = useState<boolean>(() => (valid && session ? peekInviteJoin(token!) ?? false : false));
 
   /** Sans compte : la page de connexion normale de l'app (jamais un formulaire à part), puis retour ici. */
   function choose(a: Answer) {
     if (session) return setAnswer(a);
-    rememberInviteAnswer(token!, a);
+    rememberInviteAnswer(token!, a, Date.now(), card?.guest_group && a !== 'poll' ? join : undefined);
     router.push('/sign-in' as Href);
   }
 
@@ -88,13 +92,16 @@ export function InviteCardScreen({ token }: { token: string | undefined }) {
   if (done && isOrganizer(done)) {
     return <Closed title="C’est ton lien d’invitation" text={OWN_LINK} />;
   }
-  if (done?.pending) return <Waiting title={done.title} host={done.host ?? card.host ?? null} />;
+  if (done?.pending) {
+    return <Waiting title={done.title} host={done.host ?? card.host ?? null}
+      group={done.guest_group?.status === 'pending' && card.guest_group ? groupLabel(card.guest_group) : null} />;
+  }
   if (done) return <Done card={card} done={done} onChange={() => { setDone(null); setAnswer(null); reload(); }} />;
   if (answer) {
-    return <Respond token={token!} card={card} answer={answer} onBack={() => { clearInviteAnswer(); setAnswer(null); }}
+    return <Respond token={token!} card={card} answer={answer} join={card.guest_group && answer !== 'poll' ? join : undefined} onBack={() => { clearInviteAnswer(); setAnswer(null); }}
       onDone={(a) => { clearInviteAnswer(); setDone(a); }} onRefused={(text) => { clearInviteAnswer(); setAnswer(null); setRefused(text); }} />;
   }
-  return <Card card={card} onAnswer={choose} />;
+  return <Card card={card} onAnswer={choose} join={join} onJoin={setJoin} />;
 }
 
 function Closed({ text, title = 'Lien indisponible', onRetry }: { text: string; title?: string; onRetry?: () => void }) {
@@ -129,7 +136,7 @@ function Host({ card }: { card: InviteCard }) {
   );
 }
 
-function Card({ card, onAnswer }: { card: InviteCard; onAnswer: (a: Answer) => void }) {
+function Card({ card, onAnswer, join, onJoin }: { card: InviteCard; onAnswer: (a: Answer) => void; join: boolean; onJoin: (v: boolean) => void }) {
   const closed = card.state === 'full' || card.state === 'expired' || card.state === 'revoked' || card.state === 'removed';
   const cancelled = card.status === 'cancelled';
   // Sondage : on compte les votants, comme le sondage de la fiche (10.11 : « 2 viennent » mais 3 votes).
@@ -211,6 +218,8 @@ function Card({ card, onAnswer }: { card: InviteCard; onAnswer: (a: Answer) => v
               <T weight="bold" size={17} color={a.key === 'yes' ? colors.onAction : colors.text}>{a.label}</T>
             </Pressable>
           ))}
+          {/* Juste sous les réponses, bien visible, décochée ; elle vaut pour les trois réponses (17.11). */}
+          {card.guest_group ? <GuestGroupCheck card={card.guest_group} value={join} onChange={onJoin} /> : null}
           {insideInstalledApp() ? null : <T muted size={13} style={{ textAlign: 'center' }}>Pas besoin d’installer l’app.</T>}
         </View>
       )}
@@ -229,7 +238,7 @@ function Approval({ card }: { card: InviteCard }) {
 }
 
 /** Demande envoyée (12.11) : rien d'autre à faire, la notification arrive dès l'accord. */
-function Waiting({ title, host }: { title: string; host: string | null }) {
+function Waiting({ title, host, group }: { title: string; host: string | null; group: string | null }) {
   return (
     <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center', gap: 12 }}>
       <Stack.Screen options={{ title: 'Invitation' }} />
@@ -239,6 +248,7 @@ function Waiting({ title, host }: { title: string; host: string | null }) {
         {host || 'L’organisateur'} doit accepter ta venue à <T weight="bold">{title}</T>. Tu recevras une notification dès que c’est fait,
         et l’événement s’ouvrira dans Party.
       </T>
+      {group ? <T size={14} color={colors.lavender} style={{ textAlign: 'center' }}>👥 Tu entreras aussi dans le groupe « {group} » à ce moment-là.</T> : null}
     </Screen>
   );
 }
@@ -260,8 +270,8 @@ function Line({ icon, title, hint }: { icon: string; title: string; hint?: strin
  * connaissance », le même formulaire que partout dans l'app (prénom, nom, surnom ; photo facultative), puis la réponse
  * part d'elle-même. Profil complet : la réponse part tout de suite (un seul essai automatique, puis « Réessayer »).
  */
-function Respond({ token, card, answer, onBack, onDone, onRefused }: {
-  token: string; card: InviteCard; answer: Answer; onBack: () => void; onDone: (a: Accepted) => void;
+function Respond({ token, card, answer, join, onBack, onDone, onRefused }: {
+  token: string; card: InviteCard; answer: Answer; join: boolean | undefined; onBack: () => void; onDone: (a: Accepted) => void;
   onRefused: (text: string) => void;
 }) {
   const { profile } = useAuth();
@@ -281,10 +291,10 @@ function Respond({ token, card, answer, onBack, onDone, onRefused }: {
     setError(null);
     try {
       try {
-        onDone(await acceptInvite(token, answer));
+        onDone(await acceptInvite(token, answer, join));
       } catch (e) {
         if (!(e instanceof Error && isTermsError(e.message) && (await terms.ensure()))) throw e;
-        onDone(await acceptInvite(token, answer));
+        onDone(await acceptInvite(token, answer, join));
       }
     } catch (e) {
       const raw = e instanceof Error ? e.message : String(e);
@@ -400,6 +410,11 @@ function Answered({ card, done, onChange }: { card: InviteCard; done: Accepted &
         </T>
         <T muted>{host} est prévenu.</T>
         {done.waitlisted ? <T size={13} color={colors.coralSoft} style={{ textAlign: 'center' }}>C’est complet pour l’instant : tu es sur la liste d’attente.</T> : null}
+        {done.guest_group?.status === 'joined' || done.guest_group?.status === 'already' ? (
+          <T size={14} weight="semibold" color={colors.mint} style={[{ textAlign: 'center' }, enter('fade')]}>
+            👥 Tu es dans le groupe « {groupLabel(done.guest_group.group ?? card.guest_group ?? { name: '' })} ». Tu peux le quitter quand tu veux.
+          </T>
+        ) : null}
       </View>
       {coming ? (
         <View style={{ gap: 10 }}>

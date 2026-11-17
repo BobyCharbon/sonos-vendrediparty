@@ -300,6 +300,17 @@ final class ChatsStore: ObservableObject {
         }
     }
 
+    /// Quitter le groupe depuis le bandeau d'entrée par un événement (17.11) : on n'y est plus remis sans son accord.
+    func leaveGroup() async -> Bool {
+        guard let group = conversation?.id, let me = conversation?.me, conversation?.isDirect != true, !forEvents else { return false }
+        var done = false
+        await act { token in
+            try await api.leaveGroup(token: token, group: group, me: me)
+            done = true
+        }
+        return done
+    }
+
     func setOrganizer(_ member: Conversation.Member, _ on: Bool) async {
         guard let group = conversation?.id else { return }
         await act { token in try await api.setChatOrganizer(token: token, group: group, member: member.id, on: on) }

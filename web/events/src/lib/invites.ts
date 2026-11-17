@@ -4,6 +4,7 @@ import { friendlyError } from './errors';
 import { formatShort } from './format';
 import { isTermsError } from './moderation';
 import { supabase } from './supabase';
+import type { GuestGroupCard } from './guestGroup';
 import type { RsvpStatus } from './types';
 
 const shortDate = (iso: string | null) => formatShort(iso).toLowerCase();
@@ -18,6 +19,8 @@ export type Guest = {
   id: string; name: string; avatar_url: string | null; status: RsvpStatus | null; waitlisted: boolean; plus_ones: number;
   source: GuestSource; group: string | null; invited_by: string | null; invited_by_id: string | null; link_label: string | null; link_token: string | null;
   has_app: boolean; light: boolean; nudged_today: boolean; removable: boolean;
+  /** 17.11 : dans le groupe des invités de l'événement (badge 👥 de la carte de l'organisateur). */
+  in_group?: boolean;
   /** Sondage de dates : a voté pour au moins une date ; poll : la liste est celle d'un sondage (08.11). */
   voted?: boolean; poll?: boolean;
 };
@@ -44,6 +47,8 @@ export type GuestList = {
   people: Guest[]; links: SentLink[];
   /** Organisateur : personnes qui attendent son accord (base plus ancienne : absent). */
   requests?: JoinRequest[];
+  /** 17.11 : groupe proposé aux invités (« Réunir les invités dans un groupe »), ou null. */
+  guest_group?: GuestGroupCard | null;
 };
 
 /** Filtres de la carte : réponses, pas encore répondu, lien pas encore ouvert. */
@@ -252,6 +257,8 @@ export type InviteCard = {
   already?: boolean; multi?: boolean;
   /** 12.11 : l'organisateur accepte chaque personne venue par ce lien (lien d'un invité, événement sans lien public). */
   approval?: boolean; host?: string | null;
+  /** 17.11 : la case « Rejoindre aussi le groupe » à proposer (décochée), ou null. */
+  guest_group?: GuestGroupCard | null;
 };
 export type Accepted = {
   event_id: string; status: RsvpStatus | null; title: string; starts_at: string | null; ends_at: string | null; all_day: boolean;
@@ -259,11 +266,16 @@ export type Accepted = {
   description: string | null; waitlisted: boolean | null;
   /** 12.11 : demande envoyée, l'organisateur (host) doit accepter avant que la personne voie l'événement. */
   pending?: boolean; host?: string | null;
+  /** 17.11 : case cochée → joined (ou pending, à l'accord de l'organisateur) ; décochée → declined. */
+  guest_group?: { status: string; group: GuestGroupCard | null };
 };
 
 export const fetchInviteCard = (token: string, opened: boolean) =>
   call<InviteCard | null>('invite_preview', { token, opened }, 'L’invitation n’a pas pu être lue. Réessaie dans un instant.');
 /** « poll » : sondage de dates, on rejoint l'événement sans « je viens » puis on vote les dates (08.11).
  * Profil complet exigé par la base (10.11) : plus de prénom envoyé ici, il vient de « Faisons connaissance ». */
-export const acceptInvite = (token: string, answer: RsvpStatus | 'poll') =>
-  call<Accepted>('accept_invite', { token, answer, first_name: null }, 'Ta réponse n’a pas pu être enregistrée. Réessaie.');
+export const acceptInvite = (token: string, answer: RsvpStatus | 'poll', joinGroup?: boolean) =>
+  // Case « Rejoindre aussi le groupe » montrée : son état part AVEC la réponse (true / false), dans la même transaction.
+  joinGroup === undefined
+    ? call<Accepted>('accept_invite', { token, answer, first_name: null }, 'Ta réponse n’a pas pu être enregistrée. Réessaie.')
+    : call<Accepted>('accept_invite_group', { token, answer, join_group: joinGroup }, 'Ta réponse n’a pas pu être enregistrée. Réessaie.');

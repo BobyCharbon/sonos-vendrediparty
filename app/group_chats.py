@@ -136,6 +136,15 @@ class GroupChats:
         except AccountError:
             return set()
 
+    def _join_note(self, token: str, group_id: str) -> dict | None:
+        """Entré par sa réponse à un événement (17.11) : bandeau « Tu es dans le groupe X · Quitter », rendu une seule fois
+        par la base (première ouverture) ; base sans la migration : rien, la discussion s'ouvre quand même."""
+        try:
+            note = self.admin._rpc(token, "take_group_join_note", {"grp": group_id})
+        except AccountError:
+            return None
+        return note if isinstance(note, dict) else None
+
     def _people(self, token: str, group_id: str, ids: set[str] | None) -> dict[str, dict]:
         """Membres du groupe (ids=None) ou personnes choisies : surnom et photo, via group_chat_people."""
         rows = self.admin._rpc(token, "group_chat_people", {"grp": group_id}, "Les membres n'ont pas pu être lus.") or []
@@ -228,6 +237,7 @@ class GroupChats:
                                                 f"&order=created_at.desc&limit={PAGE}", token),
             "admins": POOL.submit(self._rows, f"/rest/v1/group_admins?select=user_id&group_id=eq.{group_id}", token),
             "organizers": POOL.submit(self._organizers, token, group_id),
+            "join_note": POOL.submit(self._join_note, token, group_id),
             # Annonces (@annonce) et messages épinglés : le bandeau du haut, même au-delà des derniers messages.
             "highlights": POOL.submit(self._rows, f"/rest/v1/group_messages?select=*&group_id=eq.{group_id}&pinned=is.true"
                                                   f"&deleted_at=is.null&order=created_at.desc&limit={HIGHLIGHTS}", token),
@@ -293,6 +303,7 @@ class GroupChats:
                          "organizer": u in organizers, "phone": dialable(phones.get(u))} for u in inside],
             "messages": out,
             "highlights": highlights,
+            "join_note": got["join_note"],
         }
 
     @staticmethod

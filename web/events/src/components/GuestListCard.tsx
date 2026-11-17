@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
+import { GuestGroupManager } from './GuestGroup';
 import { InviteSheet } from './InviteSheet';
 import { Avatar, ErrorText, Meter, Skeleton, T, Toast } from './ui';
 import { useQuery } from '@/lib/data';
@@ -10,6 +11,7 @@ import {
   nudgeLink, removeInvitee, ruleSentence, shareInvite, statusWords, stopLink, unlimited,
   type Guest, type GuestFilter, type GuestList, type JoinRequest, type SentLink,
 } from '@/lib/invites';
+import { groupLabel } from '@/lib/guestGroup';
 import { pressTransition } from '@/lib/motion';
 import { colors, radius, rsvpColors } from '@/lib/theme';
 import type { EventRow } from '@/lib/types';
@@ -53,6 +55,7 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [groupEditing, setGroupEditing] = useState(false);
   const { data: list, reload, error: loadError } = useQuery(() => fetchGuestList(event.id), [event.id, refreshKey]);
 
   const refresh = () => { reload(); onChanged(); };
@@ -172,6 +175,25 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
         </View>
       ) : null}
 
+      {/* « Réunir les invités dans un groupe » (17.11) : combien y sont, « Régler » ; le lendemain, « Garder cette bande ? ». */}
+      {guest ? null : (
+        <Pressable accessibilityRole="button" accessibilityLabel={list.guest_group ? `Régler le groupe ${groupLabel(list.guest_group)}` : 'Réunir tes invités dans un groupe'}
+          onPress={() => setGroupEditing((v) => !v)} style={({ pressed }) => [st.groupLine, pressTransition, pressed && { transform: [{ scale: 0.98 }] }]}>
+          <T size={18}>👥</T>
+          <View style={{ flex: 1, gap: 2 }}>
+            <T size={14} weight="bold">{list.guest_group
+              ? `${list.people.filter((p) => p.in_group).length} dans « ${groupLabel(list.guest_group)} »`
+              : 'Réunir tes invités dans un groupe'}</T>
+            <T muted size={12}>{list.guest_group ? 'Ceux qui cochent la case en répondant y entrent.' : 'Option éteinte : chaque invité choisirait lui-même, case décochée.'}</T>
+          </View>
+          <T size={14} weight="bold" color={colors.accent}>{groupEditing ? 'Fermer' : 'Régler'}</T>
+        </Pressable>
+      )}
+      {guest ? null : (
+        <GuestGroupManager eventId={event.id} title={event.title} refreshKey={refreshKey} editing={groupEditing}
+          onClose={() => setGroupEditing(false)} onChanged={refresh} />
+      )}
+
       {counts.total ? (
         <Meter height={6} parts={[
           { fraction: counts.yes / counts.total, color: rsvpColors.yes },
@@ -199,7 +221,9 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
 
       <View style={st.rule}>
         <T size={14} weight="bold">{guest ? 'Tu vois les chiffres ; toi aussi, tu peux inviter. ' : ''}{ruleSentence(list)}</T>
-        <T muted size={12}>{guest ? guestRule : 'Personne n’est ajouté au groupe : les invités voient cet événement, rien d’autre.'}</T>
+        <T muted size={12}>{guest ? guestRule : list.guest_group
+          ? `Entre dans « ${groupLabel(list.guest_group)} » seulement qui coche la case en répondant ; les autres voient cet événement, rien d’autre.`
+          : 'Personne n’est ajouté au groupe : les invités voient cet événement, rien d’autre.'}</T>
       </View>
 
       <View style={st.tiles} accessibilityRole="tablist" accessibilityLabel="Filtrer les invités">
@@ -342,6 +366,7 @@ function GuestRow({ guest, me, onNudge, onRemove }: { guest: Guest; me: string; 
           <View style={[st.rowCenter, { gap: 6 }]}>
             <T weight="semibold" size={15} numberOfLines={2} style={{ flexShrink: 1 }}>{guest.name}</T>
             {guest.light ? <View style={st.tag}><T size={12} weight="bold" color={colors.muted}>SANS L’APP</T></View> : null}
+            {guest.in_group ? <View style={st.groupTag} accessibilityLabel="Dans le groupe"><T size={12}>👥</T></View> : null}
           </View>
           <T muted size={12} numberOfLines={1}>{guestOrigin(guest, me)}</T>
         </View>
@@ -514,6 +539,9 @@ const st = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   plus: { minHeight: 44, paddingHorizontal: 16, borderRadius: 22, backgroundColor: colors.action, alignItems: 'center', justifyContent: 'center' },
   rule: { gap: 2, padding: 12, borderRadius: radius.md, backgroundColor: colors.fill },
+  groupLine: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: radius.md, backgroundColor: colors.lavenderDim,
+    borderWidth: 1, borderColor: colors.lineStrong },
+  groupTag: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 6, backgroundColor: 'rgba(185,167,255,0.16)' },
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   tile: { flexGrow: 1, flexBasis: '30%', minHeight: 64, paddingVertical: 8, paddingHorizontal: 8, borderRadius: radius.md,
     borderWidth: 1.5, borderColor: 'transparent', backgroundColor: colors.fill, alignItems: 'center', justifyContent: 'center', gap: 2 },

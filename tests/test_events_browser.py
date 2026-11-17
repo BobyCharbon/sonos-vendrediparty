@@ -67,7 +67,7 @@ def browser(request):
             p.stop()
 
 
-def mock_services(page, pending=False, events=1, people=(), roles=None, unread=(), rsvps=()):
+def mock_services(page, pending=False, events=1, people=(), roles=None, unread=(), rsvps=(), event_extra=None):
     calls = []
     profile = {'id': USER, 'display_name': 'Compte de démonstration', 'phone': '41791234567', 'role': 'guest' if pending else 'admin', 'status': 'active', 'avatar_url': f'{USER}/photo.jpg', 'first_name': 'Camille', 'last_name': 'Demo', 'created_at': '2026-10-19T08:00:00Z'}
     category = {'id': 'ed69d11e-34dd-43fe-b211-10d0dd158ba9', 'name': 'Soirée', 'color': '#FFB347', 'sort': 0, 'archived': False, 'icon': None}
@@ -79,6 +79,7 @@ def mock_services(page, pending=False, events=1, people=(), roles=None, unread=(
              'show_participants': True, 'allow_maybe': True, 'allow_plus_ones': False, 'max_plus_ones': 0, 'max_participants': None,
              'rsvp_deadline': None, 'forum_enabled': True, 'all_day': False, 'price_chf': None, 'visibility': 'all'}
     event['rsvps'] = rsvps if isinstance(rsvps, list) else [dict(r) for r in rsvps]  # liste : le test peut l'allonger
+    event.update(event_extra or {})  # champs de plus pour un test (groupe des invités, autre organisateur…)
     # Droits du compte (catalogue réel : migration 20261020160100) ; un invité ne voit pas les sorties.
     perms = ['games.create', 'music.add'] if pending else ['events.view', 'events.rsvp', 'events.plus_ones', 'events.create', 'events.publish_direct',
              'events.edit_own_published', 'events.manage_all', 'events.approve', 'events.see_participants', 'events.recurring', 'polls.create', 'chat.write', 'chat.moderate',
