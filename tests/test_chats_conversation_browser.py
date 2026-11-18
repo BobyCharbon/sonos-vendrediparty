@@ -182,7 +182,7 @@ def test_direct_conversation_neon_card_seen_edit_menu_and_typing(phone, events_o
     page.get_by_role('button', name='Envoyer').last.click()
     pw.expect(page.get_by_text('Merci, c’est envoyé')).to_be_visible()
     report = [b for n, b in state['calls'] if n == 'report_content'][-1]
-    assert report['p_kind'] == 'direct_message' and report['p_target'] == 'd0000000-0000-4000-8000-000000000001' and report['context'] is True
+    assert report['p_kind'] == 'direct_message' and report['p_target'] == 'd0000000-0000-4000-8000-000000000001' and report['p_context'] is True
     page.get_by_role('button', name='Fermer', exact=True).click()
 
     # Modifier mon message récent (moins de 15 min) : le texte revient dans la barre, la base reçoit la nouvelle version.

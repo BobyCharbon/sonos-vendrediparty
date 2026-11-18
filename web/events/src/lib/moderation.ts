@@ -38,7 +38,7 @@ export function isTermsError(message: string | undefined | null): boolean {
 /** context : « Joindre les 10 messages précédents » (Discussions v2, décochée par défaut) ; envoyé seulement si coché. */
 export async function reportContent(target: ReportTarget, reason: ReportReason, comment: string, context = false): Promise<void> {
   const { error } = await supabase.rpc('report_content', {
-    p_kind: target.kind, p_target: target.id, p_reason: reason, p_comment: comment.trim() || null, ...(context ? { context: true } : {}),
+    p_kind: target.kind, p_target: target.id, p_reason: reason, p_comment: comment.trim() || null, ...(context ? { p_context: true } : {}),
   });
   if (error) throw new Error(dbMessage(error.message, 'Le signalement n’a pas pu être envoyé. Réessaie.'));
 }
