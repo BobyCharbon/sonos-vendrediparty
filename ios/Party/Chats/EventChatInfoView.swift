@@ -6,6 +6,9 @@ import SwiftUI
 struct EventChatInfoView: View {
     @ObservedObject var store: ChatsStore
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.conversationRoutes) private var routes
+    /// Un toucher sur une personne : son mini-profil (Discussions v2).
+    @State private var person: PersonRef?
 
     private struct Bucket: Identifiable {
         let id: String
@@ -35,12 +38,14 @@ struct EventChatInfoView: View {
                             Haptics.selection()
                             Task { await store.setNotify(on ? .all : .none) }
                         }))
+                        .tint(ConvNeon.lavDeep)
                         .accessibilityIdentifier("event-chat-notify")
                     } footer: {
                         Text(chat.notify == .none
                              ? "Coupées : aucune notification de cet événement, même quand on te cite. Le même réglage que sur sa fiche."
                              : "Selon Réglages › Notifications : chaque message, ou seulement quand on te cite (@surnom, @toutlemonde, @present, annonce) ou te répond.")
                     }
+                    .listRowBackground(ConvNeon.surface)
                     if chat.isStaff {
                         Section {
                             Label("@toutlemonde : prévient tous les invités et participants", systemImage: "person.3.fill")
@@ -52,26 +57,41 @@ struct EventChatInfoView: View {
                             Text("Tu organises cet événement (ou tu es admin) : tu peux aussi épingler un message ou retirer celui d'un autre, d'un appui long.")
                         }
                         .font(.subheadline)
+                        .foregroundStyle(ConvNeon.t1)
+                        .listRowBackground(ConvNeon.surface)
                     }
                     ForEach(buckets(chat)) { bucket in
                         Section {
-                            ForEach(bucket.people) { person in
-                                HStack(spacing: 12) {
-                                    Initials(name: person.name, photo: person.photo, size: 34)
-                                    PersonName(id: person.id, pseudo: person.name)
-                                    Spacer()
-                                    if person.id == chat.me { Text("Toi").font(.caption).foregroundStyle(.secondary) }
+                            ForEach(bucket.people) { member in
+                                Button {
+                                    Haptics.tap()
+                                    person = PersonRef(id: member.id)
+                                } label: {
+                                    HStack(spacing: 12) {
+                                        ConvFace(id: member.id, name: member.name, photo: member.photo, size: 36)
+                                        PersonName(id: member.id, pseudo: member.name).foregroundStyle(ConvNeon.t1)
+                                        Spacer()
+                                        if member.id == chat.me { Text("Toi").font(.caption).foregroundStyle(ConvNeon.t2) }
+                                    }
+                                    .frame(minHeight: 44)
+                                    .contentShape(Rectangle())
                                 }
+                                .buttonStyle(.plain)
+                                .disabled(member.id == chat.me)
                                 .accessibilityElement(children: .combine)
+                                .accessibilityHint(member.id == chat.me ? "" : "Ouvre son profil")
                             }
                         } header: {
                             Text("\(bucket.title) · \(bucket.people.count)")
                         }
+                        .listRowBackground(ConvNeon.surface)
                     }
                 } else {
-                    ProgressView()
+                    ProgressView().tint(ConvNeon.lav)
                 }
             }
+            .convNeonForm()
+            .personSheet($person, store: store, routes: routes)
             .navigationTitle(store.conversation?.name ?? "Discussion")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -79,5 +99,6 @@ struct EventChatInfoView: View {
             }
         }
         .presentationDragIndicator(.visible)
+        .preferredColorScheme(.dark)
     }
 }

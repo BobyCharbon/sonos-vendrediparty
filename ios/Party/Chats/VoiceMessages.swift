@@ -200,21 +200,26 @@ struct VoiceBubble: View {
             Button {
                 if let url { player.toggle(id: id, url: url) }
             } label: {
-                Image(systemName: active ? "pause.circle.fill" : "play.circle.fill").font(.system(size: 34))
+                // Néon : disque lavande (le mien : blanc), triangle sombre.
+                Image(systemName: active ? "pause.fill" : "play.fill").font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(PronoTheme.fixed(0x120B26))
+                    .frame(width: 44, height: 44)
+                    .background(mine ? AnyShapeStyle(Color.white) : AnyShapeStyle(PronoTheme.lavender), in: Circle())
             }
             .buttonStyle(.plain)
             .disabled(url == nil)
             .accessibilityLabel(active ? "Pause" : "Écouter le message vocal")
             VStack(alignment: .leading, spacing: 4) {
                 ProgressView(value: active ? player.progress : 0)
-                    .tint(mine ? .black : .white)
+                    .tint(mine ? .white : PronoTheme.lavA)
                     .frame(width: 120)
                 Text(VoiceRecorder.clock(seconds)).font(.caption.monospacedDigit())
+                    .foregroundStyle(mine ? Color.white.opacity(0.9) : PronoTheme.t2)
             }
             Button { player.nextSpeed() } label: {
                 Text(VoicePlayer.label(player.speed)).font(.caption.weight(.bold).monospacedDigit())
                     .padding(.horizontal, 8).padding(.vertical, 4)
-                    .background((mine ? Color.black : Color.white).opacity(0.18), in: Capsule())
+                    .background((mine ? Color.white : PronoTheme.lavA).opacity(0.18), in: Capsule())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Vitesse de lecture \(VoicePlayer.label(player.speed))")

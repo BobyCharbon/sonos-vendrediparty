@@ -1,16 +1,32 @@
 import SwiftUI
 
 /// Infos du groupe : mes notifications (par défaut : mentions seulement), membres et admins du groupe.
+/// Néon club (Discussions v2, 18.11) : tuile du groupe en tête, un toucher sur un membre ouvre son mini-profil.
 struct ChatInfoView: View {
     @ObservedObject var store: ChatsStore
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openGroupPage) private var openGroupPage
-    @State private var profile: Conversation.Member?
+    @Environment(\.conversationRoutes) private var routes
+    @State private var person: PersonRef?
 
     var body: some View {
         NavigationStack {
             Form {
                 if let chat = store.conversation {
+                    let look = store.chats?.first { $0.id == chat.id }
+                    Section {
+                        VStack(spacing: 10) {
+                            GroupTile(emoji: look?.emoji ?? "👥", color: look?.color, photo: look?.photo, system: look?.system ?? false, size: 84)
+                                .shadow(color: GroupLook.gradient(look?.color).to.opacity(0.5), radius: 18)
+                                .accessibilityHidden(true)
+                            Text(chat.name).font(.system(.title2, design: .rounded).weight(.heavy)).foregroundStyle(ConvNeon.t1)
+                                .multilineTextAlignment(.center)
+                            Text(chat.members.count == 1 ? "1 membre" : "\(chat.members.count) membres").foregroundStyle(ConvNeon.t2)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 6)
+                        .listRowBackground(Color.clear)
+                    }
                     if chat.member {
                         Section {
                             Picker("Notifications", selection: Binding(get: { chat.notify }, set: { level in
@@ -25,6 +41,7 @@ struct ChatInfoView: View {
                         } footer: {
                             Text(chat.notify.hint)
                         }
+                        .listRowBackground(ConvNeon.surface)
                     }
                     Section {
                         if chat.admin {
@@ -38,7 +55,7 @@ struct ChatInfoView: View {
                             .pickerStyle(.segmented)
                             .accessibilityIdentifier("chat-everyone")
                         } else {
-                            Text(chat.everyone == "staff" ? "Admins et organisateurs" : "Tous les membres")
+                            Text(chat.everyone == "staff" ? "Admins et organisateurs" : "Tous les membres").foregroundStyle(ConvNeon.t1)
                         }
                     } header: {
                         Text("Qui peut écrire @tout")
@@ -46,6 +63,7 @@ struct ChatInfoView: View {
                         Text("@tout prévient tout le groupe. @annonce (message épinglé en haut, envoyé à tous) est réservé aux admins et organisateurs."
                              + (chat.admin ? "" : " Les admins du groupe choisissent."))
                     }
+                    .listRowBackground(ConvNeon.surface)
                     if chat.member, let openGroupPage {
                         // Page du groupe (17.11) : couverture, membres, événements, Inviter, réglages (module Événements).
                         Section {
@@ -54,12 +72,13 @@ struct ChatInfoView: View {
                                 dismiss()
                                 openGroupPage.open(chat.id)
                             } label: {
-                                Label("Gérer le groupe", systemImage: "person.2.badge.gearshape")
+                                Label("Gérer le groupe", systemImage: "person.2.badge.gearshape").foregroundStyle(ConvNeon.lav)
                             }
                             .accessibilityIdentifier("chat-manage-group")
                         } footer: {
                             Text("La page du groupe : membres, événements, invitations et réglages.")
                         }
+                        .listRowBackground(ConvNeon.surface)
                     } else if chat.member {
                         // Hors de l'app (aperçus) : l'écran natif d'avant.
                         Section {
@@ -68,12 +87,13 @@ struct ChatInfoView: View {
                                     .task { await store.groups.load(); await store.privacy.load() }
                                     .onDisappear { Task { await store.open(chat.id) } }
                             } label: {
-                                Label("Gérer le groupe", systemImage: "person.2.badge.gearshape")
+                                Label("Gérer le groupe", systemImage: "person.2.badge.gearshape").foregroundStyle(ConvNeon.lav)
                             }
                             .accessibilityIdentifier("chat-manage-group")
                         } footer: {
                             Text("Membres, invitations et liens, comme dans Réglages › Groupes.")
                         }
+                        .listRowBackground(ConvNeon.surface)
                     }
                     Section {
                         ForEach(chat.members) { m in member(m, canName: chat.canNameAdmins) }
@@ -83,17 +103,17 @@ struct ChatInfoView: View {
                         Text("Les admins du groupe épinglent et suppriment les messages ; admins et organisateurs font et retirent les annonces. "
                              + (chat.canNameAdmins ? "Tu les nommes ici." : "Le créateur du groupe les nomme."))
                     }
+                    .listRowBackground(ConvNeon.surface)
                 }
             }
-            .scrollContentBackground(.hidden)
+            .convNeonForm()
             // Réglage enregistré (l'explication change), admin nommé ou retiré : fondu plutôt que saut.
             .motion(Motion.smooth, value: store.conversation?.notify)
             .motion(Motion.snappy, value: store.conversation?.members)
-            .background(AppConfig.background.ignoresSafeArea())
             .navigationTitle(store.conversation?.name ?? "Groupe")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("OK") { dismiss() } } }
-            .sheet(item: $profile) { m in MemberCardView(store: store.privacy, memberID: m.id) }
+            .personSheet($person, store: store, routes: routes)
         }
         .preferredColorScheme(.dark)
     }
@@ -102,32 +122,34 @@ struct ChatInfoView: View {
 
     @ViewBuilder private func member(_ m: Conversation.Member, canName: Bool) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                // Un toucher sur la photo ou le nom ouvre sa fiche (numéro, « Ajouter aux contacts »).
-                Button { profile = m } label: { Initials(name: m.name, photo: m.photo) }
+            HStack(spacing: 12) {
+                // Un toucher sur la photo ou le nom ouvre son mini-profil (Envoyer un message, fiche, en commun).
+                Button { person = PersonRef(id: m.id) } label: { ConvFace(id: m.id, name: m.name, photo: m.photo, size: 36) }
                     .buttonStyle(.borderless)
+                    .accessibilityLabel("Profil de \(m.name)")
                 VStack(alignment: .leading, spacing: 2) {
-                    Button { profile = m } label: { PersonName(id: m.id, pseudo: m.name).foregroundStyle(.primary) }
+                    Button { person = PersonRef(id: m.id) } label: { PersonName(id: m.id, pseudo: m.name).foregroundStyle(ConvNeon.t1) }
                         .buttonStyle(.borderless)
-                        .accessibilityHint("Ouvre sa fiche")
+                        .accessibilityHint("Ouvre son profil")
                     if let call = m.call, let phone = m.phone {
                         // Numéro montré dans ce groupe : un toucher appelle, comme dans WhatsApp.
-                        Link(destination: call) { Label(phone, systemImage: "phone.fill").font(.subheadline) }
+                        Link(destination: call) { Label(phone, systemImage: "phone.fill").font(.subheadline).foregroundStyle(ConvNeon.lav) }
                             .accessibilityLabel("Appeler \(m.name) au \(phone)")
                     }
                 }
                 Spacer()
-                if m.creator { Text("Créateur · Admin").foregroundStyle(.secondary) } else if m.admin { Text("Admin").foregroundStyle(.secondary) }
-                else if m.organizer == true { Text("Organisateur").foregroundStyle(.secondary) }
+                if m.creator { Text("Créateur · Admin").font(.subheadline).foregroundStyle(ConvNeon.lav) }
+                else if m.admin { Text("Admin").font(.subheadline).foregroundStyle(ConvNeon.lav) }
+                else if m.organizer == true { Text("Organisateur").font(.subheadline).foregroundStyle(ConvNeon.t2) }
             }
             if canName && !m.creator {
                 Toggle("Admin du groupe", isOn: Binding(get: { m.admin }, set: { on in Task { await store.setAdmin(m, on) } }))
-                    .font(.subheadline)
+                    .font(.subheadline).tint(ConvNeon.lavDeep)
                     .accessibilityLabel("\(m.name), admin du groupe")
             }
             if isAdmin && !m.creator && !m.admin {
                 Toggle("Organisateur (annonces)", isOn: Binding(get: { m.organizer == true }, set: { on in Task { await store.setOrganizer(m, on) } }))
-                    .font(.subheadline)
+                    .font(.subheadline).tint(ConvNeon.lavDeep)
                     .accessibilityLabel("\(m.name), organisateur du groupe")
             }
         }
