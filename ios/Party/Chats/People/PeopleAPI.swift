@@ -28,6 +28,41 @@ struct ChatPerson: Codable, Hashable, Identifiable {
     }
 
     var face: PronoFace { PronoFace(id: id, name: name.isEmpty ? (nickname ?? "") : name, photo: photo) }
+
+    init(id: String, name: String, nickname: String?, photo: String?, sub: String?, link: String, metCount: Int?) {
+        self.id = id
+        self.name = name
+        self.nickname = nickname
+        self.photo = photo
+        self.sub = sub
+        self.link = link
+        self.metCount = metCount
+    }
+
+    /// Lu par deux décodeurs (avec et sans convertFromSnakeCase) : « met_count » et « metCount » acceptés.
+    private enum Keys: String, CodingKey { case id, name, nickname, photo, sub, link, metCount, metCountSnake = "met_count" }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Keys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
+        nickname = try c.decodeIfPresent(String.self, forKey: .nickname)
+        photo = try c.decodeIfPresent(String.self, forKey: .photo)
+        sub = try c.decodeIfPresent(String.self, forKey: .sub)
+        link = try c.decodeIfPresent(String.self, forKey: .link) ?? "request"
+        metCount = try c.decodeIfPresent(Int.self, forKey: .metCount) ?? c.decodeIfPresent(Int.self, forKey: .metCountSnake)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: Keys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(name, forKey: .name)
+        try c.encodeIfPresent(nickname, forKey: .nickname)
+        try c.encodeIfPresent(photo, forKey: .photo)
+        try c.encodeIfPresent(sub, forKey: .sub)
+        try c.encode(link, forKey: .link)
+        try c.encodeIfPresent(metCount, forKey: .metCountSnake)
+    }
 }
 
 struct PeopleSuggestions: Codable, Equatable {
