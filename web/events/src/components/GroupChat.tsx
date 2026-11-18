@@ -1,5 +1,5 @@
 import { router, Stack } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { FlatList, KeyboardAvoidingView, Platform, Pressable, Text, View, type TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -10,6 +10,7 @@ import { cannotWrite, excerpt, fetchEventCards, openDirectChat, putDraft, takeDr
 import { EventCardBubble } from './chats/conversation/EventCardBubble';
 import { C, cf, editable, Icon, lavButton, web } from './chats/conversation/kit';
 import { MessageMenu, type MenuAction } from './chats/conversation/MessageMenu';
+import { enqueue, isNetworkError, outboxVersion, outgoing, retry, retryAll, settle, subscribeOutbox, type SendResult } from './chats/conversation/outbox';
 import { RequestBanner } from './chats/conversation/RequestBanner';
 import { TypingBubble } from './chats/conversation/TypingBubble';
 import { DirectChatSettings } from './DirectChatSettings';
@@ -26,7 +27,7 @@ import { useContactNames } from '@/lib/contactNames';
 import { chatTimeline, directAsGroupMessage, EVENT_TAGS, eventTag, insertMention, isAnnouncement, mentionQuery, mentionsIn, mentionSuggestions, newMessageId,
   pickPhoto, shrinkPhoto, signedPhotos, startVoice, uploadChatAudio, uploadChatPhoto, voiceClock, withoutAnnounceTag,
   type ChatSummary, type DirectMessageRow, type EveryoneBy, type GroupMessage, type NotifyLevel, type Reaction, type TimelineRow, type VoiceRecording } from '@/lib/chats';
-import { useLivePing, useQuery, useRealtime } from '@/lib/data';
+import { useLivePing, useQuery, useRealtime, type RealtimeRow } from '@/lib/data';
 import { discussionsOn } from '@/lib/features';
 import { groupName } from '@/lib/groups';
 import { useMiniProfile } from '@/lib/miniProfile';
@@ -60,31 +61,61 @@ const blockedOf = (rows: unknown) => new Set(((rows as { blocked_id: string }[] 
 const cardsOf = (messages: GroupMessage[]) => fetchEventCards(messages.flatMap((m) => (m.event_id && !m.deleted_at ? [m.event_id] : [])));
 // event_card : copie de la soirée gardée par la base quand l'événement est supprimé (event_id passe alors à null).
 
+/** Réactions lues avec les messages (jointure PostgREST, même règle d'accès) : un aller-retour de moins. */
+const REACTIONS_OF = {
+  direct: 'direct_message_reactions(message_id, user_id, emoji)',
+  group: 'group_message_reactions(message_id, user_id, emoji)',
+} as const;
+async function withReactions<T extends Record<string, unknown> & { id: string }>(rows: T[], embed: string): Promise<{ rows: T[]; reactions: Reaction[] }> {
+  const table = embed.slice(0, embed.indexOf('('));
+  const reactions: Reaction[] = [];
+  let joined = false;
+  const clean = rows.map((r) => {
+    const { [table]: list, ...rest } = r;
+    if (Array.isArray(list)) { joined = true; reactions.push(...(list as Reaction[])); }
+    return rest as T;
+  });
+  // Réponse sans la jointure (ancienne base) : les réactions à part, comme avant.
+  if (clean.length && !joined) {
+    const r = await supabase.from(table).select('message_id, user_id, emoji').in('message_id', clean.map((m) => m.id));
+    reactions.push(...(must(r) as Reaction[]));
+  }
+  return { rows: clean, reactions };
+}
+
 /** Message direct (conversation privée à deux, 4.11) : mêmes données qu'un groupe, lues dans les tables direct_*
  * (règles : les deux personnes seulement). Pas d'admin, d'organisateur, d'@tout ni d'@annonce.
  * Discussions v2 : demande de message (status, requested_by), « Vu » (direct_seen), lien pour « écrit… » (chat_link). */
 async function loadDirect(id: string, me: string) {
-  const [pair, msgs, people, settings, blocks, pins, seen] = await Promise.all([
-    supabase.from('direct_chats').select('*').eq('id', id).single(),
-    supabase.from('direct_messages').select('*').eq('chat_id', id).order('created_at', { ascending: false }).limit(PAGE),
+  // Un seul aller-retour (vitesse, 18.11) : réactions jointes aux messages ; lien (« écrit… ») et cartes des soirées
+  // demandés dès que la conversation et les messages répondent, en même temps que le reste.
+  const pairP = supabase.from('direct_chats').select('*').eq('id', id).single().then((r) => r);
+  const msgsP = supabase.from('direct_messages').select(`*, ${REACTIONS_OF.direct}`).eq('chat_id', id)
+    .order('created_at', { ascending: false }).limit(PAGE).then((r) => r);
+  const linkP = pairP.then((r) => {
+    const row = r.data as { user_a: string; user_b: string } | null;
+    if (!row) return null;
+    return supabase.rpc('chat_link', { target: row.user_a === me ? row.user_b : row.user_a })
+      .then((x) => (typeof x.data === 'string' ? x.data : null), () => null);
+  });
+  const cardsP = msgsP.then((r) => cardsOf(((r.data as DirectMessageRow[] | null) ?? []).map(directAsGroupMessage)));
+  const [pair, msgs, people, settings, blocks, pins, seen, link, cards] = await Promise.all([
+    pairP,
+    msgsP,
     supabase.rpc('direct_chat_people', { chat: id }),
     supabase.from('direct_chat_settings').select('notify').eq('chat_id', id).maybeSingle(),
     supabase.from('direct_blocks').select('blocked_id'),
     supabase.from('direct_messages').select('*').eq('chat_id', id).eq('pinned', true).is('deleted_at', null)
       .order('created_at', { ascending: false }).limit(HIGHLIGHTS),
     supabase.rpc('direct_seen', { chat: id }),
+    linkP,
+    cardsP,
   ]);
   const row = must(pair) as { user_a: string; user_b: string; status?: string | null; requested_by?: string | null; declined_at?: string | null };
   const other = row.user_a === me ? row.user_b : row.user_a;
   const profiles = must(people) as Profile[];
-  const messages = (must(msgs) as DirectMessageRow[]).map(directAsGroupMessage).reverse();
-  const [reactions, cards, link] = await Promise.all([
-    messages.length
-      ? supabase.from('direct_message_reactions').select('message_id, user_id, emoji').in('message_id', messages.map((m) => m.id)).then((r) => must(r) as Reaction[])
-      : Promise.resolve([] as Reaction[]),
-    cardsOf(messages),
-    supabase.rpc('chat_link', { target: other }).then((r) => (typeof r.data === 'string' ? r.data : null), () => null),
-  ]);
+  const { rows: directRows, reactions } = await withReactions(must(msgs) as (DirectMessageRow & Record<string, unknown>)[], REACTIONS_OF.direct);
+  const messages = directRows.map(directAsGroupMessage).reverse();
   const notify = ((settings.data as { notify?: NotifyLevel } | null)?.notify ?? 'all') as NotifyLevel;
   const group: ChatGroup = { id, name: profiles.find((p) => p.id === other)?.display_name || 'Profil à compléter', created_by: null,
     everyone_tag: 'staff', member_group_members: [{ user_id: me }, { user_id: other }] };
@@ -153,10 +184,14 @@ async function loadEvent(id: string, me: string) {
 }
 
 async function loadGroup(id: string) {
-  const [group, msgs, people, admins, chats, phones, pins, organizers, blocks] = await Promise.all([
+  // Un seul aller-retour (vitesse, 18.11) : réactions jointes aux messages, cartes des soirées dès que les messages répondent.
+  const msgsP = supabase.from('group_messages').select(`*, ${REACTIONS_OF.group}`).eq('group_id', id)
+    .order('created_at', { ascending: false }).limit(PAGE).then((r) => r);
+  const cardsP = msgsP.then((r) => cardsOf((r.data as GroupMessage[] | null) ?? []));
+  const [group, msgs, people, admins, chats, phones, pins, organizers, blocks, cards] = await Promise.all([
     // « * » : everyone_tag (qui peut écrire @tout), emoji, couleur, photo quand la base les connaît.
     supabase.from('member_groups').select('*, member_group_members(user_id)').eq('id', id).single(),
-    supabase.from('group_messages').select('*').eq('group_id', id).order('created_at', { ascending: false }).limit(PAGE),
+    msgsP,
     supabase.rpc('group_chat_people', { grp: id }),  // un Guest ne lit pas le profil d'un admin dans profiles
     supabase.from('group_admins').select('user_id').eq('group_id', id),
     supabase.rpc('my_chats'),
@@ -165,17 +200,13 @@ async function loadGroup(id: string) {
       .order('created_at', { ascending: false }).limit(HIGHLIGHTS),
     supabase.from('group_organizers').select('user_id').eq('group_id', id),
     supabase.from('direct_blocks').select('blocked_id'),
+    cardsP,
   ]);
   // Personnes que j'ai bloquées (App Store 1.2) : leurs messages, photos et vocaux sont masqués aussitôt ; leurs messages
   // épinglés ne s'affichent pas.
   const hidden = blockedOf(blocks.data);
-  const messages = (must(msgs) as GroupMessage[]).reverse().map((m) => (hidden.has(m.user_id) ? masked(m) : m));
-  const [reactions, cards] = await Promise.all([
-    messages.length
-      ? supabase.from('group_message_reactions').select('message_id, user_id, emoji').in('message_id', messages.map((m) => m.id)).then((r) => must(r) as Reaction[])
-      : Promise.resolve([] as Reaction[]),
-    cardsOf(messages),
-  ]);
+  const { rows: groupRows, reactions } = await withReactions(must(msgs) as (GroupMessage & Record<string, unknown>)[], REACTIONS_OF.group);
+  const messages = groupRows.reverse().map((m) => (hidden.has(m.user_id) ? masked(m) : m));
   const chat = ((chats.data as ChatSummary[] | null) ?? []).find((c) => c.id === id) ?? null;
   return {
     group: must(group) as ChatGroup,
@@ -188,6 +219,28 @@ async function loadGroup(id: string) {
     phones: new Map(((phones.data as { id: string; phone: string }[] | null) ?? []).map((p) => [p.id, p.phone])),
   };
 }
+
+type ChatData = Awaited<ReturnType<typeof loadGroup>> | Awaited<ReturnType<typeof loadDirect>> | Awaited<ReturnType<typeof loadEvent>>;
+
+// Vitesse (demande de l'admin du 18.11) : dernière version de chaque conversation gardée en mémoire (par compte) ; elle
+// s'affiche tout de suite à l'ouverture, puis la lecture fraîche la remplace. La liste en précharge quelques-unes.
+const chatCache = new Map<string, ChatData>();
+const preloading = new Map<string, Promise<ChatData | null>>();
+const cacheKey = (kind: ChatKind, id: string, me: string) => `${me}:${kind}:${id}`;
+const loadChat = (kind: ChatKind, id: string, me: string): Promise<ChatData> =>
+  (kind === 'event' ? loadEvent(id, me) : kind === 'direct' ? loadDirect(id, me) : loadGroup(id));
+
+/** Précharge une conversation (lecture seule : rien n'est marqué lu) pour qu'elle s'ouvre sans attendre ; déjà gardée
+ * avec ce dernier message (lastId, d'après la liste) : rien à relire. */
+export function preloadChat(kind: ChatKind, id: string, me: string, lastId?: string | null): void {
+  const key = cacheKey(kind, id, me);
+  const kept = chatCache.get(key);
+  if (preloading.has(key) || (kept && (lastId === undefined || kept.messages[kept.messages.length - 1]?.id === lastId))) return;
+  const job = loadChat(kind, id, me).then((d) => { chatCache.set(key, d); return d; }, () => null)
+    .finally(() => { setTimeout(() => preloading.delete(key), 2000); });
+  preloading.set(key, job);
+}
+
 
 /** Discussion façon WhatsApp, graphisme « Néon club » (Discussions v2, maquette 1-neon/4) : en-tête avec photo et nom
  * (toucher : mini-profil), séparateurs de jours, messages d'une même personne regroupés, heure dans la bulle, @citations
@@ -227,8 +280,12 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
   const [sending, setSending] = useState(false);
   // Envoi en cours (texte ou vocal) : un double toucher, même pendant l'attente des CGU, n'envoie qu'un message.
   const sendingRef = useRef(false);
-  // Messages envoyés pas encore revenus de la base : affichés tout de suite (« Envoi… »), comme Snapchat.
-  const [pending, setPending] = useState<GroupMessage[]>([]);
+  // Messages envoyés pas encore revenus de la base : affichés tout de suite (« Envoi… »), file d'envoi commune
+  // (outbox.ts) : gardés même si l'écran se ferme, nouvel essai si le réseau manque.
+  const box = `${kind}:${id}`;
+  const outboxAt = useSyncExternalStore(subscribeOutbox, outboxVersion, outboxVersion);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- outboxAt : nouvelle version de la file, à relire
+  const pending = useMemo(() => outgoing(box), [box, outboxAt]);
   const [voice, setVoice] = useState<{ rec: VoiceRecording; started: number } | null>(null);
   const [voiceNow, setVoiceNow] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -246,8 +303,31 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
   const [unreadElsewhere, setUnreadElsewhere] = useState(0);
   const [polledSeen, setPolledSeen] = useState<string | null>(null);
 
-  const { data, loading, error: loadError, reload } = useQuery(
-    () => (event ? loadEvent(id, me.id) : direct ? loadDirect(id, me.id) : loadGroup(id)), [id, direct, event]);
+  const key = cacheKey(kind, id, me.id);
+  const [initial] = useState(() => chatCache.get(key) ?? null);
+  const { data, loading, error: loadError, reload, setData } = useQuery(async () => {
+    // Préchargement en cours (liste) : on le reprend au lieu de tout relire une deuxième fois.
+    const ready = await preloading.get(key);
+    preloading.delete(key);
+    const fresh = ready ?? await loadChat(kind, id, me.id);
+    chatCache.set(key, fresh);
+    return fresh;
+  }, [key], initial as ChatData | null);
+
+  // Nouveau message reçu (temps réel) : affiché aussitôt, sans attendre la relecture (qui suit pour les réactions, les
+  // noms…). Personne bloquée : masqué comme à la lecture.
+  const onRow = useCallback((row: RealtimeRow) => {
+    if (row.eventType !== 'INSERT' || !['direct_messages', 'group_messages', 'messages'].includes(row.table)) return;
+    const raw = row.new as unknown;
+    const m = row.table === 'direct_messages' ? directAsGroupMessage(raw as DirectMessageRow)
+      : row.table === 'messages' ? eventAsGroupMessage(raw as EventMessageRow) : raw as GroupMessage;
+    if (!m?.id || !m.created_at) return;
+    setData((d) => {
+      if (!d || d.messages.some((x) => x.id === m.id)) return d;
+      const shownMessage = d.hidden.has(m.user_id) ? masked(m) : m;
+      return { ...d, messages: [...d.messages, { ...shownMessage, mentions: shownMessage.mentions ?? [] }] } as ChatData;
+    });
+  }, [setData]);
 
   useRealtime(`${kind}-chat-${id}`, kind === 'direct' ? [
     { table: 'direct_messages', filter: `chat_id=eq.${id}` },
@@ -257,7 +337,7 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
   ] : kind === 'group' ? [
     { table: 'group_messages', filter: `group_id=eq.${id}` },
     { table: 'group_message_reactions' },
-  ] : [{ table: 'messages', filter: `event_id=eq.${id}` }], reload);
+  ] : [{ table: 'messages', filter: `event_id=eq.${id}` }], reload, onRow);
   // Événement : réactions, messages retirés, épingles, réglages : signal de la base (migration 20261116140000).
   useLivePing(event ? id : null, reload);
 
@@ -322,6 +402,12 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
     return [...(data?.messages ?? []), ...pending.filter((m) => !known.has(m.id))];
   }, [data?.messages, pending]);
   const rows = useMemo(() => chatTimeline(shown), [shown]);
+  // Revenus de la base : ils quittent la file d'envoi ; ceux restés « pas envoyés » repartent (le réseau répond).
+  useEffect(() => {
+    if (!data) return;
+    settle(box, new Set(data.messages.map((m) => m.id)));
+    retryAll(box);
+  }, [data, box]);
   useEffect(() => {
     let alive = true;
     void signedPhotos(paths.filter((p) => !photos.has(p))).then((more) => {
@@ -416,7 +502,8 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
     setTimeout(() => setFlashId((f) => (f === messageId ? null : f)), 1200);
   }, [rows]);
 
-  /** Texte, photo ou vocal : la bulle apparaît tout de suite, le champ se vide ; en cas d'échec, le texte revient. */
+  /** Texte, photo ou vocal : la bulle apparaît tout de suite, le champ se vide, on peut écrire le suivant aussitôt.
+   * Réseau absent : la bulle reste (« Pas envoyé · Toucher pour réessayer ») ; refus de la base : le texte revient. */
   async function send(photoPath: string | null = null, audio: { blob: Blob; seconds: number; ext: 'm4a' | 'webm' } | null = null) {
     const body = audio ? '' : text.trim();
     if (editing && !photoPath && !audio) return void saveEdit(editing, body);
@@ -425,13 +512,13 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
     try {
       if (!terms.accepted && !(await terms.ensure())) return;
       typing.stop();
-      await deliver(body, photoPath, audio);
+      deliver(body, photoPath, audio);
     } finally {
       sendingRef.current = false;
     }
   }
 
-  async function deliver(body: string, photoPath: string | null, audio: { blob: Blob; seconds: number; ext: 'm4a' | 'webm' } | null) {
+  function deliver(body: string, photoPath: string | null, audio: { blob: Blob; seconds: number; ext: 'm4a' | 'webm' } | null) {
     const quoted = replyTo;
     const announce = announcing;
     const eventCard = event ? null : attached;
@@ -442,8 +529,6 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
       mentions: [], mention_all: false, pinned: announced, announcement: announced, created_at: new Date().toISOString(), edited_at: null, deleted_at: null,
       deleted_by_admin: false, audio_path: null, audio_seconds: audio ? Math.round(audio.seconds * 10) / 10 : null, pending: true,
       event_id: eventCard, quote: privately };
-    const known = new Set((data?.messages ?? []).map((m) => m.id));
-    setPending((rows) => [...rows.filter((m) => !known.has(m.id)), draftMessage]);
     if (!audio) { setText(''); setCursor(0); }
     setReplyTo(null);
     setAnnouncing(false);
@@ -453,8 +538,13 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
     const tagged = mentionsIn(body, inside.filter((u) => u !== me.id).map((u) => ({ id: u, display_name: nameOf(u) })));
     // Colonnes de Discussions v2 envoyées seulement quand elles servent (une base d'avant les refuserait).
     const extra = { ...(eventCard ? { event_id: eventCard } : {}), ...(privately ? { quote: privately } : {}) };
-    try {
-      const audioPath = audio ? await uploadChatAudio(id, audio) : null;
+    let audioPath: string | null = null;  // gardé d'un essai à l'autre : le vocal n'est déposé qu'une fois
+    const run = async (): Promise<SendResult> => {
+      try {
+        if (audio && !audioPath) audioPath = await uploadChatAudio(id, audio);
+      } catch (e) {
+        return { ok: false, network: isNetworkError(e), message: e instanceof Error ? e.message : 'Le vocal n’a pas pu être envoyé.' };
+      }
       const { error } = kind === 'direct'
         ? await supabase.from('direct_messages').insert({
           id: messageId, chat_id: id, body, photo_path: photoPath, reply_to: quoted?.id ?? null, audio_path: audioPath, audio_seconds: draftMessage.audio_seconds, ...extra,
@@ -469,22 +559,27 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
             id: messageId, group_id: id, body, photo_path: photoPath, reply_to: quoted?.id ?? null, mentions: tagged.mentions,
             mention_all: tagged.all && canEveryone, audio_path: audioPath, audio_seconds: draftMessage.audio_seconds, ...extra,
           });
+      // Même identifiant déjà enregistré : l'essai d'avant était passé (réponse perdue en route).
+      if (!error || error.code === '23505') return { ok: true };
+      if (isNetworkError(error)) return { ok: false, network: true, message: error.message };
       // Filtre de la base : la phrase dit pourquoi (propos haineux, contenu sexuel…) ; sinon un message général.
-      if (error) {
-        throw new Error(/request_pending/.test(error.message)
-          ? 'Ta demande est en attente : un seul message texte, sans photo, vocal, lien ni numéro, jusqu’à ce qu’elle soit acceptée.'
-          : dbMessage(error.message, 'Le message n’a pas pu être envoyé. Réessaie.'));
-      }
-    } catch (e) {
-      setPending((rows) => rows.filter((m) => m.id !== messageId));
-      if (!audio) setText(body);
-      setReplyTo(quoted);
-      setAnnouncing(announce);
-      setAttached(eventCard);
-      setPrivateQuote(privately);
-      return setError(e instanceof Error ? e.message : 'Le message n’a pas pu être envoyé. Réessaie.');
-    }
-    reload();
+      return { ok: false, network: false, message: /request_pending/.test(error.message)
+        ? 'Ta demande est en attente : un seul message texte, sans photo, vocal, lien ni numéro, jusqu’à ce qu’elle soit acceptée.'
+        : dbMessage(error.message, 'Le message n’a pas pu être envoyé. Réessaie.') };
+    };
+    enqueue({
+      chat: box, message: draftMessage, run,
+      onSent: () => { void reload(); },
+      onRefused: (message) => {
+        // Le champ a pu être réécrit entre-temps : le texte refusé revient seulement s'il est vide.
+        if (!audio) setText((now) => (now.trim() ? now : body));
+        setReplyTo((now) => now ?? quoted);
+        setAnnouncing(announce);
+        setAttached((now) => now ?? eventCard);
+        setPrivateQuote((now) => now ?? privately);
+        setError(message);
+      },
+    });
   }
 
   /** Modifier (15 minutes au plus, la base garde la règle) : le texte revient dans la barre, « modifié » ensuite. */
@@ -769,6 +864,11 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
             ref={list}
             data={rows}
             keyExtractor={(r) => r.key}
+            // Tout le fil d'un coup (150 messages au plus) : la fin est là dès la première image, sans rendu par paquets
+            // qui faisait attendre le dernier message une demi-seconde à l'ouverture.
+            initialNumToRender={Math.max(20, rows.length)}
+            maxToRenderPerBatch={60}
+            windowSize={31}
             contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 10, paddingBottom: 16, flexGrow: 1, justifyContent: rows.length ? 'flex-end' : 'center' }}
             onScroll={(e) => {
               const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
@@ -778,6 +878,8 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
               if (near && unseen) setUnseen(0);
             }}
             scrollEventThrottle={100}
+            // Fil collé en bas (ouverture, nouveau message) tant qu'on n'est pas remonté lire plus haut.
+            onContentSizeChange={() => { if (nearBottom.current) list.current?.scrollToEnd({ animated: false }); }}
             onScrollToIndexFailed={() => list.current?.scrollToEnd({ animated: true })}
             renderItem={({ item: row }) => {
               if ('day' in row) {
@@ -791,7 +893,7 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
               const m = row.message;
               const quoted = m.reply_to ? byId.get(m.reply_to) : null;
               const mine = m.user_id === me.id;
-              const canMenu = !m.deleted_at && !m.pending && (member || !mine);
+              const canMenu = !m.deleted_at && !m.pending && !m.failed && (member || !mine);
               return (
                 <View style={{ marginTop: row.first ? 10 : 3 }}>
                   <ChatBubble message={m} mine={mine} me={me.id}
@@ -809,7 +911,8 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
                     seen={m.id === seenId}
                     card={m.event_id || m.event_card ? cardFor(m) : undefined}
                     privateQuote={direct ? m.quote ?? null : null}
-                    fresh={!!initialIds && !initialIds.has(m.id)} />
+                    fresh={!!initialIds && !initialIds.has(m.id)}
+                    onRetry={m.failed ? () => retry(m.id) : undefined} />
                 </View>
               );
             }}

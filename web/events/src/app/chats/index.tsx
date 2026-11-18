@@ -14,10 +14,12 @@ import { Snack, useChatActions } from '@/components/chats/list/useChatActions';
 import { useTyping } from '@/components/chats/list/useTyping';
 import { chatFont, glow, NeonTheme, useNeon, web } from '@/components/chats/neon';
 import { usePause } from '@/components/NotificationPause';
+import { preloadChat } from '@/components/GroupChat';
 import { Loading } from '@/components/ui';
 import { useMe } from '@/lib/auth';
 import {
-  chatKey, fetchChatBadge, fetchChatList, fetchCrossed, isUnread, newMessage, openChat, tellBadge, writeTo, type ChatItem, type ChatPerson,
+  cachedChatList, chatKey, fetchChatBadge, fetchChatList, fetchCrossed, isUnread, keepChatList, newMessage, openChat, tellBadge, writeTo,
+  type ChatItem, type ChatPerson,
 } from '@/lib/chatList';
 import { useQuery, useRealtime, useSignal } from '@/lib/data';
 import { discussionsOn } from '@/lib/features';
@@ -39,7 +41,9 @@ function ChatsHome() {
   const params = useLocalSearchParams<{ requests?: string }>();
   const push = useCallback((path: string) => router.push(path as never), []);
   const mini = useMiniProfile();
-  const { data, error: loadError, loading, reload, setData } = useQuery(fetchChatList, []);
+  // Vitesse (18.11) : la dernière liste de ce compte s'affiche tout de suite, la lecture fraîche la remplace.
+  const [initial] = useState(() => cachedChatList(me.id));
+  const { data, error: loadError, loading, reload, setData } = useQuery(fetchChatList, [], initial);
   // Temps réel des messages ; demande acceptée / refusée : signal user:<id> (direct_chat_changed), direct_chats n’est pas publiée.
   useRealtime('chats-list', [{ table: 'group_messages' }, { table: 'direct_messages' }, { table: 'messages' }], reload);
   useSignal([`user:${me.id}`, 'events'], reload);
@@ -51,8 +55,24 @@ function ChatsHome() {
   // Pastille de l'onglet Discussions (page Party) : chat_badge, relue à chaque changement de la liste.
   useEffect(() => {
     if (!data) return;
+    keepChatList(me.id, data);
     void fetchChatBadge().then((n) => { if (n !== null) tellBadge(n); });
-  }, [data]);
+  }, [data, me.id]);
+
+  // Les premières discussions (et celle qu'on touche) se préchargent : elles s'ouvrent sans attente. Hors app iPhone
+  // (écrans natifs) ; jamais une demande reçue (rien n'est marqué lu, mais elle n'a pas à être lue avant d'être ouverte).
+  const native = typeof globalThis !== 'undefined' && Boolean((globalThis as { PartyNative?: { chat?: unknown } }).PartyNative?.chat);
+  const warm = useCallback((chat: ChatItem) => {
+    if (native || chat.request === 'incoming' || chat.kind === 'event') return;
+    preloadChat(chat.kind, chat.id, me.id, chat.last?.id ?? null);
+  }, [native, me.id]);
+  useEffect(() => {
+    if (!data) return;
+    const timer = setTimeout(() => {
+      data.filter((x) => !x.archived && x.request !== 'incoming' && x.kind !== 'event').slice(0, 3).forEach(warm);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [data, warm]);
 
   useEffect(() => {
     if (params.requests === '1') router.push('/chats/requests');
@@ -143,6 +163,7 @@ function ChatsHome() {
             <View role="list" aria-label="Toutes les discussions" style={{ marginTop: 2 }}>
               {rows.map((chat, i) => (
                 <ChatRow key={chatKey(chat)} chat={chat} first={i === 0} index={i} typing={typing[chatKey(chat)]}
+                  animate={!initial} onWarm={() => warm(chat)}
                   open={open?.key === chatKey(chat) ? open.side : null}
                   onOpenSide={openSide}
                   onPress={() => openOne(chat)} onMenu={() => setMenu(chat)}

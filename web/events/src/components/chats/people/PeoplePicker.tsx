@@ -36,7 +36,7 @@ export function PeoplePicker({ selected, onToggle }: { selected: Person[]; onTog
     let live = true;
     const timer = setTimeout(() => {
       searchPeople(query).then((people) => { if (live) setFound({ q: query, people }); }, () => { if (live) setFound({ q: query, people: [] }); });
-    }, 220);
+    }, 150);
     return () => { live = false; clearTimeout(timer); };
   }, [query]);
 
@@ -55,7 +55,14 @@ export function PeoplePicker({ selected, onToggle }: { selected: Person[]; onTog
   }
 
   const searching = query.length >= 2;
-  const results = found && found.q === query ? found.people.filter((p) => p.link !== 'none') : null;
+  // Tout de suite, pendant que la base cherche : les personnes déjà proposées (croisées, groupes, discussions) dont le
+  // nom contient le texte tapé ; la réponse de la base les remplace (vitesse, 18.11).
+  const nearby = useMemo(() => {
+    if (!searching || !sections) return [];
+    const f = fold(query);
+    return [...sections.crossed, ...sections.groups, ...sections.recent].filter((p) => fold(`${p.name} ${p.nickname ?? ''}`).includes(f));
+  }, [searching, sections, query]);
+  const results = found && found.q === query ? found.people.filter((p) => p.link !== 'none') : nearby.length ? nearby : null;
   const crossed = sections?.crossed ?? [];
 
   return (

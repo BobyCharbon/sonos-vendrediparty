@@ -26,6 +26,8 @@ export function directAsGroupMessage(m: DirectMessageRow): GroupMessage {
 export type GroupMessage = {
   id: string; group_id: string; user_id: string; body: string; photo_path: string | null; reply_to: string | null;
   audio_path?: string | null; audio_seconds?: number | null; pending?: boolean;
+  /** Pas parti (réseau absent) : gardé dans la bulle, « Toucher pour réessayer » (file d'envoi, outbox.ts). */
+  failed?: boolean;
   mentions: string[]; mention_all: boolean; pinned: boolean; created_at: string; edited_at: string | null;
   deleted_at: string | null; deleted_by_admin: boolean;
   /** « @annonce » : épinglé d'office par la base, affiché en surbrillance en haut de la discussion. */

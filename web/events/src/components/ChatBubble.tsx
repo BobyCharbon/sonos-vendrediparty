@@ -46,6 +46,8 @@ type Props = {
   card?: ReactNode;
   /** « Répondre en privé » : le message de groupe / de soirée cité. */
   privateQuote?: PrivateQuote | null;
+  /** Message pas parti (réseau absent) : un toucher le renvoie. */
+  onRetry?: () => void;
 };
 
 /** Distance à glisser vers la droite pour répondre (comme WhatsApp). */
@@ -68,7 +70,7 @@ function Meta({ m, mine, deleted, light, seen }: { m: GroupMessage; mine: boolea
       <Text style={[cf.num, { color, fontSize: 12, lineHeight: 14 }]}>
         {m.edited_at && !deleted ? 'modifié · ' : ''}{m.pending ? 'Envoi…' : formatClock(m.created_at)}{mine && seen && !m.pending ? ' · Vu' : ''}
       </Text>
-      {mine && !deleted ? (m.pending
+      {mine && m.failed ? null : mine && !deleted ? (m.pending
         ? <Text style={{ fontSize: 10, color }}>🕓</Text>
         : <View accessibilityLabel={seen ? 'Lu' : 'Envoyé'}><Icon name={seen ? 'check2' : 'check'} size={13} stroke={2.4} color={light ? '#fff' : '#DCD5FF'} /></View>) : null}
     </View>
@@ -80,7 +82,7 @@ function Meta({ m, mine, deleted, light, seen }: { m: GroupMessage; mine: boolea
  * la palette) en tête de la série et la photo à côté de la dernière bulle (toucher : mini-profil) ; l'heure dans la bulle. */
 export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, audioUrl, reactions, canWrite,
   onReply, onReact, onMenu, onAuthor, fresh = false, first = true, last = true, showAuthor = true, names = [], onQuote, flash = false,
-  seen = false, card, privateQuote }: Props) {
+  seen = false, card, privateQuote, onRetry }: Props) {
   // Fixé à l'apparition : la bulle ne remonte pas quand un autre message arrive.
   const [arrive] = useState(() => (fresh ? enter(mine ? 'bubbleMine' : 'bubbleTheirs') : undefined));
   const deleted = Boolean(m.deleted_at);
@@ -165,8 +167,8 @@ export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, aud
         {card && !deleted && !m.body && !photoUrl && m.audio_seconds == null ? (
           <View style={{ marginTop: 2, paddingHorizontal: 4 }}><Meta m={m} mine={mine} deleted={false} seen={seen} /></View>
         ) : (
-        <Pressable onLongPress={menu} delayLongPress={380} {...webMenu}
-          accessibilityHint={menu ? 'Appui long ou clic droit pour réagir, répondre ou signaler' : undefined}
+        <Pressable onLongPress={menu} delayLongPress={380} {...webMenu} onPress={m.failed ? onRetry : undefined}
+          accessibilityHint={m.failed ? 'Pas envoyé : touche pour réessayer' : menu ? 'Appui long ou clic droit pour réagir, répondre ou signaler' : undefined}
           style={({ pressed }) => [{ paddingHorizontal: photoUrl ? 4 : 13, paddingTop: photoUrl ? 4 : 9, paddingBottom: photoUrl ? 4 : 8, borderRadius: R, gap: 5 },
             deleted ? { backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: C.line }
               : mine ? mineBubble : { backgroundColor: C.theirs, borderWidth: 1, borderColor: C.theirsLine },
@@ -230,6 +232,12 @@ export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, aud
           ) : !photoUrl ? <View style={{ alignSelf: 'flex-end' }}><Meta m={m} mine={mine} deleted={false} seen={seen} /></View> : null}
         </Pressable>
         )}
+        {m.failed ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Pas envoyé. Toucher pour réessayer" onPress={onRetry} hitSlop={8}
+            style={[{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4, paddingHorizontal: 4 }, enter('fade')]}>
+            <Text style={[cf.semibold, { fontSize: 12, color: C.danger }]}>⚠︎ Pas envoyé · Toucher pour réessayer</Text>
+          </Pressable>
+        ) : null}
         <Reactions counts={counts} reacted={reacted} canWrite={canWrite} onReact={onReact} align={mine ? 'flex-end' : 'flex-start'} />
       </View>
     </Animated.View>

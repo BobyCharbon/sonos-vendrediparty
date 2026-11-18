@@ -20,6 +20,10 @@ type Props = {
   /** Stable (même fonction d'un rendu à l'autre) : le glissé en cours n'est pas recréé. */
   onOpenSide: (key: string, side: 'left' | 'right' | null) => void;
   onPress: () => void; onMenu: () => void; onAction: (a: RowAction) => void;
+  /** Entrée en cascade : seulement au premier affichage (liste déjà connue : tout de suite, sans attendre l'animation). */
+  animate?: boolean;
+  /** Doigt posé ou souris au-dessus : la conversation se précharge (elle s'ouvre ensuite sans attente). */
+  onWarm?: () => void;
 };
 
 /** Ce que la ligne dit aux lecteurs d'écran (la couleur n'est jamais seule). */
@@ -40,7 +44,7 @@ export function rowLabel(c: ChatItem, name: string, typing?: string): string {
  * non lus. Glisser vers la droite : Lu / Non lu et Épingler ; vers la gauche : Sourdine et Archiver. Appui long ou « … »
  * (au survol, ordinateur) : aperçu et menu complet.
  */
-export function ChatRow({ chat, typing, first, index = 0, open, onOpenSide: setSide, onPress, onMenu, onAction }: Props) {
+export function ChatRow({ chat, typing, first, index = 0, open, onOpenSide: setSide, onPress, onMenu, onAction, animate = true, onWarm }: Props) {
   const key = chatKey(chat);
   const c = useNeon();
   const personText = usePersonText();
@@ -85,7 +89,7 @@ export function ChatRow({ chat, typing, first, index = 0, open, onOpenSide: setS
   ];
 
   return (
-    <View style={[st.wrap, enter('rise', index)]} onPointerEnter={() => setHover(true)} onPointerLeave={() => setHover(false)}>
+    <View style={[st.wrap, animate ? enter('rise', index) : null]} onPointerEnter={() => { setHover(true); onWarm?.(); }} onPointerLeave={() => setHover(false)}>
       {x > 0 ? <SwipeSide acts={left} side="left" width={x} onAct={act} /> : null}
       {x < 0 ? <SwipeSide acts={right} side="right" width={-x} onAct={act} /> : null}
       <View {...pan.panHandlers}
@@ -93,6 +97,7 @@ export function ChatRow({ chat, typing, first, index = 0, open, onOpenSide: setS
           drag === null ? transition('transform', 280, ease.out) : null]}>
         <Pressable accessibilityRole="button" accessibilityLabel={rowLabel(chat, name, typing)}
           testID={`chat-row-${chat.id}`}
+          onPressIn={onWarm}
           onPress={(e) => { if (justSwiped(e)) return; if (open) onOpenSide(null); else onPress(); }}
           onLongPress={(e) => { if (!justSwiped(e) && drag === null) onMenu(); }} delayLongPress={450}
           style={({ pressed }) => [st.row, pressed && { backgroundColor: c.glass }, transition('background-color', 140)]}>

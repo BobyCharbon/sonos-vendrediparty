@@ -48,8 +48,51 @@ export async function fetchChatList(): Promise<ChatItem[]> {
   const { data, error } = await supabase.rpc('chat_list', { include_archived: true });
   if (missing(error)) return fromOldList();
   if (error) fail(error, 'Les discussions n’ont pas pu être chargées. Vérifie ta connexion.');
-  return sortChats(((data as ChatItem[] | null) ?? []).map(normalize));
+  const list = sortChats(((data as ChatItem[] | null) ?? []).map(normalize));
+  for (const c of list) knownKinds.set(c.id, c.kind);
+  return list;
 }
+
+// ───────── Vitesse (demande de l'admin du 18.11) : la liste s'affiche tout de suite, puis se met à jour ─────────
+
+/** Sorte de chaque discussion connue (liste) : /chats/<id> s'ouvre sans demander d'abord si c'est un message direct. */
+export const knownKinds = new Map<string, ChatKind>();
+
+const LIST_KEY = 'party-chats-list:';
+const memoryList = new Map<string, ChatItem[]>();
+
+/** Dernière liste de CE compte (mémoire, sinon stockage du navigateur) ; rien d'un autre compte. */
+export function cachedChatList(me: string): ChatItem[] | null {
+  const inMemory = memoryList.get(me);
+  if (inMemory) return inMemory;
+  try {
+    const raw = globalThis.localStorage?.getItem(LIST_KEY + me);
+    const list = raw ? (JSON.parse(raw) as ChatItem[]) : null;
+    if (!Array.isArray(list)) return null;
+    for (const c of list) knownKinds.set(c.id, c.kind);
+    memoryList.set(me, list);
+    return list;
+  } catch {
+    return null;
+  }
+}
+
+export function keepChatList(me: string, list: ChatItem[]): void {
+  memoryList.set(me, list);
+  try { globalThis.localStorage?.setItem(LIST_KEY + me, JSON.stringify(list)); } catch { /* stockage plein ou bloqué */ }
+}
+
+/** Déconnexion : plus rien des discussions sur cet appareil (ordinateur partagé). */
+function forgetChatLists(): void {
+  memoryList.clear();
+  knownKinds.clear();
+  try {
+    const store = globalThis.localStorage;
+    if (!store) return;
+    for (const key of Object.keys(store)) if (key.startsWith(LIST_KEY)) store.removeItem(key);
+  } catch { /* stockage bloqué */ }
+}
+supabase.auth.onAuthStateChange((event) => { if (event === 'SIGNED_OUT') forgetChatLists(); });
 
 /** Base d'avant les Discussions v2 : my_chats (groupes + messages directs), sans épingles ni archives. */
 async function fromOldList(): Promise<ChatItem[]> {

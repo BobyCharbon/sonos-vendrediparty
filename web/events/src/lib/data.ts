@@ -6,11 +6,12 @@ import type { Category, EventRow, Rsvp, Tag } from './types';
 
 let realtimeSubscriptionSequence = 0;
 
-/** Charge des données, recharge au retour sur l'écran, expose `reload`. */
-export function useQuery<T>(fn: () => Promise<T>, deps: unknown[] = []) {
-  const [data, setData] = useState<T | null>(null);
+/** Charge des données, recharge au retour sur l'écran, expose `reload`. `initial` : dernière version connue (cache),
+ * affichée tout de suite puis remplacée par la lecture fraîche (Discussions : liste et conversations sans attente). */
+export function useQuery<T>(fn: () => Promise<T>, deps: unknown[] = [], initial: T | null = null) {
+  const [data, setData] = useState<T | null>(initial);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(initial === null);
   const fnRef = useRef(fn);
   useEffect(() => { fnRef.current = fn; }, [fn]);
 
@@ -39,10 +40,17 @@ export function useQuery<T>(fn: () => Promise<T>, deps: unknown[] = []) {
 /** Changements groupés : une rafale (plusieurs lignes écrites d'un coup) ne recharge qu'une fois. */
 const REALTIME_SETTLE_MS = 400;
 
-/** Recharge quand une des tables change (temps réel Supabase ; chacun ne reçoit que ce que les règles d'accès lui montrent). */
-export function useRealtime(channel: string, tables: { table: string; filter?: string }[], onChange: () => void) {
+/** Ligne reçue du temps réel (nouveau message…), montrée aussitôt, avant la relecture groupée. */
+export type RealtimeRow = { table: string; eventType: 'INSERT' | 'UPDATE' | 'DELETE'; new: Record<string, unknown> };
+
+/** Recharge quand une des tables change (temps réel Supabase ; chacun ne reçoit que ce que les règles d'accès lui montrent).
+ * onRow : chaque ligne reçue, tout de suite (sans attendre la relecture) ; la relecture suit quand même. */
+export function useRealtime(channel: string, tables: { table: string; filter?: string }[], onChange: () => void,
+  onRow?: (row: RealtimeRow) => void) {
   const latest = useRef(onChange);
   useEffect(() => { latest.current = onChange; }, [onChange]);
+  const rowRef = useRef(onRow);
+  useEffect(() => { rowRef.current = onRow; }, [onRow]);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cb = useRef(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -57,7 +65,10 @@ export function useRealtime(channel: string, tables: { table: string; filter?: s
     if (!descriptors.length) return undefined;
     let ch = supabase.channel(`${channel}-${++realtimeSubscriptionSequence}`);
     for (const t of descriptors) {
-      ch = ch.on('postgres_changes', { event: '*', schema: 'public', table: t.table, filter: t.filter }, () => cb.current());
+      ch = ch.on('postgres_changes', { event: '*', schema: 'public', table: t.table, filter: t.filter }, (payload) => {
+        rowRef.current?.({ table: t.table, eventType: payload.eventType as RealtimeRow['eventType'], new: (payload.new ?? {}) as Record<string, unknown> });
+        cb.current();
+      });
     }
     ch.subscribe();
     return () => {

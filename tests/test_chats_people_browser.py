@@ -243,6 +243,11 @@ def test_search_finds_people_by_name_never_by_number(phone, events_origin):
     field.press_sequentially('Ke')
     results = frame.get_by_test_id('people-results')
     pw.expect(results.get_by_role('checkbox', name='Kevin Monnier, Basket du mardi')).to_be_visible()
+    # Vitesse (18.11) : les personnes déjà proposées s'affichent tout de suite ; la base est interrogée juste après.
+    for _ in range(30):
+        if rpc_args(state, 'chat_people_search'):
+            break
+        page.wait_for_timeout(100)
     shot(page, 'nouveau-message-recherche')
     results.get_by_role('checkbox', name='Kevin Monnier, Basket du mardi').click()
     pw.expect(frame.get_by_role('button', name='Retirer Kevin Monnier')).to_be_visible()

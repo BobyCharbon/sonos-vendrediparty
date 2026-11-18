@@ -3,6 +3,7 @@ import { Stack, useLocalSearchParams } from 'expo-router';
 import { ChatsOff } from '@/components/ChatsOff';
 import { GroupChat } from '@/components/GroupChat';
 import { Empty, Loading, Screen } from '@/components/ui';
+import { knownKinds } from '@/lib/chatList';
 import { useQuery } from '@/lib/data';
 import { discussionsOn } from '@/lib/features';
 import { supabase } from '@/lib/supabase';
@@ -27,10 +28,13 @@ export default function GroupChatRoute() {
 /** Groupe ou message direct (conversation privée à deux) : même adresse /chats/<id> (notifications comprises) ;
  * direct_chats ne répond qu'aux deux personnes de la conversation. */
 function ChatScreen({ id, attachEvent }: { id: string; attachEvent: string | null }) {
+  // Ouverte depuis la liste : on sait déjà si c'est un message direct (aucun aller-retour avant la conversation).
+  const known = knownKinds.get(id);
   const { data, loading } = useQuery(async () => {
+    if (known) return { direct: known === 'direct' };
     const { data } = await supabase.from('direct_chats').select('id').eq('id', id).maybeSingle();
     return { direct: Boolean(data) };
-  }, [id]);
+  }, [id], known ? { direct: known === 'direct' } : null);
   if (loading && !data) return <Loading />;
   return <GroupChat id={id} direct={Boolean(data?.direct)} attachEvent={attachEvent} />;
 }
