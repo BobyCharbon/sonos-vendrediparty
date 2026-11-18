@@ -21,6 +21,10 @@ final class WebModel: ObservableObject {
     @Published var eventChatID: String?
     /// Pronos (17.11) : écran natif par-dessus la page (PartyNative.pronos, notification ?prono=<id>).
     @Published var pronoRoute: PronoRoute?
+    /// Discussions v2 (18.11) : « Nouveau message » ou mini-profil demandés par la page (PartyNative.chat).
+    @Published var peopleRoute: PeopleRoute?
+    /// Personnes des Discussions (Nouveau message, mini-profil, « Envoyer un message ») : relais /api/account/chats/rpc.
+    private(set) var people: PeopleStore?
     /// Données de cette discussion (même écran que Discussions, routes de l'événement).
     private(set) var eventChats: ChatsStore?
     private var ticketScanReply: CheckedContinuation<String?, Never>?
@@ -109,6 +113,9 @@ final class WebModel: ObservableObject {
         feedbackAdmin = FeedbackAdminStore(api: api, web: self)
         chats = ChatsStore(api: api, web: self)
         eventChats = ChatsStore(api: api, web: self, forEvents: true)
+        people = PeopleStore(api: api, web: self,
+                             openChat: { [weak self] chat in self?.openChatNow(chat) },
+                             openEvent: { [weak self] event in self?.openEvent(event) })
         // Noms des contacts (« Nom · pseudo ») : reconnaissance au lancement, puis à chaque changement du répertoire.
         ContactNames.shared.configure(api: api, web: self)
         settings = SettingsStore(api: api, web: self, isHost: { [weak self] in self?.isHost ?? false },
@@ -411,12 +418,39 @@ final class WebModel: ObservableObject {
         discussions && chats != nil && tabs?.tabs.contains { $0.id == "chats" && !$0.soon } == true
     }
 
-    /// « Écrire » : LA conversation privée avec ce membre (créée au besoin), ouverte dans l'onglet Discussions.
-    /// Le numéro de la personne dans mes contacts (empreinte) prouve qu'on se connaît, sans groupe ni événement commun.
-    func writeDirect(to user: String) async -> Bool {
-        guard let chats, await chats.write(to: user, contactHash: ContactNames.shared.contactHash(for: user)) else { return false }
+    /// « Envoyer un message » : LA conversation privée avec ce membre (créée au besoin par `open_direct_chat` :
+    /// conversation ou demande de message), ouverte dans l'onglet Discussions. Le numéro de la personne dans mes
+    /// contacts (empreinte) prouve qu'on se connaît.
+    func writeDirect(to user: String) async -> WriteDirectResult {
+        guard let people else { return .refused(PeopleText.refusal(nil)) }
+        return await people.openDirect(user)
+    }
+
+    /// Une conversation (directe ou de groupe) dans l'onglet Discussions natif, par-dessus rien : la discussion
+    /// d'événement, les pronos et la feuille des personnes se ferment.
+    func openChatNow(_ chat: String) {
+        guard let chats, let id = UUID(uuidString: chat) else { return }
+        eventChatID = nil
+        pronoRoute = nil
+        peopleRoute = nil
+        chats.requested = id.uuidString.lowercased()
         selectTab("chats")
-        return true
+    }
+
+    /// Pont de la page (PartyNative.chat.openDirect) : la conversation NATIVE avec cette personne ; si la base refuse
+    /// (ou demande les règles), son mini-profil s'ouvre avec la raison et « Envoyer un message ».
+    func openDirectFromPage(_ user: String) {
+        guard canWriteDirect, let id = UUID(uuidString: user) else { return }
+        let target = id.uuidString.lowercased()
+        Task {
+            if await writeDirect(to: target) != .opened { Motion.animate(Motion.smooth) { peopleRoute = .profile(target) } }
+        }
+    }
+
+    /// Pont de la page (PartyNative.chat.newMessage) : « Nouveau message », avec la carte d'une soirée (event_id).
+    func openNewMessage(event: String?) {
+        guard canWriteDirect else { return }
+        Motion.animate(Motion.smooth) { peopleRoute = .newMessage(event: event.flatMap(UUID.init(uuidString:))?.uuidString.lowercased()) }
     }
 
     /// Fiche d'un membre › son Zicou : l'onglet Zicou de la page, sur sa visite (ami) ou sur le mien (« Adopter le mien »).

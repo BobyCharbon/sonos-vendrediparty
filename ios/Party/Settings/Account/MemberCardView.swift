@@ -159,6 +159,8 @@ struct MemberCardView: View {
     @Environment(\.writeDirect) private var writeDirect
     @State private var writing = false
     @State private var writeProblem: String?
+    /// Les règles de Party d'abord (CGU), puis nouvel essai.
+    @State private var askTerms = false
     /// Son Zicou (vedette, ou œuf terne) ; nil : Zicou éteint, bloqué, ou pas encore chargé.
     @State private var zicou: MemberZicou?
     @Environment(\.openZicou) private var openZicou
@@ -184,19 +186,9 @@ struct MemberCardView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
                         .accessibilityElement(children: .combine)
-                        if !card.me, !card.blocked, !card.restricted, let writeDirect {
-                            Button {
-                                Haptics.tap()
-                                writing = true
-                                Task {
-                                    let opened = await writeDirect.open(card.id)
-                                    writing = false
-                                    if opened { dismiss() } else {
-                                        writeProblem = "Tu ne peux pas écrire à cette personne : il faut un groupe ou un événement en commun, ou son numéro dans tes contacts."
-                                    }
-                                }
-                            } label: {
-                                Label("Écrire", systemImage: "bubble.left.fill").frame(maxWidth: .infinity)
+                        if !card.me, !card.blocked, !card.restricted, writeDirect != nil {
+                            Button { write(card.id) } label: {
+                                Label("Envoyer un message", systemImage: "bubble.left.fill").frame(maxWidth: .infinity)
                             }
                             .buttonStyle(.borderedProminent)
                             .disabled(writing)
@@ -261,6 +253,9 @@ struct MemberCardView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fermer") { dismiss() } } }
             .overlay { if card == nil && error == nil { ProgressView().transition(.opacity) } }
+            .sheet(isPresented: $askTerms) {
+                TermsAcceptSheet(store: store.moderation) { accepted in if accepted, let id = card?.id { write(id) } }
+            }
             .sheet(item: $contactSheet) { item in
                 ContactCardSheet(mode: item.mode) { contactSheet = nil }.ignoresSafeArea()
             }
@@ -285,6 +280,23 @@ private struct ContactSheetItem: Identifiable {
 }
 
 private extension MemberCardView {
+    /// « Envoyer un message » : conversation ou demande de message (la base décide) ; sinon la raison.
+    func write(_ id: String) {
+        guard let writeDirect, !writing else { return }
+        Haptics.tap()
+        writing = true
+        writeProblem = nil
+        Task {
+            let result = await writeDirect.open(id)
+            writing = false
+            switch result {
+            case .opened: dismiss()
+            case .termsRequired: askTerms = true
+            case .refused(let message): writeProblem = message
+            }
+        }
+    }
+
     @ViewBuilder func contactButton(_ card: MemberCard, phone: String) -> some View {
         if let identifier = contacts.contactIdentifier(for: card.id), contacts.access.canRead {
             Button {

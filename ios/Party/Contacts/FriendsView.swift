@@ -70,7 +70,7 @@ struct FriendsView: View {
         .alert("Écrire", isPresented: Binding(get: { writeProblem != nil }, set: { if !$0 { writeProblem = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(writeProblem ?? "") }
-        .sheet(item: $profile) { MemberCardView(store: privacy, memberID: $0.id) }
+        .sheet(item: $profile) { PersonProfileSheet(userID: $0.id, privacy: privacy) }
         .sheet(item: $contactSheet) { target in
             if let contact = contacts.contactIdentifier(for: target.id).flatMap(ContactCardSheet.existing) {
                 ContactCardSheet(mode: .existing(contact)) { contactSheet = nil }.ignoresSafeArea()
@@ -149,14 +149,14 @@ struct FriendsView: View {
         return { friend in
             Haptics.tap()
             Task {
-                writeProblem = await writeDirect.open(friend.id) ? nil : "Tu ne peux pas écrire à \(friend.displayName) pour l'instant. Réessaie."
+                writeProblem = await writeDirect.open(friend.id).problem
             }
         }
     }
 
     @ViewBuilder private func menu(for row: FriendRow) -> some View {
         Button { profile = FriendTarget(id: row.id) } label: { Label("Voir le profil", systemImage: "person.crop.circle") }
-        if let write { Button { write(row.friend) } label: { Label("Écrire", systemImage: "bubble.left.fill") } }
+        if let write { Button { write(row.friend) } label: { Label("Envoyer un message", systemImage: "bubble.left.fill") } }
         if let phone = store.phone(of: row.friend) {
             Button {
                 draft = MessageDraft(recipient: phone, body: "")

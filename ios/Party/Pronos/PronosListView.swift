@@ -1862,6 +1862,7 @@ struct PronoSeasonView: View {
                                     Rectangle().fill(PronoTheme.line).frame(height: 1).padding(.leading, 120)
                                 }
                                 PronoSeasonRow(row: r, mine: r.user.me == true)
+                                    .opensMiniProfile(r.user.me == true ? nil : r.user.id)
                                     .offset(y: shown || reduce ? 0 : CGFloat((r.move ?? 0)) * 60)
                                     .opacity(shown || reduce ? 1 : 0)
                             }
