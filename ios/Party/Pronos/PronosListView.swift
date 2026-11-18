@@ -460,7 +460,7 @@ struct PronoListCard: View {
     @ViewBuilder private var top: some View {
         if compact {
             HStack(spacing: 6) {
-                PronoKindIcon(kind: card.kind)
+                Image(systemName: card.kind == "award" ? "trophy.fill" : PronoKind.symbol(card.kind)).font(.caption2.weight(.heavy)).foregroundStyle(PronoTheme.lav)
                 Text(PronoKindText.label(card.kind).uppercased()).font(.caption2.weight(.heavy)).kerning(0.6)
                     .foregroundStyle(PronoTheme.lav)
                 Text("· par \(card.creator.me == true ? "toi" : card.creator.name)").font(.caption.weight(.medium)).foregroundStyle(PronoTheme.t2)
@@ -483,7 +483,9 @@ struct PronoListCard: View {
                     }
                     Spacer(minLength: 4)
                     HStack(spacing: 5) {
-                        PronoKindIcon(kind: card.kind)
+                        if card.kind == "award" { Text("🏆").font(.caption2) } else {
+                            Image(systemName: PronoKind.symbol(card.kind)).font(.system(size: 10, weight: .bold))
+                        }
                         Text(PronoKindText.label(card.kind)).font(.caption.weight(.bold)).lineLimit(1)
                     }
                     .foregroundStyle(Color(hex: 0x1D1530))
@@ -1011,7 +1013,7 @@ struct PronosMineView: View {
                             }, selection: Binding(get: { tab }, set: { tab = $0; tabChosen = true }))
                             .padding(.horizontal, 16).padding(.vertical, 8)
                             .background(PronoTheme.bg.opacity(0.96))
-                            .accessibilityIdentifier("pronos-tabs")
+                            .accessibilityElement(children: .contain).accessibilityIdentifier("pronos-tabs")
                         }
                         if !patates { PronoHonour(points: nil).padding(16) }
                     }
@@ -1385,9 +1387,12 @@ struct PronoBagHero: View {
                     RadialGradient(colors: [g.to.opacity(0.55), .clear], center: .topTrailing, startRadius: 0, endRadius: 240)
                         .offset(x: drift ? -18 : 0, y: drift ? 10 : 0)
                     Text(terrain.emoji).font(.system(size: 150)).opacity(0.16).rotationEffect(.degrees(-14)).offset(x: 22, y: -30)
+                        .allowsHitTesting(false).accessibilityHidden(true)
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            // La zone tactile s'arrête à la carte : l'emoji en filigrane (tourné, décalé) débordait sur le « + » au-dessus.
+            .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).stroke(PronoTheme.line, lineWidth: 1))
             .shadow(color: .black.opacity(0.45), radius: 20, y: 14)
         }
@@ -1547,7 +1552,7 @@ struct PronoGroupPage: View {
         if patates {
             PronoSegments(tabs: [(tab: 0, title: "Saison 🥔", count: nil, hot: false, id: "prono-season-tab"),
                                  (tab: 1, title: "Points", count: nil, hot: false, id: "prono-points-tab")], selection: $view)
-                .accessibilityIdentifier("pronos-tabs")
+                .accessibilityElement(children: .contain).accessibilityIdentifier("pronos-tabs")
                 .padding(.top, 24)
         }
         if patates && view == 0 {

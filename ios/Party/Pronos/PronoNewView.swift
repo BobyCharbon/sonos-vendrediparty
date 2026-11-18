@@ -182,8 +182,9 @@ struct PronoNewView: View {
             if step == .question || step == .settings {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button { go(step == .settings ? .question : .template) } label: {
+                        // Pas de cercle à nous : la barre d'iOS 26 pose déjà le sien (il était dessiné en double).
                         Image(systemName: "chevron.left").font(.body.weight(.bold)).foregroundStyle(NP.t1)
-                            .frame(width: 44, height: 44).npGlass(22)
+                            .frame(width: 44, height: 44)
                     }
                     .accessibilityLabel("Étape précédente")
                     .accessibilityIdentifier("prono-back")
@@ -289,7 +290,8 @@ struct PronoNewView: View {
                         .font(.footnote).foregroundStyle(NP.t2).padding(.top, 16)
                 }
             } header: {
-                familyChips.padding(.vertical, 10).background(NP.bg.opacity(0.92))
+                // Fond plein et pleine largeur : le contenu ne passe plus sous les familles en défilant.
+                familyChips.padding(.vertical, 10).background(NP.bg.padding(.horizontal, -40))
             }
         }
     }
@@ -844,24 +846,28 @@ struct PronoNewView: View {
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("prono-group-picker")
             if event == nil {
-                NPFlow(spacing: 4) {
-                    Text("Ou").foregroundStyle(NP.t2)
-                    NavigationLink {
-                        PronoPeoplePicker(suggestions: suggestions, selected: $people)
-                    } label: {
-                        Text("des personnes choisies").bold().foregroundStyle(NP.lavenderText).frame(minHeight: 44)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Ou, pour l'honneur :").foregroundStyle(NP.t2)
+                    HStack(spacing: 8) {
+                        NavigationLink {
+                            PronoPeoplePicker(suggestions: suggestions, selected: $people)
+                        } label: {
+                            Label("Des personnes choisies", systemImage: "person.2.fill").bold().foregroundStyle(NP.lavenderText)
+                                .padding(.horizontal, 14).frame(minHeight: 44)
+                                .background(NP.lavender.opacity(0.12), in: Capsule())
+                        }
+                        .accessibilityIdentifier("prono-people")
+                        Button {
+                            Haptics.selection()
+                            Motion.animate(NP.spring) { link.toggle() }
+                        } label: {
+                            Label(link ? "Un lien ✓" : "Un lien", systemImage: "link").bold().foregroundStyle(NP.lavenderText)
+                                .padding(.horizontal, 14).frame(minHeight: 44)
+                                .background(NP.lavender.opacity(link ? 0.24 : 0.12), in: Capsule())
+                        }
+                        .accessibilityAddTraits(link ? .isSelected : [])
+                        .accessibilityIdentifier("prono-link")
                     }
-                    .accessibilityIdentifier("prono-people")
-                    Text(",").foregroundStyle(NP.t2)
-                    Button {
-                        Haptics.selection()
-                        Motion.animate(NP.spring) { link.toggle() }
-                    } label: {
-                        Text(link ? "un lien ✓" : "un lien").bold().foregroundStyle(NP.lavenderText).frame(minHeight: 44)
-                    }
-                    .accessibilityAddTraits(link ? .isSelected : [])
-                    .accessibilityIdentifier("prono-link")
-                    Text("· pour l'honneur").foregroundStyle(NP.t2)
                 }
                 .font(.subheadline)
                 if !people.isEmpty || link {
@@ -1054,12 +1060,12 @@ struct PronoNewView: View {
 
     private var summary: String {
         let who: String = {
-            if let chosen { return chosen.members.map { "\($0) \(chosen.name)" } ?? chosen.name }
+            if let chosen { return chosen.name }
             if event != nil { return "les participants" }
             if !people.isEmpty { return "\(people.count) personne\(people.count > 1 ? "s" : "")" }
             return link ? "par lien" : "choisis qui joue"
         }()
-        return [who, "fin \(NPDates.short(end))", usesPatates ? "avec patates 🥔" : "pour l'honneur"].joined(separator: " · ")
+        return [who, NPDates.short(end), usesPatates ? "🥔 patates" : "pour l'honneur"].joined(separator: " · ")
     }
 
     // MARK: - 4. C'est lancé !
@@ -1834,8 +1840,11 @@ private struct NPBottom<Content: View>: View {
     var body: some View {
         content
             .padding(.horizontal, 20).padding(.top, 14).padding(.bottom, 8)
-            .background(LinearGradient(colors: [NP.bg.opacity(0), NP.bg.opacity(0.92), NP.bg], startPoint: .top, endPoint: .bottom)
-                .ignoresSafeArea())
+            // Fond plein sous le bouton (court fondu en haut) : le résumé ne chevauche plus la carte au-dessus.
+            .background(VStack(spacing: 0) {
+                LinearGradient(colors: [NP.bg.opacity(0), NP.bg], startPoint: .top, endPoint: .bottom).frame(height: 14)
+                NP.bg
+            }.ignoresSafeArea())
     }
 }
 

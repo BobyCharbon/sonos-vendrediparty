@@ -707,6 +707,8 @@ final class PronosStore: ObservableObject {
     /// Appel du relais ; la réponse de la base (« result ») décodée en T.
     func call<T: Decodable>(_ fn: String, _ args: [String: Any] = [:], as: T.Type = T.self) async throws -> T {
         guard let token = await web?.accountToken() else { throw PartyAPIError.server("Connecte-toi à Party pour jouer aux pronos.") }
+        // Drapeau « patates » du site lu une fois, avant le premier écran (sinon les patates restaient cachées).
+        if !featuresRead { await refreshFeatures() }
         let reply = try await api.pronosRPC(token: token, fn: fn, args: args)
         let result = reply["result"] ?? NSNull()
         let data = try JSONSerialization.data(withJSONObject: result, options: [.fragmentsAllowed])

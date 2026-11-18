@@ -194,7 +194,7 @@ struct PronoDetailView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
             PronoFlow(spacing: 8) {
-                chip { PronoKindIcon(kind: p.kind); Text(kindLabel(p.kind)) }
+                chip { if p.kind == "award" { Text("🏆") } else { Image(systemName: PronoKind.symbol(p.kind)).font(.caption.weight(.bold)) }; Text(kindLabel(p.kind)) }
                 if pronoOpt(p.notOver) ?? false { chip { Image(systemName: "arrow.down.to.line"); Text("Sans dépasser") } }
                 if patatesOn(p) {
                     chip(tone: PronoInk.patate) { Text("🥔"); Text("Avec patates") }
@@ -940,8 +940,12 @@ struct PronoDetailView: View {
                     .font(.footnote).foregroundStyle(PronoInk.t3)
             }
         }
-        .padding(.horizontal, 20).padding(.top, 14).padding(.bottom, 6)
-        .background(LinearGradient(colors: [PronoInk.bg.opacity(0), PronoInk.bg.opacity(0.62), PronoInk.bg], startPoint: .top, endPoint: .bottom).ignoresSafeArea())
+        .padding(.horizontal, 20).padding(.top, 26).padding(.bottom, 6)
+        // Fond plein sous le bouton (court fondu en haut) : le texte de la fiche ne passe plus à travers.
+        .background(VStack(spacing: 0) {
+            LinearGradient(colors: [PronoInk.bg.opacity(0), PronoInk.bg], startPoint: .top, endPoint: .bottom).frame(height: 22)
+            PronoInk.bg
+        }.ignoresSafeArea())
     }
 
     private func seal(_ p: Prono) {

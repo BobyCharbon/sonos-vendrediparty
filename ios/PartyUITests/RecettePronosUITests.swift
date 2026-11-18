@@ -73,6 +73,7 @@ final class RecettePronosUITests: XCTestCase {
         XCTAssertTrue(choice.waitForExistence(timeout: 40), "prono ouvert par la notification")
         shot("notification-prono")
         choice.tap()
+        app.buttons["prono-seal"].tap()  // v2 : choisir, puis sceller
         XCTAssertTrue(any("label BEGINSWITH 'Ta réponse est enregistrée et cachée'").waitForExistence(timeout: 15), "réponse cachée enregistrée")
         shot("joue-cache")
         app.buttons["pronos-close"].tap()
@@ -85,9 +86,20 @@ final class RecettePronosUITests: XCTestCase {
         if !row.exists { shot("reglages-sans-pronos") }
         XCTAssertTrue(row.waitForExistence(timeout: 10), "ligne Pronos des Autres apps")
         row.tap()
-        XCTAssertTrue(app.buttons["prono-card-\(prono)"].waitForExistence(timeout: 20), "le prono joué est dans la liste")
+        let waiting = any("identifier == 'prono-tab-wait'")  // v2 : un prono joué et encore ouvert est « En attente »
+        XCTAssertTrue(waiting.waitForExistence(timeout: 20), "onglet En attente")
+        waiting.tap()
+        XCTAssertTrue(any("identifier == 'prono-card-\(prono)'").waitForExistence(timeout: 20), "le prono joué est dans la liste")
         shot("liste")
-        app.buttons["pronos-new"].tap()
+        let plus = app.buttons["pronos-new"]
+        for _ in 0..<3 where !plus.isHittable { app.swipeDown(); sleep(1) }
+        try? app.debugDescription.write(to: dir.appendingPathComponent("arbre-liste.txt"), atomically: true, encoding: .utf8)
+        plus.tap()
+        let scratch = app.buttons["prono-kind-choice"]  // v2 : « Partir de zéro › Choix »
+        for _ in 0..<6 where !(scratch.exists && scratch.isHittable) { app.swipeUp(velocity: .slow); sleep(1) }
+        XCTAssertTrue(scratch.waitForExistence(timeout: 15), "modèles et Partir de zéro")
+        shot("modeles")
+        scratch.tap()
         let question = app.textFields["prono-question"]
         XCTAssertTrue(question.waitForExistence(timeout: 10), "écran Nouveau prono")
         question.tap()
@@ -99,29 +111,33 @@ final class RecettePronosUITests: XCTestCase {
         app.typeText("\n")  // « Suivant » du dernier choix : le clavier se ferme
         sleep(1)
         XCTAssertEqual(app.keyboards.count, 0, "le clavier se ferme après le dernier choix")
-        let picker = any("identifier == 'prono-group-picker' OR label BEGINSWITH 'Groupe'")
-        for _ in 0..<5 where !(picker.exists && picker.isHittable) {
-            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.42)).press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.14)))
-            sleep(1)
-        }
-        if !picker.exists {
-            shot("sans-choix-du-groupe")
-            try? app.debugDescription.write(to: dir.appendingPathComponent("arbre.txt"), atomically: true, encoding: .utf8)
-        }
-        XCTAssertTrue(picker.waitForExistence(timeout: 5), "choix du groupe")
-        picker.tap()
+        shot("question")
+        app.buttons["prono-next"].tap()
         let item = app.buttons.matching(NSPredicate(format: "label CONTAINS %@", group)).firstMatch
-        XCTAssertTrue(item.waitForExistence(timeout: 5), "le groupe dans le menu")
+        XCTAssertTrue(item.waitForExistence(timeout: 10), "le groupe dans « Qui joue »")
         item.tap()
         sleep(1)
-        shot("nouveau")
-        app.buttons["prono-publish"].tap()
+        shot("reglages")
+        let publish = app.buttons["prono-publish"]
+        for _ in 0..<6 where !(publish.exists && publish.isHittable) { app.swipeUp(velocity: .slow); sleep(1) }
+        publish.tap()
+        let playNow = app.buttons["prono-play-now"]
+        XCTAssertTrue(playNow.waitForExistence(timeout: 20), "« C'est lancé ! »")
+        shot("lance")
+        playNow.tap()
 
         // 3. Le prono créé : je joue, je ferme maintenant, je donne le résultat, le dévoilement.
         let mine = app.buttons["prono-choice-0"]
         XCTAssertTrue(mine.waitForExistence(timeout: 20), "prono créé ouvert")
         mine.tap()
+        shot("fiche")
+        app.buttons["prono-seal"].tap()
         sleep(2)
+        shot("scelle")
+        let org = app.buttons["prono-org-toggle"]
+        for _ in 0..<6 where !(org.exists && org.isHittable) { app.swipeUp(); sleep(1) }
+        org.tap()
+        sleep(1)
         let close = app.buttons["Fermer maintenant"]
         for _ in 0..<4 where !close.isHittable { app.swipeUp(); sleep(1) }
         close.tap()
@@ -131,8 +147,11 @@ final class RecettePronosUITests: XCTestCase {
         result.tap()
         app.buttons["prono-reveal-button"].tap()
         XCTAssertTrue(any("identifier == 'prono-reveal'").waitForExistence(timeout: 20), "dévoilement")
-        XCTAssertTrue(any("label BEGINSWITH 'Tu avais vu juste'").waitForExistence(timeout: 10), "gagnant")
+        // Seul joueur, et juste : « Unanimes ! » (tout le monde avait vu juste, patates rendues).
+        XCTAssertTrue(any("label CONTAINS 'Unanimes' OR label BEGINSWITH 'Tu avais vu juste'").waitForExistence(timeout: 10), "résultat")
         sleep(1)
         shot("devoilement")
+        sleep(3)
+        shot("devoilement-fin")
     }
 }
