@@ -333,7 +333,7 @@ struct ConversationView: View {
             guard await v2.openPrivate(with: m.author) != nil else { return }
             ConversationRules.pendingQuotes[m.author] = quote
             if store.forEvents { dismiss() }  // discussion d'un événement : par-dessus la page, on la referme
-            if !(await writeDirect.open(m.author)) { ConversationRules.pendingQuotes[m.author] = nil }
+            if await writeDirect.open(m.author) != .opened { ConversationRules.pendingQuotes[m.author] = nil }
         }
     }
 

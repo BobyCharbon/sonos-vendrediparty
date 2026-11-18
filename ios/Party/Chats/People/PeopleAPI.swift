@@ -161,13 +161,7 @@ struct ChatGroupCreated: Codable, Equatable {
     }
 }
 
-/// Carte d'une soirée (`chat_event_cards`), jointe par « Envoyer à un ami ».
-struct ChatEventCard: Codable, Equatable, Identifiable {
-    let id: String
-    let title: String
-    var start: String?
-    var place: String?
-}
+// Carte d'une soirée (`chat_event_cards`) : ChatEventCard, dans Conversation/ConversationRelay.swift.
 
 // MARK: - Textes et choix (testés : ChatsPeopleTests)
 

@@ -205,68 +205,21 @@ enum ChatListText {
 
 // MARK: - Personnes, recherche, demandes (contrat §4, §8)
 
-/// Une personne (chat_people_suggestions, chat_people_search) : « Déjà vu 3 fois » quand sub est vide.
-struct ChatPerson: Decodable, Equatable, Identifiable {
-    let id: String
-    let name: String
-    var nickname: String?
-    var photo: String?
-    var sub: String?
-    /// direct (on s'écrit tout de suite) ou request (ce sera une demande de message).
-    var link: String?
-    var metCount = 0
+/// La personne (ChatPerson) et les suggestions (PeopleSuggestions) sont dans People/PeopleAPI.swift.
+typealias ChatPeopleSuggestions = PeopleSuggestions
 
-    enum CodingKeys: String, CodingKey { case id, name, nickname, photo, sub, link, metCount = "met_count" }
-
-    init(id: String, name: String, nickname: String? = nil, photo: String? = nil, sub: String? = nil, link: String? = nil, metCount: Int = 0) {
-        self.id = id
-        self.name = name
-        self.nickname = nickname
-        self.photo = photo
-        self.sub = sub
-        self.link = link
-        self.metCount = metCount
-    }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(String.self, forKey: .id)
-        name = (try? c.decodeIfPresent(String.self, forKey: .name)) ?? nil ?? ""
-        nickname = try? c.decodeIfPresent(String.self, forKey: .nickname)
-        photo = try? c.decodeIfPresent(String.self, forKey: .photo)
-        sub = try? c.decodeIfPresent(String.self, forKey: .sub)
-        link = try? c.decodeIfPresent(String.self, forKey: .link)
-        metCount = ((try? c.decodeIfPresent(Int.self, forKey: .metCount)) ?? nil) ?? 0
-    }
-
+extension ChatPerson {
     var firstName: String { name.split(separator: " ").first.map(String.init) ?? name }
 
     /// Sous-titre : la soirée ou le groupe en commun, sinon « Déjà vu 3 fois ».
     var detail: String? {
         if let sub, !sub.isEmpty { return sub }
-        return ChatPerson.metText(metCount)
+        return ChatPerson.metText(metCount ?? 0)
     }
 
     static func metText(_ n: Int) -> String? {
         n <= 0 ? nil : n == 1 ? "Déjà vu 1 fois" : "Déjà vu \(n) fois"
     }
-}
-
-struct ChatPeopleSuggestions: Decodable, Equatable {
-    var recent: [ChatPerson] = []
-    var crossed: [ChatPerson] = []
-    var groups: [ChatPerson] = []
-
-    init() {}
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        recent = (try? c.decodeIfPresent([ChatPerson].self, forKey: .recent)) ?? nil ?? []
-        crossed = (try? c.decodeIfPresent([ChatPerson].self, forKey: .crossed)) ?? nil ?? []
-        groups = (try? c.decodeIfPresent([ChatPerson].self, forKey: .groups)) ?? nil ?? []
-    }
-
-    enum CodingKeys: String, CodingKey { case recent, crossed, groups }
 }
 
 /// Un message trouvé (chat_search) : seulement dans mes conversations.
