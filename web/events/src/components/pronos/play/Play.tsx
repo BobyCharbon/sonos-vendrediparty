@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Avatar, Button } from '@/components/ui';
 import { GlassCard, PrimaryButton, Seal, SectionLabel } from '@/components/pronos/Kit';
@@ -131,7 +131,13 @@ export function Finished({ p, busy, act, call }: {
   return (
     <View style={{ gap: 22 }} testID="prono-reveal">
       {done && c && (c.open || c.contested) ? <ContestBanner c={c} /> : null}
-      {done ? <ResultView prono={prono} /> : <RevealStage prono={prono} onDone={() => { markSeen(p.id); setDone(true); }} />}
+      {done ? <ResultView prono={prono} /> : (
+        // Fenêtre au-dessus de toute la page : sinon les réactions et la ligne « Proposé par » de la fiche passaient
+        // par-dessus le panneau plein écran (empilement des calques du défilement).
+        <Modal visible transparent animationType="none" onRequestClose={() => { markSeen(p.id); setDone(true); }}>
+          <RevealStage prono={prono} onDone={() => { markSeen(p.id); setDone(true); }} />
+        </Modal>
+      )}
       {done && c?.can_contest && !c.contested ? <ContestAsk onOpen={() => setContest(true)} /> : null}
       {done && c?.contested ? <ContestVote p={p} c={c} result={resultText(p)} busy={busy} onVote={(fair) => void act('prono_contest_vote', { id: p.id, fair })} /> : null}
       {done && p.group ? <Button variant="secondary" label="🏅 Voir le classement" onPress={() => router.push(`/group/${p.group?.id}/pronos?tab=board`)} /> : null}

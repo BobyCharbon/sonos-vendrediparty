@@ -85,7 +85,9 @@ export function Plant({ p, value, onValue, answer, full }: {
           <View style={st.fieldIcon}><Text style={{ fontSize: 26 }} accessibilityElementsHidden>🥔</Text></View>
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={rounded(17, '800')}>
-              <Text style={wide(17)}>{p.field?.total ?? 0}</Text> 🥔 dans le champ · {p.field?.planters ?? 0} joueur{(p.field?.planters ?? 0) > 1 ? 's' : ''}
+              {(p.field?.total ?? 0) > 0
+                ? <><Text style={wide(17)}>{p.field?.total}</Text> 🥔 dans le champ · {p.field?.planters ?? 0} joueur{(p.field?.planters ?? 0) > 1 ? 's' : ''}</>
+                : 'Le champ est encore vide'}
             </Text>
             <Text style={st.help}>{full ? 'Les patates de tout le monde, sur toutes les réponses' : fieldRule(p.kind)}</Text>
           </View>

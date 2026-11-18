@@ -114,7 +114,9 @@ export function FieldCard({ p }: { p: PronoV2 }) {
           <View style={st.fieldIcon}><Text style={{ fontSize: 26 }} accessibilityElementsHidden>🥔</Text></View>
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={rounded(17, '800')}>
-              <Text style={wide(17)}>{p.field?.total ?? 0}</Text> 🥔 dans le champ · {planters} joueur{planters > 1 ? 's' : ''}
+              {(p.field?.total ?? 0) > 0
+                ? <><Text style={wide(17)}>{p.field?.total}</Text> 🥔 dans le champ · {planters} joueur{planters > 1 ? 's' : ''}</>
+                : 'Le champ est encore vide'}
             </Text>
             <Text style={st.help}>{mine ? `Dont tes ${mine} 🥔. ` : ''}La répartition reste cachée jusqu’à la fin.</Text>
           </View>

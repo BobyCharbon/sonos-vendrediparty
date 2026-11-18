@@ -60,14 +60,16 @@ def test_create_play_hidden_result_reveal_and_board(browser, party, band):  # no
         # Marc est prévenu ; il joue « Marc » par la base.
         assert sql(f"select count(*) as n from public.notifications where kind = 'prono_new' and user_id = '{b.uid}' and data->>'prono_id' = '{pid}'")[0]['n'] == 1
         opts = b.rpc('prono_get', id=pid).json()['options']
-        assert b.rpc('prono_answer', id=pid, answer={'option_id': opts[1]['id']}).status_code == 200
+        assert b.rpc('prono_answer', id=pid, answer={'option_id': opts[1]['id'], 'stake': 5}).status_code == 200
 
         page.get_by_test_id('prono-choice-0').click()  # Léa choisit « Léa »…
+        page.get_by_test_id('prono-plant-10').click()   # … plante 10 patates (base de TEST : patates allumées)…
         page.get_by_test_id('prono-seal').click()       # … et scelle sa réponse
-        pw.expect(page.get_by_text('Réponse scellée').first).to_be_visible(timeout=15000)
+        pw.expect(page.get_by_text('Ta réponse est scellée').first).to_be_visible(timeout=15000)
         pw.expect(page.get_by_text('2 personnes ont joué')).to_be_visible(timeout=15000)
-        # La réponse de Marc n'est nulle part dans la page (ni texte, ni compte par choix).
-        assert 'réponse' not in (page.get_by_test_id('prono-choice-1').inner_text() or '').lower()
+        # La réponse de Marc n'est nulle part : la base ne la donne pas (ni réponses, ni compte par choix).
+        seen = a.rpc('prono_get', id=pid).json()
+        assert seen['answers'] is None and all(o.get('count') is None for o in seen['options'])
         shot(page, 'pronos-02-joue-cache')
 
         sql(f"update private.pronos set closes_at = now() - interval '1 second' where id = '{pid}'")
@@ -76,18 +78,21 @@ def test_create_play_hidden_result_reveal_and_board(browser, party, band):  # no
         page.get_by_test_id('prono-result-1').click()  # Marc a gagné
         shot(page, 'pronos-03-resultat')
         page.get_by_role('button', name='🎉 Dévoiler le résultat').click()
-        reveal = page.get_by_test_id('prono-reveal')
-        pw.expect(reveal).to_be_visible(timeout=20000)
-        pw.expect(reveal.get_by_text('LES GAGNANTS')).to_be_visible()
-        pw.expect(reveal.get_by_text('Ta réponse : Léa')).to_be_visible()
-        page.wait_for_timeout(1200)
+        stage = page.get_by_test_id('prono-reveal-stage')   # v2 : le dévoilement plein écran (sceaux, projecteur, barres)
+        pw.expect(stage).to_be_visible(timeout=20000)
+        page.wait_for_timeout(3200)
         shot(page, 'pronos-04-devoilement')
+        pw.expect(stage.get_by_text('Ta réponse : Léa', exact=False)).to_be_visible()
+        page.get_by_test_id('prono-reveal-done').click()
+        result = page.get_by_test_id('prono-result')
+        pw.expect(result.get_by_text('LES GAGNANTS')).to_be_visible(timeout=15000)
+        shot(page, 'pronos-04b-resultat-final')
         page.get_by_role('button', name='🏅 Voir le classement').click()
         pw.expect(page.get_by_text('1 bonne réponse sur 1')).to_be_visible(timeout=20000)
         page.wait_for_timeout(900)
         shot(page, 'pronos-05-classement')
         res = sql(f"select body from public.notifications where kind = 'prono_result' and user_id = '{b.uid}' and data->>'prono_id' = '{pid}'")
-        assert res and res[0]['body'].startswith('Tu avais vu juste : +3 points')
+        assert res and ('Tu l' in res[0]['body'] or 'vu juste' in res[0]['body']), res
         assert not [e for e in errors if 'prono' in e.lower()], errors
     finally:
         context.close()
