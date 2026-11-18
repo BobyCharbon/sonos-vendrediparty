@@ -571,7 +571,7 @@ struct GroupDetailView: View {
         .sheet(isPresented: $adding) {
             if let group = store.list?.group(groupID) { GroupAddSheet(store: store, group: group) }
         }
-        .sheet(item: $profile) { target in MemberCardView(store: privacy, memberID: target.id) }
+        .sheet(item: $profile) { target in PersonProfileSheet(userID: target.id, privacy: privacy) }
         .confirmationDialog("Supprimer ce groupe ?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Supprimer", role: .destructive) {
                 guard let group = store.list?.group(groupID) else { return }

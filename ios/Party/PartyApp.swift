@@ -172,10 +172,8 @@ struct ContentView: View {
             }
         }
         .preferredColorScheme(.dark)
-        // « Écrire » (Mes amis, fiches des membres) : la conversation privée s'ouvre dans Discussions (si disponible).
         // Fiche d'un membre › son Zicou : visite (ami) ou « Adopter le mien », dans l'onglet Zicou de la page.
         .environment(\.openZicou, OpenZicouAction { visit in model.openZicou(visit: visit) })
-        .environment(\.writeDirect, model.canWriteDirect ? WriteDirectAction { user in await model.writeDirect(to: user) } : nil)
         // Groupes (17.11) : « Gérer le groupe », ✎ « Nouveau groupe », Réglages › Groupes → pages du module Événements.
         .environment(\.openGroupPage, OpenGroupPageAction { target in model.openGroupPage(target) })
         .sheet(isPresented: $model.aiEventOpen, onDismiss: { model.aiEditEventId = nil }) {
@@ -213,6 +211,18 @@ struct ContentView: View {
                 model.finishTicketScan(text)
             }
         }
+        // Discussions v2 (18.11) : mini-profil ou « Nouveau message » demandés par la page (PartyNative.chat).
+        .sheet(item: $model.peopleRoute) { route in
+            switch route {
+            case .profile(let user): MiniProfileSheet(userID: user)
+            case .newMessage(let event): NewMessageView(eventID: event)
+            }
+        }
+        // « Envoyer un message » (mini-profil, fiches, Mes amis) : la conversation privée s'ouvre dans Discussions (si
+        // disponible) ; personnes (Nouveau message, mini-profil). Posés en dernier : les feuilles et écrans plein écran
+        // ci-dessus (discussion d'événement, pronos, personnes) les reçoivent aussi.
+        .environment(\.writeDirect, model.canWriteDirect ? WriteDirectAction { user in await model.writeDirect(to: user) } : nil)
+        .environment(\.people, model.canWriteDirect ? model.people : nil)
     }
 }
 

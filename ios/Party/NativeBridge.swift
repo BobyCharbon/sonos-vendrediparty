@@ -74,6 +74,16 @@ enum NativeBridge {
           // Page d'un groupe › « Discussion » (17.11) : la discussion du groupe dans l'onglet Discussions natif.
           openGroup: function (id) {
             try { window.webkit.messageHandlers.\(chatHandler).postMessage("group:" + id); } catch (e) {}
+          },
+          // Discussions v2 (18.11) : la conversation NATIVE avec une personne (fiche, « Écrire »), créée au besoin
+          // (conversation ou demande de message, la base décide) ; refusée : son mini-profil natif avec la raison.
+          openDirect: function (userId) {
+            try { window.webkit.messageHandlers.\(chatHandler).postMessage("direct:" + userId); } catch (e) {}
+          },
+          // « Nouveau message » natif ; { event_id } (« Envoyer à un ami » d'une soirée) joint la carte de la soirée.
+          newMessage: function (opts) {
+            var o = opts || {}, e = o.event_id || o.event;
+            try { window.webkit.messageHandlers.\(chatHandler).postMessage(e ? "new:" + e : "new"); } catch (e2) {}
           }
         },
         // Pronos (17.11) : écrans natifs (liste, prono, création, classement) par-dessus la page.
@@ -201,6 +211,11 @@ private final class ChatHandler: NSObject, WKScriptMessageHandler {
     @MainActor
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
         guard AppConfig.isInternal(message.frameInfo.securityOrigin.url), let body = message.body as? String else { return }
+        if let people = PeopleRoute.bridge(body) {
+            if let user = people.direct { model?.openDirectFromPage(user) }
+            if case .newMessage(let event) = people.newMessage { model?.openNewMessage(event: event) }
+            return
+        }
         if body.hasPrefix("group:"), let id = UUID(uuidString: String(body.dropFirst(6))) {
             model?.openGroupChat(id.uuidString)  // la base vérifie que la personne fait partie du groupe
             return
