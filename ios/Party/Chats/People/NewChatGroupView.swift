@@ -126,46 +126,14 @@ struct NewChatGroupView: View {
     private var emojiGrid: some View {
         VStack(alignment: .leading, spacing: 10) {
             PeopleSectionLabel(text: "Emoji")
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 8), spacing: 6) {
-                ForEach(Self.emojis, id: \.self) { e in
-                    let on = e == emoji
-                    Button { Haptics.selection(); emoji = e } label: {
-                        Text(e).font(.system(size: 28))
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                            .background(on ? PronoTheme.pink.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(on ? PronoTheme.pink : .clear, lineWidth: 2))
-                    }
-                    .buttonStyle(PronoKitPressStyle())
-                    .accessibilityLabel(e)
-                    .accessibilityAddTraits(on ? .isSelected : [])
-                }
-            }
+            GroupEmojiGrid(selection: $emoji)
         }
     }
 
     private var colorRow: some View {
         VStack(alignment: .leading, spacing: 10) {
             PeopleSectionLabel(text: "Couleur")
-            HStack(alignment: .top, spacing: 0) {
-                ForEach(Self.colors, id: \.key) { c in
-                    let on = c.key == color
-                    let g = GroupLook.gradient(c.key)
-                    Button { Haptics.selection(); color = c.key } label: {
-                        VStack(spacing: 6) {
-                            Circle().fill(LinearGradient(colors: [g.from, g.to], startPoint: .topLeading, endPoint: .bottomTrailing))
-                                .frame(width: 44, height: 44)
-                                .overlay { if on { Image(systemName: "checkmark").font(.body.weight(.black)).foregroundStyle(PeopleNeon.pinkInk) } }
-                                .padding(4)
-                                .overlay(Circle().strokeBorder(on ? g.to : .clear, lineWidth: 3))
-                            Text(c.name).font(.footnote).foregroundStyle(on ? PronoTheme.t1 : PronoTheme.t3)
-                        }
-                        .frame(maxWidth: .infinity, minHeight: 72)
-                    }
-                    .buttonStyle(PronoKitPressStyle())
-                    .accessibilityLabel(c.name)
-                    .accessibilityAddTraits(on ? .isSelected : [])
-                }
-            }
+            GroupColorRow(selection: $color)
         }
     }
 

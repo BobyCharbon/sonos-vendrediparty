@@ -365,8 +365,15 @@ réglage de prod :
   le site), `/group/<id>` (page : `group_events`, « Créer un événement pour le groupe » = `/event/new?group=<id>`, groupe
   coché, « Prévenir » éteint), `/group/<id>/settings` (Modifier, numéro, règles, retirer, liens, quitter, supprimer),
   `/group/<id>/invite`. Bulles « Tes groupes » en haut d'Événements, étiquette du groupe sur les cartes (mes groupes seulement).
-- iOS : lignes de Discussions avec emoji/couleur (`my_chats`), ✎, « Gérer le groupe » et Réglages › Groupes ouvrent ces
-  pages (`OpenGroupPageAction` → `WebModel.openGroupPage`) ; « Discussion » de la page → `PartyNative.chat.openGroup`.
+- iOS : lignes de Discussions avec emoji/couleur (`my_chats`). Groupes 100 % NATIFS (demande du 18.11 « tout en natif »,
+  `ios/Party/Chats/Groups/`) : liste, page, réglages, Nouveau groupe (2 étapes), Inviter (lien, QR CoreImage, personnes
+  croisées), mêmes règles que les pages web. ✎ « Nouveau groupe » et Réglages › Groupes : `OpenGroupPageAction` →
+  `WebModel.groupRoute` (plein écran natif) ; « Gérer le groupe » (infos d'une discussion) : page native poussée sur place.
+  Serveur : relais `/api/account/chats/rpc` + `app/group_pages.py` (mêmes lectures / écritures que le web, session du
+  membre ; RLS vide → `forbidden`), photo `POST /api/account/chats/group-photo`. Restent web : la fiche d'un événement et
+  « Créer un événement pour le groupe » (`/event/new?group=<id>`, onglet Événements). Discussions coupées : pages web d'avant.
+  Tests : `tests/test_group_pages.py`, `tests/supabase_live/test_groupes_natifs_live.py`, `GroupsNativeTests`, recette
+  `RecetteGroupesNatifsUITests` (Release + serveur local + base de TEST).
 - Tests : `tests/test_groups_browser.py`, `tests/supabase_live/test_groupes_graphisme_live.py`,
   `test_groupes_graphisme_browser_live.py`, `GroupLookTests`.
 

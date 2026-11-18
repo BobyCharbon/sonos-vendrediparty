@@ -445,6 +445,14 @@ final class PeopleStore {
         return try Self.decoder.decode(T.self, from: data)
     }
 
+    /// Photo d'un groupe (JPEG recadré) : le serveur la dépose et la pose sur le groupe (app/group_pages.py), la base
+    /// vérifie le droit et les CGU.
+    func uploadGroupPhoto(_ group: String, jpeg: Data) async throws {
+        guard let token = await web?.accountToken() else { throw PartyAPIError.server("Connecte-toi à Party pour écrire.") }
+        try await api.post("/api/account/chats/group-photo", body: ["token": token, "group_id": group, "photo": jpeg.base64EncodedString()],
+                           timeout: 60)
+    }
+
     func suggestions() async throws -> PeopleSuggestions {
         try await call("chat_people_suggestions", as: PeopleSuggestions?.self) ?? PeopleSuggestions()
     }

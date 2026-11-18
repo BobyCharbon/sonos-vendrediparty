@@ -174,7 +174,7 @@ struct ContentView: View {
         .preferredColorScheme(.dark)
         // Fiche d'un membre › son Zicou : visite (ami) ou « Adopter le mien », dans l'onglet Zicou de la page.
         .environment(\.openZicou, OpenZicouAction { visit in model.openZicou(visit: visit) })
-        // Groupes (17.11) : « Gérer le groupe », ✎ « Nouveau groupe », Réglages › Groupes → pages du module Événements.
+        // Groupes : « Nouveau groupe », Réglages › Groupes → écrans natifs (18.11) ; sans Discussions, pages du module Événements.
         .environment(\.openGroupPage, OpenGroupPageAction { target in model.openGroupPage(target) })
         .sheet(isPresented: $model.aiEventOpen, onDismiss: { model.aiEditEventId = nil }) {
             if let settings = model.settings {
@@ -205,6 +205,11 @@ struct ContentView: View {
                 PronoRouteView(store: store, route: route) { model.pronoRoute = nil }
             }
         }
+        // Groupes en natif (18.11, « tout en natif ») : Réglages › Groupes, « Nouveau groupe », page d'un groupe ; « ✕ » ferme.
+        .fullScreenCover(item: $model.groupRoute) { route in
+            GroupsHostView(route: route) { model.groupRoute = nil }
+                .preferredColorScheme(.dark)
+        }
         .sheet(isPresented: $model.ticketScanOpen, onDismiss: { model.finishTicketScan(nil) }) {
             QRScannerSheet(title: "Scanner un billet",
                            fallback: "Caméra indisponible : autorise-la pour Party ! dans Réglages, ou tape le code du billet.") { text in
@@ -223,6 +228,16 @@ struct ContentView: View {
         // ci-dessus (discussion d'événement, pronos, personnes) les reçoivent aussi.
         .environment(\.writeDirect, model.canWriteDirect ? WriteDirectAction { user in await model.writeDirect(to: user) } : nil)
         .environment(\.people, model.canWriteDirect ? model.people : nil)
+        // Groupes natifs : ce qu'ils ouvrent ailleurs (discussion, fiche d'un événement, création d'un événement, pronos).
+        .environment(\.groupHub, model.canWriteDirect ? GroupHub(
+            pronos: model.settings?.pronos,
+            leave: { then in
+                guard model.groupRoute != nil else { return then() }
+                model.groupRoute = nil
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { then() }
+            },
+            openChat: { model.openChatNow($0) }, openEvent: { model.openEvent($0) },
+            createEvent: { model.openNewEvent(group: $0) }) : nil)
         .environment(\.chatsRoutes, model.canWriteDirect
             ? ChatsRoutes(newMessage: { AnyView(NewMessageView(eventID: $0)) },
                           miniProfile: { AnyView(MiniProfileSheet(userID: $0)) })

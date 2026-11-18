@@ -1649,7 +1649,7 @@ app.include_router(moderation_router(Moderation(group_admin, group_chats)))
 app.include_router(agenda_router(accounts, configured_public_url, client_ip))
 app.include_router(pronos_router(accounts))
 # Discussions v2 (18.11) : relais des nouvelles fonctions pour l'app iPhone (sous /api/account/chats : drapeau compris).
-app.include_router(chat_rpc_router(group_chats))
+app.include_router(chat_rpc_router(group_chats, lambda link: group_link_url(link)))  # groupes natifs : adresse des liens
 contact_names = ContactNames(accounts)
 app_invites = AppInvites(accounts, configured_public_url)
 # Billets dans Apple Wallet : certificats dans WALLET_DIR (par défaut DATA_DIR/wallet) ; sans eux, bouton masqué.

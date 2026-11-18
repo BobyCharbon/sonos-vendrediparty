@@ -6,6 +6,7 @@ avec la session du membre : la base décide de tout (qui écrit à qui, blocage,
 Fichiers orphelins (revue de conformité, 🔴 6) : le serveur n'a aucune clé Storage ; il demande à la base
 (chat_files_gc) d'effacer, par l'API Storage, les fichiers de chat-photos, group-photos et moderation-evidence qu'aucune
 ligne ne désigne plus, au démarrage puis toutes les 6 h."""
+import base64
 import logging
 import threading
 import time
@@ -18,6 +19,7 @@ from pydantic import BaseModel, Field
 from .accounts import SUPABASE_ANON_KEY, SUPABASE_URL, AccountError
 from .agenda import ERROR_STATUS, Db, refusal
 from .group_chats import GroupChats
+from .group_pages import LOCAL, GroupPages, Refused
 
 log = logging.getLogger("party.chats")
 
@@ -31,7 +33,10 @@ RELAY = {
     "direct_seen", "chat_event_cards", "edit_direct_message", "edit_group_message",         # §6
     "chat_search",                                                                          # §8
     "report_content",                                                                       # §7 (messages, profils)
-}
+    # Groupes en natif (18.11, « tout en natif ») : inviter, numéro montré, règles des événements, invitations reçues.
+    "group_invite_suggestions", "invite_to_group", "revoke_invite_link", "set_group_phone_share",
+    "set_group_event_rules", "answer_group_invitation",
+} | set(LOCAL)  # + lectures composées et écritures dans les tables, faites par le serveur (app/group_pages.py)
 # Signaler depuis les Discussions : messages, profils, photos ; le reste a ses propres écrans.
 REPORT_KINDS = {"group_message", "direct_message", "event_message", "profile", "profile_photo", "group_photo"}
 STATUS = {**ERROR_STATUS, "limit": 429, "pin_limit": 409, "request_pending": 409, "edit_window": 409, "locked": 409,
@@ -39,6 +44,12 @@ STATUS = {**ERROR_STATUS, "limit": 429, "pin_limit": 409, "request_pending": 409
 WITH_REALTIME = {"chat_list", "chat_badge"}
 GC_EVERY = 6 * 3600
 GC_FIRST_DELAY = 60
+
+
+class GroupPhotoBody(BaseModel):
+    token: str = Field(min_length=1, max_length=4096)
+    group_id: str = Field(pattern=r"^[0-9a-fA-F-]{36}$")
+    photo: str = Field(min_length=1, max_length=8_000_000)  # base64 d'une photo de 5 Mo au plus
 
 
 class RelayBody(BaseModel):
@@ -92,9 +103,42 @@ def sign_photos(chats: GroupChats, data: Any, token: str) -> None:
                 item[key] = urls.get(path)
 
 
-def chat_rpc_router(chats: GroupChats) -> APIRouter:
+def chat_rpc_router(chats: GroupChats, invite_url=None) -> APIRouter:
     db = Db(chats.admin.accounts)
+    pages = GroupPages(chats.admin, invite_url)
     router = APIRouter()
+
+    def answer(fn: str, status: int, data: Any, token: str):
+        if status in (200, 204):
+            sign_photos(chats, data, token)
+            out: dict[str, Any] = {"result": data}
+            if fn in WITH_REALTIME:  # l'app écoute ensuite les tables et signaux des Discussions
+                out["realtime"] = {"url": SUPABASE_URL.replace("https://", "wss://", 1) + "/realtime/v1/websocket",
+                                   "key": SUPABASE_ANON_KEY}
+            return JSONResponse(out)
+        if status == 401:
+            raise HTTPException(401, "Ta connexion a expiré. Reconnecte-toi.")
+        code, text = refusal(data)
+        if code == "error":
+            raise HTTPException(503 if status >= 500 else 400, text or "Ça n'a pas marché. Réessaie dans un instant.")
+        return JSONResponse({"code": code, "detail": text}, status_code=STATUS.get(code, 400))
+
+    def local(fn: str, token: str, job) -> JSONResponse:
+        try:
+            return answer(fn, 200, job(), token)
+        except Refused as e:
+            return answer(fn, e.status, e.body, token)
+        except AccountError as e:  # jeton expiré, base injoignable
+            raise HTTPException(401 if "connexion" in str(e).lower() else 503, str(e)) from None
+
+    @router.post("/api/account/chats/group-photo")
+    def group_photo(body: GroupPhotoBody):
+        """Photo du groupe (facultative) depuis l'app iPhone : envoyée en base64, posée par le serveur (app/group_pages.py)."""
+        try:
+            data = base64.b64decode(body.photo, validate=True)
+        except ValueError:
+            raise HTTPException(400, "Photo illisible") from None
+        return local("group_photo", body.token, lambda: pages.set_photo(body.token, body.group_id, data))
 
     @router.post("/api/account/chats/rpc")
     def relay(body: RelayBody):
@@ -106,20 +150,10 @@ def chat_rpc_router(chats: GroupChats) -> APIRouter:
                 raise HTTPException(404, "Fonction inconnue")
             if "context" in args:  # « Joindre les 10 messages précédents » (contrat : context ; base : p_context)
                 args["p_context"] = bool(args.pop("context"))
+        if body.fn in LOCAL:
+            return local(body.fn, body.token, lambda: pages.call(body.fn, args, body.token))
         status, data = db.call(body.fn, args, body.token)
-        if status in (200, 204):
-            sign_photos(chats, data, body.token)
-            out: dict[str, Any] = {"result": data}
-            if body.fn in WITH_REALTIME:  # l'app écoute ensuite les tables et signaux des Discussions
-                out["realtime"] = {"url": SUPABASE_URL.replace("https://", "wss://", 1) + "/realtime/v1/websocket",
-                                   "key": SUPABASE_ANON_KEY}
-            return JSONResponse(out)
-        if status == 401:
-            raise HTTPException(401, "Ta connexion a expiré. Reconnecte-toi.")
-        code, text = refusal(data)
-        if code == "error":
-            raise HTTPException(503 if status >= 500 else 400, "Ça n'a pas marché. Réessaie dans un instant.")
-        return JSONResponse({"code": code, "detail": text}, status_code=STATUS.get(code, 400))
+        return answer(body.fn, status, data, body.token)
 
     return router
 

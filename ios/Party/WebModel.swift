@@ -23,6 +23,8 @@ final class WebModel: ObservableObject {
     @Published var pronoRoute: PronoRoute?
     /// Discussions v2 (18.11) : « Nouveau message » ou mini-profil demandés par la page (PartyNative.chat).
     @Published var peopleRoute: PeopleRoute?
+    /// Groupes en natif (18.11, « tout en natif ») : liste, page ou création, plein écran par-dessus l'app.
+    @Published var groupRoute: GroupRoute?
     /// Personnes des Discussions (Nouveau message, mini-profil, « Envoyer un message ») : relais /api/account/chats/rpc.
     private(set) var people: PeopleStore?
     /// Données de cette discussion (même écran que Discussions, routes de l'événement).
@@ -362,11 +364,24 @@ final class WebModel: ObservableObject {
         Motion.animate(Motion.smooth) { eventChatID = id.lowercased() }
     }
 
-    /// Groupes (17.11) : la page d'un groupe, sa création (« new ») ou la liste (nil), dans l'onglet Événements.
+    /// Groupes : la page d'un groupe, sa création (« new ») ou la liste (nil). Écrans NATIFS (18.11) par le relais des
+    /// Discussions ; Discussions indisponibles (« Bientôt ») : les pages du module Événements, comme avant.
     func openGroupPage(_ target: String?) {
+        if canWriteDirect {
+            guard let route = GroupRoute.from(target) else { return }
+            Motion.animate(Motion.smooth) { groupRoute = route }
+            return
+        }
         guard let path = GroupLook.pagePath(target) else { return }
         selectTab("events")
         webView?.evaluateJavaScript("window.PartyEvents && PartyEvents.open('\(path)')")
+    }
+
+    /// « Créer un événement pour le groupe » (page native du groupe) : le formulaire du module Événements, groupe coché.
+    func openNewEvent(group: String) {
+        guard let id = UUID(uuidString: group) else { return }
+        selectTab("events")
+        webView?.evaluateJavaScript("window.PartyEvents && PartyEvents.open('/events/event/new?group=\(id.uuidString.lowercased())')")
     }
 
     /// Agenda (17.11) : la page de l'Agenda, ou une demande de rendez-vous (toucher de la notification booking_request),
@@ -433,6 +448,7 @@ final class WebModel: ObservableObject {
         eventChatID = nil
         pronoRoute = nil
         peopleRoute = nil
+        groupRoute = nil
         chats.requested = id.uuidString.lowercased()
         selectTab("chats")
     }

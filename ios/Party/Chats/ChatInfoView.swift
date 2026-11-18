@@ -5,7 +5,8 @@ import SwiftUI
 struct ChatInfoView: View {
     @ObservedObject var store: ChatsStore
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.openGroupPage) private var openGroupPage
+    @Environment(\.people) private var people
+    @Environment(\.groupHub) private var hub
     @Environment(\.conversationRoutes) private var routes
     @State private var person: PersonRef?
 
@@ -64,14 +65,10 @@ struct ChatInfoView: View {
                              + (chat.admin ? "" : " Les admins du groupe choisissent."))
                     }
                     .listRowBackground(ConvNeon.surface)
-                    if chat.member, let openGroupPage {
-                        // Page du groupe (17.11) : couverture, membres, événements, Inviter, réglages (module Événements).
+                    if chat.member, people != nil {
+                        // Page du groupe en natif (18.11, « tout en natif ») : couverture, membres, événements, Inviter, réglages.
                         Section {
-                            Button {
-                                Haptics.tap()
-                                dismiss()
-                                openGroupPage.open(chat.id)
-                            } label: {
+                            NavigationLink(value: GroupScreen.page(chat.id)) {
                                 Label("Gérer le groupe", systemImage: "person.2.badge.gearshape").foregroundStyle(ConvNeon.lav)
                             }
                             .accessibilityIdentifier("chat-manage-group")
@@ -114,7 +111,10 @@ struct ChatInfoView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("OK") { dismiss() } } }
             .personSheet($person, store: store, routes: routes)
+            // Groupe quitté ou supprimé depuis sa page : la feuille se ferme.
+            .navigationDestination(for: GroupScreen.self) { screen in screen.view(onGone: { dismiss() }) }
         }
+        .environment(\.groupHub, hub?.closing(dismiss))
         .preferredColorScheme(.dark)
     }
 
