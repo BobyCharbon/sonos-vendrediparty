@@ -9,6 +9,7 @@ import os
 import random
 import re
 import secrets
+import sys
 import threading
 import time
 import unicodedata
@@ -32,6 +33,7 @@ from . import tv_zicou
 from . import calendar_feed
 from .agenda import agenda_router
 from .pronos import pronos_router
+from .chat_rpc import chat_rpc_router, start_files_gc
 from . import pet_pot, tv_star
 # Adresse du déploiement et fonctions en bêta (Compagnon : allumé sur le site de test seulement).
 from .features import COMPAGNON_SOON, TEST_SITE_HOST, bar_enabled, compagnon_enabled, configured_public_url, discussions_enabled, invites_v2_enabled, patates_enabled
@@ -169,6 +171,8 @@ async def lifespan(app):
     threading.Thread(target=watch_sonos, daemon=True).start()
     if feedback is not local_feedback:
         threading.Thread(target=absorb_local_feedback, daemon=True).start()
+    if "pytest" not in sys.modules:  # fichiers orphelins des Discussions : au démarrage puis toutes les 6 h (jamais en test)
+        start_files_gc(group_chats)
     yield
 
 
@@ -1644,6 +1648,8 @@ app.include_router(moderation_router(Moderation(group_admin, group_chats)))
 # Agenda (17.11) : page publique des liens de dispo (/d/<jeton>), suivi des demandes (/d/r/<secret>), relais iPhone.
 app.include_router(agenda_router(accounts, configured_public_url, client_ip))
 app.include_router(pronos_router(accounts))
+# Discussions v2 (18.11) : relais des nouvelles fonctions pour l'app iPhone (sous /api/account/chats : drapeau compris).
+app.include_router(chat_rpc_router(group_chats))
 contact_names = ContactNames(accounts)
 app_invites = AppInvites(accounts, configured_public_url)
 # Billets dans Apple Wallet : certificats dans WALLET_DIR (par défaut DATA_DIR/wallet) ; sans eux, bouton masqué.
@@ -1885,6 +1891,8 @@ class NotificationPatch(BaseModel):
     contact_joins: bool | None = None
     # Messages directs (migration 20261104100000) : « Nouveau message de X ».
     direct_messages: bool | None = None
+    # Discussions v2 (migration 20261118120000) : « X veut t'écrire » (demande de message).
+    message_requests: bool | None = None
     # Compagnon (migration 20261104130000) : rappel doux du jour ; alertes avant qu'il ne s'envole.
     pet_daily: bool | None = None
     pet_alerts: bool | None = None
@@ -2292,6 +2300,15 @@ class ChatBlock(MemberToken):
     on: bool
 
 
+class ChatQuote(BaseModel):
+    """« Répondre en privé » : d'où vient le message cité (Discussions v2, colonne direct_messages.quote)."""
+    model_config = ConfigDict(populate_by_name=True)
+    source: Literal["group", "event"] = Field(alias="from")
+    title: str = Field(default="", max_length=120)
+    author: str = Field(default="", max_length=80)
+    excerpt: str = Field(default="", max_length=140)
+
+
 class ChatSend(ChatRef):
     body: str = Field(default="", max_length=2000)
     reply_to: str | None = Field(default=None, pattern=UUID)
@@ -2301,6 +2318,8 @@ class ChatSend(ChatRef):
     id: str | None = Field(default=None, pattern=UUID)
     audio_path: str | None = Field(default=None, max_length=200, pattern=r"^[0-9a-f-]{36}/[0-9]+-[0-9a-f]{10}\.(m4a|webm|ogg)$")
     audio_seconds: float | None = Field(default=None, ge=0, le=600)
+    event_id: str | None = Field(default=None, pattern=UUID)   # carte d'une soirée jointe
+    quote: ChatQuote | None = None                            # message direct seulement
 
 
 class ChatPhoto(ChatRef):
@@ -2359,7 +2378,8 @@ def account_chat_block(body: ChatBlock):
 @app.post("/api/account/chats/send")
 def account_chat_send(body: ChatSend):
     return chats_call(body.token, lambda: group_chats.send(body.token, body.group_id, body.body.strip(), body.reply_to, body.photo_path,
-                                                 body.mentions, body.id, body.audio_path, body.audio_seconds, body.direct))
+                                                 body.mentions, body.id, body.audio_path, body.audio_seconds, body.direct,
+                                                 body.event_id, body.quote.model_dump(by_alias=True) if body.quote else None))
 
 
 @app.post("/api/account/chats/audio")

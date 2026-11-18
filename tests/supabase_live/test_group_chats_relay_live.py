@@ -43,7 +43,7 @@ def test_native_relay_end_to_end(relay):
     c = chats.conversation(ta, group)
     m1, m2 = c['messages']
     assert m1['body'] == '@Testeur 2 tu viens ?' and m1['mine'] and m1['reactions'] == [{'emoji': '🔥', 'count': 1, 'mine': False}]
-    assert m2['reply'] == {'name': 'Testeur 1', 'text': '@Testeur 2 tu viens ?'} and m2['photo'].startswith(TEST_URL)
+    assert {k: m2['reply'][k] for k in ('name', 'text')} == {'name': 'Testeur 1', 'text': '@Testeur 2 tu viens ?'} and m2['photo'].startswith(TEST_URL)
     assert httpx.get(m2['photo'], timeout=30).status_code == 200  # lien signé valable
     assert c['admin'] and c['can_name_admins'] and {m['name'] for m in c['members']} == {'Testeur 1', 'Testeur 2'}
     chats.react(tb, first['id'], '🔥', False)
@@ -127,7 +127,7 @@ def test_native_relay_direct_messages(relay):
         assert c['direct'] and c['name'] == 'Testeur 2' and c['user_id'] == b_uid and not c['admin']
         m1, m2 = c['messages']
         assert m1['pinned'] and m1['reactions'] == [{'emoji': '❤️', 'count': 1, 'mine': False}]
-        assert m2['reply'] == {'name': 'Testeur 1', 'text': 'Salut en privé'} and m2['photo'].startswith(TEST_URL)
+        assert {k: m2['reply'][k] for k in ('name', 'text')} == {'name': 'Testeur 1', 'text': 'Salut en privé'} and m2['photo'].startswith(TEST_URL)
         assert [h['id'] for h in c['highlights']] == [m1['id']]
         row = next(r for r in chats.chats(ta)['chats'] if r['id'] == chat)
         assert row['kind'] == 'direct' and row['user_id'] == b_uid and row['unread'] >= 1
