@@ -537,3 +537,20 @@ réglage de prod :
   mot pour mot) ; phrase Contacts (project.yml) avec les suggestions ; notes de revue (section DISCUSSIONS, 2 comptes de
   démo). Tests : `tests/test_compliance_discussions.py`, `tests/supabase_live/test_discussions_v2_live.py`,
   `tests/test_chat_rpc.py`, `tests/test_discussions_moderation.py`.
+
+## Discussions v2 « Néon club » (demande du 18.11, migrations 20261118120000 et 20261118121000)
+- Contrat complet : scratchpad de la session (discussions/contrat.md) ; règles de la base : qui écrit à qui = `private.dm_link`
+  (direct / request / none), JAMAIS décidé par l'app. Demande de message : un seul message texte, 10 par jour, 30 en attente,
+  purge `chat-requests-tick` ; accepter / supprimer / signaler / bloquer. Groupes privés (`member_groups.private_chat`).
+- Mini-profil (`member_mini`) : « Jamais rencontré » / « Déjà vu N fois » = soirées PASSÉES vécues ensemble
+  (`private.met_events`, sous `can_see_event`), les 3 plus récentes ; à venir ensemble, groupes en commun.
+- « Envoyer un message » depuis tout profil ; « Nouveau message » (une personne → direct, plusieurs → nouveau groupe).
+- Web : supabase direct (`/chats`, `/chats/new`, `/chats/requests`, `/chats/archived`) ; iPhone : écrans natifs
+  (ios/Party/Chats/List, People, Conversation) par le relais `POST /api/account/chats/rpc` (app/chat_rpc.py, liste blanche).
+  Pastille de l'onglet : `chat_badge`. `direct_chats` n'est PAS dans la publication temps réel : demandes suivies par le
+  signal `user:<id>` (`direct_chat_changed`) ; ne jamais l'ajouter à un `useRealtime`.
+- Tests : `tests/test_chats_*_browser.py`, `tests/test_chat_rpc.py`, `tests/test_compliance_discussions.py`,
+  `tests/supabase_live/test_discussions_v2_live.py`, `test_discussions_moderation_live.py`, recette réelle
+  `test_discussions_v2_browser_live.py`, iOS `ChatsListTests`, `ChatsPeopleTests`, `ConversationV2Tests`.
+- Avant la prod : correctif D1 (les admins lisaient photos et vocaux des messages directs), clé vault `storage_secret_key`,
+  compte démo « Apple-test 2 », représentant UE, notes de revue Apple.
