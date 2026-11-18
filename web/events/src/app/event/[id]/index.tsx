@@ -13,7 +13,7 @@ import { TicketCard } from '@/components/TicketCard';
 import { TicketsManager } from '@/components/TicketsManager';
 import { CalendarButton } from '@/components/CalendarButton';
 import { EventGiftsLink } from '@/components/EventGifts';
-import { barOn, compagnonOn, invitesV2On } from '@/lib/features';
+import { barOn, compagnonOn, discussionsOn, invitesV2On } from '@/lib/features';
 import { GuestListCard } from '@/components/GuestListCard';
 import { AnnounceStatusCard } from '@/components/AnnounceStatusCard';
 import { InviteLinkCard } from '@/components/InviteLinkCard';
@@ -37,7 +37,7 @@ import { createdLine, formatLongDay, formatMessageTime, formatShort, formatTime,
 import type { ReportTarget } from '@/lib/moderation';
 import { must, supabase } from '@/lib/supabase';
 import { nameColor, withoutAnnounceTag } from '@/lib/chats';
-import { openEventChat } from '@/lib/nativeChat';
+import { openEventChat, sendEventToFriend } from '@/lib/nativeChat';
 import { repeatLabel, type Series } from '@/lib/recurrence';
 import { colors, radius } from '@/lib/theme';
 import { ticketRelevant, chf } from '@/lib/tickets';
@@ -322,6 +322,11 @@ export default function EventScreen() {
             <T muted size={13} style={{ flex: 1 }}>🌍 Public : tous les comptes Party et toute personne qui a le lien{shareNote && shareNote !== 'Lien copié' ? ` · ${shareNote}` : ''}</T>
             <Button small variant="secondary" label="Partager le lien" onPress={async () => setShareNote(await sharePublicLink(ev))} />
           </View>
+        ) : null}
+        {/* Discussions v2 (18.11) : la carte de la soirée dans un message à un ami (« Nouveau message », natif dans l'app iPhone). */}
+        {published && discussionsOn ? (
+          <Button small variant="secondary" label="💬 Envoyer à un ami" accessibilityLabel="Envoyer à un ami" style={{ alignSelf: 'flex-start' }}
+            onPress={() => sendEventToFriend(ev.id, (path) => router.push(path))} />
         ) : null}
 
         {ev.date_mode === 'fixed' && ev.starts_at ? (

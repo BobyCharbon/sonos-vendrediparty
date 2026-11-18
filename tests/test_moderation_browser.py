@@ -123,7 +123,8 @@ def test_report_a_message_with_a_reason_and_a_comment(phone, events_origin):
     page, errors = phone
     state = moderation_services(page, accepted=True)
     open_group(page, events_origin)
-    page.get_by_role('button', name='Actions du message').first.click()
+    # Menu du message : appui long ou clic droit sur la bulle (Discussions v2 : plus de « … » à côté de chaque bulle).
+    page.get_by_text('Salut tout le monde', exact=True).click(button='right')
     page.get_by_role('button', name='Signaler').click()
     send = page.get_by_role('button', name='Envoyer').last
     pw.expect(send).to_be_disabled()  # une raison d'abord

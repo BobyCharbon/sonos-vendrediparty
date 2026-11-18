@@ -30,6 +30,11 @@ export type GroupMessage = {
   deleted_at: string | null; deleted_by_admin: boolean;
   /** « @annonce » : épinglé d'office par la base, affiché en surbrillance en haut de la discussion. */
   announcement?: boolean;
+  /** Discussions v2 (18.11) : soirée jointe (carte dans la bulle) ; message direct : citation d'un groupe / d'une soirée. */
+  event_id?: string | null;
+  /** Copie de la soirée (titre, date, lieu…) gardée par la base, même quand l'événement est supprimé. */
+  event_card?: { id?: string | null; title?: string; start?: string | null; place?: string | null } | null;
+  quote?: { from: 'group' | 'event'; title: string; author: string; excerpt: string } | null;
 };
 export type Reaction = { message_id: string; user_id: string; emoji: string };
 
