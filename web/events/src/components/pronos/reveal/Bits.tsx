@@ -119,12 +119,12 @@ export function Cover({ group, height = 300, base = N.bg, k }: { group: { color?
 
 /** Rappel obligatoire sous chaque sac (conformité 🔴). */
 export function NoValueNote({ boxed }: { boxed?: boolean }) {
-  const body = 'Les patates n’ont aucune valeur : elles ne s’achètent pas, ne se vendent pas, ne s’échangent pas.';
+  const body = 'Les confettis n’ont aucune valeur : ils ne s’achètent pas, ne se vendent pas, ne s’échangent pas.';
   if (!boxed) return <Text style={[text(12.5, '500', N.t2), { textAlign: 'center', marginTop: 10, lineHeight: 18 }]}>{body}</Text>;
   return (
     <View style={{ flexDirection: 'row', gap: 12, padding: 14, borderRadius: 16, backgroundColor: 'rgba(185,167,255,0.08)', borderWidth: 1,
       borderColor: 'rgba(185,167,255,0.22)', marginTop: 20 }} testID="prono-novalue">
-      <Text style={{ fontSize: 20, lineHeight: 22 }}>🥔</Text>
+      <Text style={{ fontSize: 20, lineHeight: 22 }}>🎊</Text>
       <View style={{ flex: 1, gap: 4 }}>
         <Text style={[text(14, '500'), { lineHeight: 20 }]}>{body}</Text>
         <Text style={[text(13, '500', N.t2), { lineHeight: 18 }]}>Juste pour le plaisir de voir juste entre amis.</Text>
@@ -133,7 +133,7 @@ export function NoValueNote({ boxed }: { boxed?: boolean }) {
   );
 }
 
-/** Titre de section (« LA RÉPARTITION · 30 🥔 dans le champ »). */
+/** Titre de section (« LA RÉPARTITION · 30 🎊 dans le champ »). */
 export function SectionHead({ left, right }: { left: string; right?: string }) {
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, marginBottom: 10, paddingHorizontal: 4, gap: 8 }}>
@@ -146,7 +146,7 @@ export function SectionHead({ left, right }: { left: string; right?: string }) {
 /** Surface de carte (fond s1, rayon 24). */
 export const card: ViewStyle = { backgroundColor: N.s1, borderRadius: 24, borderWidth: 1, borderColor: N.line };
 
-/** « 18 🥔 » en chiffres tabulaires. */
+/** « 18 🎊 » en chiffres tabulaires. */
 export function Potatoes({ n, size = 17, color = N.t1, sign = '' }: { n: number; size?: number; color?: string; sign?: string }) {
-  return <Text style={num(size, color)}>{sign}{n} 🥔</Text>;
+  return <Text style={num(size, color)}>{sign}{n} 🎊</Text>;
 }

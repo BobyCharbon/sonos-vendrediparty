@@ -57,8 +57,8 @@
 - [ ] **Notes** : la partie A de `notes-for-review.md` (3 807 caractères, limite 4 000). La recopier aussi dans
       `ios/appstore/review-notes.txt` avant d'utiliser `tools/appstore_submit.py` (il envoie ce fichier), puis lancer
       `.venv/bin/python -m pytest -q tests/test_ios_app.py -p no:cacheprovider` (la partie A contient les mots exigés).
-- [ ] **Pronos et patates (18.11)** : la section PRONOS de `ios/appstore/review-notes.txt` (Simulated Gambling déclaré,
-      patates gratuites sans valeur, ni achat ni vente ni transfert, partage du champ, plafonds 100 / semaine et 20 par
+- [ ] **Pronos et confettis (ex-patates, 18.11)** : la section PRONOS de `ios/appstore/review-notes.txt` (Simulated Gambling déclaré,
+      confettis gratuits sans valeur (« Confetti (free, valueless play tokens) », jamais « coins »), ni achat ni vente ni transfert, partage de la piste, plafonds 100 / semaine et 20 par
       prono, drapeau `patates` éteint en prod jusqu'à l'acceptation) ; un prono de démo dans le groupe « Démo Apple ».
       Aucun code de compte dans le dépôt.
 - [ ] **Attachment** : la partie B de `notes-for-review.md` en PDF, sans l'encadré « À FAIRE » (le champ pièce jointe
@@ -80,8 +80,8 @@
 - [ ] Sexual Content or Nudity : Infrequent/Mild · Graphic Sexual Content and Nudity : None
 - [ ] Cartoon or Fantasy Violence : Infrequent/Mild · Realistic Violence : None · Prolonged Graphic or Sadistic Realistic
       Violence : None · Guns or Other Weapons : None
-- [ ] Simulated Gambling : **Frequent/Intense** (18.11 : patates des Pronos, jetons gratuits sans valeur, partage du champ ;
-      Casino et Blackjack toujours absents de l'app App Store) · Gambling : **Non** (patates jamais échangeables contre
+- [ ] Simulated Gambling : **Frequent/Intense** (18.11 : confettis des Pronos, jetons de jeu gratuits sans valeur, partage de la piste ;
+      Casino et Blackjack toujours absents de l'app App Store) · Gambling : **Non** (confettis jamais échangeables contre
       de l'argent) · Loot Boxes : Non
 - [ ] Contests : **Frequent/Intense** (choix du coordinateur du 16.11 : parties en compétition, classements et tableau de la
       soirée ; l'ancien `app-store-connect.md` disait « None ». Aucun lot ni tirage. La note reste 18+ dans les deux cas.)
@@ -96,7 +96,7 @@ Pour chaque type : **lié à l'identité : oui · suivi : non · finalité : App
 - [ ] Financial Info : **Other Financial Info** (IBAN, liens Twint / Revolut des organisateurs et du pot commun)
 - [ ] Contacts : **Contacts** (empreintes chiffrées, non gardées ; déclaré par prudence)
 - [ ] User Content : **Photos or Videos**, **Audio Data** (messages vocaux des Discussions — nouveau), **Emails or Text
-      Messages**, **Gameplay Content** (description : + Pronos, soldes et patates plantées — 18.11), **Customer Support** (« Ton avis » — nouveau), **Other User Content**
+      Messages**, **Gameplay Content** (description : + Pronos, soldes et confettis lancés — 18.11), **Customer Support** (« Ton avis » — nouveau), **Other User Content**
 - [ ] Purchases : **Purchase History** (commandes du bar, « J'ai payé » d'un événement — nouveau)
 - [ ] Identifiers : **User ID**, **Device ID**
 - [ ] Usage Data : **Product Interaction**
@@ -120,15 +120,15 @@ Pour chaque type : **lié à l'identité : oui · suivi : non · finalité : App
       de musique, lieux par Google).
 - [ ] Contrats « Apps gratuites » acceptés (Business) par le titulaire du compte.
 
-## 7 bis. Pronos et patates : ordre obligatoire (revue `conformite-patates` du 18.11.2026)
+## 7 bis. Pronos et confettis (ex-patates) : ordre obligatoire (revue `conformite-patates` du 18.11.2026)
 
 - [ ] 1. Questionnaire d'âge : Simulated Gambling **Frequent**, Gambling Non, Loot Boxes Non, Contests Frequent, 18+.
 - [ ] 2. Notes for Review avec la section PRONOS + compte de démo (ci-dessus).
 - [ ] 3. App Privacy : Gameplay Content décrit avec les Pronos (aucun nouveau type).
-- [ ] 4. CGU 2026-11-18 « Pronos et patates » et politique de confidentialité du 18.11 en prod
+- [ ] 4. CGU 2026-11-18 « Pronos et confettis » et politique de confidentialité du 18.11 en prod
       (`supabase/prod/2026-11-18-cgu-pronos-patates-apply.sql`, après le « Ok prod »).
 - [ ] 5. Version **acceptée** par Apple, PUIS seulement `PATATES_ENABLED=1` en production (jamais avant ; éteint, les
-      Pronos restent pour l'honneur, sans patates).
+      Pronos restent pour l'honneur, sans confettis).
 
 ## 8. Envoi
 

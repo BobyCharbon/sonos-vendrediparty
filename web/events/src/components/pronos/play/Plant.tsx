@@ -7,11 +7,11 @@ import { pressTransition } from '@/lib/motion';
 import { C, rounded, shapeAt, webView, wide, type PlayKind, type PronoV2 } from './model';
 
 /**
- * Planter des patates (maquettes 3-1 et 3-3) : 0 à 20 🥔 (curseur + puces Sans / 5 / 10 / 20), le sac, ce qu'il y a
+ * Planter des patates (maquettes 3-1 et 3-3) : 0 à 20 🎊 (curseur + puces Sans / 5 / 10 / 20), le sac, ce qu'il y a
  * dans le champ et combien de joueurs ont planté, la règle en deux lignes, puis le rappel « aucune valeur ».
  * Jamais de multiplicateur, de chance ni de « tu peux récolter X » avant la fin (conformité 🔴).
  */
-export const PATATES_NOTE = 'Les patates n’ont aucune valeur : elles ne s’achètent pas, ne se vendent pas, ne s’échangent pas.';
+export const PATATES_NOTE = 'Les confettis n’ont aucune valeur : ils ne s’achètent pas, ne se vendent pas, ne s’échangent pas.';
 
 /** Ce qu'on peut planter : 20 au plus, et ce que contient le sac (les patates déjà plantées ici reviennent si on change). */
 export function plantMax(p: PronoV2): number {
@@ -21,9 +21,9 @@ export function plantMax(p: PronoV2): number {
 }
 
 export function fieldRule(kind: PlayKind): string {
-  if (kind === 'number' || kind === 'when') return 'Le plus proche prend le champ. Égalité : partagé selon ce que chacun a planté.';
-  if (kind === 'majority') return 'La réponse la plus choisie l’emporte. Égalité : tout le monde récupère ses patates.';
-  return 'Tu vois juste : tu te partages le champ avec ceux qui ont vu juste.';
+  if (kind === 'number' || kind === 'when') return 'Le plus proche prend la piste. Égalité : partagée selon ce que chacun a lancé.';
+  if (kind === 'majority') return 'La réponse la plus choisie l’emporte. Égalité : tout le monde récupère ses confettis.';
+  return 'Tu vois juste : tu te partages la piste avec ceux qui ont vu juste.';
 }
 
 export function Plant({ p, value, onValue, answer, full }: {
@@ -40,27 +40,27 @@ export function Plant({ p, value, onValue, answer, full }: {
         <View style={st.head}>
           {full ? (
             <View style={{ flex: 1 }}>
-              <Text style={rounded(19, '800')}>Planter des patates</Text>
+              <Text style={rounded(19, '800')}>Lancer des confettis</Text>
               <Text style={st.help}>Facultatif, de 0 à 20</Text>
             </View>
           ) : (
-            <Text style={[rounded(19, '800'), { flex: 1 }]}>Planter <Text style={{ color: C.patate }}>{value} 🥔</Text></Text>
+            <Text style={[rounded(19, '800'), { flex: 1 }]}>Lancer <Text style={{ color: C.patate }}>{value} 🎊</Text></Text>
           )}
           {p.bag ? <BagChip bag={p.bag} /> : null}
         </View>
         {full ? (
           <View style={{ alignItems: 'center', gap: 2 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={wide(68, C.patate)} accessibilityLiveRegion="polite" accessibilityLabel={`${value} patates plantées`}>{value}</Text>
-              <Text key={drops} style={[{ fontSize: 44, transform: [{ rotate: '-12deg' }] }, drops && !reduced ? st.drop : null]} accessibilityElementsHidden>🥔</Text>
+              <Text style={wide(68, C.patate)} accessibilityLiveRegion="polite" accessibilityLabel={`${value} confettis lancés`}>{value}</Text>
+              <Text key={drops} style={[{ fontSize: 44, transform: [{ rotate: '-12deg' }] }, drops && !reduced ? st.drop : null]} accessibilityElementsHidden>🎊</Text>
             </View>
             {answer.label ? (
               <Text style={st.help}>
-                {value ? 'plantées sur ' : 'aucune patate sur '}
+                {value ? 'lancés sur ' : 'aucun confetti sur '}
                 {shape ? <Text style={{ color: shape.color }}>{shape.glyph} </Text> : null}
                 <Text style={{ color: C.t1, fontWeight: '700' }}>{answer.label}</Text>
               </Text>
-            ) : <Text style={st.help}>{value ? 'plantées' : 'Choisis d’abord ta réponse'}</Text>}
+            ) : <Text style={st.help}>{value ? 'lancés' : 'Choisis d’abord ta réponse'}</Text>}
           </View>
         ) : null}
         <PatateSlider value={value} max={max} onChange={(n) => onValue(Math.min(n, max))} />
@@ -69,7 +69,7 @@ export function Plant({ p, value, onValue, answer, full }: {
             const on = value === n;
             const off = n > max;
             return (
-              <Pressable key={n} accessibilityRole="button" accessibilityLabel={n ? `Planter ${n} patates` : 'Sans patates'}
+              <Pressable key={n} accessibilityRole="button" accessibilityLabel={n ? `Lancer ${n} confettis` : 'Sans confettis'}
                 accessibilityState={{ selected: on, disabled: off }} disabled={off} onPress={() => pick(n)}
                 style={({ pressed }) => [st.chip, n === 0 && { flex: 1.3 }, on && st.chipOn, off && { opacity: 0.35 }, pressTransition,
                   pressed && { transform: [{ scale: 0.95 }] }]}>
@@ -82,24 +82,24 @@ export function Plant({ p, value, onValue, answer, full }: {
         </View>
         <View style={st.sep} />
         <View style={st.field}>
-          <View style={st.fieldIcon}><Text style={{ fontSize: 26 }} accessibilityElementsHidden>🥔</Text></View>
+          <View style={st.fieldIcon}><Text style={{ fontSize: 26 }} accessibilityElementsHidden>🎊</Text></View>
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={rounded(17, '800')}>
               {(p.field?.total ?? 0) > 0
-                ? <><Text style={wide(17)}>{p.field?.total}</Text> 🥔 dans le champ · {p.field?.planters ?? 0} joueur{(p.field?.planters ?? 0) > 1 ? 's' : ''}</>
-                : 'Le champ est encore vide'}
+                ? <><Text style={wide(17)}>{p.field?.total}</Text> 🎊 sur la piste · {p.field?.planters ?? 0} joueur{(p.field?.planters ?? 0) > 1 ? 's' : ''}</>
+                : 'La piste est encore vide'}
             </Text>
-            <Text style={st.help}>{full ? 'Les patates de tout le monde, sur toutes les réponses' : fieldRule(p.kind)}</Text>
+            <Text style={st.help}>{full ? 'Les confettis de tout le monde, sur toutes les réponses' : fieldRule(p.kind)}</Text>
           </View>
         </View>
         {full ? (
           <View style={{ gap: 10 }}>
-            <Rule ok text={<><Text style={st.ruleStrong}>Tu vois juste : </Text>tu te partages le champ avec ceux qui ont vu juste, selon ce que chacun a planté.</>} />
-            <Rule text={<><Text style={st.ruleStrong}>Pas cette fois : </Text>tes patates vont au compost. Personne n’a vu juste : tout le monde les récupère.</>} />
+            <Rule ok text={<><Text style={st.ruleStrong}>Tu vois juste : </Text>tu te partages la piste avec ceux qui ont vu juste, selon ce que chacun a lancé.</>} />
+            <Rule text={<><Text style={st.ruleStrong}>Pas cette fois : </Text>tes confettis vont au balai. Personne n’a vu juste : tout le monde les récupère.</>} />
           </View>
         ) : null}
       </View>
-      <Text style={st.note}>ⓘ {PATATES_NOTE} Ton sac remonte à 100 🥔 chaque lundi.</Text>
+      <Text style={st.note}>ⓘ {PATATES_NOTE} Ton sac remonte à 100 🎊 chaque lundi.</Text>
     </View>
   );
 }

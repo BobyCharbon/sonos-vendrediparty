@@ -133,9 +133,9 @@ def test_patates_are_shared_exactly_with_the_largest_remainder(people, group):
     assert card['my_answer']['option_id'] == opt(p, 'Max') and card['my_answer']['stake'] == 5
     assert {x['option_id']: x['total'] for x in done['field']['by_option']} == {opt(p, 'Max'): 12, opt(p, 'Jo'): 10, opt(p, 'Personne'): 1}
     note = sql(f"select body from public.notifications where kind = 'prono_result' and user_id = '{b.uid}' and data->>'prono_id' = '{p['id']}'")
-    assert note[0]['body'].startswith("🔮 Tu l'avais vu ! +10 🥔"), note
+    assert note[0]['body'].startswith("🔮 Tu l'avais vu ! +10 🎊"), note
     lost = sql(f"select body from public.notifications where kind = 'prono_result' and user_id = '{c.uid}' and data->>'prono_id' = '{p['id']}'")
-    assert lost[0]['body'].startswith('La réponse était Max') and '🥔' not in lost[0]['body']  # rien après une perte
+    assert lost[0]['body'].startswith('La réponse était Max') and '🎊' not in lost[0]['body']  # rien après une perte
     end_contest(p['id'])
     after = ok(a.rpc('prono_get', id=p['id']))
     assert after['settled'] and {x['user']['id']: x['harvest'] for x in after['answers']} == {a.uid: 13, b.uid: 10, c.uid: 0, d.uid: 0}
@@ -272,6 +272,7 @@ def test_reactions_toggle(people, group):
     r = ok(b.rpc('prono_react', id=p['id'], emoji='🔥'))
     assert r['reactions'] == [{'emoji': '🔥', 'count': 1, 'mine': False}]
     refused(b.rpc('prono_react', id=p['id'], emoji='💰'), 'invalid')
+    assert ok(b.rpc('prono_react', id=p['id'], emoji='🎊'))['reactions'][0]['emoji'] in ('🔥', '🎊')  # 🎊 (ex-🥔)
 
 
 def test_award_needs_three_voters_and_people_can_opt_out(people, group):
@@ -364,7 +365,7 @@ def test_when_it_happened_and_number_without_going_over(people, group):
 
 def test_words_money_betting_sites_and_selling_patates_are_refused(people, group):
     a = people[0]
-    for q in ('Qui vend ses patates ?', 'Je te rachète tes patates ?', 'Betclic ou Winamax ?', 'On joue au casino ?',
+    for q in ('Qui vend ses confettis ?', 'Je te rachète tes confettis ?', 'Confettis à vendre ?', 'Qui vend ses patates ?', 'Betclic ou Winamax ?', 'On joue au casino ?',
               'Mise de 10 CHF ?', 'Qui paie la tournée ?'):
         refused(create(a, question=q, kind='yesno', group_id=group), 'content_refused')
     ok(create(a, question='Purée ou frites de patates ?', kind='majority', options=['Purée', 'Frites'], group_id=group))

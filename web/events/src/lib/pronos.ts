@@ -8,8 +8,8 @@ import { supabase } from './supabase';
 /**
  * Pronos entre amis (avis f071c5f46e3d, 17.11.2026, migration 20261117180000 ; v2 du 18.11, migration 20261118090000).
  * Pour l'honneur (points au classement du groupe) et, dans un groupe ou un événement, des PATATES : monnaie fictive,
- * gratuite, sans aucune valeur (jamais d'argent, de lot ni d'achat). Vocabulaire imposé : « planter », « le champ »,
- * « ta récolte », « au compost », « ton sac », « rendues », « saison ». La base garde les réponses cachées (organisateur
+ * gratuite, sans aucune valeur (jamais d'argent, de lot ni d'achat), affichée « confettis 🎊 ». Vocabulaire imposé : « lancer »,
+ * « la piste », « ramasser », « au balai », « ton sac », « rendus », « saison ». La base garde les réponses cachées (organisateur
  * compris) jusqu'au dévoilement et décide de tout ; ces fonctions ne font que l'appeler.
  * Toutes les clés v2 sont FACULTATIVES ici : un écran doit marcher avec la base d'avant (clé absente = éteint).
  * Patates : n'afficher QUE si `patates_on` (réglage de la base) ET `patates` (ce prono) sont vrais : `showPatates(p)`.
@@ -165,29 +165,29 @@ export function lineLabel(line: number | null | undefined): string {
 }
 
 // ───────── Patates : vocabulaire (conformité : jamais pari, mise, pot, cagnotte, cote, gain, jackpot…) ─────────
-export const PATATE = '🥔';
-export const NO_VALUE = 'Les patates n’ont aucune valeur : elles ne s’achètent pas, ne se vendent pas, ne s’échangent pas.';
+export const PATATE = '🎊';
+export const NO_VALUE = 'Les confettis n’ont aucune valeur : ils ne s’achètent pas, ne se vendent pas, ne s’échangent pas.';
 export const MAX_PLANT = 20;
 
 /** Les patates sont-elles à montrer pour ce prono ? (réglage de la base ET prono avec patates). */
 export function showPatates(p: { patates?: boolean; patates_on?: boolean } | null | undefined): boolean {
   return !!(p?.patates && p.patates_on);
 }
-/** « 120 🥔 dans le champ · 5 joueurs » (jamais de multiplicateur ni de « tu peux récolter »). */
+/** « 120 🎊 sur la piste · 5 joueurs » (jamais de multiplicateur ni de « tu peux ramasser »). */
 export function fieldLine(f: { total: number; planters?: number | null } | null | undefined): string {
   if (!f) return '';
   const who = f.planters == null ? '' : ` · ${f.planters} joueur${f.planters > 1 ? 's' : ''}`;
-  return `${f.total} ${PATATE} dans le champ${who}`;
+  return `${f.total} ${PATATE} sur la piste${who}`;
 }
-/** Libellés de l'historique du sac (« Plantées · parties au compost » une fois le prono réglé sans récolte). */
+/** Libellés de l'historique du sac (« Lancés · partis au balai » une fois le prono réglé sans rien ramasser). */
 export function bagReasonLabel(reason: BagReason, opts?: { compost?: boolean; unanimous?: boolean }): string {
   switch (reason) {
     case 'start': return 'Ton sac de départ';
     case 'refill': return 'Remontée du lundi';
-    case 'plant': return opts?.compost ? 'Plantées · parties au compost' : 'Plantées';
-    case 'unplant': return 'Reprises';
-    case 'refund': return opts?.unanimous ? 'Rendues · Unanimes !' : 'Rendues';
-    case 'harvest': return 'Ta récolte';
+    case 'plant': return opts?.compost ? 'Lancés · partis au balai' : 'Lancés';
+    case 'unplant': return 'Repris';
+    case 'refund': return opts?.unanimous ? 'Rendus · Unanimes !' : 'Rendus';
+    case 'harvest': return 'Tu ramasses';
     default: return '';
   }
 }

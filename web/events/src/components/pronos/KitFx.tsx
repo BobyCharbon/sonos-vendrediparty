@@ -123,7 +123,7 @@ export function PatateSlider({ value, onChange, max = MAX_PLANT, available, show
   const p = `${(Math.min(value, max) / max) * 100}%`;
   const input = createElement('input', {
     type: 'range', min: 0, max, step: 1, value, 'data-testid': `${testID}-range`,
-    'aria-label': 'Patates à planter', 'aria-valuetext': value ? `${value} patate${value > 1 ? 's' : ''}` : 'Sans patates',
+    'aria-label': 'Confettis à lancer', 'aria-valuetext': value ? `${value} confetti${value > 1 ? 's' : ''}` : 'Sans confettis',
     onChange: (e: { target: { value: string } }) => set(Number(e.target.value)),
     style: { position: 'absolute', inset: 0, width: '100%', height: 44, margin: 0, opacity: 0, cursor: 'pointer', zIndex: 2 },
   });
@@ -164,7 +164,7 @@ export function PatateSlider({ value, onChange, max = MAX_PLANT, available, show
           const off = x.n > limit;
           return (
             <Pressable key={x.n} testID={`${testID}-${x.n}`} accessibilityRole="button" disabled={off}
-              accessibilityLabel={x.n ? `${x.n} patates` : 'Sans patates'} accessibilityState={{ selected: on, disabled: off }}
+              accessibilityLabel={x.n ? `${x.n} confettis` : 'Sans confettis'} accessibilityState={{ selected: on, disabled: off }}
               onPress={() => { set(x.n); if (x.n) setDrops((d) => d + 1); }}
               style={({ pressed }) => [{ flex: i === 0 ? 1.25 : 1, height: 44, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center',
                 backgroundColor: c.glass, borderColor: c.glassLine },

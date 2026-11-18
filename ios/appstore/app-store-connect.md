@@ -10,7 +10,7 @@ drapeaux de prod lus sur https://party.bobycharbon.ch/api/features : `compagnon:
 | Champ | Valeur |
 |---|---|
 | Nouveautés (What's New) | **Rien** : 1.0.0 est la première version, Apple n'affiche pas ce champ. |
-| Notes pour la revue (App Review Information › Notes) | Copier `ios/appstore/review-notes.txt` (3 955 caractères, limite 4 000 ; à jour au 18.11.2026 : section PRONOS (patates, Simulated Gambling déclaré, drapeau `patates` éteint en prod jusqu'à l'acceptation) ; invitations v2, partage commun, accord de l’organisateur, sondage de dates, agenda abonné, covoiturage, liens de groupe, Nouveau compte, annonce et maintenance, fiche en direct, nom → profil, heure des votes, surnom à 12 caractères, Pyramide 30 s — test `test_review_notes_describe_every_big_feature_delivered_by_the_web`). |
+| Notes pour la revue (App Review Information › Notes) | Copier `ios/appstore/review-notes.txt` (3 966 caractères, limite 4 000 ; à jour au 18.11.2026 : section PRONOS (confettis, ex-patates : « Confetti (free, valueless play tokens) », Simulated Gambling déclaré, drapeau `patates` éteint en prod jusqu'à l'acceptation) ; invitations v2, partage commun, accord de l’organisateur, sondage de dates, agenda abonné, covoiturage, liens de groupe, Nouveau compte, annonce et maintenance, fiche en direct, nom → profil, heure des votes, surnom à 12 caractères, Pyramide 30 s — test `test_review_notes_describe_every_big_feature_delivered_by_the_web`). |
 | URL d'assistance (Support URL) | `https://party.bobycharbon.ch/events/terms` (répond 200 ; le contact support@vendrediparty.ch y figure) |
 | URL de confidentialité (Privacy Policy URL) | `https://party.bobycharbon.ch/events/privacy` (répond 200) |
 | URL marketing | Vide. **Jamais** `vendrediparty.ch` : ce domaine n'a pas de site (aucun enregistrement A), seulement la messagerie. |
@@ -72,9 +72,9 @@ Résultat attendu : **18+**. Libellés anglais d'App Store Connect (ils peuvent 
 | Realistic Violence | Aucun | |
 | Prolonged Graphic or Sadistic Realistic Violence | Aucun | |
 | Guns or Other Weapons | Aucun | |
-| Simulated Gambling | **Fréquent** (18.11) | Patates des Pronos : jetons gratuits sans aucune valeur (100 par groupe ou événement et par semaine, 1 à 20 par prono, partage du champ entre les bonnes réponses, jamais de cote), qui ne s'achètent, ne se vendent, ne se transfèrent et ne s'échangent pas (revue `conformite-patates` du 18.11 : « Frequent » car mécanique hebdomadaire ; l'app est déjà 18+). Casino et Blackjack restent masqués et refusés par le serveur dans l'app App Store (`STORE_APP_MARK`). « Roulette » = roue de prénoms. |
+| Simulated Gambling | **Fréquent** (18.11) | Confettis des Pronos (ex-patates) : jetons de jeu gratuits sans aucune valeur (100 par groupe ou événement et par semaine, 1 à 20 par prono, partage de la piste entre les bonnes réponses, jamais de cote), qui ne s'achètent, ne se vendent, ne se transfèrent et ne s'échangent pas (revue `conformite-patates` du 18.11 : « Frequent » car mécanique hebdomadaire ; l'app est déjà 18+). Casino et Blackjack restent masqués et refusés par le serveur dans l'app App Store (`STORE_APP_MARK`). « Roulette » = roue de prénoms. |
 | Contests | **Fréquent** (16.11) | Quiz, classements entre joueurs et classement de saison des Pronos (définition Apple « compete for rankings… trivia ») ; aucun tirage ni prix |
-| Gambling (argent réel) | Non | Les patates ne s'échangent contre rien (définition d'Apple : monnaie « exchangeable for real money ») ; aucun argent dans les Pronos |
+| Gambling (argent réel) | Non | Les confettis ne s'échangent contre rien (définition d'Apple : monnaie « exchangeable for real money ») ; aucun argent dans les Pronos |
 | Loot Boxes | Non | Coffres de Zicou absents (bêta seulement) |
 
 Si Apple calcule moins que 18+, choisir 18+ (classification plus élevée) : la description et les notes disent 18+.
@@ -82,14 +82,14 @@ Si Apple calcule moins que 18+, choisir 18+ (classification plus élevée) : la 
 Blackjack dans l'app App Store (Simulated Gambling), le Bar de la soirée (commandes de boissons), une publicité, un
 accès web libre, une vérification d'âge. Les Discussions (chat) sont déjà déclarées (Messaging and Chat : Oui).
 
-**Pronos et patates (18.11.2026), dans cet ordre :**
+**Pronos et confettis (ex-patates, 18.11.2026), dans cet ordre :**
 1. Questionnaire : Simulated Gambling **Fréquent** (Gambling : Non, Loot Boxes : Non, Contests : Fréquent ; note 18+).
-2. Notes for Review : section PRONOS de `review-notes.txt` (patates sans valeur, partage du champ, plafonds, drapeau
+2. Notes for Review : section PRONOS de `review-notes.txt` (confettis sans valeur, partage de la piste, plafonds, drapeau
    éteint en prod) ; compte de démo Apple-test dans le groupe « Démo Apple » avec un prono prêt (code : jamais dans le dépôt).
 3. App Privacy : description de Gameplay Content complétée (aucun nouveau type).
-4. CGU 2026-11-18 (« Pronos et patates ») et politique de confidentialité en prod (`supabase/prod/2026-11-18-cgu-pronos-patates-apply.sql`).
+4. CGU 2026-11-18 (« Pronos et confettis ») et politique de confidentialité en prod (`supabase/prod/2026-11-18-cgu-pronos-patates-apply.sql`).
 5. Version envoyée **et acceptée** par Apple ; seulement ensuite `PATATES_ENABLED=1` en production. Avant : les Pronos
-   restent pour l'honneur (points), aucune patate à l'écran.
+   restent pour l'honneur (points), aucun confetti à l'écran.
 
 ## 5. Confidentialité de l'app (App Privacy)
 
@@ -106,7 +106,7 @@ publicité, aucun SDK d'analyse. Pour chaque type ci-dessous : **lié à l'ident
 | User Content | Photos or Videos | Photo de profil, d'événement, ticket du Pot commun, captures données à l'IA | oui |
 | User Content | Emails or Text Messages | Messages de la Discussion d'un événement, messages à l'hôte | oui |
 | User Content | Other User Content | Événements, sondages, votes, avis (et leurs modifications), titres demandés, dépenses | oui |
-| User Content | **Gameplay Content** | Scores et stats de jeu liés au compte (Mes stats de jeu : Méninges, Purify Test, Quiz) ; Pronos : réponses, soldes et patates plantées, historique du sac, contestations, réactions (18.11) | oui (ajouté le 09.11) |
+| User Content | **Gameplay Content** | Scores et stats de jeu liés au compte (Mes stats de jeu : Méninges, Purify Test, Quiz) ; Pronos : réponses, soldes et confettis lancés, historique du sac, contestations, réactions (18.11) | oui (ajouté le 09.11) |
 | Identifiers | User ID | Identifiant du compte | oui |
 | Identifiers | Device ID | Identifiant d'invité tiré au hasard, jeton de notifications APNs, inscription Wallet | oui |
 | Usage Data | Product Interaction | Journal d'usage de l'IA (plafond mensuel), journal admin | oui |

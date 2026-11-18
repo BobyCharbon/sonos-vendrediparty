@@ -1,8 +1,8 @@
-"""Conformité des Pronos et des patates (revue du 18.11.2026, conformite-patates : 🔴 1-8, 🟠).
+"""Conformité des Pronos et des confettis, ex-patates (revue du 18.11.2026, conformite-patates : 🔴 1-8, 🟠).
 
 - 🔴 8 : aucun mot d'argent, de pari ni de casino dans les textes des écrans des Pronos (web et iPhone) ; les
   identifiants de code et les commentaires ne comptent pas, seuls les textes (chaînes et texte JSX) ;
-- 🔴 7 : CGU 2026-11-18 « Pronos et patates » (web et iPhone, même texte) et confidentialité à jour ;
+- 🔴 7 : CGU 2026-11-18 « Pronos et confettis » (web et iPhone, même texte) et confidentialité à jour ;
 - 🔴 6 : drapeau `patates` (éteint en prod tant que la version n'est pas acceptée) et notes de revue Apple ≤ 4 000 ;
 - 🔴 5 : questionnaire d'âge « Simulated Gambling » Frequent, Gambling Non.
 Ces tests lisent les fichiers : ils échouent tant que les écrans, le drapeau ou le rappel ne sont pas en place."""
@@ -67,8 +67,8 @@ def texts(src: str, swift: bool) -> list[str]:
 # Mots d'argent, de pari et de casino (conformite-patates, partie 2 ; contrat Pronos v2, « Vocabulaire »).
 FORBIDDEN = re.compile(
     r"\b(?:pari|parie|parier|pariez|parié|parieur|parieurs|mise|mises|miser|misez|misé|cagnotte|cote|cotes|"
-    r"jackpot|gain|gains|balles|francs?|chf|thunes|jetons?|casino|bookmaker|tapis|quitte ou double|"
-    r"gagner des patates|gagne des patates|pot)\b|€|💰|💵|🎰|🎲|🪙", re.IGNORECASE)
+    r"jackpot|gain|gains|balles|francs?|chf|thunes|jetons?|coins?|pièces?|casino|bookmaker|tapis|quitte ou double|"
+    r"gagner des confettis|gagne des confettis|gagner des patates|gagne des patates|pot)\b|€|💰|💵|🎰|🎲|🪙", re.IGNORECASE)
 ALLOWED = re.compile(r"mises? à jour|mises? en (?:avant|page|place|forme)", re.IGNORECASE)
 
 
@@ -92,13 +92,13 @@ def test_no_money_betting_or_casino_word_on_the_prono_screens():
 def test_the_word_scanner_reads_texts_not_code_nor_comments():
     web = "// une mise en commentaire\nconst mise = 1; /* cote */ const t = 'Ta mise'; x = <T>La cote du jour</T>;"
     assert [w for t in texts(web, swift=False) for w in FORBIDDEN.findall(t)] == ["mise", "cote"]
-    swift = '/// cagnotte\nlet pot = 2\nText("Planter 5 🥔") ; Text("Mise à jour")'
+    swift = '/// cagnotte\nlet pot = 2\nText("Lancer 5 🎊") ; Text("Mise à jour")'
     assert [w for t in texts(swift, swift=True) for w in FORBIDDEN.findall(ALLOWED.sub(" ", t))] == []
 
 
 def test_the_no_value_reminder_is_on_the_web_and_the_iphone():
-    """Rappel fixe sous chaque sac (🟠) : les patates ne valent rien."""
-    reminder = "Les patates n'ont aucune valeur"
+    """Rappel fixe sous chaque sac (🟠) : les confettis ne valent rien."""
+    reminder = "Les confettis n'ont aucune valeur"
     web = " ".join(plain(read(str(p.relative_to(ROOT)))) for p in screen_files() if p.suffix == ".tsx")
     web += plain(read("web/events/src/lib/pronos.ts")) if (ROOT / "web/events/src/lib/pronos.ts").exists() else ""
     ios = " ".join(plain(p.read_text(encoding="utf-8")) for p in screen_files() if p.suffix == ".swift")
@@ -106,11 +106,11 @@ def test_the_no_value_reminder_is_on_the_web_and_the_iphone():
 
 
 PRONO_TERMS = [
-    "Pronos et patates",
+    "Pronos et confettis",
     "pour l'honneur",
-    "Les patates sont gratuites et n'ont aucune valeur.",
-    "Elles ne s'achètent pas, ne se vendent pas, ne s'échangent pas et ne se transfèrent pas",
-    "Il est interdit de régler un prono ou des patates en argent, en boissons, en objets",
+    "Les confettis sont gratuits et n'ont aucune valeur.",
+    "Ils ne s'achètent pas, ne se vendent pas, ne s'échangent pas et ne se transfèrent pas",
+    "Il est interdit de régler un prono ou des confettis en argent, en boissons, en objets",
     "Jamais de prono sur l'alcool",
     "peut être suspendu",
     "Apple et Google ne sont ni organisateurs ni sponsors",
@@ -130,7 +130,7 @@ def terms_sections(web: bool) -> list[tuple[str, list[str]]]:
 def test_terms_2026_11_18_have_the_prono_section_word_for_word_on_web_and_iphone():
     web, ios = terms_sections(web=True), terms_sections(web=False)
     assert len(web) >= 8 and web == ios
-    section = " ".join(p for t, ps in web if t == "Pronos et patates" for p in ps) + " Pronos et patates"
+    section = " ".join(p for t, ps in web if t == "Pronos et confettis" for p in ps) + " Pronos et confettis"
     for words in PRONO_TERMS:
         assert words in section, words
     assert "TERMS_UPDATED = '18 novembre 2026'" in read("web/events/src/lib/terms.ts")
@@ -151,10 +151,10 @@ def test_privacy_policy_tells_what_the_pronos_keep_on_web_and_iphone():
     web = plain(read("web/events/src/app/privacy.tsx"))
     ios = read("ios/Party/Settings/Account/SignInView.swift")
     for text in (web, ios):
-        for words in ("Pronos : tes pronos, tes réponses, les patates que tu plantes et ta récolte",
+        for words in ("Pronos : tes pronos, tes réponses, les confettis que tu lances et ceux que tu ramasses",
                       "l'historique de ton sac (toi seul le vois)", "tes contestations", "tes réactions",
-                      "Rien de tout cela n'est envoyé à un tiers.", "Ton sac de patates et son historique",
-                      "pronos et patates", "18 novembre 2026"):
+                      "Rien de tout cela n'est envoyé à un tiers.", "Ton sac de confettis et son historique",
+                      "pronos et confettis", "18 novembre 2026"):
             assert words in text, words
 
 

@@ -416,7 +416,7 @@ struct PronoRevealView: View {
             if patates, field > 0 {
                 Text("·")
                 Text("\(field)").fontWeight(.heavy).monospacedDigit()
-                Text("🥔 dans le champ")
+                Text("🎊 sur la piste")
             }
         }
         .font(.subheadline).foregroundStyle(PronoInk.t2)
@@ -526,10 +526,10 @@ struct PronoRevealView: View {
                     VStack(spacing: 6) {
                         Text("🤝").font(.system(size: 44))
                         Text("Unanimes !").font(.system(size: 44, weight: .heavy, design: .rounded)).foregroundStyle(PronoInk.lavender)
-                        Text(patates ? "Tout le monde récupère ses patates." : "Tout le monde avait vu juste.").font(.subheadline).foregroundStyle(PronoInk.t2)
+                        Text(patates ? "Tout le monde récupère ses confettis." : "Tout le monde avait vu juste.").font(.subheadline).foregroundStyle(PronoInk.t2)
                     }
                 } else if rightCount == 0 {
-                    Text(patates ? "Personne ne l'avait vu : tout le monde récupère ses patates." : "Personne ne l'avait vu.")
+                    Text(patates ? "Personne ne l'avait vu : tout le monde récupère ses confettis." : "Personne ne l'avait vu.")
                         .font(.subheadline.weight(.semibold)).foregroundStyle(PronoInk.t2).multilineTextAlignment(.center)
                 } else {
                     Text("🔮 \(rightCount == 1 ? "Seul·e 1" : "Seuls \(rightCount)") sur \(ofCount) l'avai\(rightCount == 1 ? "t" : "ent") vu")
@@ -605,7 +605,7 @@ struct PronoRevealView: View {
         if !played { return "La prochaine fois, peut-être !" }
         if unanimous { return patates ? "Personne ne perd rien." : "Tout le monde a ses points." }
         if right {
-            return patates && myStake > 0 ? "Tu en avais planté \(myStake) 🥔" : "+\(PronoFormat.points(prono.points)) au classement"
+            return patates && myStake > 0 ? "Tu en avais lancé \(myStake) 🎊" : "+\(PronoFormat.points(prono.points)) au classement"
         }
         let said = PronoRead.mine(prono) ?? "—"
         let good = PronoRead.result(prono)
@@ -616,7 +616,7 @@ struct PronoRevealView: View {
     private var youFigure: some View {
         if played, patates, myStake > 0 {
             VStack(alignment: .trailing, spacing: 0) {
-                Text(unanimous || rightCount == 0 ? "RENDUES" : (right ? "TA RÉCOLTE" : "AU COMPOST"))
+                Text(unanimous || rightCount == 0 ? "RENDUS" : (right ? "TU RAMASSES" : "AU BALAI"))
                     .font(.caption.weight(.heavy)).kerning(1.2)
                     .foregroundStyle(right && !unanimous ? PronoInk.mint : PronoInk.t2)
                 HStack(spacing: 2) {
@@ -624,11 +624,11 @@ struct PronoRevealView: View {
                         .contentTransition(.numericText())
                         .font(.system(size: 34, weight: .heavy).width(.expanded)).monospacedDigit()
                         .foregroundStyle(right && !unanimous ? PronoInk.mint : (unanimous ? PronoInk.lavender : PronoInk.miss))
-                    Text("🥔").font(.title2).rotationEffect(.degrees(-12))
+                    Text("🎊").font(.title2).rotationEffect(.degrees(-12))
                 }
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(right && !unanimous ? "Ta récolte : \(harvest) patates" : (unanimous || rightCount == 0 ? "\(myStake) patates rendues" : "\(myStake) patates au compost"))
+            .accessibilityLabel(right && !unanimous ? "Tu ramasses \(harvest) confettis" : (unanimous || rightCount == 0 ? "\(myStake) confettis rendus" : "\(myStake) confettis au balai"))
         }
     }
 
@@ -688,7 +688,7 @@ struct PronoRevealView: View {
                 }
                 if t >= 3000 {
                     VStack(spacing: 12) {
-                        Text("Pour la gloire : aucun trophée ne rapporte de patates.").font(.footnote).foregroundStyle(PronoInk.t3)
+                        Text("Pour la gloire : aucun trophée ne rapporte de confettis.").font(.footnote).foregroundStyle(PronoInk.t3)
                             .opacity(patates ? 1 : 0)
                         HStack(spacing: 10) {
                             Button { onClose() } label: { Text("👏 Applaudir").font(.headline).frame(maxWidth: .infinity, minHeight: 52) }
@@ -724,7 +724,7 @@ struct PronoRevealView: View {
         if played {
             if unanimous { s += " Unanimes, tout le monde avait vu juste." } else if right {
                 s += " Tu avais vu juste"
-                if patates, myStake > 0 { s += ", ta récolte : \(harvest) patates\((pronoOpt(prono.settled) ?? false) ? "" : ", en attente 12 heures")" }
+                if patates, myStake > 0 { s += ", tu ramasses \(harvest) confettis\((pronoOpt(prono.settled) ?? false) ? "" : ", en attente 12 heures")" }
                 s += "."
             } else { s += " Pas cette fois." }
         }

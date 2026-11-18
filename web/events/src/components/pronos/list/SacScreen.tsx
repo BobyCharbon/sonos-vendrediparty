@@ -59,11 +59,11 @@ export function SacScreen({ group, event }: { group?: string; event?: string }) 
             <Text role="heading" aria-level={1} style={round(30, 34)}>Ton sac</Text>
           </View>
 
-          <View style={[st.ringWrap, enter('pop')]} accessibilityLabel={`${bag.balance} patates dans ton sac, sur 100`}>
+          <View style={[st.ringWrap, enter('pop')]} accessibilityLabel={`${bag.balance} confettis dans ton sac, sur 100`}>
             <View style={[st.ring, web({ backgroundImage: `conic-gradient(${pal.from} 0%, ${pal.to} ${pct}%, rgba(255,255,255,0.14) ${pct}% 100%)` })]}>
               <View style={st.ringIn}>
                 <Text style={[num(60), { color: C.t1 }]}>{bag.balance}</Text>
-                <Text style={{ color: C.t2, fontSize: 13, fontWeight: '600' }}>🥔 dans ton sac</Text>
+                <Text style={{ color: C.t2, fontSize: 13, fontWeight: '600' }}>🎊 dans ton sac</Text>
               </View>
             </View>
           </View>
@@ -75,17 +75,17 @@ export function SacScreen({ group, event }: { group?: string; event?: string }) 
           </View>
 
           <View style={st.tiles}>
-            <Tile k="Plantées" v={`${planted} 🥔`} s={`dans ${pending.length} prono${pending.length > 1 ? 's' : ''}`} />
-            <Tile k="Récolte" v={`${harvest > 0 ? '+' : ''}${harvest} 🥔`} s={`en ${monthName(bag.season?.month ?? data.season?.month)}`} tone={harvest > 0 ? C.mint : undefined} />
+            <Tile k="Lancés" v={`${planted} 🎊`} s={`dans ${pending.length} prono${pending.length > 1 ? 's' : ''}`} />
+            <Tile k="Ramassés" v={`${harvest > 0 ? '+' : ''}${harvest} 🎊`} s={`en ${monthName(bag.season?.month ?? data.season?.month)}`} tone={harvest > 0 ? C.mint : undefined} />
             {me?.played ? <Tile k="Justesse" v={`${me.right ?? 0}/${me.played}`} s="vues justes" /> : null}
           </View>
 
           <View style={{ gap: 10 }}>
             <Text style={label}>Comment ça marche</Text>
             <View style={st.box}>
-              <How icon="🥔" text={<><B>100 patates</B> au départ, un sac par groupe et par soirée.</>} />
+              <How icon="🎊" text={<><B>100 confettis</B> au départ, un sac par groupe et par soirée.</>} />
               <How icon="↻" text={<>Chaque <B>lundi</B>, ton sac remonte à 100 s’il est plus bas.</>} />
-              <How icon="🌱" text={<>Plante <B>1 à 20 🥔</B> par prono. Ceux qui voient juste se partagent le champ.</>} last />
+              <How icon="🪩" text={<>Lance <B>1 à 20 🎊</B> par prono. Ceux qui voient juste se partagent la piste.</>} last />
             </View>
           </View>
 
@@ -98,7 +98,7 @@ export function SacScreen({ group, event }: { group?: string; event?: string }) 
           </View>
 
           <View style={st.noValue}>
-            <Text aria-hidden style={{ fontSize: 20 }}>🥔</Text>
+            <Text aria-hidden style={{ fontSize: 20 }}>🎊</Text>
             <View style={{ flex: 1, gap: 4 }}>
               <Text style={{ color: C.t1, fontSize: 14, lineHeight: 20, fontWeight: '600' }}>{NO_VALUE}</Text>
               <Text style={{ color: C.t2, fontSize: 13, lineHeight: 18 }}>Juste pour le plaisir de voir juste entre amis.</Text>
@@ -106,7 +106,7 @@ export function SacScreen({ group, event }: { group?: string; event?: string }) 
           </View>
         </>
       ) : data ? (
-        <Text style={{ color: C.t2, fontSize: 15, textAlign: 'center', paddingVertical: 24 }}>Pas de patates ici : ces pronos se jouent pour l’honneur.</Text>
+        <Text style={{ color: C.t2, fontSize: 15, textAlign: 'center', paddingVertical: 24 }}>Pas de confettis ici : ces pronos se jouent pour l’honneur.</Text>
       ) : null}
     </Screen>
   );

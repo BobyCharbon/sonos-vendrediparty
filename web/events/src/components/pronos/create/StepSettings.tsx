@@ -44,7 +44,7 @@ export function StepSettings(props: {
   const audience = group ? `${groupName(group)} · ${plural(group.members, 'membre')}`
     : event ? 'Les participants'
       : who.people.length ? plural(who.people.length, 'personne') : who.link ? 'Un lien' : 'Personne encore';
-  const summary = [audience, iso ? `fin ${shortEnd(iso)}` : null, withPatates ? 'avec patates 🥔' : 'pour l’honneur'].filter(Boolean).join('  ·  ');
+  const summary = [audience, iso ? `fin ${shortEnd(iso)}` : null, withPatates ? 'avec confettis 🎊' : 'pour l’honneur'].filter(Boolean).join('  ·  ');
 
   return (
     <StepScreen nav={<StepNav step={3} title="Réglages" icon="‹" onBack={props.onBack} backLabel="Retour à la question" />}
@@ -160,12 +160,12 @@ export function StepSettings(props: {
       </Block>
 
       {canPatates ? (
-        <Block label="PATATES 🥔" right={`sac de ${bagOf}`} index={3}>
+        <Block label="CONFETTIS 🎊" right={`sac de ${bagOf}`} index={3}>
           <View style={st.pair}>
-            <RadioCard on={patates} a11y="Avec patates, de 0 à 20 chacun" testID="prono-patates-on" onPress={() => setPatates(true)} style={st.half} corner>
+            <RadioCard on={patates} a11y="Avec confettis, de 0 à 20 chacun" testID="prono-patates-on" onPress={() => setPatates(true)} style={st.half} corner>
               <View style={{ gap: 6, flex: 1 }}>
-                <Text style={{ fontSize: 30 }}>🥔</Text>
-                <Txt size={18} weight="800">Avec patates</Txt>
+                <Text style={{ fontSize: 30 }}>🎊</Text>
+                <Txt size={18} weight="800">Avec confettis</Txt>
                 <Txt size={14} color={C.t2}>De 0 à 20 chacun</Txt>
               </View>
             </RadioCard>
@@ -180,7 +180,7 @@ export function StepSettings(props: {
           {patates ? (
             <View style={st.how}>
               <View style={st.steps}>
-                {[['🥔', 'On plante', '0 à 20 de ton sac'], ['🌱', 'Le champ', 'grandit en secret'], ['🧺', 'La récolte', 'pour qui a vu juste']].map(([e, t, s], i) => (
+                {[['🎊', 'On lance', '0 à 20 de ton sac'], ['🪩', 'La piste', 'se remplit en secret'], ['🧺', 'On ramasse', 'pour qui a vu juste']].map(([e, t, s], i) => (
                   <View key={t} style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
                     {i > 0 ? <Txt size={18} color={C.t3}>›</Txt> : null}
                     <View style={{ flex: 1, alignItems: 'center', gap: 4 }}>
@@ -193,10 +193,10 @@ export function StepSettings(props: {
               </View>
               <View style={st.rule} />
               <Txt size={14} color={C.t2}>
-                <Text style={{ color: C.t1, fontWeight: '700' }}>ⓘ Les patates n’ont aucune valeur : </Text>
-                elles ne s’achètent pas, ne se vendent pas, ne s’échangent pas. Personne n’a vu juste ? Chacun récupère les siennes.
+                <Text style={{ color: C.t1, fontWeight: '700' }}>ⓘ Les confettis n’ont aucune valeur : </Text>
+                ils ne s’achètent pas, ne se vendent pas, ne s’échangent pas. Personne n’a vu juste ? Chacun récupère les siens.
               </Txt>
-              {bag ? <Txt size={13} color={C.t3}>Ton sac ici : {bag.balance} 🥔</Txt> : null}
+              {bag ? <Txt size={13} color={C.t3}>Ton sac ici : {bag.balance} 🎊</Txt> : null}
             </View>
           ) : null}
         </Block>

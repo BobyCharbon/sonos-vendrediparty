@@ -197,10 +197,10 @@ final class PronosTests: XCTestCase {
         """)
         XCTAssertEqual(moves.count, 3)
         XCTAssertEqual(Set(moves.map(\.id)).count, 3)
-        XCTAssertEqual(PronoFormat.move(moves[0]).amount, "−5 🥔")
-        XCTAssertEqual(PronoFormat.move(moves[0], compost: true).title, "Plantées · parties au compost")
+        XCTAssertEqual(PronoFormat.move(moves[0]).amount, "−5 🎊")
+        XCTAssertEqual(PronoFormat.move(moves[0], compost: true).title, "Lancés · partis au balai")
         XCTAssertEqual(PronoFormat.move(moves[1]).title, "Sac de départ")
-        XCTAssertEqual(PronoFormat.move(moves[2]).title, "Ta récolte")
+        XCTAssertEqual(PronoFormat.move(moves[2]).title, "Ramassés")
         XCTAssertNil(moves[2].prono?.question)
 
         let season = try decode(PronoSeason.self, """
@@ -268,12 +268,14 @@ final class PronosTests: XCTestCase {
         XCTAssertEqual(PronoFormat.number(2.5), "2,5")
         XCTAssertEqual(PronoFormat.stateLine(state: "closed", closesAt: "", revealed: false), "Fermé · résultat attendu")
         XCTAssertEqual(PronoFormat.place(group: nil, event: PronoEventRef(id: "e", title: "Paintball"), creator: PronoFace(id: "a", name: "Léa")), "📅 Paintball")
-        XCTAssertEqual(PronoFormat.field(total: 120, planters: 5), "120 🥔 dans le champ · 5 joueurs")
-        XCTAssertEqual(PronoFormat.harvest(stake: 10, harvest: 18), "+18 🥔")
-        XCTAssertEqual(PronoFormat.harvest(stake: 5, harvest: 0), "5 🥔 au compost")
-        XCTAssertEqual(PronoFormat.harvest(stake: 5, harvest: 5, refunded: true), "5 🥔 rendues")
-        XCTAssertEqual(PronoFormat.harvest(stake: 5, harvest: nil), "5 🥔 plantées")
+        XCTAssertEqual(PronoFormat.field(total: 120, planters: 5), "120 🎊 sur la piste · 5 joueurs")
+        XCTAssertEqual(PronoFormat.harvest(stake: 10, harvest: 18), "+18 🎊")
+        XCTAssertEqual(PronoFormat.harvest(stake: 5, harvest: 0), "5 🎊 au balai")
+        XCTAssertEqual(PronoFormat.harvest(stake: 5, harvest: 5, refunded: true), "5 🎊 rendus")
+        XCTAssertEqual(PronoFormat.harvest(stake: 5, harvest: nil), "5 🎊 lancés")
         XCTAssertFalse(PronoFormat.harvest(stake: 5, harvest: 0).contains("-"))
+        XCTAssertEqual(PronoPatates.noValue, "Les confettis n'ont aucune valeur : ils ne s'achètent pas, ne se vendent pas, ne s'échangent pas.")
+        XCTAssertEqual(PronoPatates.refillNote, "Ton sac remonte à 100 🎊 chaque lundi.")
         XCTAssertEqual(PronoKind.label("overunder"), "Plus / Moins")
         XCTAssertEqual(PronoKind.label("majority"), "Devine la bande")
         XCTAssertEqual(PronoShape.at(0), .triangle)
@@ -302,7 +304,8 @@ final class PronosTests: XCTestCase {
     /// les chaînes des fichiers Swift de ios/Party/Pronos, commentaires exclus).
     func testVocabularyHasNoMoneyOrGamblingWords() throws {
         let words = ["pari", "parier", "paris", "mise", "miser", "pot", "cagnotte", "cote", "cotes", "gain", "gains",
-                     "jackpot", "balles", "franc", "francs", "chf", "euro", "euros"]
+                     "jackpot", "balles", "franc", "francs", "chf", "euro", "euros",
+                     "coin", "coins", "jeton", "jetons", "pièce", "pièces", "récolte", "compost"]
         let symbols = ["€", "💰", "🎰"]
         let folder = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("Party/Pronos")
@@ -325,7 +328,7 @@ final class PronosTests: XCTestCase {
                 }
             }
         }
-        XCTAssertEqual(found, [], "Vocabulaire des Pronos : planter, le champ, ta récolte, au compost, ton sac, rendues")
+        XCTAssertEqual(found, [], "Vocabulaire des Pronos (confettis) : lancer, la piste, ramasser, au balai, ton sac, rendus")
         // Les textes fabriqués par le kit non plus.
         for text in [PronoPatates.noValue, PronoPatates.refillNote, PronoFormat.field(total: 3, planters: 2),
                      PronoFormat.harvest(stake: 3, harvest: 9), PronoFormat.harvest(stake: 3, harvest: 0)] {

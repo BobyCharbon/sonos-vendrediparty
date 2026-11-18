@@ -39,7 +39,7 @@ export function OptionRow({ row, total, big, potatoes, settled = true, index, st
           <Text style={text(big ? 26 : 17, '700', dim ? N.t2 : N.t1)} numberOfLines={1}>{row.label}</Text>
         </K>
         <K k="count" style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6 }}>
-          {potatoes ? <Text style={text(13, '600', N.t2)}>{row.planted} 🥔 ·</Text> : null}
+          {potatoes ? <Text style={text(13, '600', N.t2)}>{row.planted} 🎊 ·</Text> : null}
           <Text style={num(22, dim ? N.t2 : N.t1)}>{row.count}</Text>
           <Text style={text(13, '600', N.t2)}>{pct} %</Text>
         </K>

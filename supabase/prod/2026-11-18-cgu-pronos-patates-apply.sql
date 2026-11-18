@@ -1,4 +1,4 @@
--- PROD, CGU 2026-11-18 « Pronos et patates » (20261118095000). À appliquer AVANT d'allumer PATATES_ENABLED en prod
+-- PROD, CGU 2026-11-18 « Pronos et confettis » (20261118095000). À appliquer AVANT d'allumer PATATES_ENABLED en prod
 -- (et avec la version de la web / de l'app qui montre le nouveau texte). Rejouable. Tout ou rien.
 begin;
 update private.moderation_settings set terms_version = '2026-11-18' where terms_version < '2026-11-18';

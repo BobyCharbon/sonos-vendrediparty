@@ -24,10 +24,10 @@ type Move = { at: string; delta: number; reason: 'start' | 'refill' | 'plant' | 
 const REASON: Record<Move['reason'], { icon: string; label: string; tone: 'plus' | 'back' | 'plain' }> = {
   start: { icon: '🎒', label: 'Sac de départ', tone: 'plus' },
   refill: { icon: '↻', label: 'Remontée du lundi', tone: 'plus' },
-  plant: { icon: '🌱', label: 'Plantées', tone: 'plain' },
-  unplant: { icon: '↩', label: 'Reprises', tone: 'back' },
-  refund: { icon: '↩', label: 'Rendues', tone: 'back' },
-  harvest: { icon: '🧺', label: 'Ta récolte', tone: 'plus' },
+  plant: { icon: '🎉', label: 'Lancés', tone: 'plain' },
+  unplant: { icon: '↩', label: 'Repris', tone: 'back' },
+  refund: { icon: '↩', label: 'Rendus', tone: 'back' },
+  harvest: { icon: '🧺', label: 'Tu ramasses', tone: 'plus' },
 };
 
 const refillFmt = new Intl.DateTimeFormat('fr-CH', { timeZone: 'Europe/Zurich', weekday: 'long', day: 'numeric', month: 'short' });
@@ -51,7 +51,7 @@ export function BagHistory({ groupId, eventId }: { groupId?: string; eventId?: s
   if (!data) return <ErrorText error={error ?? null} />;
   const bag = data.bag;
   if (terrain && !bag) {
-    return <Text style={[text(14, '500', N.t2), { textAlign: 'center', padding: 24 }]}>Les patates arrivent bientôt.</Text>;
+    return <Text style={[text(14, '500', N.t2), { textAlign: 'center', padding: 24 }]}>Les confettis arrivent bientôt.</Text>;
   }
   const days = groupByDay(data.moves);
   const full = bag ? bag.balance >= 100 : false;
@@ -60,7 +60,7 @@ export function BagHistory({ groupId, eventId }: { groupId?: string; eventId?: s
     <View ref={root} testID="prono-bag">
       {bag ? (
         <>
-          <View style={{ width: 196, height: 196, alignSelf: 'center', marginTop: 28 }} role="img" aria-label={`${bag.balance} patates sur 100`}>
+          <View style={{ width: 196, height: 196, alignSelf: 'center', marginTop: 28 }} role="img" aria-label={`${bag.balance} confettis sur 100`}>
             <Text style={[text(11, '700', N.t3), { position: 'absolute', top: -20, alignSelf: 'center' }]}>100</Text>
             <View style={web({ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, borderRadius: 999, backgroundColor: N.line2,
               WebkitMask: 'radial-gradient(circle,transparent 84px,#000 85px)', mask: 'radial-gradient(circle,transparent 84px,#000 85px)' })} />
@@ -71,7 +71,7 @@ export function BagHistory({ groupId, eventId }: { groupId?: string; eventId?: s
               backgroundImage: 'radial-gradient(circle,rgba(123,108,246,.22),transparent 70%)' })} />
             <View style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}>
               <Text style={[num(64), { lineHeight: 66 }]}>{bag.balance}</Text>
-              <Text style={[text(13, '600', N.t2), { marginTop: 6 }]}>🥔 dans ton sac</Text>
+              <Text style={[text(13, '600', N.t2), { marginTop: 6 }]}>🎊 dans ton sac</Text>
             </View>
           </View>
           <View style={{ alignItems: 'center', marginTop: 16 }}>
@@ -84,9 +84,9 @@ export function BagHistory({ groupId, eventId }: { groupId?: string; eventId?: s
           </View>
           {bag.season ? (
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 20 }}>
-              <Tile title="Récolte" value={`${bag.season.harvest_net > 0 ? '+' : bag.season.harvest_net < 0 ? '−' : ''}${Math.abs(bag.season.harvest_net)} 🥔`}
-                sub={`nette en ${monthName(bag.season.month)}`} color={bag.season.harvest_net > 0 ? N.mint : N.t1} />
-              <Tile title="Par prono" value={`1 à ${bag.max_stake ?? 20} 🥔`} sub="à planter, ou 0" />
+              <Tile title="Ramassés" value={`${bag.season.harvest_net > 0 ? '+' : bag.season.harvest_net < 0 ? '−' : ''}${Math.abs(bag.season.harvest_net)} 🎊`}
+                sub={`nets en ${monthName(bag.season.month)}`} color={bag.season.harvest_net > 0 ? N.mint : N.t1} />
+              <Tile title="Par prono" value={`1 à ${bag.max_stake ?? 20} 🎊`} sub="à lancer, ou 0" />
             </View>
           ) : null}
         </>
@@ -94,9 +94,9 @@ export function BagHistory({ groupId, eventId }: { groupId?: string; eventId?: s
 
       <SectionHead left="Comment ça marche" />
       <View style={[card, { paddingHorizontal: 14, paddingVertical: 4, borderRadius: 20 }]}>
-        <How icon="🥔" first><Text style={text(14, '700')}>100 patates</Text> au départ, un sac par groupe et par soirée.</How>
+        <How icon="🎊" first><Text style={text(14, '700')}>100 confettis</Text> au départ, un sac par groupe et par soirée.</How>
         <How icon="↻">Chaque <Text style={text(14, '700')}>lundi</Text>, ton sac remonte à 100 s’il est plus bas.</How>
-        <How icon="🌱">Plante <Text style={text(14, '700')}>1 à 20</Text> 🥔 par prono. Ceux qui voient juste se partagent le champ.</How>
+        <How icon="🎉">Lance <Text style={text(14, '700')}>1 à 20</Text> 🎊 par prono. Ceux qui voient juste se partagent la piste.</How>
       </View>
 
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 24, paddingHorizontal: 4 }}>
@@ -111,7 +111,7 @@ export function BagHistory({ groupId, eventId }: { groupId?: string; eventId?: s
               const r = REASON[m.reason] ?? REASON.plant;
               const lost = m.reason === 'plant' && !!m.prono && data.composted.has(m.prono.id);
               const color = r.tone === 'plus' ? N.mint : r.tone === 'back' ? N.lav : N.t1;
-              const sub = m.prono ? m.prono.question ?? 'Prono masqué' : m.reason === 'refill' ? 'Ton sac est revenu à 100' : m.reason === 'start' ? 'Bienvenue dans le champ' : '';
+              const sub = m.prono ? m.prono.question ?? 'Prono masqué' : m.reason === 'refill' ? 'Ton sac est revenu à 100' : m.reason === 'start' ? 'Bienvenue sur la piste' : '';
               return (
                 <View key={`${m.at}-${i}`} style={[{ flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60, paddingHorizontal: 14 },
                   i > 0 && { borderTopWidth: 1, borderColor: N.line }]} testID={`prono-bag-move-${m.reason}`}>
@@ -119,7 +119,7 @@ export function BagHistory({ groupId, eventId }: { groupId?: string; eventId?: s
                     <Text style={{ fontSize: 16, color: N.t1 }}>{r.icon}</Text>
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={text(15, '600')}>{r.label}{lost ? ' · parties au compost' : ''}</Text>
+                    <Text style={text(15, '600')}>{r.label}{lost ? ' · partis au balai' : ''}</Text>
                     {sub ? <Text style={text(13, '500', N.t2)} numberOfLines={1}>{sub}</Text> : null}
                   </View>
                   <Text style={[num(15, color), { minWidth: 44, textAlign: 'right' }]}>{m.delta > 0 ? `+${m.delta}` : `−${Math.abs(m.delta)}`}</Text>
@@ -128,7 +128,7 @@ export function BagHistory({ groupId, eventId }: { groupId?: string; eventId?: s
             })}
           </View>
         </View>
-      )) : <Text style={[text(13, '500', N.t2), { paddingTop: 12, paddingHorizontal: 4 }]}>Rien encore : plante tes premières patates sur un prono.</Text>}
+      )) : <Text style={[text(13, '500', N.t2), { paddingTop: 12, paddingHorizontal: 4 }]}>Rien encore : lance tes premiers confettis sur un prono.</Text>}
 
       <NoValueNote boxed />
     </View>

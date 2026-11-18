@@ -60,7 +60,7 @@ export function BagHero({ terrains, bags, selected, onSelect, list, push }: {
   const harvest = bag.season?.harvest_net ?? 0;
   return (
     <View style={{ gap: 12 }}>
-      <Pressable accessibilityRole="button" accessibilityLabel={`Ton sac de patates, ${t.name} : ${bag.balance} patates. Voir l’historique`}
+      <Pressable accessibilityRole="button" accessibilityLabel={`Ton sac de confettis, ${t.name} : ${bag.balance} confettis. Voir l’historique`}
         testID="prono-bag" onPress={() => push(sacPath(t))}
         style={({ pressed }) => [st.bag, enter('rise'), pressTransition, pressed && { transform: [{ scale: 0.98 }] }]}>
         <View style={[st.glow, web({ backgroundImage: `radial-gradient(260px 200px at 100% 0%, ${pal.to}8c, transparent 70%)` })]} />
@@ -70,7 +70,7 @@ export function BagHero({ terrains, bags, selected, onSelect, list, push }: {
           <Text aria-hidden style={{ color: C.t2, fontSize: 18 }}>›</Text>
         </View>
         <View style={st.amount}>
-          <Text style={[num(56), { color: C.t1 }]}>{bag.balance}<Text style={{ fontSize: 34 }}>🥔</Text></Text>
+          <Text style={[num(56), { color: C.t1 }]}>{bag.balance}<Text style={{ fontSize: 34 }}>🎊</Text></Text>
           <Text style={st.under}>{bag.balance >= 100 ? 'Ton sac est plein' : <>remonte à <Text style={{ color: C.t1, fontWeight: '800' }}>100</Text>{'\n'}lundi à 0 h</>}</Text>
         </View>
         <View style={st.gauge} aria-hidden>
@@ -78,12 +78,12 @@ export function BagHero({ terrains, bags, selected, onSelect, list, push }: {
         </View>
         <View style={st.tiles}>
           <View style={st.tile}>
-            <Text style={st.tileK}>Plantées · {pending.length} prono{pending.length > 1 ? 's' : ''}</Text>
-            <Text style={[num(20), { color: C.t1 }]}>{planted} <Text style={{ fontSize: 16 }}>🥔</Text></Text>
+            <Text style={st.tileK}>Lancés · {pending.length} prono{pending.length > 1 ? 's' : ''}</Text>
+            <Text style={[num(20), { color: C.t1 }]}>{planted} <Text style={{ fontSize: 16 }}>🎊</Text></Text>
           </View>
           <View style={st.tile}>
-            <Text style={st.tileK}>Récolte de {monthName(bag.season?.month)}</Text>
-            <Text style={[num(20), { color: harvest > 0 ? C.mint : C.t1 }]}>{harvest > 0 ? `+${harvest}` : harvest} <Text style={{ fontSize: 16 }}>🥔</Text></Text>
+            <Text style={st.tileK}>Ramassés en {monthName(bag.season?.month)}</Text>
+            <Text style={[num(20), { color: harvest > 0 ? C.mint : C.t1 }]}>{harvest > 0 ? `+${harvest}` : harvest} <Text style={{ fontSize: 16 }}>🎊</Text></Text>
           </View>
         </View>
       </Pressable>
@@ -94,7 +94,7 @@ export function BagHero({ terrains, bags, selected, onSelect, list, push }: {
             const p = palette(x.color);
             return (
               <Pressable key={x.key} accessibilityRole="button" accessibilityState={{ selected: on }} aria-pressed={on}
-                accessibilityLabel={`Sac ${x.name} : ${bags[x.key].balance} patates`} onPress={() => onSelect(x.key)}
+                accessibilityLabel={`Sac ${x.name} : ${bags[x.key].balance} confettis`} onPress={() => onSelect(x.key)}
                 style={({ pressed }) => [st.chip, on && { borderColor: p.main, borderWidth: 2 }, pressTransition, pressed && { transform: [{ scale: 0.96 }] }]}>
                 <View style={[st.chipEm, web({ backgroundImage: `linear-gradient(135deg, ${p.from}, ${p.to})` })]}><Text style={{ fontSize: 15 }}>{x.emoji}</Text></View>
                 <Text numberOfLines={1} style={st.chipText}>{x.name.length > 18 ? `${x.name.slice(0, 17)}…` : x.name}</Text>

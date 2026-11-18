@@ -8,6 +8,9 @@ import { C, wide, type Reaction } from './model';
 /** Les six réactions permises (base : private.prono_reactions) ; jamais de texte libre ici. */
 export const REACTIONS = ['😂', '🔥', '🥔', '👀', '🤯', '👏'] as const;
 const NAMES: Record<string, string> = { '😂': 'mort de rire', '🔥': 'le feu', '🥔': 'patate', '👀': 'les yeux', '🤯': 'explosé', '👏': 'bravo' };
+/** La base garde la valeur « 🥔 » (et le testID « patate ») ; l'écran montre et dit des confettis. */
+const SHOWN: Record<string, string> = { '🥔': '🎊' };
+const SAY: Record<string, string> = { ...NAMES, '🥔': 'confettis' };
 
 /** Réactions (maquette 3-2) : grille de 6 capsules, bascule (retoucher l'enlève) ; à moi = lavande. */
 export function Reactions({ list, onReact, busy, waiting, patates }: {
@@ -23,10 +26,10 @@ export function Reactions({ list, onReact, busy, waiting, patates }: {
           const mine = !!r?.mine;
           return (
             <Pressable key={e} accessibilityRole="button" accessibilityState={{ selected: mine, disabled: busy }} disabled={busy}
-              accessibilityLabel={`Réaction ${NAMES[e]}${r?.count ? `, ${r.count}` : ''}${mine ? ', la tienne' : ''}`}
+              accessibilityLabel={`Réaction ${SAY[e]}${r?.count ? `, ${r.count}` : ''}${mine ? ', la tienne' : ''}`}
               onPress={() => onReact(e)} testID={`prono-react-${NAMES[e].replace(/\s/g, '-')}`}
               style={({ pressed }) => [st.pill, mine && st.mine, pressTransition, pressed && { transform: [{ scale: 1.1 }] }]}>
-              <Text style={{ fontSize: 21 }}>{e}</Text>
+              <Text style={{ fontSize: 21 }}>{SHOWN[e] ?? e}</Text>
               {r?.count ? <Text style={wide(16)}>{r.count}</Text> : null}
             </Pressable>
           );

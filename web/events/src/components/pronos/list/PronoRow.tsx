@@ -35,7 +35,7 @@ export function PronoRow({ p, d, push, compact = false, index = 0 }: {
   else if (!done) {
     sub.push('Scellé');
     if (mine) sub.push(mine);
-    if (pat && stake) sub.push(`${stake} 🥔`);
+    if (pat && stake) sub.push(`${stake} 🎊`);
     if (p.state === 'closed') sub.push(p.mine ? 'à toi de trancher' : `${p.creator.me ? 'toi' : p.creator.name} tranche`);
   } else if (p.state === 'cancelled') sub.push('Annulé');
   else {
@@ -51,11 +51,11 @@ export function PronoRow({ p, d, push, compact = false, index = 0 }: {
   else if (compact && !done && mine) right = <Text style={{ color: C.t2, fontSize: 13, fontWeight: '700' }}>🔒 {mine}</Text>;
   else if (p.state === 'open') right = <Countdown closesAt={p.closes_at} />;
   else if (p.state === 'closed') right = <View style={st.pill}><Text style={st.pillText}>🔒</Text></View>;
-  else if (unanimous && pat && stake) right = <View style={[st.pill, st.lav]}><Text style={[st.pillText, { color: C.lav }]}>↩ {stake} 🥔</Text></View>;
-  else if (p.won && pat && harvest != null) right = <View style={[st.pill, st.mint]}><Text style={[st.pillText, { color: C.mint }]}>+{harvest} 🥔</Text></View>;
+  else if (unanimous && pat && stake) right = <View style={[st.pill, st.lav]}><Text style={[st.pillText, { color: C.lav }]}>↩ {stake} 🎊</Text></View>;
+  else if (p.won && pat && harvest != null) right = <View style={[st.pill, st.mint]}><Text style={[st.pillText, { color: C.mint }]}>+{harvest} 🎊</Text></View>;
   else if (p.won && !pat) right = <View style={[st.pill, st.mint]}><Text style={[st.pillText, { color: C.mint }]}>+{p.points} pt{p.points > 1 ? 's' : ''}</Text></View>;
   else if (done && pat && p.answered && stake && p.state === 'done') {
-    right = <View style={st.pill}><Text style={[st.pillText, { color: C.miss }]}>{stake} 🥔</Text><Text style={{ color: C.miss, fontSize: 11 }}>au compost</Text></View>;
+    right = <View style={st.pill}><Text style={[st.pillText, { color: C.miss }]}>{stake} 🎊</Text><Text style={{ color: C.miss, fontSize: 11 }}>au balai</Text></View>;
   }
 
   return (

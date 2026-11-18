@@ -44,7 +44,7 @@ export const SHAPES = [
 ];
 export const shape = (i: number) => SHAPES[i % SHAPES.length];
 
-export const NO_VALUE = "Les patates n'ont aucune valeur : elles ne s'achètent pas, ne se vendent pas, ne s'échangent pas.";
+export const NO_VALUE = "Les confettis n'ont aucune valeur : ils ne s'achètent pas, ne se vendent pas, ne s'échangent pas.";
 
 // ───────── Données (clés v2 facultatives) ─────────
 export type Cover = { color?: string | null; emoji?: string | null; photo?: string | null } | null;

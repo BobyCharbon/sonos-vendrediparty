@@ -88,7 +88,7 @@ export default function PronoScreen() {
       {p.state === 'closed' && !(p.mine && p.can_result && p.kind !== 'majority' && p.kind !== 'award' && p.kind !== 'when') ? <Waiting p={p} /> : null}
       {p.state === 'done' ? <Finished p={p} busy={busy} act={act} call={call} /> : null}
       {p.state === 'cancelled' ? (
-        <T muted>Ce prono a été annulé : {withPatates(p) ? 'toutes les patates sont rendues, ' : ''}aucun point n’est compté.</T>
+        <T muted>Ce prono a été annulé : {withPatates(p) ? 'tous les confettis sont rendus, ' : ''}aucun point n’est compté.</T>
       ) : null}
       <ErrorText error={err} />
       {p.revealed && p.state === 'closed' && p.answers ? <Answers p={p} onReport={(author) => setReport({ label: 'cette réponse', author })} /> : null}

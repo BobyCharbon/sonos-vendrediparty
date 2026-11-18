@@ -103,7 +103,7 @@ function ResultStage({ p, onDone }: { p: V2; onDone: () => void }) {
             <K k="meta" style={{ height: 36, marginTop: -36, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
               <Text style={text(13, '500', N.t2)}>
                 <Text style={text(13, '700')}>{p.answered.length}</Text> {p.answered.length > 1 ? 'ont joué' : 'a joué'}
-                {pot && p.field ? <> · <Text style={text(13, '700')}>{p.field.total} 🥔</Text> dans le champ</> : null}
+                {pot && p.field ? <> · <Text style={text(13, '700')}>{p.field.total} 🎊</Text> sur la piste</> : null}
               </Text>
             </K>
           </View>
@@ -126,7 +126,7 @@ function ResultStage({ p, onDone }: { p: V2; onDone: () => void }) {
               <Text style={[round(44, 48), web({ backgroundImage: 'linear-gradient(90deg,#CBBDFF,#FFFFFF,#CBBDFF)', WebkitBackgroundClip: 'text',
                 backgroundClip: 'text', color: 'transparent' }) as object]}>Unanimes !</Text>
               <Text style={[text(15, '500', N.t2), { textAlign: 'center' }]}>
-                {pot ? 'Tout le monde récupère ses patates.' : 'Tout le monde avait vu juste.'}
+                {pot ? 'Tout le monde récupère ses confettis.' : 'Tout le monde avait vu juste.'}
               </Text>
             </K>
           ) : (
@@ -327,12 +327,12 @@ type Value = { n: number | null; tone: 'mint' | 'miss' | 'lav'; label: string; s
 /** Ce que ma carte affiche à droite : récolte, au compost, rendues, ou les points (pour l'honneur). */
 function cardValue(p: V2, fate: ReturnType<typeof myFate>, meRight: boolean, unanimous: boolean, pot: boolean): Value {
   if (pot && fate && fate.stake > 0) {
-    if (fate.kind === 'refund') return { n: fate.stake, tone: 'lav', label: 'Rendues', say: `${fate.stake} patates rendues`, roll: false, unit: 'potato' };
+    if (fate.kind === 'refund') return { n: fate.stake, tone: 'lav', label: 'Rendus', say: `${fate.stake} confettis rendus`, roll: false, unit: 'potato' };
     if (fate.kind === 'harvest') {
-      return { n: fate.harvest, tone: 'mint', label: 'Ta récolte', roll: true, unit: 'potato',
-        say: `ta récolte : ${fate.harvest} patates${p.settled ? '' : ', en attente 12 heures'}` };
+      return { n: fate.harvest, tone: 'mint', label: 'Tu ramasses', roll: true, unit: 'potato',
+        say: `tu ramasses ${fate.harvest} confettis${p.settled ? '' : ', en attente 12 heures'}` };
     }
-    if (fate.kind === 'compost') return { n: fate.stake, tone: 'miss', label: 'Au compost', say: `${fate.stake} patates au compost`, roll: false, unit: 'potato' };
+    if (fate.kind === 'compost') return { n: fate.stake, tone: 'miss', label: 'Au balai', say: `${fate.stake} confettis au balai`, roll: false, unit: 'potato' };
   }
   if (meRight && !unanimous) return { n: p.points, tone: 'mint', label: 'Au classement', say: `${p.points} points au classement`, roll: true, unit: 'points' };
   return { n: null, tone: 'miss', label: '', say: '', roll: false, unit: 'points' };
@@ -346,7 +346,7 @@ function MeCard({ p, played, meRight, unanimous, value, ended, onShare, onDone }
   const color = value.tone === 'mint' ? N.mint : value.tone === 'lav' ? N.lav : N.missText;
   const title = !played ? 'Tu n’as pas joué' : unanimous ? 'Vu juste, comme tous' : meRight ? 'Tu avais vu juste' : 'Pas cette fois';
   const sub = !played ? 'Le prochain, c’est le tien.' : unanimous ? (value.unit === 'potato' ? 'Personne ne perd rien.' : 'Toute la bande avait vu juste.')
-    : meRight ? (value.unit === 'potato' && p.my_answer?.stake ? `Tu en avais planté ${p.my_answer.stake} 🥔` : `Ta réponse : ${myAnswerText(p)}`)
+    : meRight ? (value.unit === 'potato' && p.my_answer?.stake ? `Tu en avais lancé ${p.my_answer.stake} 🎊` : `Ta réponse : ${myAnswerText(p)}`)
       : `Ta réponse : ${myAnswerText(p)}. La bonne : ${rightText(p) || '—'}.`;
   return (
     <K k="mecard" role="status" testID="prono-reveal-me"
@@ -372,7 +372,7 @@ function MeCard({ p, played, meRight, unanimous, value, ended, onShare, onDone }
             <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
               {value.roll ? <Roll to={value.n} delay={T.roll} duration={T.rollDur} done={ended} style={num(30, color)} />
                 : <Text style={num(30, color)}>{value.n}</Text>}
-              <Text style={num(value.unit === 'potato' ? 30 : 15, color)}>{value.unit === 'potato' ? ' 🥔' : ` pt${value.n > 1 ? 's' : ''}`}</Text>
+              <Text style={num(value.unit === 'potato' ? 30 : 15, color)}>{value.unit === 'potato' ? ' 🎊' : ` pt${value.n > 1 ? 's' : ''}`}</Text>
             </View>
           </View>
         ) : null}

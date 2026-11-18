@@ -14,7 +14,7 @@ NATIVE (4.2)
 Native tab bar; SwiftUI: Music, Settings, Discussions, Groups, Pronos, "Ton avis", AI assistant, "Pot commun", offline screen. Push (one switch per type), Live Activity, Wallet (tickets, bar card), QR scanner, VisionKit, Calendar, optional Contacts (hashed), dictation, share extension, universal links. Pyramide: cards in a native panel hidden from screenshots.
 
 WEB CONTENT (2.5.2)
-Events and Games tabs are our own site (party.bobycharbon.ch) in a WKWebView, same HTML/JS for all users, calling only the native features above. Other sites open in Safari. All is on in production, except "patates" (see PRONOS).
+Events and Games tabs are our own site (party.bobycharbon.ch) in a WKWebView, same HTML/JS for all users, calling only the native features above. Other sites open in Safari. All is on in production, except Confetti (see PRONOS).
 
 EVENTS
 "+ Proposer" or "Avec l'IA", then "Qui est invité": public, invitation or groups. Links for one person or "Plusieurs"; guests create, copy and stop own links, see counts only. Not public: someone coming through a guest's link waits ("À accepter"). Date poll. "Ajouter à mon agenda": personal calendar feed. Carpool (no money). QR ticket + Wallet. Groups: "Inviter avec un lien". Everyone signs in (name, nickname of 12 characters max). The page updates live; tap a name to open the profile; each answer shows its time. Admins: "Nouveau compte" alert, announcement or maintenance message.
@@ -35,7 +35,7 @@ GAMES (18+)
 Drinking modes optional, water counts, never ranked by drinks. No real-money gambling, purchases or prizes; no Casino/Blackjack.
 
 PRONOS (Simulated Gambling declared)
-Settings > Autres apps > Pronos, or a group / event: friends guess an outcome for fun; points on the group ranking. "Patates": free play tokens, 100 per group or event each week (refilled to 100, never above), 1 to 20 per prono, shared among right answers (no odds, nothing created by the app). They cannot be bought, sold, given, transferred, converted or exchanged for anything; no prizes. Money words, betting sites and alcohol refused. Patates are switched on in production only after this version is approved. Demo: group "Démo Apple" > Pronos.
+Settings > Autres apps > Pronos, or a group / event: friends guess an outcome for fun; points on the group ranking. Confetti (free, valueless play tokens): 100 per group or event each week (refilled to 100, never above), 1 to 20 per prono, shared among right answers (no odds, nothing created by the app). They cannot be bought, sold, given, transferred, converted or exchanged for anything; no prizes. Money words, betting sites and alcohol refused. Confetti are switched on in production only after this version is approved. Demo: group "Démo Apple" > Pronos.
 
 MUSIC
 Needs a live party (host's QR or 4-digit code).

@@ -70,12 +70,12 @@ struct PronoHonour: View {
 /// Rappel OBLIGATOIRE sous chaque sac (conformité 🔴) : les patates n'ont aucune valeur.
 struct PronoNoValue: View {
     var block = false
-    static let text = "Les patates n'ont aucune valeur : elles ne s'achètent pas, ne se vendent pas, ne s'échangent pas."
+    static let text = "Les confettis n'ont aucune valeur : ils ne s'achètent pas, ne se vendent pas, ne s'échangent pas."
 
     var body: some View {
         if block {
             HStack(alignment: .top, spacing: 12) {
-                Text("🥔").font(.title3).accessibilityHidden(true)
+                Text("🎊").font(.title3).accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 4) {
                     Text(Self.text).font(.subheadline).foregroundStyle(PronoTheme.t1)
                     Text("Juste pour le plaisir de voir juste entre amis.").font(.footnote).foregroundStyle(PronoTheme.t2)
@@ -313,7 +313,7 @@ struct PronoTerrainDot: View {
     }
 }
 
-/// « 🥔 » + nombre aux chiffres larges.
+/// « 🎊 » + nombre aux chiffres larges.
 struct PronoPotatoNumber: View {
     let value: Int
     var size: CGFloat = 17
@@ -325,11 +325,11 @@ struct PronoPotatoNumber: View {
             Text(sign && value > 0 ? "+\(value)" : value < 0 ? "−\(-value)" : "\(value)")
                 .font(.system(size: size, weight: .heavy).width(.expanded)).monospacedDigit()
                 .contentTransition(.numericText(countsDown: value < 0))
-            Text("🥔").font(.system(size: size * 0.8))
+            Text("🎊").font(.system(size: size * 0.8))
         }
         .foregroundStyle(tone)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(sign && value > 0 ? "plus \(value) patates" : "\(value) patates")
+        .accessibilityLabel(sign && value > 0 ? "plus \(value) confettis" : "\(value) confettis")
     }
 }
 
@@ -514,9 +514,9 @@ struct PronoListCard: View {
                     dot
                     Text("dévoilé dès 3 votes")
                 } else if patates, card.patates == true {
-                    Text("🥔")
-                    (Text("\(card.fieldTotal ?? 0)").bold().foregroundColor(PronoTheme.t1) + Text(" dans le champ"))
-                    if let n = card.planters { dot; Text("\(n) planteur\(n > 1 ? "s" : "")") }
+                    Text("🎊")
+                    (Text("\(card.fieldTotal ?? 0)").bold().foregroundColor(PronoTheme.t1) + Text(" sur la piste"))
+                    if let n = card.planters { dot; Text("\(n) lanceur\(n > 1 ? "s" : "")") }
                     if let rule = rule { dot; Text(rule) }
                 } else {
                     Text(rule ?? "Pour l'honneur")
@@ -639,7 +639,7 @@ struct PronoListCard: View {
                 mySeal
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Ta réponse est scellée").font(.subheadline.weight(.bold)).foregroundStyle(PronoTheme.t1)
-                    Text(stake > 0 ? "Scellée · \(stake) 🥔 plantées" : "Personne ne la voit avant le dévoilement")
+                    Text(stake > 0 ? "Scellée · \(stake) 🎊 lancés" : "Personne ne la voit avant le dévoilement")
                         .font(.footnote.weight(.medium)).foregroundStyle(PronoTheme.t2)
                 }
                 .accessibilityElement(children: .combine)
@@ -662,7 +662,7 @@ struct PronoListCard: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(card.answered ? "Ta réponse est scellée" : "Tu n'as pas joué").font(.subheadline.weight(.bold)).foregroundStyle(PronoTheme.t1)
                         Text(card.mine ? (card.kind == "when" ? "Tu organises : touche dès que c'est arrivé." : "Tu organises : donne le résultat.")
-                             : stake > 0 ? "Fermé · \(stake) 🥔 plantées · on attend le résultat" : "Fermé · on attend le résultat")
+                             : stake > 0 ? "Fermé · \(stake) 🎊 lancés · on attend le résultat" : "Fermé · on attend le résultat")
                             .font(.footnote.weight(.medium)).foregroundStyle(PronoTheme.t2)
                     }
                     Spacer(minLength: 0)
@@ -706,7 +706,7 @@ struct PronoListCard: View {
         let showPatates = patates && card.patates == true
         let stake = showPatates ? (card.myStake ?? 0) : 0
         if card.state == "cancelled" {
-            verdictRow(title: "Prono annulé", sub: stake > 0 ? "Tes patates sont rendues" : nil, tone: PronoTheme.t2) {
+            verdictRow(title: "Prono annulé", sub: stake > 0 ? "Tes confettis sont rendus" : nil, tone: PronoTheme.t2) {
                 if stake > 0 { returned(stake) }
             }
         } else if card.kind == "award", let w = card.winners?.first {
@@ -736,7 +736,7 @@ struct PronoListCard: View {
                     if showPatates, let h = card.myHarvest, h > 0 {
                         PronoPotatoNumber(value: h, size: 28, sign: true, tone: PronoTheme.mint)
                     } else if showPatates, stake > 0 {
-                        Text("Récolte après le temps de contester").font(.caption.weight(.semibold)).foregroundStyle(PronoTheme.t2)
+                        Text("Ramassés après le temps de contester").font(.caption.weight(.semibold)).foregroundStyle(PronoTheme.t2)
                             .multilineTextAlignment(.trailing).frame(maxWidth: 130, alignment: .trailing)
                     }
                 }
@@ -747,7 +747,7 @@ struct PronoListCard: View {
                     if h > 0 && h == stake { returned(h) } else if h == 0 && stake > 0 {
                         HStack(spacing: 6) {
                             PronoPotatoNumber(value: stake, size: 17, tone: PronoTheme.miss)
-                            Text("au compost").font(.footnote.weight(.semibold)).foregroundStyle(PronoTheme.miss)
+                            Text("au balai").font(.footnote.weight(.semibold)).foregroundStyle(PronoTheme.miss)
                         }
                     }
                 }
@@ -767,14 +767,14 @@ struct PronoListCard: View {
         HStack(spacing: 4) {
             Image(systemName: "arrow.uturn.backward").font(.caption.weight(.bold))
             Text("\(n)").font(.subheadline.weight(.heavy).width(.expanded)).monospacedDigit()
-            Text("🥔").font(.caption)
+            Text("🎊").font(.caption)
         }
         .foregroundStyle(PronoTheme.lav)
         .padding(.horizontal, 10).frame(height: 30)
         .background(PronoTheme.lav.opacity(0.14), in: Capsule())
         .overlay(Capsule().stroke(PronoTheme.lav.opacity(0.35), lineWidth: 1))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(n) patates rendues")
+        .accessibilityLabel("\(n) confettis rendus")
     }
 
     private func verdictRow<Trailing: View>(title: String, sub: String?, tone: Color, @ViewBuilder trailing: () -> Trailing) -> some View {
@@ -838,7 +838,7 @@ struct PronoListCard: View {
         case .wait: parts.append(card.state == "open" ? "ta réponse est scellée" : "fermé, on attend le résultat")
         case .done: parts.append(card.state == "cancelled" ? "annulé" : card.won ? "tu avais vu juste" : "terminé")
         }
-        if patates, card.patates == true, tab != .done { parts.append("\(card.fieldTotal ?? 0) patates dans le champ") }
+        if patates, card.patates == true, tab != .done { parts.append("\(card.fieldTotal ?? 0) confettis sur la piste") }
         parts.append("\(card.answeredCount) sur \(card.players) ont joué")
         return parts.joined(separator: ", ")
     }
@@ -890,7 +890,7 @@ struct PronoCompactRow: View {
         switch card.state {
         case "open":
             let stake = showPatates ? (card.myStake ?? 0) : 0
-            return "Scellée" + (stake > 0 ? " · \(stake) 🥔" : "") + " · \(card.answeredCount) ont joué"
+            return "Scellée" + (stake > 0 ? " · \(stake) 🎊" : "") + " · \(card.answeredCount) ont joué"
         case "closed": return card.mine ? "Fermé · à toi de donner le résultat" : "Fermé · on attend le résultat"
         case "cancelled": return "Annulé"
         default:
@@ -918,8 +918,8 @@ struct PronoCompactRow: View {
                     PatateBadge(n: h, tone: .lav)
                 } else if h == 0 && stake > 0 {
                     VStack(spacing: 0) {
-                        Text("\(stake) 🥔").font(.footnote.weight(.heavy)).foregroundStyle(PronoTheme.miss)
-                        Text("au compost").font(.caption2).foregroundStyle(PronoTheme.miss)
+                        Text("\(stake) 🎊").font(.footnote.weight(.heavy)).foregroundStyle(PronoTheme.miss)
+                        Text("au balai").font(.caption2).foregroundStyle(PronoTheme.miss)
                     }
                 }
             }
@@ -1117,7 +1117,7 @@ struct PronosMineView: View {
             .overlay(Capsule().stroke(on ? g.to.opacity(0.7) : PronoTheme.line, lineWidth: on ? 1.5 : 1))
         }
         .buttonStyle(PressableStyle())
-        .accessibilityLabel("\(t.name), \(bags[t.key]?.balance ?? 0) patates")
+        .accessibilityLabel("\(t.name), \(bags[t.key]?.balance ?? 0) confettis")
         .accessibilityAddTraits(on ? .isSelected : [])
         .accessibilityIdentifier("prono-bag-chip-" + t.key)
     }
@@ -1153,7 +1153,7 @@ struct PronosMineView: View {
             }
         case .done:
             if items.isEmpty {
-                PronoEmptyNote(title: "Pas encore de résultat", text: "Les pronos dévoilés arrivent ici, avec ta récolte.")
+                PronoEmptyNote(title: "Pas encore de résultat", text: "Les pronos dévoilés arrivent ici, avec ce que tu ramasses.")
             } else {
                 let sorted = items.sorted { ($0.endDate ?? .distantPast) > ($1.endDate ?? .distantPast) }
                 let week = Date().addingTimeInterval(-7 * 86_400)
@@ -1329,7 +1329,7 @@ struct PronoFirstCard: View {
     }
 }
 
-/// Le sac en vedette de la liste (1-liste : « Ton sac · … 86 🥔 remonte à 100 lundi à 0 h »).
+/// Le sac en vedette de la liste (1-liste : « Ton sac · … 86 🎊 remonte à 100 lundi à 0 h »).
 struct PronoBagHero: View {
     let terrain: PronoTerrain
     let bag: PronoBag
@@ -1354,7 +1354,7 @@ struct PronoBagHero: View {
                     HStack(alignment: .lastTextBaseline, spacing: 4) {
                         Text("\(bag.balance)").font(.system(size: big, weight: .heavy).width(.expanded)).monospacedDigit()
                             .contentTransition(.numericText()).foregroundStyle(PronoTheme.t1)
-                        Text("🥔").font(.system(size: big * 0.54))
+                        Text("🎊").font(.system(size: big * 0.54))
                     }
                     Group {
                         if bag.balance >= 100 {
@@ -1375,8 +1375,8 @@ struct PronoBagHero: View {
                 }
                 .frame(height: 6).padding(.top, 14)
                 HStack(spacing: 8) {
-                    tile(planted.pronos > 0 ? "Plantées · \(planted.pronos) prono\(planted.pronos > 1 ? "s" : "")" : "Plantées", value: planted.n, tone: PronoTheme.t1, sign: false)
-                    tile("Récolte \(PronoDates.ofMonth(Date()))", value: bag.season?.harvestNet ?? 0, tone: (bag.season?.harvestNet ?? 0) > 0 ? PronoTheme.mint : PronoTheme.t1, sign: true)
+                    tile(planted.pronos > 0 ? "Lancés · \(planted.pronos) prono\(planted.pronos > 1 ? "s" : "")" : "Lancés", value: planted.n, tone: PronoTheme.t1, sign: false)
+                    tile("Ramassés en \(PronoDates.monthName(Date()))", value: bag.season?.harvestNet ?? 0, tone: (bag.season?.harvestNet ?? 0) > 0 ? PronoTheme.mint : PronoTheme.t1, sign: true)
                 }
                 .padding(.top, 14)
             }
@@ -1398,7 +1398,7 @@ struct PronoBagHero: View {
         }
         .buttonStyle(PressableStyle(scale: 0.98))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Ton sac, \(terrain.name) : \(bag.balance) patates. \(bag.balance >= 100 ? "Ton sac est plein." : "Remonte à 100 lundi à 0 heure.")")
+        .accessibilityLabel("Ton sac, \(terrain.name) : \(bag.balance) confettis. \(bag.balance >= 100 ? "Ton sac est plein." : "Remonte à 100 lundi à 0 heure.")")
         .accessibilityHint("Ouvre ton sac et ton historique")
         .accessibilityIdentifier("prono-bag")
         .onAppear {
@@ -1490,13 +1490,13 @@ struct PronoGroupPage: View {
                     Button { PronoHaptics.soft(); bagSheet = terrain } label: {
                         HStack(spacing: 4) {
                             Text("\(bag.balance)").font(.subheadline.weight(.heavy).width(.expanded)).monospacedDigit()
-                            Text("🥔").font(.footnote)
+                            Text("🎊").font(.footnote)
                         }
                         .foregroundStyle(PronoTheme.t1)
                         .padding(.horizontal, 12).frame(height: 36)
                         .background(.ultraThinMaterial, in: Capsule())
                     }
-                    .accessibilityLabel("Ton sac : \(bag.balance) patates")
+                    .accessibilityLabel("Ton sac : \(bag.balance) confettis")
                     .accessibilityIdentifier("prono-bag-chip")
                 }
             }
@@ -1550,7 +1550,7 @@ struct PronoGroupPage: View {
 
     @ViewBuilder private var standings: some View {
         if patates {
-            PronoSegments(tabs: [(tab: 0, title: "Saison 🥔", count: nil, hot: false, id: "prono-season-tab"),
+            PronoSegments(tabs: [(tab: 0, title: "Saison 🎊", count: nil, hot: false, id: "prono-season-tab"),
                                  (tab: 1, title: "Points", count: nil, hot: false, id: "prono-points-tab")], selection: $view)
                 .accessibilityElement(children: .contain).accessibilityIdentifier("pronos-tabs")
                 .padding(.top, 24)
@@ -1729,9 +1729,9 @@ struct PronoPodium: View {
 
 /// Récolte nette : + menthe, 0 clair, − gris (jamais rouge).
 private func harvestText(_ n: Int) -> (String, Color) {
-    if n > 0 { return ("+\(n) 🥔", PronoTheme.mint) }
-    if n < 0 { return ("−\(-n) 🥔", Color(hex: 0xC9C4DD)) }
-    return ("0 🥔", PronoTheme.t1)
+    if n > 0 { return ("+\(n) 🎊", PronoTheme.mint) }
+    if n < 0 { return ("−\(-n) 🎊", Color(hex: 0xC9C4DD)) }
+    return ("0 🎊", PronoTheme.t1)
 }
 
 /// Carte « Saison de … » de la page du groupe : podium, ma ligne, « Tout le classement ».
@@ -1790,7 +1790,7 @@ struct PronoSeasonRow: View {
         .background(mine ? PronoTheme.lav.opacity(0.10) : .clear, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(mine ? PronoTheme.lav.opacity(0.45) : .clear, lineWidth: 1.5))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(row.rank)\(row.rank == 1 ? "er" : "e"), \(row.user.label), \(row.right) justes sur \(row.played), récolte \(row.harvestNet) patates\(moveA11y)")
+        .accessibilityLabel("\(row.rank)\(row.rank == 1 ? "er" : "e"), \(row.user.label), \(row.right) justes sur \(row.played), \(row.harvestNet) confettis ramassés\(moveA11y)")
     }
 
     @ViewBuilder private var move: some View {
@@ -1855,7 +1855,7 @@ struct PronoSeasonView: View {
                             .frame(maxWidth: .infinity).padding(.top, 12)
                     } else {
                         titles(rows)
-                        PronoCaps(text: "Toute la saison", trailing: "Récolte nette").padding(.top, 12).padding(.bottom, 10)
+                        PronoCaps(text: "Toute la saison", trailing: "Ramassés ce mois-ci").padding(.top, 12).padding(.bottom, 10)
                         VStack(spacing: 0) {
                             ForEach(Array(rows.enumerated()), id: \.element.id) { i, r in
                                 if i > 0 && r.user.me != true && rows[i - 1].user.me != true {
@@ -1874,7 +1874,7 @@ struct PronoSeasonView: View {
                     ProgressView().frame(maxWidth: .infinity).padding(.top, 60)
                 }
                 (Text("Comment on classe ? ").bold().foregroundColor(PronoTheme.t1)
-                 + Text("À la récolte nette de la saison : ce que tes pronos t'ont rendu, moins ce que tu as planté. Ton sac n'y compte pas. Nouvelle saison le 1er de chaque mois."))
+                 + Text("Aux confettis ramassés ce mois-ci : ce que tes pronos t'ont rendu, moins ce que tu as lancé. Ton sac n'y compte pas. Nouvelle saison le 1er de chaque mois."))
                     .font(.subheadline).foregroundStyle(PronoTheme.t2)
                     .padding(18)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -1884,7 +1884,7 @@ struct PronoSeasonView: View {
                 if let bag {
                     Button { PronoHaptics.soft(); bagSheet = terrain } label: {
                         HStack(spacing: 14) {
-                            Text("🥔").font(.title2).frame(width: 52, height: 52).background(PronoTheme.s3, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            Text("🎊").font(.title2).frame(width: 52, height: 52).background(PronoTheme.s3, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Ton sac").font(.headline).foregroundStyle(PronoTheme.t1)
                                 Text(bag.balance >= 100 ? "Ton sac est plein" : "Remonte à 100 lundi s'il est en dessous").font(.footnote).foregroundStyle(PronoTheme.t2)
@@ -2143,13 +2143,13 @@ struct PronoBagSheet: View {
                 VStack(spacing: 4) {
                     Text("\(bag.balance)").font(.system(size: big, weight: .heavy).width(.expanded)).monospacedDigit()
                         .contentTransition(.numericText()).foregroundStyle(PronoTheme.t1)
-                    Text("🥔 dans ton sac").font(.footnote.weight(.semibold)).foregroundStyle(PronoTheme.t2)
+                    Text("🎊 dans ton sac").font(.footnote.weight(.semibold)).foregroundStyle(PronoTheme.t2)
                 }
             }
             .frame(width: 196, height: 196)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(bag.balance) patates dans ton sac")
+        .accessibilityLabel("\(bag.balance) confettis dans ton sac")
     }
 
     private func refill(_ bag: PronoBag) -> some View {
@@ -2178,8 +2178,8 @@ struct PronoBagSheet: View {
         let p = plantedNow
         let harvest = bag.season?.harvestNet ?? 0
         return HStack(spacing: 8) {
-            tile("Plantées", value: PronoPotatoNumber(value: p.n, size: 22), sub: p.pronos > 0 ? "dans \(p.pronos) prono\(p.pronos > 1 ? "s" : "")" : "rien en terre")
-            tile("Récolte", value: PronoPotatoNumber(value: harvest, size: 22, sign: true, tone: harvest > 0 ? PronoTheme.mint : PronoTheme.t1), sub: "en \(PronoDates.monthName(Date()))")
+            tile("Lancés", value: PronoPotatoNumber(value: p.n, size: 22), sub: p.pronos > 0 ? "dans \(p.pronos) prono\(p.pronos > 1 ? "s" : "")" : "rien sur la piste")
+            tile("Ramassés", value: PronoPotatoNumber(value: harvest, size: 22, sign: true, tone: harvest > 0 ? PronoTheme.mint : PronoTheme.t1), sub: "en \(PronoDates.monthName(Date()))")
             if let me {
                 tile("Justesse", value: Text("\(me.right)/\(me.played)").font(.system(size: 22, weight: .heavy).width(.expanded)).monospacedDigit().foregroundStyle(PronoTheme.t1), sub: "vues justes")
             }
@@ -2203,11 +2203,11 @@ struct PronoBagSheet: View {
         VStack(alignment: .leading, spacing: 0) {
             PronoCaps(text: "Comment ça marche").padding(.bottom, 10)
             VStack(spacing: 0) {
-                how("🥔", Text("100 patates").bold() + Text(" au départ, un sac par groupe et par soirée."))
+                how("🎊", Text("100 confettis").bold() + Text(" au départ, un sac par groupe et par soirée."))
                 Rectangle().fill(PronoTheme.line).frame(height: 1).padding(.leading, 56)
                 how("↻", Text("Chaque ") + Text("lundi").bold() + Text(", ton sac remonte à 100 s'il est plus bas."))
                 Rectangle().fill(PronoTheme.line).frame(height: 1).padding(.leading, 56)
-                how("🌱", Text("Plante ") + Text("1 à 20 🥔").bold() + Text(" par prono. Ceux qui voient juste se partagent le champ."))
+                how("🪩", Text("Lance ") + Text("1 à 20 🎊").bold() + Text(" par prono. Ceux qui voient juste se partagent la piste."))
             }
             .padding(.horizontal, 12)
             .background(PronoTheme.s3, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
@@ -2234,7 +2234,7 @@ struct PronoBagSheet: View {
         }
         .padding(.top, 12).padding(.bottom, 4)
         if days.isEmpty {
-            Text("Rien pour l'instant : plante tes premières patates sur un prono.").font(.subheadline).foregroundStyle(PronoTheme.t2)
+            Text("Rien pour l'instant : lance tes premiers confettis sur un prono.").font(.subheadline).foregroundStyle(PronoTheme.t2)
                 .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
         }
         ForEach(days, id: \.title) { day in
@@ -2277,12 +2277,12 @@ struct PronoBagSheet: View {
     private func moveRow(_ m: PronoBagMove) -> some View {
         let info: (icon: String, title: String, sub: String?, tone: Color) = {
             switch m.reason {
-            case "plant": return ("🌱", composted(m) ? "Plantées · parties au compost" : "Plantées", m.prono?.question, PronoTheme.t1)
-            case "unplant": return ("↩︎", "Reprises", m.prono?.question, PronoTheme.lav)
-            case "refund": return ("↩︎", "Rendues", m.prono?.question, PronoTheme.lav)
-            case "harvest": return ("🧺", "Ta récolte", m.prono?.question, PronoTheme.mint)
+            case "plant": return ("🪩", composted(m) ? "Lancés · partis au balai" : "Lancés", m.prono?.question, PronoTheme.t1)
+            case "unplant": return ("↩︎", "Repris", m.prono?.question, PronoTheme.lav)
+            case "refund": return ("↩︎", "Rendus", m.prono?.question, PronoTheme.lav)
+            case "harvest": return ("🧺", "Ramassés", m.prono?.question, PronoTheme.mint)
             case "refill": return ("↻", "Remontée du lundi", "Ton sac est revenu à 100", PronoTheme.mint)
-            default: return ("🥔", "Sac de départ", "100 patates pour commencer", PronoTheme.mint)
+            default: return ("🎊", "Sac de départ", "100 confettis pour commencer", PronoTheme.mint)
             }
         }()
         return HStack(spacing: 12) {

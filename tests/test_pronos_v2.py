@@ -99,7 +99,7 @@ def test_faces_of_the_new_answers_get_a_signed_photo(client, monkeypatch):
                                               {"user": face("b", None), "harvest_net": -4, "rank": 2}],
               "me": {"user": face("c", "c/p.png"), "rank": 3}}
     detail = {"id": PRONO, "faces": [face("a", "a/p.png")], "answers": [{"user": face("c", "c/p.png"), "stake": 5}],
-              "reactions": [{"emoji": "🥔", "count": 2, "mine": True}]}
+              "reactions": [{"emoji": "🎊", "count": 2, "mine": True}]}
     signed = mock.Mock(status_code=200, json=lambda: [
         {"path": p, "signedURL": f"/object/sign/profile-photos/{p}?token=x"} for p in ("a/p.png", "c/p.png")])
     for fn, data in (("prono_season", season), ("prono_contest", detail), ("prono_react", detail), ("prono_optout", detail)):

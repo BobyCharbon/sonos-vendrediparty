@@ -56,10 +56,10 @@ export function Play({ p, pick, busy, act }: { p: PronoV2; pick?: string | null;
       ) : null}
       <View style={st.sealBar}>
         {label ? (
-          <View style={st.summary} accessibilityLabel={`${label}${patates ? `, avec ${planted} patates` : ''}`}>
+          <View style={st.summary} accessibilityLabel={`${label}${patates ? `, avec ${planted} confettis` : ''}`}>
             <AnswerShape index={index >= 0 ? index : null} />
             <Text style={{ color: C.t1, fontSize: 16, fontWeight: '700' }} numberOfLines={1}>{label}</Text>
-            {patates ? <Text style={st.help}>{planted ? `avec ${planted} 🥔` : 'sans patates'}</Text> : null}
+            {patates ? <Text style={st.help}>{planted ? `avec ${planted} 🎊` : 'sans confettis'}</Text> : null}
           </View>
         ) : null}
         <View testID="prono-seal">

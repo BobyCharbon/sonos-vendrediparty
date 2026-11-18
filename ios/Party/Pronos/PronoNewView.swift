@@ -758,7 +758,7 @@ struct PronoNewView: View {
                 howRow("🙋", "Chacun peut se retirer", " de la liste des nommés.")
             }
             .npGlass(24)
-            Text("Pour l'honneur : jamais de patates pour un trophée.").font(.footnote).foregroundStyle(NP.t2)
+            Text("Pour l'honneur : jamais de confettis pour un trophée.").font(.footnote).foregroundStyle(NP.t2)
         }
     }
 
@@ -962,12 +962,12 @@ struct PronoNewView: View {
     private var patatesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                NPLabel(text: "Patates 🥔")
+                NPLabel(text: "Confettis 🎊")
                 Spacer()
                 if !terrainName.isEmpty { NPCount(text: terrainName) }
             }
             HStack(spacing: 12) {
-                NPChoiceCard(emoji: "🥔", title: "Avec patates", detail: "De 0 à 20 chacun", selected: patates) {
+                NPChoiceCard(emoji: "🎊", title: "Avec confettis", detail: "De 0 à 20 chacun", selected: patates) {
                     patates = true
                 }
                 .accessibilityIdentifier("prono-patates-on")
@@ -979,18 +979,18 @@ struct PronoNewView: View {
             if patates {
                 VStack(spacing: 14) {
                     HStack(alignment: .top, spacing: 4) {
-                        patateStep("🥔", "On plante", "0 à 20 de ton sac")
+                        patateStep("🎊", "On lance", "0 à 20 de ton sac")
                         Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(NP.t3).padding(.top, 22)
-                        patateStep("🌱", "Le champ", "grandit en secret")
+                        patateStep("🪩", "La piste", "se remplit en secret")
                         Image(systemName: "chevron.right").font(.caption.weight(.bold)).foregroundStyle(NP.t3).padding(.top, 22)
-                        patateStep("🧺", "La récolte", "pour qui a vu juste")
+                        patateStep("🧺", "On ramasse", "si on a vu juste")
                     }
                     .accessibilityElement(children: .combine)
                     Divider().overlay(NP.amber.opacity(0.25))
                     HStack(alignment: .top, spacing: 10) {
                         Image(systemName: "info.circle").foregroundStyle(NP.amber).accessibilityHidden(true)
-                        (Text("Les patates n'ont aucune valeur : ").bold().foregroundColor(NP.t1)
-                         + Text("elles ne s'achètent pas, ne se vendent pas, ne s'échangent pas. Personne n'a vu juste ? Chacun récupère les siennes.")
+                        (Text("Les confettis n'ont aucune valeur : ").bold().foregroundColor(NP.t1)
+                         + Text("ils ne s'achètent pas, ne se vendent pas, ne s'échangent pas. Personne n'a vu juste ? Chacun récupère les siens.")
                             .foregroundColor(NP.t2))
                             .font(.subheadline)
                     }
@@ -1065,7 +1065,7 @@ struct PronoNewView: View {
             if !people.isEmpty { return "\(people.count) personne\(people.count > 1 ? "s" : "")" }
             return link ? "par lien" : "choisis qui joue"
         }()
-        return [who, NPDates.short(end), usesPatates ? "🥔 patates" : "pour l'honneur"].joined(separator: " · ")
+        return [who, NPDates.short(end), usesPatates ? "🎊 confettis" : "pour l'honneur"].joined(separator: " · ")
     }
 
     // MARK: - 4. C'est lancé !
@@ -2163,7 +2163,7 @@ private struct NPCard: View {
             if launched {
                 HStack {
                     if patates {
-                        Text("🥔 0 dans le champ").font(.subheadline.weight(.bold)).foregroundStyle(NP.amber)
+                        Text("🎊 0 sur la piste").font(.subheadline.weight(.bold)).foregroundStyle(NP.amber)
                             .padding(.horizontal, 12).frame(minHeight: 32).background(NP.amber.opacity(0.16), in: Capsule())
                     }
                     Spacer(minLength: 0)

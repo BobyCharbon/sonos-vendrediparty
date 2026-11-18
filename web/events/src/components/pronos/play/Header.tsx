@@ -18,7 +18,7 @@ export function Header({ p, compact, onBack, onShare, onMore }: {
   const patates = withPatates(p);
   const tags: { key: string; icon?: boolean; label: string; tone?: 'patate' }[] = [{ key: 'kind', icon: true, label: kindLabel(p.kind) }];
   if (p.not_over) tags.push({ key: 'not_over', label: '↓ Sans dépasser' });
-  if (patates) tags.push({ key: 'patates', label: '🥔 Avec patates', tone: 'patate' });
+  if (patates) tags.push({ key: 'patates', label: '🎊 Avec confettis', tone: 'patate' });
   if (p.kind !== 'award') tags.push({ key: 'points', label: patates ? pointsLabel(p.points) : `${pointsLabel(p.points)}, pour l’honneur` });
   if (p.mine && p.state === 'open') tags.push({ key: 'played', label: `${p.answered.length} ${p.answered.length > 1 ? 'ont joué' : 'a joué'}` });
   const place = p.group ? p.group.name : p.event ? p.event.title : null;

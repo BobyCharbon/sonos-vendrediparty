@@ -54,7 +54,7 @@ chats_tab = lambda page: page.locator('#tabs [data-tab="chats"]')
 def test_server_says_production_features(prod_origin):
     assert httpx.get(f'{prod_origin}/api/features').json() == {'compagnon': False, 'discussions': False, 'invites_v2': False,
                                                               'bar': False,  # bar de la soirée : en construction
-                                                              'patates': False}  # patates des Pronos v2 : bêta
+                                                              'patates': False}  # confettis des Pronos v2 (clé « patates ») : bêta
     page = httpx.get(prod_origin).text
     assert 'data-discussions="off"' in page and 'data-compagnon="off"' in page and 'data-events=' not in page
     module = httpx.get(f'{prod_origin}/events/').text

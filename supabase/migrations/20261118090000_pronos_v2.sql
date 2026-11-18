@@ -117,10 +117,14 @@ create table if not exists private.prono_contest_votes (
 create table if not exists private.prono_reactions (
   prono_id uuid not null references private.pronos (id) on delete cascade,
   user_id uuid not null references public.profiles (id) on delete cascade,
-  emoji text not null check (emoji in ('😂', '🔥', '🥔', '👀', '🤯', '👏')),
+  emoji text not null check (emoji in ('😂', '🔥', '🎊', '🥔', '👀', '🤯', '👏')),
   at timestamptz not null default now(),
   primary key (prono_id, user_id, emoji)
 );
+-- Patates → confettis (18.11) : la réaction 🎊 remplace 🥔 à l'écran ; 🥔 reste acceptée (réactions déjà posées).
+alter table private.prono_reactions drop constraint if exists prono_reactions_emoji_check;
+alter table private.prono_reactions add constraint prono_reactions_emoji_check
+  check (emoji in ('😂', '🔥', '🎊', '🥔', '👀', '🤯', '👏'));
 
 create table if not exists private.prono_optouts (
   prono_id uuid not null references private.pronos (id) on delete cascade,
@@ -171,9 +175,9 @@ begin
   if l ~ '\m(betclic|unibet|winamax|swisslos|loterie romande|jouez ?sport|pmu|bwin|betway|pokerstars|parions ?sport|zebet|bookmakers?|bookmakeurs?|casinos?|paris sportifs?)\M' then
     raise exception 'content_refused: Pas de jeux d''argent ni de sites de jeux dans les pronos.' using errcode = '23514';
   end if;
-  if l ~ '\m(vend|vends|vendre|vendu|vendue|vendus|vente|achat|achete|achetes|acheter|achetez|rachete|racheter|rachetes|troque|troquer|echange|echanger|echanges)\M.{0,40}\mpatates?\M'
-     or l ~ '\mpatates?\M.{0,20}\m(a vendre|a acheter|contre de l|contre des sous)\M' then
-    raise exception 'content_refused: Les patates ne se vendent pas, ne s''achètent pas et ne s''échangent pas.' using errcode = '23514';
+  if l ~ '\m(vend|vends|vendre|vendu|vendue|vendus|vente|achat|achete|achetes|acheter|achetez|rachete|racheter|rachetes|troque|troquer|echange|echanger|echanges)\M.{0,40}\m(patates?|confettis?)\M'
+     or l ~ '\m(patates?|confettis?)\M.{0,20}\m(a vendre|a acheter|contre de l|contre des sous)\M' then
+    raise exception 'content_refused: Les confettis ne se vendent pas, ne s''achètent pas et ne s''échangent pas.' using errcode = '23514';
   end if;
   return private.moderate_text(s, 'name');
 end $$;
@@ -298,7 +302,7 @@ revoke all on function private.prono_settle(uuid) from public, anon, authenticat
 
 -- ───────────── Notifications du résultat ─────────────
 
--- « 🔮 Tu l'avais vu ! +18 🥔 » ; « La réponse était … » (rien après une perte, jamais culpabilisant).
+-- « 🔮 Tu l'avais vu ! +18 🎊 » ; « La réponse était … » (rien après une perte, jamais culpabilisant).
 create or replace function private.prono_notify_result(pid uuid, label text) returns void
 language plpgsql security definer set search_path = '' as $$
 declare p private.pronos; r record; body text; pts text; names text; cat private.prono_award_categories; laur uuid[];
@@ -325,14 +329,14 @@ begin
            where a.prono_id = p.id loop
     if r.winner then
       if p.patates and r.stake > 0 then
-        body := '🔮 Tu l''avais vu ! ' || case when r.refund then 'Tes ' || r.stake || ' 🥔 sont rendues' else '+' || r.back || ' 🥔' end
+        body := '🔮 Tu l''avais vu ! ' || case when r.refund then 'Tes ' || r.stake || ' 🎊 sont rendus' else '+' || r.back || ' 🎊' end
                 || ' · ' || pts || ' · ' || p.question;
       else
         body := 'Tu avais vu juste : ' || pts || ' · ' || p.question;
       end if;
     else
       body := coalesce('La réponse était ' || label || ' · ', '')
-              || case when p.patates and r.stake > 0 and r.refund then 'tes ' || r.stake || ' 🥔 sont rendues · ' else '' end
+              || case when p.patates and r.stake > 0 and r.refund then 'tes ' || r.stake || ' 🎊 sont rendus · ' else '' end
               || p.question;
     end if;
     perform public.queue_notification(r.user_id, 'prono_result', null, '🔮 Résultat du prono · ' || private.prono_where(p),
@@ -372,7 +376,7 @@ begin
       if voters > 0 then
         for r in select a.user_id, a.stake from private.prono_answers a where a.prono_id = p.id loop
           perform public.queue_notification(r.user_id, 'prono_result', null, '🔮 Résultat du prono · ' || private.prono_where(p),
-            'Égalité dans la bande ! ' || case when p.patates and r.stake > 0 then 'Tes ' || r.stake || ' 🥔 sont rendues · ' else '' end
+            'Égalité dans la bande ! ' || case when p.patates and r.stake > 0 then 'Tes ' || r.stake || ' 🎊 sont rendus · ' else '' end
             || p.question, 'prono_result:' || p.id || ':' || r.user_id,
             jsonb_build_object('prono_id', p.id, 'url', '/?tab=events&prono=' || p.id));
         end loop;
@@ -634,7 +638,7 @@ begin
     raise exception 'invalid: Choisis le type de réponse.' using errcode = '22023';
   end if;
   if v_pat and not private.patates_on() then
-    raise exception 'forbidden: Les patates arrivent bientôt.' using errcode = '42501';
+    raise exception 'forbidden: Les confettis arrivent bientôt.' using errcode = '42501';
   end if;
   if k = 'award' then
     v_award := body ->> 'award';
@@ -675,10 +679,10 @@ begin
   end if;
   if v_pat then
     if g is null and e is null then
-      raise exception 'invalid: Les patates se plantent seulement dans un groupe ou un événement.' using errcode = '22023';
+      raise exception 'invalid: Les confettis se lancent seulement dans un groupe ou un événement.' using errcode = '22023';
     end if;
     if k in ('award', 'text') then
-      raise exception 'invalid: Ce type de prono se joue sans patates.' using errcode = '22023';
+      raise exception 'invalid: Ce type de prono se joue sans confettis.' using errcode = '22023';
     end if;
   end if;
   if jsonb_typeof(body -> 'people') = 'array' then
@@ -794,10 +798,10 @@ begin
     if body ? 'patates' then
       if coalesce((body ->> 'patates')::boolean, false) then
         if not private.patates_on() then
-          raise exception 'forbidden: Les patates arrivent bientôt.' using errcode = '42501';
+          raise exception 'forbidden: Les confettis arrivent bientôt.' using errcode = '42501';
         end if;
         if private.prono_terrain(p) is null or p.kind in ('award', 'text') then
-          raise exception 'invalid: Les patates se plantent seulement dans un groupe ou un événement, sur un prono à réponse.' using errcode = '22023';
+          raise exception 'invalid: Les confettis se lancent seulement dans un groupe ou un événement, sur un prono à réponse.' using errcode = '22023';
         end if;
       end if;
       update private.pronos x set patates = coalesce((body ->> 'patates')::boolean, false) where x.id = p.id returning * into p;
@@ -887,18 +891,18 @@ begin
   end if;
   if answer ? 'stake' then
     begin stk := (answer ->> 'stake')::int; exception when others then stk := null; end;
-    if stk is null or stk < 0 or stk > 20 then raise exception 'invalid: De 0 à 20 🥔 par prono.' using errcode = '22023'; end if;
+    if stk is null or stk < 0 or stk > 20 then raise exception 'invalid: De 0 à 20 🎊 par prono.' using errcode = '22023'; end if;
   else
     stk := coalesce(old.stake, 0);
   end if;
   delta := stk - coalesce(old.stake, 0);
-  if stk > 0 and not p.patates then raise exception 'invalid: Ce prono se joue sans patates.' using errcode = '22023'; end if;
-  if delta > 0 and not private.patates_on() then raise exception 'forbidden: Les patates arrivent bientôt.' using errcode = '42501'; end if;
+  if stk > 0 and not p.patates then raise exception 'invalid: Ce prono se joue sans confettis.' using errcode = '22023'; end if;
+  if delta > 0 and not private.patates_on() then raise exception 'forbidden: Les confettis arrivent bientôt.' using errcode = '42501'; end if;
   if delta <> 0 then
     t := private.prono_terrain(p);
     bal := private.prono_bag_touch(t, me);
     if delta > bal then
-      raise exception 'not_enough: Ton sac n''a que % 🥔.', bal using errcode = '22023';
+      raise exception 'not_enough: Ton sac n''a que % 🎊.', bal using errcode = '22023';
     end if;
     perform private.prono_bag_add(t, me, p.id, -delta, case when delta > 0 then 'plant' else 'unplant' end);
   end if;
@@ -1054,7 +1058,7 @@ begin
     raise exception 'locked: Des personnes ont joué : annule le prono plutôt.' using errcode = '22023';
   end if;
   if p.settled_at is null and exists (select 1 from private.prono_answers a where a.prono_id = p.id and a.stake > 0) then
-    raise exception 'locked: Des patates sont encore dans le champ : attends la fin de la contestation.' using errcode = '22023';
+    raise exception 'locked: Des confettis sont encore sur la piste : attends la fin de la contestation.' using errcode = '22023';
   end if;
   delete from private.pronos x where x.id = p.id;
   perform private.prono_signal(p);
@@ -1147,7 +1151,7 @@ begin
   if p.id is null or not private.prono_can_play(p, me) then
     raise exception 'not_found: Ce prono n''existe plus ou ne t''est pas ouvert.' using errcode = 'PT404';
   end if;
-  if prono_react.emoji is null or prono_react.emoji not in ('😂', '🔥', '🥔', '👀', '🤯', '👏') then
+  if prono_react.emoji is null or prono_react.emoji not in ('😂', '🔥', '🎊', '🥔', '👀', '🤯', '👏') then
     raise exception 'invalid: Réaction inconnue.' using errcode = '22023';
   end if;
   delete from private.prono_reactions x where x.prono_id = p.id and x.user_id = me and x.emoji = prono_react.emoji;
@@ -1461,7 +1465,7 @@ grant execute on function public.prono_report_answer(uuid, uuid, text, text) to 
 
 do $$ declare def text;
 begin
-  -- Motif « money » : « Demande d'argent ou vente de patates ».
+  -- Motif « money » : « Demande d'argent ou vente de confettis ».
   def := pg_get_constraintdef((select oid from pg_constraint where conname = 'content_reports_reason_check'
                                 and conrelid = 'public.content_reports'::regclass));
   if position('''money''' in def) = 0 then
@@ -1484,7 +1488,9 @@ begin
   if position('''money''' in def) = 0 then
     if position($a$when 'scam' then 'Arnaque ou vente'$a$ in def) = 0 then raise exception 'notify_new_report : ancre scam introuvable'; end if;
     execute replace(def, $a$when 'scam' then 'Arnaque ou vente'$a$,
-      $a$when 'scam' then 'Arnaque ou vente' when 'money' then 'Demande d''argent ou vente de patates'$a$);
+      $a$when 'scam' then 'Arnaque ou vente' when 'money' then 'Demande d''argent ou vente de confettis'$a$);
+  elsif position('vente de patates' in def) > 0 then  -- base où l'ancien libellé est déjà posé (patates → confettis, 18.11)
+    execute replace(def, 'vente de patates', 'vente de confettis');
   end if;
 
   -- Notifications prono_soon et prono_contest : interrupteur pronos, comptes actifs, blocages.

@@ -388,7 +388,7 @@ function Award({ p, value, onPick, onOptout, busy }: {
         {text ? <Text style={[rounded(28, '800'), { textAlign: 'center' }]}>{text}</Text> : null}
         <Text style={[st.help, { textAlign: 'center' }]}>{p.question}</Text>
         <View style={st.medalTags}>
-          <View style={st.mtag}><Text style={st.mtagText}>Pour l’honneur, sans patates</Text></View>
+          <View style={st.mtag}><Text style={st.mtagText}>Pour l’honneur, sans confettis</Text></View>
           <View style={st.mtag}><Text style={st.mtagText}>{p.answered.length} {p.answered.length > 1 ? 'ont voté' : 'a voté'}</Text></View>
         </View>
       </GlassCard>

@@ -27,12 +27,12 @@ import UIKit
 //   PronoCountdown(closesAt: p.closes /* Date? */, style: .chip | .large)   PronoCountdown(closesAt: p.closesAt /* ISO */)
 //       paliers : > 24 h date calme ; 1–24 h « Dans 2 h 14 » ; < 1 h minutes ambre (point qui respire) ;
 //       < 60 s anneau rose qui se vide ; fini « Fermé ». .large = rangée « Fin des réponses · Samedi, 21 h · 2 j 04 h 12 min ».
-//   PatateBadge(n: 18, tone: .harvest)  (.neutral « 42 🥔 », .harvest « +18 🥔 », .compost « 5 🥔 au compost »,
-//       .refund « 5 🥔 rendues », .planted « 5 🥔 plantées » ; alias .plain / .win / .lav, et .gold ;
+//   PatateBadge(n: 18, tone: .harvest)  (.neutral « 42 🎊 », .harvest « +18 🎊 », .compost « 5 🎊 au balai »,
+//       .refund « 5 🎊 rendus », .planted « 5 🎊 lancés » ; alias .plain / .win / .lav, et .gold ;
 //       large: true pour la récolte du dévoilement)
-//   PronoBagChip(balance: 85, action: { … })   PronoBagChip(bag: bag)    « Ton sac : 85 🥔 »
+//   PronoBagChip(balance: 85, action: { … })   PronoBagChip(bag: bag)    « Ton sac : 85 🎊 »
 //   PronoNoValueNote(refill: true)             rappel « aucune valeur » (sous chaque sac et chaque curseur)
-//   PronoFieldLabel(total: 120, planters: 5)   « 🥔 120 dans le champ · 5 joueurs »
+//   PronoFieldLabel(total: 120, planters: 5)   « 🎊 120 sur la piste · 5 joueurs »
 //   PronoChoicePill(label: "Suisse", shape: .triangle, selected: true, result: nil, style: .large) { … }
 //   PronoChoicePill(index: 0, label: "Oui", selected: false, style: .large) { … }   result: .right | .wrong
 //   PronoChoicePill(label: "Oui", index: 0, selected: false) { … }       (style .compact par défaut : cartes)
@@ -54,7 +54,7 @@ import UIKit
 //
 // Tout mouvement passe par « Réduire les animations » (@Environment(\.accessibilityReduceMotion)) : fondu 150 ms,
 // aucun confetti, aucune haptique rythmée. Toujours forme + couleur + texte (jamais la couleur seule). Cibles ≥ 44 pt.
-// Vocabulaire : planter, le champ, ta récolte, au compost, ton sac, rendues, saison. Jamais d'argent ni de jeu d'argent.
+// Vocabulaire (confettis, ex-patates) : lancer, la piste, ramasser, au balai, ton sac, rendus, saison. Jamais d'argent ni de jeu d'argent.
 
 // MARK: - Thème
 
@@ -748,7 +748,7 @@ struct PronoRing: View {
 // MARK: - Patates
 
 struct PatateBadge: View {
-    /// .plain = .neutral, .win = .harvest, .lav = .refund ; .gold : « 42 🥔 » en or.
+    /// .plain = .neutral, .win = .harvest, .lav = .refund ; .gold : « 42 🎊 » en or.
     enum Tone { case neutral, harvest, compost, refund, planted, plain, win, lav, gold }
 
     let n: Int
@@ -759,11 +759,11 @@ struct PatateBadge: View {
 
     private var text: String {
         switch tone {
-        case .neutral, .plain, .gold: return "\(n) 🥔"
-        case .harvest, .win: return "+\(n) 🥔"
-        case .compost: return "\(n) 🥔 au compost"
-        case .refund, .lav: return "\(n) 🥔 rendues"
-        case .planted: return "\(n) 🥔 plantées"
+        case .neutral, .plain, .gold: return "\(n) 🎊"
+        case .harvest, .win: return "+\(n) 🎊"
+        case .compost: return "\(n) 🎊 au balai"
+        case .refund, .lav: return "\(n) 🎊 rendus"
+        case .planted: return "\(n) 🎊 lancés"
         }
     }
 
@@ -779,13 +779,13 @@ struct PatateBadge: View {
     }
 
     private var spoken: String {
-        let p = n > 1 ? "patates" : "patate"
+        let p = n > 1 ? "confettis" : "confetti"
         switch tone {
         case .neutral, .plain, .gold: return "\(n) \(p)"
-        case .harvest, .win: return "Ta récolte : \(n) \(p)"
-        case .compost: return "\(n) \(p) au compost"
-        case .refund, .lav: return "\(n) \(p) rendue\(n > 1 ? "s" : "")"
-        case .planted: return "\(n) \(p) plantée\(n > 1 ? "s" : "")"
+        case .harvest, .win: return "Tu ramasses \(n) \(p)"
+        case .compost: return "\(n) \(p) au balai"
+        case .refund, .lav: return "\(n) \(p) rendu\(n > 1 ? "s" : "")"
+        case .planted: return "\(n) \(p) lancé\(n > 1 ? "s" : "")"
         }
     }
 
@@ -800,7 +800,7 @@ struct PatateBadge: View {
     }
 }
 
-/// « Ton sac : 85 🥔 » : capsule patate. action : ouvrir le sac (haptique .soft).
+/// « Ton sac : 85 🎊 » : capsule patate. action : ouvrir le sac (haptique .soft).
 struct PronoBagChip: View {
     let balance: Int
     var action: (() -> Void)? = nil
@@ -818,7 +818,7 @@ struct PronoBagChip: View {
         HStack(spacing: 4) {
             Text("Ton sac :").font(.subheadline.weight(.semibold))
             Text("\(balance)").font(PronoTheme.digits(.subheadline))
-            Text("🥔").font(.subheadline)
+            Text("🎊").font(.subheadline)
         }
         .foregroundStyle(PronoTheme.patateInk)
         .padding(.horizontal, 14)
@@ -837,7 +837,7 @@ struct PronoBagChip: View {
                 label
             }
         }
-        .accessibilityLabel("Ton sac : \(balance) patate\(balance > 1 ? "s" : "")")
+        .accessibilityLabel("Ton sac : \(balance) confetti\(balance > 1 ? "s" : "")")
     }
 }
 
@@ -857,20 +857,20 @@ struct PronoNoValueNote: View {
     }
 }
 
-/// « 🥔 120 dans le champ · 5 joueurs » : jamais de multiplicateur ni de chance avant le dévoilement.
+/// « 🎊 120 sur la piste · 5 joueurs » : jamais de multiplicateur ni de chance avant le dévoilement.
 struct PronoFieldLabel: View {
     let total: Int
     let planters: Int
 
     var body: some View {
         HStack(spacing: 6) {
-            Text("🥔").font(.footnote)
+            Text("🎊").font(.footnote)
             Text("\(total)").font(PronoTheme.digits(.footnote)).foregroundStyle(PronoTheme.t1)
-            Text("dans le champ · \(planters) \(planters > 1 ? "joueurs" : "joueur")").font(.footnote.weight(.medium))
+            Text("sur la piste · \(planters) \(planters > 1 ? "joueurs" : "joueur")").font(.footnote.weight(.medium))
         }
         .foregroundStyle(PronoTheme.t2)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(PronoFormat.field(total: total, planters: planters).replacingOccurrences(of: "🥔", with: "patates"))
+        .accessibilityLabel(PronoFormat.field(total: total, planters: planters).replacingOccurrences(of: "🎊", with: "confettis"))
     }
 }
 
@@ -906,7 +906,7 @@ struct PronoPatateSlider: View {
                     Capsule().fill(PronoTheme.patateTrack).frame(width: x + 1, height: 10).offset(x: thumb / 2)
                     Circle()
                         .fill(PronoTheme.fixed(0xFFF4E0))
-                        .overlay(Text("🥔").font(.system(size: 20)))
+                        .overlay(Text("🎊").font(.system(size: 20)))
                         .frame(width: thumb, height: thumb)
                         .shadow(color: PronoTheme.patate.opacity(0.3), radius: 8)
                         .offset(x: x)
@@ -919,8 +919,8 @@ struct PronoPatateSlider: View {
             }
             .frame(height: 44)
             .accessibilityElement()
-            .accessibilityLabel("Patates à planter")
-            .accessibilityValue(value == 0 ? "Sans patates" : "\(value) patate\(value > 1 ? "s" : "")")
+            .accessibilityLabel("Confettis à lancer")
+            .accessibilityValue(value == 0 ? "Sans confettis" : "\(value) confetti\(value > 1 ? "s" : "")")
             .accessibilityAdjustableAction { direction in
                 switch direction {
                 case .increment: set(value + 1)
@@ -955,7 +955,7 @@ struct PronoPatateSlider: View {
                         .buttonStyle(PronoKitPressStyle())
                         .disabled(n > limit)
                         .opacity(n > limit ? 0.4 : 1)
-                        .accessibilityLabel(n == 0 ? "Sans patates" : "\(n) patates")
+                        .accessibilityLabel(n == 0 ? "Sans confettis" : "\(n) confettis")
                         .accessibilityAddTraits(on ? .isSelected : [])
                     }
                 }

@@ -69,36 +69,36 @@ function SeasonBoard({ groupId }: { groupId: string }) {
         <>
           <Podium replay={`${month}:${rows.length}`} spots={rows.slice(0, 3).map((r) => ({
             face: r.user, rank: r.rank, sub: `${r.right} juste${r.right > 1 ? 's' : ''} sur ${r.played}`,
-            main: <Text style={num(16, netColor(r.harvest_net))}>{netText(r.harvest_net)} 🥔</Text>,
+            main: <Text style={num(16, netColor(r.harvest_net))}>{netText(r.harvest_net)} 🎊</Text>,
           }))} />
           <Titles rows={rows} />
-          <SectionHead left="Toute la saison" right="récolte nette" />
+          <SectionHead left="Toute la saison" right="ramassés nets" />
           <SeasonRows rows={rows} replay={`${month}:${rows.length}`} />
         </>
       ) : (
         <View style={[card, { alignItems: 'center', gap: 6, padding: 24, marginTop: 16 }]} testID="prono-season-empty">
-          <Text style={{ fontSize: 34 }}>🌱</Text>
-          <Text style={text(16, '700')}>Pas encore de récolte en {monthName(month)}</Text>
+          <Text style={{ fontSize: 34 }}>🎊</Text>
+          <Text style={text(16, '700')}>Pas encore de confettis ramassés en {monthName(month)}</Text>
           <Text style={[text(13, '500', N.t2), { textAlign: 'center' }]}>Le classement se remplit à chaque prono réglé.</Text>
         </View>
       )}
       <View style={{ marginTop: 12, padding: 14, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: N.line }}>
         <Text style={[text(13, '500', N.t2), { lineHeight: 19 }]}>
           <Text style={text(13, '700')}>Comment on classe ? </Text>
-          À la récolte nette de la saison : ce que tes pronos t’ont rendu, moins ce que tu as planté. Ton sac n’y compte pas.
+          Aux confettis ramassés pendant la saison : ce que tes pronos t’ont rendu, moins ce que tu as lancé. Ton sac n’y compte pas.
           {current ? ` Nouvelle saison le 1er ${monthName(shiftMonth(now, 1))}.` : ''}
         </Text>
       </View>
       {data?.bag ? (
         <View style={[card, { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 20, marginTop: 12 }]} testID="prono-season-bag">
           <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,226,122,0.12)', alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontSize: 24 }}>🥔</Text>
+            <Text style={{ fontSize: 24 }}>🎊</Text>
           </View>
           <View style={{ flex: 1 }}>
             <Text style={text(16, '700')}>Ton sac</Text>
             <Text style={text(13, '500', N.t2)}>Remonte à 100 lundi s’il est en dessous</Text>
           </View>
-          <Text style={num(24)}>{data.bag.balance} 🥔</Text>
+          <Text style={num(24)}>{data.bag.balance} 🎊</Text>
         </View>
       ) : null}
       <NoValueNote />
@@ -163,7 +163,7 @@ function SeasonRows({ rows, replay }: { rows: SeasonRow[]; replay: string }) {
         const mv = r.move ?? 0;
         return (
           <K key={r.user.id} k="srow" data={{ mv: String(mv) }} testID={`prono-season-row-${i}`}
-            accessibilityLabel={`${r.rank}, ${nameOf(r.user)}, ${netText(r.harvest_net)} patates, ${r.right} justes sur ${r.played}${mv > 0 ? `, monte de ${mv}` : mv < 0 ? `, descend de ${-mv}` : ''}`}
+            accessibilityLabel={`${r.rank}, ${nameOf(r.user)}, ${netText(r.harvest_net)} confettis, ${r.right} justes sur ${r.played}${mv > 0 ? `, monte de ${mv}` : mv < 0 ? `, descend de ${-mv}` : ''}`}
             style={[{ flexDirection: 'row', alignItems: 'center', gap: 10, height: 60, paddingHorizontal: 8, backgroundColor: N.s1, zIndex: 10 + mv },
               i > 0 && { borderTopWidth: 1, borderColor: N.line },
               r.user.me && web({ borderRadius: 16, backgroundColor: '#251d45', boxShadow: 'inset 0 0 0 1.5px rgba(185,167,255,.45)', zIndex: 40, borderTopWidth: 0 })]}>
@@ -178,7 +178,7 @@ function SeasonRows({ rows, replay }: { rows: SeasonRow[]; replay: string }) {
               <Text style={text(16, '600')} numberOfLines={1}>{nameOf(r.user)}</Text>
               <Text style={[text(12.5, '500', N.t2), { marginTop: 3 }]}>{r.right}/{r.played} justes · {pct(r)} %</Text>
             </View>
-            <Text style={num(17, netColor(r.harvest_net))}>{netText(r.harvest_net)} 🥔</Text>
+            <Text style={num(17, netColor(r.harvest_net))}>{netText(r.harvest_net)} 🎊</Text>
           </K>
         );
       })}

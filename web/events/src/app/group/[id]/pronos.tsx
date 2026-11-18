@@ -71,9 +71,9 @@ export default function GroupPronos() {
               <Icon paths={BACK} />
             </Pressable>
             {bag ? (
-              <Pressable accessibilityRole="button" accessibilityLabel={`Ton sac : ${bag.balance} patates. Voir l’historique`} testID="prono-bag"
+              <Pressable accessibilityRole="button" accessibilityLabel={`Ton sac : ${bag.balance} confettis. Voir l’historique`} testID="prono-bag"
                 onPress={() => push(sacPath({ kind: 'group', id }))} style={({ pressed }) => [st.glassBtn, st.bagBtn, pressTransition, pressed && st.pressed]}>
-                <Text style={[num(16), { color: '#fff' }]}>{bag.balance}</Text><Text style={{ fontSize: 16 }}>🥔</Text>
+                <Text style={[num(16), { color: '#fff' }]}>{bag.balance}</Text><Text style={{ fontSize: 16 }}>🎊</Text>
               </Pressable>
             ) : null}
           </View>
@@ -98,7 +98,7 @@ export default function GroupPronos() {
           {patates ? (
             <View style={{ gap: 12 }}>
               <Tabs sticky={false} value={mode} onChange={setMode}
-                tabs={[{ key: 'season', label: 'Saison 🥔' }, { key: 'points', label: 'Points' }]} />
+                tabs={[{ key: 'season', label: 'Saison 🎊' }, { key: 'points', label: 'Points' }]} />
               <Board groupId={id} mode={mode} />
             </View>
           ) : (

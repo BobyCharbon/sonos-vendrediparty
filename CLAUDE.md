@@ -478,26 +478,32 @@ réglage de prod :
 - Tests : `tests/test_pronos.py`, `tests/supabase_live/test_pronos_live.py`, `test_pronos_browser_live.py` (vrai
   navigateur), `PronosTests`, recette `ios/PartyUITests/RecettePronosUITests.swift` (Release + serveur local + base de TEST).
 
-## Pronos v2 et patates (demande du 18.11, migration 20261118090000, CGU 2026-11-18)
-- Argent réel (même « 5 balles » réglées à côté, même déguisé en patates) : JAMAIS (Apple 5.1.1(ix) / 5.3.4, LJAr). Les
-  patates : monnaie pour rire, gratuites, jamais achetables / vendables / échangeables / transférables / convertibles,
+## Pronos v2 et confettis (ex-patates) (demande du 18.11, migration 20261118090000, CGU 2026-11-18)
+- Les « patates » sont devenues des « confettis 🎊 » (décision de l'admin du 18.11) : TEXTE visible seulement, règles
+  identiques. Les noms de code restent les anciens noms internes et ne se renomment jamais : `patates`, `patates_on`,
+  `patates_enabled`, `PATATES_ENABLED`, `PronoPatates`, `PatateBadge`, `potato`, `harvest`, `compost`, `prono-patates-*`…
+  La réaction stockée en base reste la valeur '🥔' (contrainte de `prono_react`) ; l'écran montre 🎊 (« Réaction confettis »).
+- Argent réel (même « 5 balles » réglées à côté, même déguisé en confettis) : JAMAIS (Apple 5.1.1(ix) / 5.3.4, LJAr). Les
+  confettis : monnaie pour rire, gratuits, jamais achetables / vendables / échangeables / transférables / convertibles,
   aucun lot, aucun lien avec Zicou, le bar, les billets, Pot commun. Revue : scratchpad pronos-v2/conformite-patates.md.
 - Un sac par personne ET par terrain (groupe `g:` ou soirée `e:`) ; 100 au départ, remonte à 100 chaque lundi 0 h (heure de
-  Suisse) s'il est plus bas, jamais cumulé ; 0 à 20 🥔 par prono ; partage du champ au plus fort reste (somme nulle, JAMAIS
-  de cote fixe) ; rendu si unanimes / personne / un seul planteur / annulé / contestation gagnée ; versé 12 h après le
-  résultat (contestation, vote 24 h) par `pronos-tick`. Saison = récolte nette du mois ; historique du sac à soi seul.
-- Vocabulaire à l'écran : planter, le champ, récolte, au compost, ton sac, rendues ; JAMAIS pari, mise, miser, cote, gain,
-  cagnotte, jackpot, balles, CHF / € ; aucune chance ni multiplicateur avant le dévoilement ; confettis seulement si juste.
-  Rappel « Les patates n'ont aucune valeur… » sous chaque sac (`NO_VALUE`, `PronoPatates.noValue`).
+  Suisse) s'il est plus bas, jamais cumulé ; 0 à 20 🎊 par prono ; partage de la piste au plus fort reste (somme nulle, JAMAIS
+  de cote fixe) ; rendus si unanimes / personne / un seul lanceur / annulé / contestation gagnée ; versés 12 h après le
+  résultat (contestation, vote 24 h) par `pronos-tick`. Saison = confettis ramassés ce mois-ci ; historique du sac à soi seul.
+- Vocabulaire à l'écran : lancer, la piste, ramasser (« Tu ramasses »), au balai, ton sac, rendus (accords au MASCULIN) ;
+  JAMAIS pari, mise, miser, cote, gain, cagnotte, jackpot, balles, CHF / €, ni coin / jeton / pièce pour les confettis (les
+  pièces sont à Zicou) ; anglais (notes de revue) : « Confetti (free, valueless play tokens) », jamais « coins » ; aucune
+  chance ni multiplicateur avant le dévoilement ; confettis animés seulement si juste. Rappel « Les confettis n'ont aucune
+  valeur… » sous chaque sac (`NO_VALUE`, `PronoPatates.noValue`).
 - Deux interrupteurs : serveur `patates_enabled()` (PATATES_ENABLED, sinon site de test seulement ; `/api/features`
   « patates ») ET base `private.prono_settings.patates_enabled` (éteint par défaut, allumé sur TEST). Prod : allumer
-  seulement après une version iOS acceptée qui décrit les patates (Notes for Review), questionnaire d'âge « Simulated
+  seulement après une version iOS acceptée qui décrit les confettis (Notes for Review), questionnaire d'âge « Simulated
   Gambling » Frequent (18+), CGU 2026-11-18 en prod.
 - Types : choice, yesno, overunder (ligne en demi-unité), number (« sans dépasser »), when (« C'est arrivé ! »), person,
   text, majority (« Devine ce que pense la bande », tranché seul), award (Trophée de la soirée : 8 catégories POSITIVES
-  fermées, ≥ 3 votants, on se retire, jamais de patates). 21 modèles `prono_templates()` (jamais d'alcool).
+  fermées, ≥ 3 votants, on se retire, jamais de confettis). 21 modèles `prono_templates()` (jamais d'alcool).
 - Graphisme « Néon club » (maquettes pronos-v2/maquettes) : web `components/pronos/Kit.tsx` (+ list/, create/, play/,
   reveal/, board/), iPhone `ios/Party/Pronos/PronoKit.swift` (+ PronoRevealView). Le dévoilement web s'ouvre dans un `Modal`
   (sinon la fiche passait par-dessus) ; iPhone : `PronosStore.call` lit `/api/features` au premier appel.
-- Tests : `tests/supabase_live/test_pronos_v2_live.py`, `test_pronos_browser_live.py` (recette réelle avec patates),
+- Tests : `tests/supabase_live/test_pronos_v2_live.py`, `test_pronos_browser_live.py` (recette réelle avec confettis),
   `tests/test_pronos_v2.py`, `tests/test_compliance_pronos.py`, `PronosTests`, recette `RecettePronosUITests` (Release).

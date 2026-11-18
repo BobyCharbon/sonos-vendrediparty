@@ -60,7 +60,7 @@ export function PreviewCard({ d, awards, place, closesAt, patates, launched }: {
         {launched ? (
           <View style={[st.foot, { justifyContent: 'space-between' }]}>
             {patates ? (
-              <View style={st.field}><PatateBadge n={0} tone="potato" /><Txt size={14} weight="700" color={C.amber}>dans le champ</Txt></View>
+              <View style={st.field}><PatateBadge n={0} tone="potato" /><Txt size={14} weight="700" color={C.amber}>sur la piste</Txt></View>
             ) : <View />}
             {closesAt ? <Countdown closesAt={closesAt} /> : null}
           </View>

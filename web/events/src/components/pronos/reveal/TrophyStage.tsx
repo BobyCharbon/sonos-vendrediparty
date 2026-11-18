@@ -122,7 +122,7 @@ export function TrophyStage({ p, onDone }: { p: V2; onDone: () => void }) {
 
           <K k="foot" style={{ alignItems: 'center', paddingHorizontal: 24, zIndex: 3 }}>
             <Text style={[text(13, '500', N.t2), { textAlign: 'center' }]}>
-              {p.patates_on ? 'Pour la gloire : aucun trophée ne rapporte de patates.' : 'Pour la gloire, rien d’autre.'}
+              {p.patates_on ? 'Pour la gloire : aucun trophée ne rapporte de confettis.' : 'Pour la gloire, rien d’autre.'}
             </Text>
           </K>
 

@@ -54,8 +54,8 @@ import {
  * Patates (n'afficher que si showPatates(p) : lib/pronos)
  *  - PatateBadge({ n, tone?: 'neutral'|'win'|'lav'|'gold'|'potato'|'miss', sign? (+), size?: 'md'|'lg' })
  *  - BagChip({ bag: { balance } | null, onPress?, label? = 'Ton sac', testID? })
- *  - FieldLine({ total, planters?, style? }) : « 🥔 42 dans le champ · 6 planteurs ».
- *  - NoValueNote({ children?, style? }) : rappel « Les patates n'ont aucune valeur… » (obligatoire sous chaque sac).
+ *  - FieldLine({ total, planters?, style? }) : « 🎊 42 sur la piste · 6 lanceurs ».
+ *  - NoValueNote({ children?, style? }) : rappel « Les confettis n'ont aucune valeur… » (obligatoire sous chaque sac).
  *  - PatateSlider({ value, onChange, max? = 20, available?: sac + déjà planté ici, showNumber? = true, caption?, testID? })
  * Effets (KitFx) : Confetti({ run, variant?: 'confetti'|'sparkle', count? }), Spotlight({ on, color? }),
  *   NumberRoll({ value, from? = 0, duration? = 300, sign?, suffix?, style? }).
@@ -510,7 +510,7 @@ export function PatateBadge({ n, tone = 'neutral', sign, size = 'md' }: { n: num
   const big = size === 'lg';
   const shown = `${sign && n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n)}`;
   return (
-    <View accessible accessibilityLabel={`${sign && n > 0 ? 'plus ' : n < 0 ? 'moins ' : ''}${Math.abs(n)} patate${Math.abs(n) > 1 ? 's' : ''}`}
+    <View accessible accessibilityLabel={`${sign && n > 0 ? 'plus ' : n < 0 ? 'moins ' : ''}${Math.abs(n)} confetti${Math.abs(n) > 1 ? 's' : ''}`}
       style={[st.pt, { height: big ? 34 : 26, paddingHorizontal: big ? 12 : 9, borderRadius: big ? 17 : 13, backgroundColor: t.bg, borderColor: t.bd }]}>
       <Text style={[pronoFont.num, { color: t.fg, fontSize: big ? 17 : 13 }]}>{shown}</Text>
       <Text style={{ fontSize: big ? 15 : 12 }}>{PATATE}</Text>
@@ -531,7 +531,7 @@ export function BagChip({ bag, onPress, label = 'Ton sac', testID = 'prono-bag-c
     </>
   );
   const style = [st.bag, { backgroundColor: alpha(c.potato, 0.12), borderColor: alpha(c.potato, 0.35) }];
-  const a11y = `${label} : ${bag.balance} patates`;
+  const a11y = `${label} : ${bag.balance} confettis`;
   if (!onPress) return <View testID={testID} accessible accessibilityLabel={a11y} style={style}>{inner}</View>;
   return (
     <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={`${a11y}. Ouvrir ton sac`} onPress={onPress}
@@ -541,13 +541,13 @@ export function BagChip({ bag, onPress, label = 'Ton sac', testID = 'prono-bag-c
   );
 }
 
-/** « 🥔 42 dans le champ · 6 planteurs » (jamais de multiplicateur avant le dévoilement). */
+/** « 🎊 42 sur la piste · 6 lanceurs » (jamais de multiplicateur avant le dévoilement). */
 export function FieldLine({ total, planters, style }: { total: number; planters?: number | null; style?: StyleProp<TextStyle> }) {
   const c = usePronoTheme();
   return (
     <Text style={[pronoFont.text, { color: c.t2, fontSize: 13, lineHeight: 18 }, style]}>
-      <Text>{PATATE} </Text><Text style={[pronoFont.bold, { color: c.t1 }]}>{total}</Text> dans le champ
-      {planters != null ? ` · ${planters} planteur${planters > 1 ? 's' : ''}` : ''}
+      <Text>{PATATE} </Text><Text style={[pronoFont.bold, { color: c.t1 }]}>{total}</Text> sur la piste
+      {planters != null ? ` · ${planters} lanceur${planters > 1 ? 's' : ''}` : ''}
     </Text>
   );
 }

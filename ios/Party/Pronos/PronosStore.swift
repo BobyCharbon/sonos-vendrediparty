@@ -473,8 +473,8 @@ enum PronoPatates {
     static let maxStake = 20
     static let start = 100
     /// Rappel affiché sous chaque sac (conformité).
-    static let noValue = "Les patates n'ont aucune valeur : elles ne s'achètent pas, ne se vendent pas, ne s'échangent pas."
-    static let refillNote = "Ton sac remonte à 100 🥔 chaque lundi."
+    static let noValue = "Les confettis n'ont aucune valeur : ils ne s'achètent pas, ne se vendent pas, ne s'échangent pas."
+    static let refillNote = "Ton sac remonte à 100 🎊 chaque lundi."
 
     struct Entry: Hashable {
         let id: String
@@ -559,34 +559,34 @@ enum PronoFormat {
 
     static func points(_ n: Int) -> String { n > 1 ? "\(n) points" : "\(n) point" }
 
-    /// « 5 🥔 ».
-    static func patates(_ n: Int) -> String { "\(n) 🥔" }
+    /// « 5 🎊 ».
+    static func patates(_ n: Int) -> String { "\(n) 🎊" }
 
-    /// « 120 🥔 dans le champ · 5 joueurs » (jamais de multiplicateur ni de « tu peux récolter »).
+    /// « 120 🎊 sur la piste · 5 joueurs » (jamais de multiplicateur ni de « tu peux récolter »).
     static func field(total: Int, planters: Int) -> String {
-        "\(total) 🥔 dans le champ · \(planters) \(planters > 1 ? "joueurs" : "joueur")"
+        "\(total) 🎊 sur la piste · \(planters) \(planters > 1 ? "joueurs" : "joueur")"
     }
 
-    /// Récolte d'un prono : « +18 🥔 », « 5 🥔 rendues », « 5 🥔 au compost », « 5 🥔 plantées » (pas encore réglé).
+    /// Récolte d'un prono : « +18 🎊 », « 5 🎊 rendus », « 5 🎊 au balai », « 5 🎊 lancés » (pas encore réglé).
     /// Jamais de signe moins. `refunded` : prono annulé ou unanimes, personne n'a vu juste, moins de 2 planteurs.
     static func harvest(stake: Int, harvest: Int?, refunded: Bool = false) -> String {
-        guard let harvest else { return stake > 0 ? "\(stake) 🥔 plantées" : "" }
-        if refunded, harvest > 0 { return "\(harvest) 🥔 rendues" }
-        if harvest > 0 { return "+\(harvest) 🥔" }
-        return stake > 0 ? "\(stake) 🥔 au compost" : ""
+        guard let harvest else { return stake > 0 ? "\(stake) 🎊 lancés" : "" }
+        if refunded, harvest > 0 { return "\(harvest) 🎊 rendus" }
+        if harvest > 0 { return "+\(harvest) 🎊" }
+        return stake > 0 ? "\(stake) 🎊 au balai" : ""
     }
 
-    /// Ligne de l'historique du sac. `compost` : prono réglé sans récolte (« Plantées · parties au compost »).
+    /// Ligne de l'historique du sac. `compost` : prono réglé sans récolte (« Lancés · partis au balai »).
     static func move(_ m: PronoBagMove, compost: Bool = false) -> (title: String, amount: String) {
         let n = abs(m.delta)
         switch m.reason {
-        case "start": return ("Sac de départ", "+\(n) 🥔")
-        case "refill": return ("Remonté à 100 (lundi)", "+\(n) 🥔")
-        case "plant": return (compost ? "Plantées · parties au compost" : "Plantées", "−\(n) 🥔")
-        case "unplant": return ("Reprises", "+\(n) 🥔")
-        case "refund": return ("Rendues", "+\(n) 🥔")
-        case "harvest": return ("Ta récolte", "+\(n) 🥔")
-        default: return ("Sac", "\(m.delta) 🥔")
+        case "start": return ("Sac de départ", "+\(n) 🎊")
+        case "refill": return ("Remonté à 100 (lundi)", "+\(n) 🎊")
+        case "plant": return (compost ? "Lancés · partis au balai" : "Lancés", "−\(n) 🎊")
+        case "unplant": return ("Repris", "+\(n) 🎊")
+        case "refund": return ("Rendus", "+\(n) 🎊")
+        case "harvest": return ("Ramassés", "+\(n) 🎊")
+        default: return ("Sac", "\(m.delta) 🎊")
         }
     }
 
@@ -755,7 +755,7 @@ final class PronosStore: ObservableObject {
         return args
     }
 
-    static let patatesClosed = "Les patates ne sont pas ouvertes ici."
+    static let patatesClosed = "Les confettis ne sont pas ouverts ici."
 
     /// Mon sac sur un terrain (un groupe OU un événement). Patates éteintes (site ou base) : erreur patatesClosed.
     func bag(groupID: String? = nil, eventID: String? = nil) async throws -> PronoBag {
@@ -792,7 +792,7 @@ final class PronosStore: ObservableObject {
         try await call("prono_contest_vote", ["id": id, "fair": fair])
     }
 
-    /// Réaction (PronosStore.reactions : 😂 🔥 🥔 👀 🤯 👏) : bascule.
+    /// Réaction (PronosStore.reactions : 😂 🔥 🎊 👀 🤯 👏) : bascule.
     func react(id: String, emoji: String) async throws -> Prono {
         try await call("prono_react", ["id": id, "emoji": emoji])
     }

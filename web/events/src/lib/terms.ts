@@ -33,12 +33,12 @@ export const TERMS_SECTIONS: { title: string; paragraphs: string[] }[] = [
     ],
   },
   {
-    title: 'Pronos et patates',
+    title: 'Pronos et confettis',
     paragraphs: [
-      'Les Pronos se jouent entre amis, pour l’honneur : on devine, on marque des points et, dans un groupe ou un événement, on plante des patates pour rire. Apple et Google ne sont ni organisateurs ni sponsors des Pronos.',
-      'Les patates sont gratuites et n’ont aucune valeur. Elles ne s’achètent pas, ne se vendent pas, ne s’échangent pas et ne se transfèrent pas d’une personne à une autre. Elles ne se convertissent en rien (ni argent, ni boisson, ni objet du jeu) et aucun lot ne récompense le classement.',
-      'Il est interdit de régler un prono ou des patates en argent, en boissons, en objets ou en services, dans Party ou ailleurs, et de proposer d’acheter ou de vendre des patates. Jamais de prono sur l’alcool ni sur ce que boit quelqu’un.',
-      'Un compte qui détourne les Pronos ou les patates (argent, boissons, vente, triche) peut être suspendu, et ses patates retirées. Un résultat qui te semble injuste se conteste ou se signale.',
+      'Les Pronos se jouent entre amis, pour l’honneur : on devine, on marque des points et, dans un groupe ou un événement, on lance des confettis pour rire. Apple et Google ne sont ni organisateurs ni sponsors des Pronos.',
+      'Les confettis sont gratuits et n’ont aucune valeur. Ils ne s’achètent pas, ne se vendent pas, ne s’échangent pas et ne se transfèrent pas d’une personne à une autre. Ils ne se convertissent en rien (ni argent, ni boisson, ni objet du jeu) et aucun lot ne récompense le classement.',
+      'Il est interdit de régler un prono ou des confettis en argent, en boissons, en objets ou en services, dans Party ou ailleurs, et de proposer d’acheter ou de vendre des confettis. Jamais de prono sur l’alcool ni sur ce que boit quelqu’un.',
+      'Un compte qui détourne les Pronos ou les confettis (argent, boissons, vente, triche) peut être suspendu, et ses confettis retirés. Un résultat qui te semble injuste se conteste ou se signale.',
     ],
   },
   {

@@ -40,7 +40,7 @@ export function ResultView({ prono }: { prono: Prono }) {
       {!award && p.result && p.my_answer ? <Mine p={p} pot={pot} unanimous={unanimous} style={next()} /> : null}
       {!award && OPTION_KINDS.concat('person').includes(p.kind) && p.result ? (
         <View style={next()}>
-          <SectionHead left="La répartition" right={pot && p.field ? `${p.field.total} 🥔 dans le champ` : undefined} />
+          <SectionHead left="La répartition" right={pot && p.field ? `${p.field.total} 🎊 sur la piste` : undefined} />
           <View style={[card, { padding: 12, gap: 8 }]}>
             {rows(p).map((r, k) => <OptionRow key={r.key} row={r} total={Math.max(1, p.answers?.length ?? 0)} index={k} potatoes={pot} />)}
           </View>
@@ -80,7 +80,7 @@ function Cancelled({ p, pot, style }: { p: V2; pot: boolean; style?: object }) {
   return (
     <View style={[banner, style]}>
       <Text style={text(15, '600', N.t1)}>Prono annulé{p.cancel_reason ? ` : ${p.cancel_reason}` : ''}.</Text>
-      <Text style={text(13, '500', N.t2)}>{pot ? 'Toutes les patates sont rendues.' : 'Aucun point n’est compté.'}</Text>
+      <Text style={text(13, '500', N.t2)}>{pot ? 'Tous les confettis sont rendus.' : 'Aucun point n’est compté.'}</Text>
     </View>
   );
 }
@@ -147,7 +147,7 @@ function Mine({ p, pot, unanimous, style }: { p: V2; pot: boolean; unanimous: bo
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={text(17, '700')}>{unanimous ? 'Unanimes !' : right ? 'Tu avais vu juste' : 'Pas cette fois'}</Text>
           <Text style={[text(13, '500', N.t2), { marginTop: 3 }]} numberOfLines={2}>
-            {potatoes && f?.kind === 'harvest' ? `Ta récolte${pending ? ' · en attente' : ''}` : `Ta réponse : ${myAnswerText(p)}`}
+            {potatoes && f?.kind === 'harvest' ? `Tu ramasses${pending ? ' · en attente' : ''}` : `Ta réponse : ${myAnswerText(p)}`}
           </Text>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
@@ -156,7 +156,7 @@ function Mine({ p, pot, unanimous, style }: { p: V2; pot: boolean; unanimous: bo
         </View>
       </View>
       {potatoes && f?.kind === 'harvest' && winners.length > 1 && wPlanted ? (
-        <View style={{ marginTop: 16 }} accessibilityLabel={`Ta part : ${f.stake} sur ${wPlanted} patates plantées sur la bonne réponse`}>
+        <View style={{ marginTop: 16 }} accessibilityLabel={`Ta part : ${f.stake} sur ${wPlanted} confettis lancés sur la bonne réponse`}>
           <View style={{ flexDirection: 'row', height: 14, borderRadius: 7, overflow: 'hidden', gap: 2 }}>
             {winners.map((a) => (
               <View key={a.user.id} style={[{ flex: a.stake ?? 0 }, a.user.me ? web({ backgroundImage: 'linear-gradient(90deg,#2FB984,#5BE3A6)' })
@@ -164,19 +164,19 @@ function Mine({ p, pot, unanimous, style }: { p: V2; pot: boolean; unanimous: bo
             ))}
           </View>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 8 }}>
-            <Text style={text(13, '600', N.t2)}><Text style={text(13, '700')}>Toi {f.stake}</Text> sur {wPlanted} 🥔</Text>
-            <Text style={text(13, '600', N.t2)}>plantées sur la bonne réponse</Text>
+            <Text style={text(13, '600', N.t2)}><Text style={text(13, '700')}>Toi {f.stake}</Text> sur {wPlanted} 🎊</Text>
+            <Text style={text(13, '600', N.t2)}>lancés sur la bonne réponse</Text>
           </View>
           <Text style={[text(13, '500', N.t2), { marginTop: 10, lineHeight: 19 }]}>
-            Le champ (<Text style={text(13, '700')}>{p.field?.total ?? '—'} 🥔</Text>) est partagé entre ceux qui ont vu juste, selon ce que
-            chacun a planté : {f.stake} sur {wPlanted}, c’est <Text style={text(13, '700', N.mint)}>{f.harvest} 🥔</Text> pour toi.
+            La piste (<Text style={text(13, '700')}>{p.field?.total ?? '—'} 🎊</Text>) est partagée entre ceux qui ont vu juste, selon ce que
+            chacun a lancé : {f.stake} sur {wPlanted}, c’est <Text style={text(13, '700', N.mint)}>{f.harvest} 🎊</Text> pour toi.
           </Text>
         </View>
       ) : null}
       {potatoes && f?.kind === 'refund' && !unanimous ? (
         <Text style={[text(13, '500', N.t2), { marginTop: 10 }]}>
-          {(p.answers ?? []).some((a) => a.winner) ? 'Moins de 2 joueurs avaient planté : tout le monde récupère ses patates.'
-            : 'Personne n’avait vu juste : tout le monde récupère ses patates.'}
+          {(p.answers ?? []).some((a) => a.winner) ? 'Moins de 2 joueurs avaient lancé : tout le monde récupère ses confettis.'
+            : 'Personne n’avait vu juste : tout le monde récupère ses confettis.'}
         </Text>
       ) : null}
     </View>
@@ -186,21 +186,21 @@ function Mine({ p, pot, unanimous, style }: { p: V2; pot: boolean; unanimous: bo
 /** À droite d'une carte ou d'une ligne : récolte (menthe), au compost (gris), rendues (lavande), ou les points. */
 function FateValue({ f, points, big }: { f: Fate | null; points: number | null; big?: boolean }) {
   if (f && f.kind === 'harvest') {
-    return <Text style={num(big ? 30 : 17, N.mint)}>+{f.harvest} 🥔</Text>;
+    return <Text style={num(big ? 30 : 17, N.mint)}>+{f.harvest} 🎊</Text>;
   }
   if (f && f.kind === 'refund') {
     return (
       <View style={{ alignItems: 'flex-end' }}>
-        {big ? <Text style={[text(11, '700', N.t2), { letterSpacing: 1, marginBottom: 5 }]}>RENDUES</Text> : null}
-        <Text style={num(big ? 26 : 17, N.lav)}>{f.stake} 🥔</Text>
+        {big ? <Text style={[text(11, '700', N.t2), { letterSpacing: 1, marginBottom: 5 }]}>RENDUS</Text> : null}
+        <Text style={num(big ? 26 : 17, N.lav)}>{f.stake} 🎊</Text>
       </View>
     );
   }
   if (f && f.kind === 'compost') {
     return (
       <View style={{ alignItems: 'flex-end' }}>
-        {big ? <Text style={[text(11, '700', N.t2), { letterSpacing: 1, marginBottom: 5 }]}>AU COMPOST</Text> : null}
-        <Text style={num(big ? 26 : 17, N.missText)}>{f.stake} 🥔</Text>
+        {big ? <Text style={[text(11, '700', N.t2), { letterSpacing: 1, marginBottom: 5 }]}>AU BALAI</Text> : null}
+        <Text style={num(big ? 26 : 17, N.missText)}>{f.stake} 🎊</Text>
       </View>
     );
   }
@@ -220,7 +220,7 @@ function Players({ p, pot, style }: { p: V2; pot: boolean; style?: object }) {
   const shapeOf = (a: (typeof list)[number]) => rows(p).find((r) => (OPTION_KINDS.includes(p.kind) ? r.key === a.option_id : r.key === a.person?.id))?.shape;
   return (
     <View style={style}>
-      <SectionHead left={axisKind ? 'Du plus proche au plus loin' : `Les joueurs · ${list.length}`} right={pot ? 'planté → récolte' : undefined} />
+      <SectionHead left={axisKind ? 'Du plus proche au plus loin' : `Les joueurs · ${list.length}`} right={pot ? 'lancé → ramassé' : undefined} />
       <View style={[card, { paddingHorizontal: 14, paddingVertical: 4 }]}>
         {ordered.map((a, k) => {
           const f = all.get(a.user.id);
@@ -254,7 +254,7 @@ function Players({ p, pot, style }: { p: V2; pot: boolean; style?: object }) {
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
                   {sh ? <View style={web({ width: 10, height: 10, backgroundColor: N.t2, clipPath: sh.clip })} /> : null}
                   <Text style={text(13, '500', N.t2)} numberOfLines={1}>
-                    {axisKind ? 'a dit ' : ''}{answer}{axisKind && pot ? ` · ${a.stake ?? 0} 🥔` : ''}
+                    {axisKind ? 'a dit ' : ''}{answer}{axisKind && pot ? ` · ${a.stake ?? 0} 🎊` : ''}
                   </Text>
                 </View>
               </View>
@@ -301,24 +301,24 @@ function PlayerFate({ f, winner, points, pending }: { f?: Fate; winner: boolean;
   if (f && f.kind === 'harvest') {
     return (
       <>
-        <Text style={num(17, N.mint)}>{f.harvest} 🥔</Text>
-        <Text style={text(12, '500', N.t2)}>{pending ? 'en attente' : 'récolte'} · {f.stake} plantées</Text>
+        <Text style={num(17, N.mint)}>{f.harvest} 🎊</Text>
+        <Text style={text(12, '500', N.t2)}>{pending ? 'en attente' : 'ramassés'} · {f.stake} lancés</Text>
       </>
     );
   }
   if (f && f.kind === 'compost') {
     return (
       <>
-        <Text style={text(14, '600', N.missText)}>au compost</Text>
-        <Text style={text(12, '500', N.t2)}>{f.stake} 🥔 plantées</Text>
+        <Text style={text(14, '600', N.missText)}>au balai</Text>
+        <Text style={text(12, '500', N.t2)}>{f.stake} 🎊 lancés</Text>
       </>
     );
   }
   if (f && f.kind === 'refund') {
     return (
       <>
-        <Text style={num(17, N.lav)}>{f.stake} 🥔</Text>
-        <Text style={text(12, '500', N.t2)}>rendues</Text>
+        <Text style={num(17, N.lav)}>{f.stake} 🎊</Text>
+        <Text style={text(12, '500', N.t2)}>rendus</Text>
       </>
     );
   }
@@ -348,7 +348,7 @@ function Trophy({ p, style }: { p: V2; style?: object }) {
         </>
       ) : <Text style={[text(14, '500', N.t2), { marginTop: 12 }]}>Il faut au moins 3 votants pour dévoiler le trophée.</Text>}
       <Text style={[text(12.5, '500', N.t2), { marginTop: 14, textAlign: 'center' }]}>
-        {p.patates_on ? 'Pour la gloire : aucun trophée ne rapporte de patates.' : 'Pour la gloire, rien d’autre.'}
+        {p.patates_on ? 'Pour la gloire : aucun trophée ne rapporte de confettis.' : 'Pour la gloire, rien d’autre.'}
       </Text>
     </View>
   );
@@ -364,14 +364,14 @@ function BagLine({ p }: { p: V2 }) {
       <SectionHead left={p.group ? p.group.name : p.event ? p.event.title : 'Ton sac'} />
       <View style={[card, { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 20 }]} testID="prono-result-bag">
         <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: 'rgba(255,226,122,0.12)', alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontSize: 24 }}>🥔</Text>
+          <Text style={{ fontSize: 24 }}>🎊</Text>
         </View>
         <View style={{ flex: 1 }}>
           <Text style={text(16, '700')}>Ton sac</Text>
           <Text style={text(13, '500', N.t2)}>Remonte à 100 lundi s’il est en dessous</Text>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
-          <Text style={num(24)}>{bag.balance} 🥔</Text>
+          <Text style={num(24)}>{bag.balance} 🎊</Text>
           {waiting ? <Text style={text(13, '600', N.warn)}>+{waiting} en attente</Text> : null}
         </View>
       </View>

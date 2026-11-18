@@ -26,7 +26,7 @@ export function SealedCard({ p, answer, onChange, compact }: { p: PronoV2; answe
         <Seal emoji={p.group?.emoji ?? '🔮'} color={p.group?.color} size={56} />
         <View style={{ flex: 1, gap: 2 }}>
           <Text style={rounded(17, '800')}>Ta réponse est scellée</Text>
-          <Text style={st.help}>{stake ? `Avec ${stake} 🥔, cachée à tous` : 'Cachée à tous jusqu’à la fin'}</Text>
+          <Text style={st.help}>{stake ? `Avec ${stake} 🎊, cachée à tous` : 'Cachée à tous jusqu’à la fin'}</Text>
         </View>
         <Pressable accessibilityRole="button" onPress={onChange} style={({ pressed }) => [st.glassBtn, pressTransition, pressed && { transform: [{ scale: 0.96 }] }]}>
           <Text style={st.glassBtnText}>Changer</Text>
@@ -46,12 +46,12 @@ export function SealedCard({ p, answer, onChange, compact }: { p: PronoV2; answe
         Personne ne voit ta réponse, pas même l’organisateur. Tout se dévoile à la fin, pour tout le monde en même temps.
       </Text>
       <View style={st.actions}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Ta réponse : ${answer}${stake ? `, ${stake} patates` : ''}`}
+        <Pressable accessibilityRole="button" accessibilityLabel={`Ta réponse : ${answer}${stake ? `, ${stake} confettis` : ''}`}
           accessibilityHint="Maintiens pour la voir" onPressIn={() => setPeek(true)} onPressOut={() => setPeek(false)} testID="prono-peek"
           style={st.peek}>
           <Text style={{ color: C.t2, fontSize: 18 }} accessibilityElementsHidden>👁</Text>
           {peek ? (
-            <Text style={[rounded(16, '700'), { flex: 1 }]} numberOfLines={1}>{answer}{stake ? ` · ${stake} 🥔` : ''}</Text>
+            <Text style={[rounded(16, '700'), { flex: 1 }]} numberOfLines={1}>{answer}{stake ? ` · ${stake} 🎊` : ''}</Text>
           ) : (
             <>
               <Text style={rounded(16, '700')}>Maintiens pour voir</Text>
@@ -65,7 +65,7 @@ export function SealedCard({ p, answer, onChange, compact }: { p: PronoV2; answe
         </Pressable>
       </View>
       <Text style={[st.small, { textAlign: 'center' }]}>
-        {withPatates(p) ? 'Réponse et patates changeables' : 'Réponse changeable'} jusqu’à {until}.
+        {withPatates(p) ? 'Réponse et confettis changeables' : 'Réponse changeable'} jusqu’à {until}.
       </Text>
     </GlassCard>
   );
@@ -111,14 +111,14 @@ export function FieldCard({ p }: { p: PronoV2 }) {
     <View style={{ gap: 12 }}>
       <GlassCard style={st.fieldCard}>
         <View style={{ flexDirection: 'row', gap: 14, alignItems: 'center' }}>
-          <View style={st.fieldIcon}><Text style={{ fontSize: 26 }} accessibilityElementsHidden>🥔</Text></View>
+          <View style={st.fieldIcon}><Text style={{ fontSize: 26 }} accessibilityElementsHidden>🎊</Text></View>
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={rounded(17, '800')}>
               {(p.field?.total ?? 0) > 0
-                ? <><Text style={wide(17)}>{p.field?.total}</Text> 🥔 dans le champ · {planters} joueur{planters > 1 ? 's' : ''}</>
-                : 'Le champ est encore vide'}
+                ? <><Text style={wide(17)}>{p.field?.total}</Text> 🎊 sur la piste · {planters} joueur{planters > 1 ? 's' : ''}</>
+                : 'La piste est encore vide'}
             </Text>
-            <Text style={st.help}>{mine ? `Dont tes ${mine} 🥔. ` : ''}La répartition reste cachée jusqu’à la fin.</Text>
+            <Text style={st.help}>{mine ? `Dont tes ${mine} 🎊. ` : ''}La répartition reste cachée jusqu’à la fin.</Text>
           </View>
         </View>
         {p.bag ? (
@@ -126,7 +126,7 @@ export function FieldCard({ p }: { p: PronoV2 }) {
             <View style={st.sep} />
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <BagChip bag={p.bag} />
-              <Text style={[st.help, { flex: 1, textAlign: 'right' }]}>Remonte à 100 🥔 lundi</Text>
+              <Text style={[st.help, { flex: 1, textAlign: 'right' }]}>Remonte à 100 🎊 lundi</Text>
             </View>
           </>
         ) : null}

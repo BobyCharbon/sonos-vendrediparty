@@ -18,7 +18,7 @@ export type ReportWhat = { label: string; author?: string };
 export function PronoReportSheet({ prono, what, patates, onClose }: { prono: string; what: ReportWhat | null; patates: boolean; onClose: () => void }) {
   const reasons = [
     ...REPORT_REASONS.filter((r) => r.key !== 'other'),
-    { key: 'money', label: patates ? 'Demande d’argent / vente de patates' : 'Demande d’argent', hint: 'Argent réel, vente ou échange contre quelque chose' },
+    { key: 'money', label: patates ? 'Demande d’argent / vente de confettis' : 'Demande d’argent', hint: 'Argent réel, vente ou échange contre quelque chose' },
     ...REPORT_REASONS.filter((r) => r.key === 'other'),
   ];
   const [reason, setReason] = useState<string | null>(null);

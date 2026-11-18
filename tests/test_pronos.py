@@ -92,8 +92,8 @@ def test_honour_only_no_stake_no_money_word_on_screen():
     # L'IA, les pièces de Zicou, le bar et le Pot commun ne touchent jamais un prono.
     for path in ("app/ai_events.py", "app/ai_event_edit.py", "app/tricount.py"):
         assert "prono" not in read(path)
-    # Le rappel des patates (v2, 18.11) remplace « aucun argent, aucune mise » (mot interdit) : web (lib) et iPhone (kit).
-    assert "Les patates n'ont aucune valeur" in read("web/events/src/lib/pronos.ts").replace("’", "'")
+    # Le rappel des confettis (v2, 18.11) remplace « aucun argent, aucune mise » (mot interdit) : web (lib) et iPhone (kit).
+    assert "Les confettis n'ont aucune valeur" in read("web/events/src/lib/pronos.ts").replace("’", "'")
     assert "aucune valeur" in read("ios/Party/Pronos/PronoKit.swift") or "aucune valeur" in read("ios/Party/Pronos/PronosStore.swift")
 
 

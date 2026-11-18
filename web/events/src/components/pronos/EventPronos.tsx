@@ -53,9 +53,9 @@ export function EventPronos({ eventId }: { eventId: string }) {
           <Text style={st.sub}>{list.length ? `${plural(list.length, 'prono')} · ${plural(players, 'joueur')}` : 'Devine, scelle, dévoile'}</Text>
         </View>
         {bag ? (
-          <Pressable accessibilityRole="button" accessibilityLabel={`Ton sac de la soirée : ${bag.balance} patates`} testID="prono-bag"
+          <Pressable accessibilityRole="button" accessibilityLabel={`Ton sac de la soirée : ${bag.balance} confettis`} testID="prono-bag"
             onPress={() => push(sacPath({ kind: 'event', id: eventId }))} style={({ pressed }) => [st.bagChip, pressTransition, pressed && st.pressed]}>
-            <Text style={[num(15), { color: C.t1 }]}>{bag.balance}</Text><Text style={{ fontSize: 15 }}>🥔</Text>
+            <Text style={[num(15), { color: C.t1 }]}>{bag.balance}</Text><Text style={{ fontSize: 15 }}>🎊</Text>
           </Pressable>
         ) : null}
       </View>
@@ -68,7 +68,7 @@ export function EventPronos({ eventId }: { eventId: string }) {
             <Countdown closesAt={featured.closes_at} />
           </View>
           <Text style={st.sub}>
-            {withPatates(featured) && featured.field_total != null ? `🥔 ${featured.field_total} dans le champ · ` : ''}
+            {withPatates(featured) && featured.field_total != null ? `🎊 ${featured.field_total} sur la piste · ` : ''}
             {`${featured.answered_count} ${featured.answered_count > 1 ? 'ont' : 'a'} ${featured.kind === 'award' ? 'voté' : 'joué'}`}
           </Text>
           <Preview p={featured} d={details[featured.id]} push={push} />

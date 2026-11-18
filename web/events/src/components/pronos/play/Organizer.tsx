@@ -59,7 +59,7 @@ export function Organizer({ p, busy, act }: { p: PronoV2; busy: boolean; act: Ac
               <View style={[st.rowIcon, { backgroundColor: 'rgba(255,122,138,0.14)' }]}><Text style={{ color: C.soft, fontSize: 18 }}>✕</Text></View>
               <View style={{ flex: 1 }}>
                 <Text style={[rounded(17, '800'), { color: C.soft }]}>Annuler le prono</Text>
-                <Text style={st.help}>{withPatates(p) ? 'Toutes les patates sont rendues.' : 'Aucun point n’est compté.'} Confirmation demandée.</Text>
+                <Text style={st.help}>{withPatates(p) ? 'Tous les confettis sont rendus.' : 'Aucun point n’est compté.'} Confirmation demandée.</Text>
               </View>
             </View>
             <ConfirmButton label={p.state === 'closed' ? 'Pas de résultat : annuler' : 'Annuler le prono'}

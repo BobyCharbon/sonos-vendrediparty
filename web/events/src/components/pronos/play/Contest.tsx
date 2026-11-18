@@ -138,7 +138,7 @@ export function ContestVote({ p, c, result, onVote, busy }: {
         <Text style={[st.legend, { flex: 1, textAlign: 'right' }]}>{missing} pas encore</Text>
       </View>
       <View style={st.sep} />
-      <Text style={st.small}>Si le Non l’emporte, ou en cas d’égalité, le prono est annulé{withPatates(p) ? ' et toutes les patates sont rendues' : ''}.</Text>
+      <Text style={st.small}>Si le Non l’emporte, ou en cas d’égalité, le prono est annulé{withPatates(p) ? ' et tous les confettis sont rendus' : ''}.</Text>
       <Text style={st.small}>
         {p.mine ? 'Tu as donné le résultat : tu ne votes pas.' : `${p.creator.name} ne vote pas.${c.can_vote ? ' Tu peux changer ton vote jusqu’à la fin.' : ''}`}
       </Text>

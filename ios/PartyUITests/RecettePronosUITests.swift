@@ -147,7 +147,7 @@ final class RecettePronosUITests: XCTestCase {
         result.tap()
         app.buttons["prono-reveal-button"].tap()
         XCTAssertTrue(any("identifier == 'prono-reveal'").waitForExistence(timeout: 20), "dévoilement")
-        // Seul joueur, et juste : « Unanimes ! » (tout le monde avait vu juste, patates rendues).
+        // Seul joueur, et juste : « Unanimes ! » (tout le monde avait vu juste, confettis rendus).
         XCTAssertTrue(any("label CONTAINS 'Unanimes' OR label BEGINSWITH 'Tu avais vu juste'").waitForExistence(timeout: 10), "résultat")
         sleep(1)
         shot("devoilement")

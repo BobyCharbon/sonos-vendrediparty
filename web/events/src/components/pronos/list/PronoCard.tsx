@@ -81,8 +81,8 @@ function Meta({ p, d, pat }: { p: ListCard; d?: Detail; pat: boolean }) {
   const bits: ReactNode[] = [];
   const field = d?.field?.total ?? p.field_total;
   const planters = d?.field?.planters ?? p.planters;
-  if (pat && field != null) bits.push(<Text key="f" style={st.metaText}>🥔 <Text style={st.metaB}>{field}</Text> dans le champ</Text>);
-  if (pat && planters != null) bits.push(<Text key="p" style={st.metaText}>{plural(planters, 'planteur')}</Text>);
+  if (pat && field != null) bits.push(<Text key="f" style={st.metaText}>🎊 <Text style={st.metaB}>{field}</Text> sur la piste</Text>);
+  if (pat && planters != null) bits.push(<Text key="p" style={st.metaText}>{plural(planters, 'lanceur')}</Text>);
   if (p.kind === 'award') bits.push(<Text key="h" style={st.metaText}>Pour l’honneur</Text>, <Text key="v" style={st.metaText}>dévoilé dès 3 votes</Text>);
   else if (p.kind === 'majority') bits.push(<Text key="m" style={st.metaText}>La réponse la plus choisie l’emporte</Text>);
   else if (p.kind === 'number' || p.kind === 'when') bits.push(<Text key="n" style={st.metaText}>le plus proche l’emporte</Text>);
@@ -175,7 +175,7 @@ function Sealed({ p, d, pat, push, onChanged }: { p: ListCard; d?: Detail; pat: 
   const [err, setErr] = useState<string | null>(null);
   const mine = d?.my_answer ? answerText(d, d.my_answer) : '';
   const stake = d?.my_answer?.stake ?? p.my_stake ?? 0;
-  const planted = pat && stake > 0 ? `${stake} 🥔 plantées` : null;
+  const planted = pat && stake > 0 ? `${stake} 🎊 lancés` : null;
   const happen = !!d?.can_happen;
   let sub: string;
   if (p.state === 'open') sub = ['Scellée', planted].filter(Boolean).join(' · ');
@@ -225,7 +225,7 @@ function Outcome({ p, d, pat }: { p: ListCard; d?: Detail; pat: boolean }) {
     return (
       <View style={st.verdict}>
         <Text style={st.neutral}>Prono annulé</Text>
-        {pat && stake > 0 ? <Text style={st.lavPill}>↩ {stake} 🥔</Text> : null}
+        {pat && stake > 0 ? <Text style={st.lavPill}>↩ {stake} 🎊</Text> : null}
       </View>
     );
   }
@@ -261,8 +261,8 @@ function Outcome({ p, d, pat }: { p: ListCard; d?: Detail; pat: boolean }) {
       <View style={st.verdict}>
         {unanimous ? (
           <>
-            <Text style={st.neutral}>{pat && stake ? 'Tes patates sont rendues' : 'Tout le monde avait vu juste'}</Text>
-            {pat && stake ? <Text style={st.lavPill}>↩ {stake} 🥔</Text> : null}
+            <Text style={st.neutral}>{pat && stake ? 'Tes confettis sont rendus' : 'Tout le monde avait vu juste'}</Text>
+            {pat && stake ? <Text style={st.lavPill}>↩ {stake} 🎊</Text> : null}
           </>
         ) : p.won ? (
           <>
@@ -270,7 +270,7 @@ function Outcome({ p, d, pat }: { p: ListCard; d?: Detail; pat: boolean }) {
               <Text style={[round(19, 24), { color: C.mint }]}>🔮 Tu l’avais vu !</Text>
               {d?.rarity ? <Text style={st.small}><Text style={{ color: C.gold }}>★ </Text>{rarityLine(d.rarity)}</Text> : null}
             </View>
-            {pat && harvest != null ? <Text style={[num(28), { color: C.mint }]}>+{harvest}<Text style={{ fontSize: 22 }}> 🥔</Text></Text>
+            {pat && harvest != null ? <Text style={[num(28), { color: C.mint }]}>+{harvest}<Text style={{ fontSize: 22 }}> 🎊</Text></Text>
               : !pat ? <Text style={[num(22), { color: C.mint }]}>+{p.points} pt{p.points > 1 ? 's' : ''}</Text> : null}
           </>
         ) : p.answered ? (
@@ -279,7 +279,7 @@ function Outcome({ p, d, pat }: { p: ListCard; d?: Detail; pat: boolean }) {
               <Text style={[round(19, 24), { color: C.miss }]}>Pas cette fois</Text>
               {d?.my_answer ? <Text style={st.small}>Ta réponse : {answerText(d, d.my_answer)}</Text> : null}
             </View>
-            {pat && stake > 0 ? <Text style={[num(20), { color: C.miss }]}>{stake} 🥔<Text style={st.compost}> au compost</Text></Text> : null}
+            {pat && stake > 0 ? <Text style={[num(20), { color: C.miss }]}>{stake} 🎊<Text style={st.compost}> au balai</Text></Text> : null}
           </>
         ) : (
           <Text style={st.neutral}>Tu n’as pas joué</Text>
