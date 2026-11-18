@@ -39,7 +39,7 @@ import UIKit
 //   PronoGlassCard(padding: 18, radius: 24, solid: false, tint: nil) { … }
 //   PronoSectionLabel("Ça ferme bientôt", trailing: "un toucher")
 //   PronoPrimaryButton("Sceller ma réponse", systemImage: "lock.fill", busy: busy) { … }   (ou title: "…")
-//   PronoPressStyle()                          style de bouton : échelle 0,97 au toucher (ressort)
+//   PronoKitPressStyle()                          style de bouton : échelle 0,97 au toucher (ressort)
 //   PronoPatateSlider(value: $stake, limit: bag.plantable)   curseur 0–20 + puces Sans / 5 / 10 / 20
 //   PronoHaptics.selection() / .success() / .soft() / .light() / .sealCrack() / .reveal(reduced:)
 //   PronoConfetti(active: right && !unanimous, style: .party | .gold)   jamais pour un raté ni des unanimes
@@ -831,7 +831,7 @@ struct PronoBagChip: View {
         Group {
             if let action {
                 Button { PronoHaptics.soft(); action() } label: { label }
-                    .buttonStyle(PronoPressStyle())
+                    .buttonStyle(PronoKitPressStyle())
                     .frame(minHeight: 44)
             } else {
                 label
@@ -881,8 +881,8 @@ struct PronoPatateSlider: View {
     var limit: Int = PronoPatates.maxStake
     var showsChips = true
 
-    private let maxValue = PronoPatates.maxStake
-    private let thumb: CGFloat = 40
+    let maxValue = PronoPatates.maxStake
+    let thumb: CGFloat = 40
 
     private func set(_ v: Int) {
         let clamped = min(max(0, v), min(limit, maxValue))
@@ -952,7 +952,7 @@ struct PronoPatateSlider: View {
                                 .background(on ? AnyShapeStyle(PronoTheme.patate) : AnyShapeStyle(PronoTheme.s3),
                                             in: RoundedRectangle(cornerRadius: PronoTheme.Radius.chip, style: .continuous))
                         }
-                        .buttonStyle(PronoPressStyle())
+                        .buttonStyle(PronoKitPressStyle())
                         .disabled(n > limit)
                         .opacity(n > limit ? 0.4 : 1)
                         .accessibilityLabel(n == 0 ? "Sans patates" : "\(n) patates")
@@ -1029,7 +1029,7 @@ struct PronoChoicePill: View {
             .animation(PronoTheme.motion(PronoTheme.press, reduced: reduceMotion), value: selected)
             .animation(PronoTheme.motion(PronoTheme.press, reduced: reduceMotion), value: result)
         }
-        .buttonStyle(PronoPressStyle())
+        .buttonStyle(PronoKitPressStyle())
         .accessibilityLabel(label + (result == .right ? ", bonne réponse" : ""))
         .accessibilityHint("Forme : \(shape.name)")
         .accessibilityAddTraits(selected ? .isSelected : [])
@@ -1176,14 +1176,14 @@ struct PronoPrimaryButton: View {
             .shadow(color: PronoTheme.pink.opacity(isEnabled ? 0.45 : 0), radius: 16, y: 10)
             .opacity(isEnabled ? 1 : 0.45)
         }
-        .buttonStyle(PronoPressStyle())
+        .buttonStyle(PronoKitPressStyle())
         .disabled(busy)
         .accessibilityLabel(title)
     }
 }
 
 /// Échelle 0,97 pendant l'appui, retour au ressort (rien avec Réduire les animations).
-struct PronoPressStyle: ButtonStyle {
+struct PronoKitPressStyle: ButtonStyle {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func makeBody(configuration: Configuration) -> some View {
@@ -1329,4 +1329,39 @@ private struct PronoCone: Shape {
         p.closeSubpath()
         return p
     }
+}
+
+// MARK: - Commodités (noms utilisés par la fiche et le dévoilement, I3)
+
+extension PronoCountdown {
+    /// Date sûre : la carte complète (style .large, 3 paliers). Puce : PronoCountdown(closesAt: date, style: .chip).
+    init(closesAt: Date) {
+        self.init(closesAt: Optional(closesAt), style: .large)
+    }
+}
+
+extension PronoPatateSlider {
+    /// Curseur seul (la fiche dessine ses propres puces Sans / 5 / 10 / 20) ; maximum : jamais plus que le sac.
+    init(value: Binding<Int>, maximum: Int) {
+        self.init(value: value, limit: maximum, showsChips: false)
+    }
+}
+
+extension PronoChoicePill {
+    /// Grande pastille de la fiche ; forme et couleur d'après l'index de l'option.
+    init(label: String, shape index: Int, selected: Bool, action: @escaping () -> Void) {
+        self.init(label: label, shape: PronoShape.at(index), selected: selected, style: .large, action: action)
+    }
+}
+
+extension PronoConfetti {
+    /// Une salve à l'apparition.
+    init() {
+        self.init(active: true)
+    }
+}
+
+extension PronoHaptics {
+    /// « lub-dub » ×2 ; rien avec Réduire les animations.
+    static func reveal() { reveal(reduced: Motion.reduced) }
 }
