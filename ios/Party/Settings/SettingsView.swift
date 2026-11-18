@@ -155,7 +155,8 @@ struct SettingsView: View {
                     }
                 }
                 Section {
-                    NavigationLink { PrivacyView(moderation: store.account != nil ? store.moderation : nil) } label: {
+                    NavigationLink { PrivacyView(moderation: store.account != nil ? store.moderation : nil,
+                                             chatPrefs: store.account != nil ? store.chatPrefs : nil) } label: {
                         SettingsRow(symbol: "lock.fill", tint: .blue, title: "Confidentialité",
                                     hint: store.account != nil ? "Personnes bloquées, conditions d'utilisation, tes données" : "Tes données et tes choix")
                     }

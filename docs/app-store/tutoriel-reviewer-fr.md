@@ -13,6 +13,8 @@ et bar allumés, Zicou éteint). Ce qui ne l'est pas porte la marque **À VÉRIF
 - Données à préparer : voir l'encadré « À FAIRE AVANT ENVOI » de `notes-for-review.md` (événement « Soirée démo » où Apple-test
   est invité, bar ouvert avec des articles sans alcool, groupe « Démo Apple » avec des messages, un message privé, et si
   possible « Démo Apple · Sondage »).
+- Second compte de démo **« Apple-test 2 »** (Discussions v2, 18.11) : autre numéro à code fixe, sans groupe ni événement
+  privé en commun avec Apple-test, qui lui a envoyé une **demande de message** en attente (point 4 bis de l'encadré).
 - Guest+ n'a pas « Publier sans validation » ni « Voir les événements » (il voit les événements publics et ceux où il est
   invité) : ses nouveaux événements attendent une validation. Valider vite pendant la revue.
 - Corrections annoncées par le coordinateur (décrites ci-dessous comme en place) — **À VÉRIFIER en prod avant l'envoi** :
@@ -118,10 +120,16 @@ Option « Forum de l'événement » : section **Discussion** › **Ouvrir ›** 
 
 ## 4. Discussions
 Onglet **Discussions** › « Démo Apple » : texte, photos, vocaux, réponses, réactions. Premier message : CGU.
-**Appui long** sur un message › **Répondre · Copier · Signaler**. Message privé : la conversation avec l'admin, ou un nom ›
-**Écrire** (seulement avec un groupe ou un événement en commun, ou un numéro dans ses contacts). Dans un message privé,
-**ⓘ** › **Bloquer …** / **Signaler …**. Bloquer masque aussitôt ses messages et prévient les modérateurs ; débloquer :
-Réglages › Confidentialité › **Personnes bloquées**. En haut : **✎** nouveau groupe, pause des notifications. 📸
+**Appui long** sur un message › **Répondre · Copier · Signaler** (case « Joindre les 10 messages précédents » ; la photo
+ou le vocal signalé est copié pour les modérateurs). Message direct seulement avec un vrai lien (groupe en commun hors
+Membres Vendredi Party, événement non public en commun, organisateur d'un événement auquel on a répondu) ; sinon une
+**demande de message** : un seul texte, sans photo, vocal, lien ni numéro. **Demandes** (en haut de la liste) : mini-profil
++ message, **Accepter · Supprimer · Bloquer · Signaler** ; l'expéditeur n'est jamais prévenu d'un refus. Réglages ›
+Confidentialité › **Demandes de message** (Tout membre / Personne) et **Confirmations de lecture**. **Nouveau message**
+(bouton rose) : suggestions de vrais liens seulement, recherche par nom (jamais par numéro) ; 2 personnes ou plus = groupe
+privé, jamais lu par l'administration. Toucher un nom ou une photo : mini-profil (« Envoyer un message », « Déjà vu N
+fois », Bloquer · Signaler). Bloquer masque aussitôt ses messages et prévient les modérateurs ; débloquer : Réglages ›
+Confidentialité › **Personnes bloquées**. 📸
 
 ## 5. Groupes
 Réglages › **Groupes** : mes groupes, **Nouveau groupe**, membres, **Inviter avec un lien**, « Montrer mon numéro dans ce

@@ -184,6 +184,11 @@ struct NotificationSettingsView: View {
                 // Messages directs (conversation privée à deux) : leur propre interrupteur ; la pause ci-dessous les couvre aussi.
                 eventToggle("direct_messages", "bubble.left.fill", .mint, "Messages directs",
                             "« Nouveau message de … » quand quelqu'un t'écrit en privé", p.directMessages != false)
+                // Demande de message (quelqu'un sans vrai lien) : « … veut t'écrire », jamais le message lui-même.
+                eventToggle("message_requests", "envelope.badge.fill", .orange, "Demandes de message",
+                            "« … veut t'écrire » quand quelqu'un t'envoie une demande (jamais son message dans la notification)",
+                            p.messageRequests != false)
+                    .accessibilityIdentifier("notif-message-requests")
                 ChatsPauseRow(store: store.pause, scope: .chats)
                 // Groupes de Discussions : @tout et @annonce préviennent tout le groupe ; chacun peut le couper ici.
                 eventToggle("group_broadcasts", "megaphone.fill", .pink, "Annonces et @tout des groupes",

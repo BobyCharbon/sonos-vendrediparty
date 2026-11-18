@@ -2,10 +2,24 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { View } from 'react-native';
 
-import { Avatar, Button, Card, Empty, ErrorText, LinkRow, Loading, RowDivider, Screen, Section, T } from '@/components/ui';
+import { Avatar, Button, Card, Empty, ErrorText, LinkRow, Loading, RowDivider, Screen, Section, Segmented, T, ToggleRow } from '@/components/ui';
 import { AI_CONSENT_TEXT, aiConsentLabel, aiConsentStatus, setAiConsent } from '@/lib/aiConsent';
 import { useQuery } from '@/lib/data';
+import { discussionsOn } from '@/lib/features';
 import { myBlocks, setBlocked, TERMS_PATH, useTerms } from '@/lib/moderation';
+import { supabase } from '@/lib/supabase';
+
+/** Réglages des Discussions (`public.chat_prefs`, soi seulement) : qui peut m'envoyer une demande de message,
+ * confirmations de lecture réciproques (les couper = ne plus voir celles des autres). */
+type ChatPrefs = { message_requests: 'all' | 'none'; read_receipts: boolean };
+
+async function chatPrefs(): Promise<ChatPrefs | null> {
+  if (!discussionsOn) return null;
+  const { data, error } = await supabase.rpc('chat_prefs_get');
+  if (error?.code === 'PGRST202') return null;  // base d'avant les Discussions v2 : pas de section
+  if (error) throw new Error('Tes réglages des Discussions n’ont pas pu être lus.');
+  return data as ChatPrefs;
+}
 
 /** Réglages › Confidentialité : personnes bloquées (blocage commun à toute l'app), conditions d'utilisation acceptées,
  * accord pour l'IA (pour TOUS les comptes : le voir, le retirer, le redonner), politique de confidentialité. */
@@ -15,6 +29,22 @@ export default function PrivacySettings() {
   const ai = useQuery(aiConsentStatus, []);
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const chat = useQuery(chatPrefs, []);
+
+  async function setChat(patch: Partial<ChatPrefs>) {
+    if (!chat.data || busy) return;
+    setBusy('chat');
+    setActionError(null);
+    try {
+      const { error: e } = await supabase.rpc('chat_prefs_set', patch);
+      if (e) throw e;
+      chat.setData({ ...chat.data, ...patch });
+    } catch {
+      setActionError('Ton réglage des Discussions n’a pas été enregistré. Vérifie ta connexion et réessaie.');
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function unblock(id: string) {
     setBusy(id);
@@ -76,6 +106,27 @@ export default function PrivacySettings() {
         ) : null}
         <ErrorText error={error} />
       </Section>
+      {discussionsOn && (chat.loading || chat.data || chat.error) ? (
+        <Section title="Discussions">
+          {chat.loading && !chat.data ? <Loading /> : null}
+          {chat.data ? (
+            <>
+              <T weight="semibold">Demandes de message</T>
+              <T muted size={13}>Qui peut t’envoyer une demande quand vous n’avez pas de groupe ni d’événement privé en commun : un seul message texte, que tu acceptes ou non.</T>
+              <Segmented<ChatPrefs['message_requests']> value={chat.data.message_requests} disabled={busy === 'chat'}
+                onChange={(message_requests) => void setChat({ message_requests })}
+                options={[{ key: 'all', label: 'Tout membre' }, { key: 'none', label: 'Personne' }]} />
+              <T muted size={13}>{chat.data.message_requests === 'all'
+                ? 'Tout membre peut t’envoyer une demande. Les personnes avec qui tu as un vrai lien t’écrivent toujours directement.'
+                : 'Plus aucune demande. Seules les personnes avec qui tu as un vrai lien (groupe, événement privé, organisateur) peuvent t’écrire.'}</T>
+              <ToggleRow disabled={busy === 'chat'} label="Confirmations de lecture"
+                hint="Dans un message direct, l’autre voit « Vu » quand tu as lu. Si tu les coupes, tu ne vois plus celles des autres."
+                value={chat.data.read_receipts} onChange={(read_receipts) => void setChat({ read_receipts })} />
+            </>
+          ) : null}
+          <ErrorText error={chat.error} />
+        </Section>
+      ) : null}
       <Section title="Conditions d’utilisation">
         <T muted size={13}>{accepted ? `Acceptées${acceptedAt ? ` le ${acceptedAt}` : ''}.` : 'Pas encore acceptées : elles te seront demandées avant ton premier message ou ton premier nom.'}</T>
         <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>

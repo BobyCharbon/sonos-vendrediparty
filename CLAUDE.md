@@ -507,3 +507,33 @@ réglage de prod :
   (sinon la fiche passait par-dessus) ; iPhone : `PronosStore.call` lit `/api/features` au premier appel.
 - Tests : `tests/supabase_live/test_pronos_v2_live.py`, `test_pronos_browser_live.py` (recette réelle avec confettis),
   `tests/test_pronos_v2.py`, `tests/test_compliance_pronos.py`, `PronosTests`, recette `RecettePronosUITests` (Release).
+
+## Discussions v2 (18.11, migrations 20261118120000 / 20261118121000)
+- Qui écrit à qui : la BASE décide (`private.dm_link` → 'direct' / 'request' / 'none', `chat_link` pour les écrans).
+  Direct : conversation acceptée, groupe en commun HORS Membres Vendredi Party, événement NON public en commun, organisateur
+  ↔ personne qui a répondu à SON événement. Demande : VP seul en commun, même événement public, contact du répertoire,
+  recherche. Aucun : blocage (deux sens), compte inactif, profil / CGU manquants, « Demandes de message : Personne ».
+  L'app ne fait que proposer ; jamais de suggestion « tout le site » ni de recherche par numéro.
+- Demande de message (`open_direct_chat`, `direct_chats.status`) : UN message texte, sans photo, vocal, lien ni numéro
+  (garde `guard_direct_message`, `request_pending`) ; Accepter / Supprimer / Bloquer / Signaler ; l'expéditeur n'est
+  jamais prévenu d'un refus. Plafonds : 10 nouvelles / 24 h, 30 en attente (`limit`) ; devinette de numéro : 20 échecs
+  / 24 h. Refusée : effacée aussitôt ; ignorée : 30 jours (`chat-requests-tick`). Notification `message_request`
+  (« … veut t'écrire », sans contenu, une fois) + interrupteur `notification_prefs.message_requests` (web + iPhone).
+- Réglages (`chat_prefs`, `chat_prefs_get` / `chat_prefs_set`) : « Demandes de message » Tout membre / Personne et
+  « Confirmations de lecture » (réciproques) dans Réglages › Confidentialité, web (`settings/privacy.tsx`) et iPhone
+  (`ChatPrefsSection`). « écrit… » = signal en direct, jamais en base ; ni Vu ni écrit… dans une demande ou avec un bloqué.
+- Root : ne lit JAMAIS les messages directs, les demandes ni les groupes privés (`member_groups.private_chat`, créés par
+  « Nouveau message », `create_chat_group`) ; il lit les autres groupes (dit dans privacy.tsx et les CGU). Jamais VP privé.
+- iPhone : tout passe par `POST /api/account/chats/rpc` (app/chat_rpc.py, liste blanche RELAY, mêmes erreurs que
+  pronos/rpc, terms_required → 403). Toute nouvelle fonction publique des Discussions = ajoutée à RELAY.
+- Mini-profil (`member_mini`) au toucher d'un nom ou d'une photo PARTOUT (web `useMiniProfile().open`, iPhone natif),
+  « Envoyer un message » désactivé avec la raison si 'none'. « Déjà vu N fois » = soirées PASSÉES où les deux étaient
+  présents (Présent, organisation, billet scanné), sous `can_see_event`, calculé à l'affichage, jamais stocké.
+- Fichiers : signaler un message avec photo / vocal le copie dans `moderation-evidence` (modérateurs seuls, effacé avec le
+  signalement) ; case « Joindre les 10 messages précédents » décochée ; « Masquer » prévient l'auteur (`content_hidden`,
+  motif + contestation) ; fichiers orphelins de `chat-photos` / `group-photos` effacés par le serveur (6 h) ; photos et
+  vocaux 90 jours ; messages directs jusqu'à la suppression du compte de l'un des deux.
+- Textes : CGU 2026-11-18 « Messages directs et demandes » et politique « Discussions et messages directs » (web = iPhone,
+  mot pour mot) ; phrase Contacts (project.yml) avec les suggestions ; notes de revue (section DISCUSSIONS, 2 comptes de
+  démo). Tests : `tests/test_compliance_discussions.py`, `tests/supabase_live/test_discussions_v2_live.py`,
+  `tests/test_chat_rpc.py`, `tests/test_discussions_moderation.py`.

@@ -215,6 +215,8 @@ export default function NotificationSettings() {
         <ToggleRow disabled={saving} label="Messages des groupes" hint="Les messages de tes groupes, selon le choix de chaque groupe (tous, si on me cite ou rien)" value={prefs.group_messages !== false} onChange={(v) => update({ group_messages: v })} />
         {/* Messages directs (conversation privée à deux) : leur propre interrupteur ; la pause des Discussions les couvre aussi. */}
         <ToggleRow disabled={saving} label="Messages directs" hint="« Nouveau message de … » quand quelqu’un t’écrit en privé (chaque conversation peut aussi être mise en sourdine)" value={prefs.direct_messages !== false} onChange={(v) => update({ direct_messages: v })} />
+        {/* Demande de message (quelqu'un sans vrai lien) : « … veut t'écrire », sans le contenu, une fois par personne. */}
+        <ToggleRow disabled={saving} label="Demandes de message" hint="« … veut t’écrire » quand quelqu’un t’envoie une demande (jamais son message dans la notification)" value={prefs.message_requests !== false} onChange={(v) => update({ message_requests: v })} />
         <ChatsPause scope="chats" />
         {/* Groupes de Discussions : @tout et @annonce préviennent tout le groupe ; chacun peut le couper ici. */}
         <ToggleRow disabled={saving} label="Annonces et @tout des groupes"

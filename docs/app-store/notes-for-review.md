@@ -19,6 +19,10 @@
 >    Facultatif : Apple-test **barman** (onglet « Barmans ») pour qu'il voie « 🍹 Scanner au bar ».
 > 3. Groupe **« Démo Apple »** : Apple-test + un admin, **quelques messages** (un vocal et une photo neutre si possible).
 > 4. Un **message privé** d'un admin à Apple-test (ils partagent le groupe, donc « Écrire » marche).
+> 4 bis. Discussions v2 (18.11) : un **second compte de démo « Apple-test 2 »** (autre numéro à code fixe, Supabase › Test
+>    OTP ; numéro dans ce guide exporté, code dans App Store Connect, jamais dans le dépôt), profil complet, CGU acceptées,
+>    **aucun groupe ni événement privé en commun** avec Apple-test, et **une demande de message en attente** d'Apple-test 2
+>    vers Apple-test (texte neutre : « Salut, on s'est croisés à la soirée démo ? »). Apple voit ainsi « Demandes (1) ».
 > 5. Recommandé : **« Démo Apple · Sondage »** (organisé par un admin, Apple-test invité, « Date à définir », 3 créneaux).
 > 6. Pendant toute la revue : valider vite toute proposition d'Apple-test (bandeau « … attend ta validation »), garder l'IA
 >    sous son plafond mensuel, ne PAS fermer le bar « Soirée démo », AUCUNE mise en prod ni maintenance (24-48 h).
@@ -27,54 +31,57 @@
 >    bar offert partout ; articles tabac / drogues refusés ; classements des jeux sans gorgées ; CGU « 18 ans et plus » +
 >    section bar / paiements ; politique de confidentialité avec une section bar. Si l'une manque en prod : corriger ce
 >    texte avant l'envoi (Apple compare les notes et l'app).
-> 8. Copier la **partie A** dans App Store Connect › App Review Information › **Notes** (3 807 caractères, limite 4 000) ET
->    dans `ios/appstore/review-notes.txt` (pas modifié par ce travail) (c'est ce fichier que `tools/appstore_submit.py` envoie ; la partie A garde tous
+> 8. Copier la **partie A** dans App Store Connect › App Review Information › **Notes** (3 985 caractères, limite 4 000 ; 18.11 : section DISCUSSIONS v2) ET
+>    dans `ios/appstore/review-notes.txt` (même texte) (c'est ce fichier que `tools/appstore_submit.py` envoie ; la partie A garde tous
 >    les mots exigés par `tests/test_ios_app.py::test_review_notes_describe_every_big_feature_delivered_by_the_web`).
 > 9. Exporter la **partie B** en PDF (sans cet encadré) et la joindre dans App Review Information › **Attachment**.
 
 ---
 
-## PART A — Text for the "Notes" field (3,807 characters, limit 4,000)
+## PART A — Text for the "Notes" field (3,985 characters, limit 4,000)
 
 ```text
 ABOUT
-"Vendredi Party" (icon "Party !"): free app made by the Swiss association Vendredi Party, for groups of friends and associations organising events: real-world events, party games, party music, group chats. French, 18+. No ads, no tracking, no in-app purchase. Full step-by-step guide attached (PDF).
+"Vendredi Party" (icon "Party !"): free app by the Swiss association Vendredi Party, for friends and associations: real-world events, party games, music, chats. French, 18+. No ads, no tracking, no in-app purchase. Guide attached (PDF).
 
 SIGN-IN
-Phone + 6-digit SMS code, no password. Demo account "Apple-test": number and code: see the App Review Information sign-in fields (fixed code, no SMS). Last tab "Se connecter" > "Se connecter" > "Suisse +41" > number > code. Please keep the account.
+Phone + 6-digit SMS code, no password. Demo account "Apple-test": number and code in the sign-in fields (fixed code, no SMS). Last tab "Se connecter" > "Suisse +41" > number > code.
 
 TRY IT
 1. Events > "Soirée démo Vendredi Party" (invited, co-organiser): answer "Présent", order at the bar (Wallet card); "Gérer le bar".
-2. Events > "Avec l'IA" or "+ Proposer" (new events of the demo account wait for our approval).
-3. Discussions > "Démo Apple": long-press a message > "Signaler".
-4. Games > "Créer une salle" > Quiz (works alone), or Méninges > "Faire chauffer".
+2. Events > "Avec l'IA" or "+ Proposer" (new events wait for our approval).
+3. Discussions > "Démo Apple": long-press a message > "Signaler"; "Nouveau message"; "Demandes".
+4. Games > "Créer une salle" > Quiz, or Méninges.
 
 NATIVE (4.2)
-Native tab bar; SwiftUI: Music, Settings, Discussions, Groups, "Ton avis", event AI assistant, "Pot commun", banners, offline screen. Push (one switch per type), Live Activity, Apple Wallet (tickets, bar card), QR scanner, VisionKit, Calendar, optional Contacts (hashed), dictation, share extension, universal links. Pyramide: cards in a native panel hidden from screenshots.
+Native tab bar; SwiftUI: Music, Settings, Discussions, Groups, Pronos, "Ton avis", AI assistant, "Pot commun". Push (one switch per type), Live Activity, Wallet, QR scanner, Calendar, optional Contacts (hashed), dictation. Pyramide: cards hidden from screenshots.
 
 WEB CONTENT (2.5.2)
-Events and Games tabs are our own site (party.bobycharbon.ch) in a WKWebView, same HTML/JS for all users, calling only the native features above. Other sites open in Safari. Everything described here is on in production.
+Events and Games tabs are our own site in a WKWebView, same for all users, using only the native features above. Other sites open in Safari. All is on in production, except Confetti (see PRONOS).
 
 EVENTS
-"+ Proposer" or "Avec l'IA", then "Qui est invité": public, invitation or groups. Links for one person or "Plusieurs"; guests create, copy and stop own links, see counts only. Not public: someone coming through a guest's link waits ("À accepter"). Date poll (Oui / Si besoin / Non). "Ajouter à mon agenda": personal calendar feed. Carpool (no money). QR ticket + Wallet. Groups: "Inviter avec un lien". Everyone signs in (first/last name, nickname of 12 characters max). The page updates live; tap a name to open the profile; each answer shows its time. Admins: "Nouveau compte" alert, announcement or maintenance message.
+"Qui est invité": public, invitation or groups. Links for one person or "Plusieurs"; guests create, copy and stop own links, see counts only. Not public: someone coming through a guest's link waits ("À accepter"). Date poll. Personal calendar feed. Carpool (no money). QR ticket + Wallet. Groups: "Inviter avec un lien". Everyone signs in (name, nickname of 12 characters max). The page updates live; tap a name to open the profile; each answer shows its time. Admins: "Nouveau compte" alert, announcement or maintenance message.
 
 PAYMENTS (3.1.3(e))
-Party never sells, holds or transfers money; no digital goods. Real-world events only: "On me paie" (organiser's Revolut/Twint/IBAN), "Paiement en ligne" (ticketing link, opens in Safari) or "Sur place". "J'ai payé" is a note; the organiser confirms "Reçu ✓" (then the QR ticket). "Pot commun" only records who owes what.
+Party never sells, holds or transfers money; no digital goods. Real-world events only: organiser's own Revolut/Twint/IBAN, ticketing link (Safari) or on site.
 
 PARTY BAR
-Organiser's option, off by default; a paid bar only on private events (a free bar anywhere). Physical drinks; items 16+/18+, the barman checks age in person; tobacco/drugs refused; no ranking or prompt to drink. Barman scans the guest's QR; balance in a Wallet card. Party only records who owes what, repaid to the organiser outside the app.
+Organiser's option; paid bar only on private events. Age checked by the barman; tobacco/drugs refused; no prompt to drink. Repaid outside the app.
 
 DISCUSSIONS (1.2)
-Group chats and DMs between people sharing a group or event; verified phone. Terms before the first message, word filter, "Signaler" on messages, profiles, photos, events, polls. "Bloquer" hides that person's messages at once and notifies moderators (Settings > Confidentialité > "Personnes bloquées"). Reports handled within 24 h. Contact: support@vendrediparty.ch.
+Direct messages only with a real link (shared group or private event, organiser of an event you answered); anyone else sends a message request: one text, no photo/link/number; "Accepter / Supprimer / Bloquer / Signaler", sender never told. Settings > Confidentialité > "Demandes de message" (everyone / no one). "Nouveau message": real links only, search by name, never by number; 2+ people make a private group, not read by admins. Tap a name or photo: mini-profile ("Envoyer un message", Bloquer, Signaler). Terms first, word filter, "Signaler" on every message (photo/voice kept for moderators, last 10 messages if ticked); "Bloquer" hides messages at once and alerts moderators. Reports within 24 h. Second demo account "Apple-test 2" (number in the guide) shows a request from the other side. Contact: support@vendrediparty.ch.
 
 AI (5.1.2(i))
-"Avec l'IA", "Ton avis" and receipt reading send data to Anthropic (Claude) only after "J'accepte"; all works without AI; phone never sent. Withdraw: Settings > Confidentialité > "IA de Party".
+"Avec l'IA", "Ton avis" and receipts go to Anthropic (Claude) only after "J'accepte". Withdraw: Settings > Confidentialité.
 
 GAMES (18+)
-Drinking modes are optional: water always counts, 0 sips = alcohol-free, never ranked by drinks. No gambling, bets, purchases or prizes; no Casino/Blackjack in this app.
+Drinking modes optional, water counts, never ranked by drinks. No real-money gambling, purchases or prizes; no Casino.
+
+PRONOS (Simulated Gambling declared)
+Settings > Autres apps > Pronos, or a group / event: guess an outcome for fun; points on the group ranking. Confetti (free, valueless play tokens): 100 per group or event each week (refilled, never above), 1 to 20 per prono, shared among right answers (no odds). They cannot be bought, sold, given, transferred, converted or exchanged for anything; no prizes. Money words and alcohol refused. Confetti are switched on in production only after this version is approved. Demo: group "Démo Apple" > Pronos.
 
 MUSIC
-Needs a live party (host's QR or 4-digit code); songs play on the host's speakers.
+Needs a live party (host's QR or 4-digit code).
 
 DELETION
 Settings > "Gérer mon compte" > type SUPPRIMER > "Supprimer définitivement mon compte".
@@ -117,6 +124,7 @@ has a **fixed code** (also in "Sign-in information", Password field): no SMS is 
 | Event **"Soirée démo Vendredi Party"** (12 Dec.) | Organised by us, invitation only; the demo account is invited AND co-organiser: answer, event discussion, and an **open party bar** (answer **Présent**, then order a drink; organiser side: ZONE ORGANISATEUR › **Gérer le bar**, recap, **Scanner au bar**). Tickets, payment and carpool are off on this event (options of the organiser, described below for completeness). |
 | Group **"Démo Apple"** | The demo account + one of our admins, with a few messages. |
 | Direct message | One message from our admin to the demo account. |
+| Second demo account **"Apple-test 2"** | Number: given in this guide when exported (same fixed-code method). Shares no group or private event with "Apple-test" and has sent it a **message request** (Discussions › **Demandes**). Sign in with it to see the sender side ("Demande envoyée", input closed until accepted). |
 
 If you test account deletion: please do it last. Signing in again with the same number then creates a new, empty
 account (the prepared data stays linked to the deleted one).
@@ -274,18 +282,31 @@ Organiser / barman side (on "Soirée démo Vendredi Party" you are also co-organ
 The barman checks age **in person** (the app stores no date of birth). There is no ranking, reward or prompt to drink.
 The app only records who owes what to the organiser; the money is repaid outside the app.
 
-#### B4.13 Discussions (group chats and direct messages)
+#### B4.13 Discussions (group chats, direct messages, message requests)
 
 Tab **Discussions** (signed-in accounts):
 1. Open **Démo Apple**: group conversation (text, photos, voice messages, replies, reactions, mentions).
 2. The first message you send asks you to accept the **Terms of use**.
-3. **Long-press a message** › **Répondre**, **Copier**, **Signaler** (report: choose a reason, optional comment).
-4. Direct message: open the conversation with our admin (from the list), or tap a person's name › **Écrire**. A direct
-   message is only possible between people who share a group or an event, or whose number is in your contacts.
-5. In a direct chat, **ⓘ** › **Bloquer [name]** / **Signaler [name]**. Blocking hides that person's messages at once
-   (groups, direct messages, event discussions), notifies our moderators, and stops them writing to you, mentioning,
-   inviting you or seeing your profile; they are not told. Unblock: Réglages › Confidentialité › **Personnes bloquées**.
-6. Top right **✎** creates a new group (same groups as Réglages › Groupes); top left pauses chat notifications.
+3. **Long-press a message** › **Répondre**, **Copier**, **Signaler** (report: choose a reason, optional comment, optional
+   box "Joindre les 10 messages précédents"; a reported photo or voice message is copied for our moderators).
+4. **Who can write to whom** (decided by the database): people with a real link (a shared group other than "Membres
+   Vendredi Party", a shared private event, or the organiser of an event you answered) write directly. Anyone else can
+   only send a **message request**: one text message, no photo, voice, link or phone number, nothing more until accepted.
+5. **Demandes** (top of the list): each request shows the sender's mini-profile and message with **Accepter**,
+   **Supprimer**, **Bloquer**, **Signaler**. The sender is never told of a refusal. Settings › Confidentialité ›
+   **Demandes de message**: "Tout membre" (default) or "Personne". Limits: 10 new requests a day, 30 pending.
+6. **Nouveau message** (pink button): suggestions come only from real links (your groups, people met at an event in the
+   last 60 days, your phone contacts already on Party if you allow Contacts); search by first name, last name or nickname,
+   never by phone number. Choosing 2 or more people creates a **private group** (name, emoji, colour, invitations to
+   accept), which our administrators never read; it is moderated through reports, like direct messages.
+7. **Mini-profile**: tap any name or photo (chats, guest lists, groups, pronos…) › **Envoyer un message** (disabled with
+   the reason when not allowed), "Déjà vu N fois" (past parties attended together), upcoming events in common,
+   **Bloquer** · **Signaler**.
+8. Blocking hides that person's messages at once (groups, direct messages, event discussions), removes their requests,
+   notifies our moderators, and stops them writing to you, mentioning, inviting you or seeing your profile; they are not
+   told. Unblock: Réglages › Confidentialité › **Personnes bloquées**.
+9. Read receipts ("Vu") in direct chats only if both people keep **Confirmations de lecture** on; "écrit…" is a live
+   signal, never stored. Neither appears in a request or with a blocked person.
 
 Each event can also have its own **Discussion** (organiser's option "Forum de l'événement"), with the same rules.
 
@@ -386,10 +407,13 @@ platform (web, iPhone), maintained by us.
   hate, sexual or violent content, illegal content, spam; zero tolerance. Users must be **18 or older**.
 - **Word filter** on messages, nicknames, names, group names, places and texts shown in games.
 - **Signaler** (report) on every message, profile, profile photo, event, poll and game answer shown to others.
-- **Bloquer** (block) from a profile or a direct chat; blocked people disappear from your conversations at once and the
-  block is reported to moderators.
-- **Moderation**: our moderators receive each report with a copy of the content; they hide content, warn, suspend or ban
-  accounts. Reports are handled within 24 hours.
+- **Bloquer** (block) from a profile, a mini-profile, a direct chat or a message request; blocked people disappear from
+  your conversations at once and the block is reported to moderators.
+- **Message requests**: people without a real link can only send one text message, which the recipient accepts or not;
+  "Demandes de message: Personne" turns them off. Direct messages and private groups are never read by our admins;
+  reported content (with its photo or voice message) is copied for moderators.
+- **Moderation**: our moderators receive each report with a copy of the content; they hide content (the author is told
+  why and how to appeal), warn, suspend or ban accounts. Reports are handled within 24 hours.
 - **Contact** published in the app (Settings › Confidentialité › Conditions d'utilisation) and on the support page:
   support@vendrediparty.ch.
 
@@ -409,7 +433,7 @@ Our screenshots and App Store texts show no alcohol.
 | Photos | Choosing a photo; "Add to Photos" on a long-press of an image |
 | Microphone + Speech recognition | Only while you dictate (AI assistant, feedback) or record a voice message |
 | Calendars | "Add the poll dates to my calendar" in a date poll |
-| Contacts | Optional "Noms de mes contacts": numbers are hashed on the iPhone, names never leave it |
+| Contacts | Optional "Noms de mes contacts" or "Tes contacts sur Party" in Nouveau message: numbers are hashed on the iPhone, names never leave it |
 
 No location, no tracking, no App Tracking Transparency prompt (nothing to track).
 

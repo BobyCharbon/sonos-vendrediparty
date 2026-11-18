@@ -77,7 +77,7 @@ targets:
         # Agenda (17.11) : « Rien ne quitte ton iPhone » n'est plus vrai quand on partage ses dispos (conformite.md, règle 8).
         NSCalendarsFullAccessUsageDescription: "Pour mettre les dates proposées d'un sondage dans ton calendrier en un toucher, puis retirer toute seule celles qui ne sont pas retenues quand la date est fixée, et pour voir tes calendriers dans l'Agenda de Party. Seulement si tu actives « Partager mes dispos », tes heures occupées (jamais le titre ni le détail) partent aux groupes et aux liens de dispo que tu choisis."
         NSCalendarsUsageDescription: "Pour mettre les dates proposées d'un sondage dans ton calendrier en un toucher, puis retirer toute seule celles qui ne sont pas retenues quand la date est fixée, et pour voir tes calendriers dans l'Agenda de Party. Seulement si tu actives « Partager mes dispos », tes heures occupées (jamais le titre ni le détail) partent aux groupes et aux liens de dispo que tu choisis."
-        NSContactsUsageDescription: "Pour afficher les membres Party qui sont dans tes contacts sous le nom que tu leur as donné. Seule une empreinte chiffrée des numéros est comparée ; tes contacts restent sur ton iPhone."
+        NSContactsUsageDescription: "Pour afficher les membres Party qui sont dans tes contacts sous le nom que tu leur as donné, et te les proposer quand tu écris un nouveau message. Seule une empreinte chiffrée des numéros est comparée ; tes contacts restent sur ton iPhone."
         ITSAppUsesNonExemptEncryption: false
         # Actions rapides de l'icône (appui long) : Party/QuickActions.swift. « Zicou » et « Cadeau du jour » sont
         # ajoutées par l'app BETA seulement (condition BETA), et seulement si le Compagnon est ouvert sur le site.

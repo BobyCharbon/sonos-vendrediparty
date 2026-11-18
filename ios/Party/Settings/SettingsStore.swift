@@ -75,6 +75,8 @@ final class SettingsStore: ObservableObject {
     private(set) lazy var pause = PauseStore(api: api, web: web)
     /// Modération commune : Personnes bloquées, conditions d'utilisation (Réglages › Confidentialité).
     private(set) lazy var moderation = ModerationStore(api: api, web: web)
+    /// Réglages › Confidentialité › Discussions (18.11) : demandes de message, confirmations de lecture.
+    private(set) lazy var chatPrefs = ChatPrefsStore(api: api, web: web)
 
     init(api: PartyAPI, web: WebStorage, isHost: @escaping () -> Bool, trackChanged: @escaping (Bool, Bool) -> Void) {
         self.api = api
@@ -414,6 +416,7 @@ final class SettingsStore: ObservableObject {
         case ("referral_joins", let v as Bool): p.referralJoins = v
         case ("contact_joins", let v as Bool): p.contactJoins = v
         case ("direct_messages", let v as Bool): p.directMessages = v
+        case ("message_requests", let v as Bool): p.messageRequests = v
         case ("pet_daily", let v as Bool): p.petDaily = v
         case ("pet_alerts", let v as Bool): p.petAlerts = v
         case ("pet_gifts", let v as Bool): p.petGifts = v
