@@ -52,4 +52,4 @@ def test_a_paid_bar_belongs_to_private_parties_only():
 
 def test_terms_are_the_version_of_the_16th():
     out = run(as_postgres() + keep("v", "(select terms_version from private.moderation_settings where id = 1)"))
-    assert "v=2026-11-16" in out, out
+    assert "v=2026-11-18" in out, out
