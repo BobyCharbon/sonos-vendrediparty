@@ -114,7 +114,7 @@ export function LiveTab({ eventId, overview, onOverview }: { eventId: string; ov
               <Pressable accessibilityRole="button" accessibilityLabel={`Détail de ${p.name} : ${barChf(p.balance)} à rembourser`}
                 onPress={() => router.push(`/event/${eventId}/bar/person/${p.id}`)}
                 style={({ pressed }) => [st.person, pressed && { backgroundColor: colors.fill }]}>
-                <Avatar id={p.id} name={p.name} photo={p.avatar_url} size={36} profile={false} />
+                <Avatar id={p.id} name={p.name} photo={p.avatar_url} size={36} />
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <T weight="semibold" size={15} numberOfLines={1}>{p.name}</T>
                   <T size={12} color={s.color}>{s.text}</T>

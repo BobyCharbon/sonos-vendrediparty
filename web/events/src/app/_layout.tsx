@@ -12,6 +12,7 @@ import { useEdgeSwipeBack } from '@/lib/edgeSwipe';
 import { usePendingSync } from '@/lib/pending';
 import { hasCompleteIdentity } from '@/lib/profile';
 import { AuthProvider, useAuth } from '@/lib/auth';
+import { MiniProfileProvider } from '@/lib/miniProfile';
 import { enableWebPush } from '@/lib/push';
 import { PushInvite } from '@/components/PushInvite';
 import { sweepNativeCalendar } from '@/lib/calendar';
@@ -52,7 +53,7 @@ function inPartyShell(): boolean {
   return typeof window !== 'undefined' && window.parent !== window;
 }
 
-const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit|\/invite|\/gifts|\/scan(?:\/[a-f0-9]{64})?|\/bar(?:\/scan|\/manage|\/person\/[a-f0-9-]{36})?)?|share\/[a-f0-9-]{36}|invite\/[a-f0-9-]{36}|group-invite\/[a-f0-9-]{36}|prono-invite\/[A-Za-z0-9_-]{20,40}|pronos|prono\/(?:new|[a-f0-9-]{36})|join\/[a-f0-9-]{36}|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|group\/(?:new|[a-f0-9-]{36}(?:\/settings|\/invite|\/pronos)?)|chats(?:\/(?:[a-f0-9-]{36}|requests|archived))?|agenda(?:\/(?:calendars|share|free|links(?:\/(?:new|[a-f0-9-]{36}))?|requests(?:\/[a-f0-9-]{36})?))?|activity|announcements|account|admin\/reports|terms|settings\/(?:notifications|subscriptions|profile|privacy))$/i;
+const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit|\/invite|\/gifts|\/scan(?:\/[a-f0-9]{64})?|\/bar(?:\/scan|\/manage|\/person\/[a-f0-9-]{36})?)?|share\/[a-f0-9-]{36}|invite\/[a-f0-9-]{36}|group-invite\/[a-f0-9-]{36}|prono-invite\/[A-Za-z0-9_-]{20,40}|pronos|prono\/(?:new|[a-f0-9-]{36})|join\/[a-f0-9-]{36}|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|group\/(?:new|[a-f0-9-]{36}(?:\/settings|\/invite|\/pronos)?)|chats(?:\/(?:new|[a-f0-9-]{36}|requests|archived))?|agenda(?:\/(?:calendars|share|free|links(?:\/(?:new|[a-f0-9-]{36}))?|requests(?:\/[a-f0-9-]{36})?))?|activity|announcements|account|admin\/reports|terms|settings\/(?:notifications|subscriptions|profile|privacy))$/i;
 /** Pages de passage (accueil du module, connexion, « Faisons connaissance ») : seules à reprendre l'intention gardée. */
 const transitPath = /^\/?(?:sign-in|welcome)?$/i;
 
@@ -219,6 +220,8 @@ function Gate() {
         <Stack.Screen name="chats/[id]" options={{ title: 'Discussion' }} />
         <Stack.Screen name="chats/requests" options={{ headerShown: false, title: 'Demandes' }} />
         <Stack.Screen name="chats/archived" options={{ headerShown: false, title: 'Archivées' }} />
+        {/* Nouveau message (Discussions v2) : son propre en-tête Néon (Annuler · Nouveau message). */}
+        <Stack.Screen name="chats/new" options={{ headerShown: false, title: 'Nouveau message', presentation: 'modal' }} />
         <Stack.Screen name="member/[id]" options={{ title: 'Profil', presentation: 'modal' }} />
         <Stack.Screen name="admin/index" options={{ title: 'Administration' }} />
         <Stack.Screen name="admin/members" options={{ title: 'Membres' }} />
@@ -264,7 +267,10 @@ export default function RootLayout() {
       <ThemeProvider value={theme}>
         <StatusBar style="light" />
         <ShellSafeArea>
-          <AuthProvider>{fontsLoaded ? <Gate /> : <Loading />}</AuthProvider>
+          <AuthProvider>
+            {/* Mini-profil commun : au toucher d'un nom ou d'une photo, partout dans le module. */}
+            <MiniProfileProvider>{fontsLoaded ? <Gate /> : <Loading />}</MiniProfileProvider>
+          </AuthProvider>
         </ShellSafeArea>
       </ThemeProvider>
     </SafeAreaProvider>

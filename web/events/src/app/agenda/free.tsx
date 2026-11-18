@@ -210,7 +210,7 @@ export default function FreeScreen() {
               <View style={st.othersRow}>
                 {others.map((m) => (
                   <View key={m.id} style={st.other} accessibilityLabel={m.me ? 'Toi' : m.name}>
-                    <View style={{ opacity: 0.45 }}><Avatar id={m.id} name={m.name} photo={m.avatar_url} size={40} profile={false} /></View>
+                    <View style={{ opacity: 0.45 }}><Avatar id={m.id} name={m.name} photo={m.avatar_url} size={40} /></View>
                     <T size={12} color={colors.muted} numberOfLines={1}>{m.me ? 'Toi' : m.name.split(' ')[0]}</T>
                   </View>
                 ))}
@@ -247,7 +247,7 @@ function PeopleSection({ title, rows, day, mode }: { title: string; rows: { m: F
         const label = `${m.me ? 'Toi' : m.name} : ${s.available ? s.text.toLowerCase() : `occupé ${s.text}`}`;
         return (
           <View key={m.id} style={st.person} accessibilityLabel={label} testID={`free-person-${m.id}`}>
-            <Avatar id={m.id} name={m.name} photo={m.avatar_url} size={40} profile={false} />
+            <Avatar id={m.id} name={m.name} photo={m.avatar_url} size={40} />
             <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
               <T size={16} weight="semibold" numberOfLines={1}>{m.me ? 'Toi' : m.name}</T>
               {s.available ? <T size={13} weight="semibold" color={colors.mint} numberOfLines={1}>✓ {s.text}</T> : (

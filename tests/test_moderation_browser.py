@@ -146,7 +146,7 @@ def test_block_and_report_from_a_member_card(phone, events_origin):
     page.get_by_role('button', name='Confirmer le blocage').click()
     pw.expect(page.get_by_role('button', name='Débloquer Léa')).to_be_visible()
     assert ('set_block', {'target': LEA, 'blocked': True}) in state['mod']
-    pw.expect(page.get_by_role('button', name='💬 Écrire')).to_have_count(0)  # bloquée : plus de message direct
+    pw.expect(page.get_by_role('button', name='Envoyer un message')).to_have_count(0)  # bloquée : plus de message direct
     page.get_by_role('button', name='Signaler le profil').click()
     page.get_by_role('radio', name='Spam').click()
     page.get_by_role('button', name='Envoyer').last.click()
@@ -160,7 +160,7 @@ def test_a_member_who_blocked_me_shows_only_a_nickname(phone, events_origin):
     moderation_services(page, accepted=True, restricted=True)
     signed_in(page, events_origin, f'/member/{LEA}')
     pw.expect(page.get_by_text('Léa').first).to_be_visible(timeout=15000)
-    pw.expect(page.get_by_role('button', name='💬 Écrire')).to_have_count(0)
+    pw.expect(page.get_by_role('button', name='Envoyer un message')).to_have_count(0)
     pw.expect(page.get_by_text('Groupes en commun')).to_have_count(0)
     assert not errors, errors
 

@@ -121,7 +121,7 @@ export function ScanVerdict({ verdict, onPaid, onConfirm, onIssue, onNext }: {
       </View>
       {person ? (
         <View style={st.person}>
-          <Avatar id={person.user_id} name={person.display_name} photo={person.avatar_url} size={64} profile={false} />
+          <Avatar id={person.user_id} name={person.display_name} photo={person.avatar_url} size={64} />
           <View style={{ flex: 1, gap: 2 }}>
             <PersonName id={person.user_id} pseudo={person.display_name} size={20} style={{ ...font.display }} numberOfLines={2} />
             <T muted size={14}>{person.plus_ones ? `+ ${plural(person.plus_ones, 'accompagnant')} · ${person.plus_ones + 1} personnes` : 'Seul·e'}</T>

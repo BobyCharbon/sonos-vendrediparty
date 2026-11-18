@@ -1,9 +1,9 @@
-import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 
 import { Avatar, ErrorText, Section, T, ToggleRow } from './ui';
 import { supabase } from '@/lib/supabase';
+import { openMiniProfile } from '@/lib/miniProfile';
 import { colors } from '@/lib/theme';
 
 export type EventPerson = { id: string; name: string; photo: string | null; rsvp: string | null; organizer: boolean; invited: boolean };
@@ -68,7 +68,7 @@ export function EventChatSettings({ eventId, me, muted, staff, people, onChanged
       {buckets.map((b) => (
         <Section key={b.title} title={`${b.title} · ${b.list.length}`}>
           {b.list.map((p) => (
-            <Pressable key={p.id} accessibilityRole="link" accessibilityLabel={`Profil de ${p.name}`} onPress={() => router.push(`/member/${p.id}`)}
+            <Pressable key={p.id} accessibilityRole="link" accessibilityLabel={`Profil de ${p.name}`} onPress={() => openMiniProfile(p.id)}
               style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 4 }, pressed && { opacity: 0.7 }]}>
               <Avatar id={p.id} name={p.name} photo={p.photo} size={34} profile={false} />
               <T style={{ flex: 1 }} numberOfLines={1}>{p.name}</T>

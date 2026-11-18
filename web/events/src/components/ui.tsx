@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import { Children, isValidElement, useEffect, useRef, useState, type ReactNode, type Ref } from 'react';
 import {
   ActivityIndicator,
@@ -19,6 +18,7 @@ import {
 import { SafeAreaView, type Edge } from 'react-native-safe-area-context';
 
 import { useMaySeePhoto } from '@/lib/auth';
+import { openMiniProfile } from '@/lib/miniProfile';
 import { shownError } from '@/lib/errors';
 import { avatarColor, initials } from '@/lib/format';
 import { duration, ease, enter, pressTransition, transition, type Enter } from '@/lib/motion';
@@ -396,14 +396,14 @@ export function Input({ inputRef, ...props }: TextInputProps & { inputRef?: Ref<
 const MIN_TARGET = 44;
 const MEMBER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-/** Photo ronde d'un membre ; toucher ouvre sa fiche profil (partout : participants, discussions, groupes…).
+/** Photo ronde d'un membre ; toucher ouvre son mini-profil (partout : participants, discussions, groupes…).
  * profile={false} : simple image (ma propre carte, liste où toute la ligne ouvre déjà autre chose). */
 export function Avatar({ id, name, size = 32, photo, profile = true }: { id: string; name: string; size?: number; photo?: string | null; profile?: boolean }) {
   const face = <AvatarFace id={id} name={name} size={size} photo={photo} />;
   if (!profile || !MEMBER_ID.test(id)) return face;
   return (
     // Cible de 44 px même pour une petite photo (hitSlop est ignoré sur le web) : marge négative, la mise en page ne bouge pas.
-    <Pressable accessibilityRole="button" accessibilityLabel={`Profil de ${name}`} hitSlop={6} onPress={() => router.push(`/member/${id}`)}
+    <Pressable accessibilityRole="button" accessibilityLabel={`Profil de ${name}`} hitSlop={6} onPress={() => openMiniProfile(id)}
       style={{ padding: Math.max(0, (MIN_TARGET - size) / 2), margin: -Math.max(0, (MIN_TARGET - size) / 2) }}>
       {face}
     </Pressable>

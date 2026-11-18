@@ -19,6 +19,7 @@ import { AnnounceStatusCard } from '@/components/AnnounceStatusCard';
 import { InviteLinkCard } from '@/components/InviteLinkCard';
 import { parseIds } from '@/components/InviteStep';
 import { LinkedText } from '@/components/LinkedText';
+import { NameLinks } from '@/components/NameLinks';
 import { CarpoolCard } from '@/components/CarpoolCard';
 import { EventPronos } from '@/components/pronos/EventPronos';
 import { NotifyBanner } from '@/components/NotifyBanner';
@@ -516,7 +517,9 @@ export default function EventScreen() {
         </Pressable>
       ) : null}
 
-      <T muted size={13}>Proposé par {ev.author ? personLabel(contacts, ev.author.id ?? ev.created_by, ev.author.display_name).primary || '?' : '?'}{data.muted ? ' · notifications coupées pour cet événement' : ''}</T>
+      <T muted size={13}>Proposé par {ev.author ? (
+        <NameLinks people={[{ id: ev.author.id ?? ev.created_by, label: personLabel(contacts, ev.author.id ?? ev.created_by, ev.author.display_name).primary || '?' }]} size={13} />
+      ) : '?'}{data.muted ? ' · notifications coupées pour cet événement' : ''}</T>
       {ev.event_tags.length ? (
         <View style={s.wrap}>
           {ev.event_tags.map(({ tags: t }) => <T key={t.id} size={13} weight="semibold" color={t.color}>#{t.name}</T>)}

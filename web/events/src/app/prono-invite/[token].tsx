@@ -79,7 +79,7 @@ function Join({ token }: { token: string }) {
       <Stack.Screen options={{ title: 'Un prono pour toi' }} />
       <View style={[{ alignItems: 'center' }, enter('pop')]}><Seal emoji="🔮" size={104} /></View>
       <View style={st.from}>
-        <Avatar id={data.creator.id} name={data.creator.name} photo={data.creator.avatar_url} size={36} profile={false} />
+        <Avatar id={data.creator.id} name={data.creator.name} photo={data.creator.avatar_url} size={36} />
         <Text style={st.help} numberOfLines={2}>{data.creator.name} t’invite à un prono</Text>
       </View>
       <Text role="heading" aria-level={1} style={[rounded(30), { textAlign: 'center', lineHeight: 34 }]}>{data.question}</Text>

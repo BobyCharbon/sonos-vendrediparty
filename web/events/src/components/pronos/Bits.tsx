@@ -186,7 +186,7 @@ export function BoardView({ board }: { board: Board }) {
           <View key={r.user.id} style={[st.lrow, i > 0 && { borderTopWidth: 1, borderTopColor: c.line },
             r.user.me && [{ backgroundColor: alpha(c.lavB, 0.16), borderColor: alpha(c.lavA, 0.5), borderWidth: 1.5, borderRadius: 18 }]]}>
             <Text style={[pronoFont.num, { width: 24, color: c.t2, fontSize: 17 }]}>{i + 1}</Text>
-            <PronoAvatar face={r.user} size={40} ring={r.user.me ? c.lavA : undefined} />
+            <PronoAvatar face={r.user} size={40} ring={r.user.me ? c.lavA : undefined} tap />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text numberOfLines={1} style={[pronoFont.roundBold, { color: c.t1, fontSize: 17 }]}>{r.user.me ? 'Toi' : r.user.name}</Text>
               <Text style={[pronoFont.text, { color: c.t2, fontSize: 13 }]}>

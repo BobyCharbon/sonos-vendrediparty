@@ -361,7 +361,7 @@ function GuestRow({ guest, me, onNudge, onRemove }: { guest: Guest; me: string; 
   return (
     <SwipeRow actions={actions} label={guest.name}>
       <View style={st.row}>
-        <Avatar id={guest.id} name={guest.name} photo={guest.avatar_url} size={40} profile={false} />
+        <Avatar id={guest.id} name={guest.name} photo={guest.avatar_url} size={40} />
         <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
           <View style={[st.rowCenter, { gap: 6 }]}>
             <T weight="semibold" size={15} numberOfLines={2} style={{ flexShrink: 1 }}>{guest.name}</T>
@@ -390,7 +390,7 @@ function RequestRow({ request, me, onAccept, onRefuse }: { request: JoinRequest;
   const origin = `Invité par ${by}${request.link_label ? ` · lien « ${request.link_label} »` : ''}`;
   return (
     <View style={[st.row, st.request]} accessibilityLabel={`${request.name}, ${origin}, attend ton accord`}>
-      <Avatar id={request.id} name={request.name} photo={request.avatar_url} size={40} profile={false} />
+      <Avatar id={request.id} name={request.name} photo={request.avatar_url} size={40} />
       <View style={{ flex: 1, gap: 2, minWidth: 0 }}>
         <T weight="semibold" size={15} numberOfLines={1}>{request.name}</T>
         <T muted size={12} numberOfLines={2}>{origin} · {ANSWER_WORDS[request.answer]}</T>
