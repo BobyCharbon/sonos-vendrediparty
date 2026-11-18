@@ -127,7 +127,9 @@ def test_writing_needs_to_know_the_person_group_event_or_contact(people):
     if knows:
         pytest.skip('Testeur 1 et VIP test ont déjà un groupe ou un événement en commun sur la base de test')
     assert start(a, c.uid).status_code >= 400
-    assert start(a, c.uid, contact_hash='0' * 64).status_code >= 400  # empreinte fausse
+    fake = start(a, c.uid, contact_hash='0' * 64)  # empreinte fausse : refus neutre (null depuis le 18.11, devinette de numéro)
+    assert fake.status_code >= 400 or fake.json() is None
+    sql(f"delete from private.contact_hash_fails where user_id = '{a.uid}'")
     good = sql(f"select encode(extensions.hmac('+' || p.phone, k.key, 'sha256'), 'hex') h "
                f"from public.profiles p, private.contact_key k where p.id = '{c.uid}' and k.id = 1")[0]['h']
     r = start(a, c.uid, contact_hash=good)  # le numéro de VIP test est dans les contacts de Testeur 1

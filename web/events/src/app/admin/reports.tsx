@@ -17,7 +17,11 @@ type Action = 'hide' | 'warn' | 'suspend' | 'ban' | 'dismiss';
 type Report = {
   id: string; kind: string; target_id: string; reason: string; comment: string | null; status: Exclude<Status, 'all'>;
   resolution: string | null; note: string | null; created_at: string; handled_at: string | null; handled_by: string | null;
-  snapshot: { text?: string; photo_path?: string | null; place?: string; at?: string; cover_url?: string | null; event_id?: string };
+  snapshot: {
+    text?: string; photo_path?: string | null; place?: string; at?: string; cover_url?: string | null; event_id?: string;
+    // Discussions v2 (18.11) : copie de la photo / du vocal gardée pour la modération, 10 messages précédents si demandé.
+    evidence?: { photo?: string; audio?: string }; context?: { author: string; at: string; text: string }[];
+  };
   reporter: { id: string | null; name: string | null };
   target_user: { id: string; name: string; avatar_url: string | null; status: string } | null;
   same_target: number; user_reports: number;
@@ -45,6 +49,7 @@ const RESOLUTIONS: Record<string, string> = {
 const DAYS = [1, 7, 30];
 const reasonLabel = (key: string) => REPORT_REASONS.find((r) => r.key === key)?.label ?? key;
 const when = (iso: string) => new Date(iso).toLocaleString('fr-CH', { dateStyle: 'short', timeStyle: 'short' });
+const EVIDENCE = 'moderation-evidence';
 
 /** Réglages › Administration › Signalements (droit « Modérer les signalements ») : la file, le contenu signalé (copie
  * prise au moment du signalement), et les actions ; chaque action est notée dans le Journal. Suspendre et bannir
@@ -61,8 +66,13 @@ export default function ReportsScreen() {
   useEffect(() => {
     const paths = (data ?? []).filter((r) => r.kind !== 'profile_photo' && r.kind !== 'group_photo').map((r) => r.snapshot.photo_path).filter((p): p is string => !!p);
     const groupPaths = (data ?? []).filter((r) => r.kind === 'group_photo').map((r) => r.snapshot.photo_path).filter((p): p is string => !!p);
-    void Promise.all([signedPhotos(paths), ...groupPaths.map(async (p) => [p, await signGroupPhoto(p)] as const)])
-      .then(([chat, ...groups]) => setPhotos(new Map([...chat, ...groups.filter((g): g is readonly [string, string] => !!g[1])])))
+    const kept = (data ?? []).flatMap((r) => [r.snapshot.evidence?.photo, r.snapshot.evidence?.audio]).filter((p): p is string => !!p);
+    const evidence = kept.length
+      ? supabase.storage.from(EVIDENCE).createSignedUrls(kept, 3600)
+        .then(({ data: rows }) => (rows ?? []).flatMap((d) => (d.signedUrl && d.path ? [[d.path, d.signedUrl] as [string, string]] : [])))
+      : Promise.resolve([] as [string, string][]);
+    void Promise.all([signedPhotos(paths), evidence, ...groupPaths.map(async (p) => [p, await signGroupPhoto(p)] as const)])
+      .then(([chat, ev, ...groups]) => setPhotos(new Map([...chat, ...ev, ...groups.filter((g): g is readonly [string, string] => !!g[1])])))
       .catch(() => {});
   }, [data]);
 
@@ -78,7 +88,9 @@ export default function ReportsScreen() {
       <ErrorText error={error} />
       {data && !data.length ? <Empty>{status === 'open' ? 'Aucun signalement à traiter. 🎉' : 'Rien ici.'}</Empty> : null}
       {(data ?? []).map((r) => (
-        <ReportCard key={r.id} report={r} photo={r.snapshot.photo_path ? photos.get(r.snapshot.photo_path) ?? null : null}
+        <ReportCard key={r.id} report={r}
+          photo={(r.snapshot.evidence?.photo && photos.get(r.snapshot.evidence.photo)) || (r.snapshot.photo_path ? photos.get(r.snapshot.photo_path) ?? null : null)}
+          audio={r.snapshot.evidence?.audio ? photos.get(r.snapshot.evidence.audio) ?? null : null}
           canBan={can('members.ban')} onDone={reload} />
       ))}
       <Button variant="ghost" label="Journal des actions" onPress={() => router.push('/admin/journal')} />
@@ -87,7 +99,7 @@ export default function ReportsScreen() {
   );
 }
 
-function ReportCard({ report: r, photo, canBan, onDone }: { report: Report; photo: string | null; canBan: boolean; onDone: () => void }) {
+function ReportCard({ report: r, photo, audio, canBan, onDone }: { report: Report; photo: string | null; audio: string | null; canBan: boolean; onDone: () => void }) {
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -145,7 +157,14 @@ function ReportCard({ report: r, photo, canBan, onDone }: { report: Report; phot
         {r.kind === 'event' && r.snapshot.cover_url ? (
           <Image source={{ uri: r.snapshot.cover_url }} style={{ width: 200, height: 112, borderRadius: 10 }} accessibilityLabel="Photo de l’événement signalé" />
         ) : null}
+        {audio ? <Button small variant="ghost" label="🎤 Écouter le vocal signalé" href={audio} /> : null}
         <T>{r.snapshot.text || (r.kind === 'profile_photo' ? '' : '(sans texte)')}</T>
+        {r.snapshot.context?.length ? (
+          <View style={{ gap: 2 }} accessibilityLabel="Les 10 messages précédents">
+            <T muted size={12} weight="semibold">Messages précédents (joints par la personne qui signale)</T>
+            {r.snapshot.context.map((m, i) => <T key={i} muted size={12}>{when(m.at)} · {m.author} : {m.text}</T>)}
+          </View>
+        ) : null}
         {EVENT_KINDS.has(r.kind) && r.snapshot.event_id ? (
           <Button small variant="ghost" label="Ouvrir l’événement" onPress={() => router.push(`/event/${r.snapshot.event_id}`)} />
         ) : null}

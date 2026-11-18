@@ -35,6 +35,7 @@ class ReportBody(MemberToken):
     target: str = Field(min_length=1, max_length=100)
     reason: Literal[tuple(REASONS)]
     comment: str = Field(default="", max_length=500)
+    context: bool = False  # « Joindre les 10 messages précédents » (message seulement, décochée par défaut)
 
 
 class BlockBody(MemberToken):
@@ -71,9 +72,10 @@ class Moderation:
         self.admin = admin
         self.chats = chats
 
-    def report(self, token: str, kind: str, target: str, reason: str, comment: str) -> dict:
+    def report(self, token: str, kind: str, target: str, reason: str, comment: str, context: bool = False) -> dict:
         rid = self.admin._rpc(token, "report_content", {"p_kind": kind, "p_target": target, "p_reason": reason,
-                                                        "p_comment": comment.strip() or None},
+                                                        "p_comment": comment.strip() or None}
+                              | ({"p_context": True} if context else {}),
                               "Le signalement n'a pas pu être envoyé. Réessaie.")
         return {"id": rid, "ok": True}
 
@@ -101,19 +103,23 @@ class Moderation:
                                "Les signalements n'ont pas pu être lus.") or []
         snaps = [r.get("snapshot") or {} for r in rows]
         group = [s.get("photo_path") for s in snaps if s.get("place") == "Photo du groupe"]
-        photos = {**self.chats._sign([p for s in snaps for p in (s.get("photo_path"),)
+        photos = {**self.chats._sign([p for s in snaps for p in (s.get("photo_path"), s.get("audio_path"))
                                       if p and s.get("place") not in ("Profil", "Photo du groupe")], token),
                   **self.admin._photos(group, token, "group-photos")}
+        # Copie gardée au signalement (Discussions v2) : lisible par les modérateurs même si le message a disparu.
+        evidence = self.admin._photos([(s.get("evidence") or {}).get(k) for s in snaps for k in ("photo", "audio")],
+                                      token, "moderation-evidence")
         avatars = self.admin._photos([s.get("photo_path") for s in snaps if s.get("place") == "Profil"]
                                      + [(r.get("target_user") or {}).get("avatar_url") for r in rows], token)
-        return {"reports": [self._report(r, photos, avatars) for r in rows],
+        return {"reports": [self._report(r, photos, avatars, evidence) for r in rows],
                 "settings": self.admin._rpc(token, "moderation_public_info", {}, "") or {}}
 
     @staticmethod
-    def _report(r: dict, photos: dict, avatars: dict) -> dict:
+    def _report(r: dict, photos: dict, avatars: dict, evidence: dict | None = None) -> dict:
         snap = r.get("snapshot") or {}
         user = r.get("target_user") or {}
         path = snap.get("photo_path")
+        kept = {k: (evidence or {}).get(v) for k, v in (snap.get("evidence") or {}).items()}
         return {
             "id": r["id"], "kind": r["kind"], "target_id": r.get("target_id"), "reason": r["reason"],
             "reason_label": REASONS.get(r["reason"], r["reason"]), "comment": r.get("comment"),
@@ -121,8 +127,11 @@ class Moderation:
             "created_at": r.get("created_at"), "handled_at": r.get("handled_at"), "handled_by": r.get("handled_by"),
             "reporter": (r.get("reporter") or {}).get("name") or "Compte supprimé",
             "text": snap.get("text") or "", "place": snap.get("place") or "",
-            "photo": (avatars if snap.get("place") == "Profil" else photos).get(path or ""),
+            "photo": kept.get("photo") or (avatars if snap.get("place") == "Profil" else photos).get(path or ""),
             "photo_path": path,
+            "audio": kept.get("audio") or photos.get(snap.get("audio_path") or ""),
+            # Les 10 messages précédents, si la personne qui signale l'a choisi : [{author, at, text}].
+            "context": snap.get("context") or [],
             "user": {"id": user.get("id"), "name": user.get("name") or "Compte supprimé",
                      "photo": avatars.get(user.get("avatar_url") or ""), "status": user.get("status")} if user else None,
             "same_target": r.get("same_target") or 1, "user_reports": r.get("user_reports") or 0,
@@ -165,7 +174,7 @@ def router(moderation: Moderation) -> APIRouter:
     @api.post("/report")
     def report(body: ReportBody):
         """« Signaler » : un message, un profil, une photo de profil (et bientôt le Compagnon)."""
-        return call(lambda: moderation.report(body.token, body.kind, body.target, body.reason, body.comment))
+        return call(lambda: moderation.report(body.token, body.kind, body.target, body.reason, body.comment, body.context))
 
     @api.post("/blocks")
     def blocks(body: MemberToken):

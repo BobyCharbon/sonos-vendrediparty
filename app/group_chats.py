@@ -330,15 +330,19 @@ class GroupChats:
                 "id": quoted["id"], "author": quoted["user_id"], "name": name(quoted["user_id"]),
                 "text": deleted_label(quoted) if quoted.get("deleted_at") else quoted.get("body") or "📷 Photo"},
             "reactions": reactions_of(m["id"], reactions, me),
+            # Discussions v2 : carte de soirée (chat_event_cards) et citation d'un « Répondre en privé ».
+            "event_id": None if deleted else m.get("event_id"),
+            "quote": None if deleted else m.get("quote"),
         }
 
     def send(self, token: str, group_id: str, body: str, reply_to: str | None, photo_path: str | None,
              mentions: list[str] | None = None, message_id: str | None = None,
-             audio_path: str | None = None, audio_seconds: float | None = None, direct: bool = False) -> dict:
+             audio_path: str | None = None, audio_seconds: float | None = None, direct: bool = False,
+             event_id: str | None = None, quote: dict | None = None) -> dict:
         """Envoi. mentions fournies par l'app (elle connaît les membres) : un seul appel à la base, le plus rapide ;
         la base ne garde que les membres du groupe ; @tout cite tout le groupe (selon le choix du groupe) ; « @annonce »
         d'un admin ou d'un organisateur épingle le message en annonce et le notifie à tous (guard_group_message)."""
-        if not body and not photo_path and not audio_path:
+        if not body and not photo_path and not audio_path and not event_id:
             raise AccountError("Écris un message, choisis une photo ou enregistre un vocal.")
         if photo_path and not photo_path.startswith(f"{group_id}/"):
             raise AccountError("Photo invalide.")
@@ -353,6 +357,10 @@ class GroupChats:
                 mentions = mentions_in(body, people, me)
             row = {"group_id": group_id, "body": body, "photo_path": photo_path, "reply_to": reply_to,
                    "mentions": mentions, "mention_all": bool(EVERYONE.search(body))}
+        if event_id:  # carte d'une soirée jointe (Discussions v2 : la base vérifie qu'on la voit)
+            row["event_id"] = event_id
+        if quote and direct:  # « Répondre en privé » : extrait du message de groupe / d'événement (filtré par la base)
+            row["quote"] = quote
         if audio_path:
             row.update(audio_path=audio_path, audio_seconds=round(min(max(audio_seconds or 0, 0), AUDIO_MAX_SECONDS), 1))
         if message_id:
