@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { TopBar } from '@/components/agenda/Bits';
-import { BagHistory } from '@/components/pronos/board/Board';
+import { BagHistory } from '@/components/pronos/board';
 import { ErrorText, Loading, Screen } from '@/components/ui';
 import { useQuery } from '@/lib/data';
 import { formatLongDay } from '@/lib/format';
