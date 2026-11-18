@@ -69,6 +69,8 @@ struct EventNotificationPrefs: Codable, Equatable {
     var contactJoins: Bool?
     /// Messages directs (migration 20261104100000 ; absent avant : reçus) : « Nouveau message de X ».
     var directMessages: Bool?
+    /// Demandes de message (Discussions v2, 18.11 ; absent avant : reçues) : « … veut t'écrire », sans le contenu.
+    var messageRequests: Bool?
     /// Compagnon (migration 20261104130000 ; absents avant : reçus) : rappel doux du jour, alertes avant son envol.
     var petDaily: Bool?
     var petAlerts: Bool?
@@ -103,6 +105,7 @@ struct EventNotificationPrefs: Codable, Equatable {
         case barServed = "bar_served", barChanged = "bar_changed", barRefundConfirmed = "bar_refund_confirmed"
         case barRefundDeclared = "bar_refund_declared"
         case referralJoins = "referral_joins", contactJoins = "contact_joins", directMessages = "direct_messages"
+        case messageRequests = "message_requests"
         case petDaily = "pet_daily", petAlerts = "pet_alerts", petGifts = "pet_gifts", petStreaks = "pet_streaks", petBar = "pet_bar"
         case moderationReports = "moderation_reports", moderationNotices = "moderation_notices", memberSignups = "member_signups"
         case announceRequests = "announce_requests", groupEventRequests = "group_event_requests", announceResults = "announce_results"

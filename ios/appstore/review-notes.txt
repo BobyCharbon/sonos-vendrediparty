@@ -1,41 +1,41 @@
 ABOUT
-"Vendredi Party" (icon "Party !"): free app made by the Swiss association Vendredi Party, for friends and associations: real-world events, party games, music, group chats. French, 18+. No ads, no tracking, no in-app purchase. Full step-by-step guide attached (PDF).
+"Vendredi Party" (icon "Party !"): free app by the Swiss association Vendredi Party, for friends and associations: real-world events, party games, music, chats. French, 18+. No ads, no tracking, no in-app purchase. Guide attached (PDF).
 
 SIGN-IN
-Phone + 6-digit SMS code, no password. Demo account "Apple-test": number and code in the App Review Information sign-in fields (fixed code, no SMS). Last tab "Se connecter" > "Suisse +41" > number > code.
+Phone + 6-digit SMS code, no password. Demo account "Apple-test": number and code in the sign-in fields (fixed code, no SMS). Last tab "Se connecter" > "Suisse +41" > number > code.
 
 TRY IT
 1. Events > "Soirée démo Vendredi Party" (invited, co-organiser): answer "Présent", order at the bar (Wallet card); "Gérer le bar".
 2. Events > "Avec l'IA" or "+ Proposer" (new events wait for our approval).
-3. Discussions > "Démo Apple": long-press a message > "Signaler".
-4. Games > "Créer une salle" > Quiz (works alone), or Méninges > "Faire chauffer".
+3. Discussions > "Démo Apple": long-press a message > "Signaler"; "Nouveau message"; "Demandes".
+4. Games > "Créer une salle" > Quiz, or Méninges.
 
 NATIVE (4.2)
-Native tab bar; SwiftUI: Music, Settings, Discussions, Groups, Pronos, "Ton avis", AI assistant, "Pot commun", offline screen. Push (one switch per type), Live Activity, Wallet (tickets, bar card), QR scanner, VisionKit, Calendar, optional Contacts (hashed), dictation, share extension, universal links. Pyramide: cards in a native panel hidden from screenshots.
+Native tab bar; SwiftUI: Music, Settings, Discussions, Groups, Pronos, "Ton avis", AI assistant, "Pot commun". Push (one switch per type), Live Activity, Wallet, QR scanner, Calendar, optional Contacts (hashed), dictation. Pyramide: cards hidden from screenshots.
 
 WEB CONTENT (2.5.2)
-Events and Games tabs are our own site (party.bobycharbon.ch) in a WKWebView, same HTML/JS for all users, calling only the native features above. Other sites open in Safari. All is on in production, except Confetti (see PRONOS).
+Events and Games tabs are our own site in a WKWebView, same for all users, using only the native features above. Other sites open in Safari. All is on in production, except Confetti (see PRONOS).
 
 EVENTS
-"+ Proposer" or "Avec l'IA", then "Qui est invité": public, invitation or groups. Links for one person or "Plusieurs"; guests create, copy and stop own links, see counts only. Not public: someone coming through a guest's link waits ("À accepter"). Date poll. "Ajouter à mon agenda": personal calendar feed. Carpool (no money). QR ticket + Wallet. Groups: "Inviter avec un lien". Everyone signs in (name, nickname of 12 characters max). The page updates live; tap a name to open the profile; each answer shows its time. Admins: "Nouveau compte" alert, announcement or maintenance message.
+"Qui est invité": public, invitation or groups. Links for one person or "Plusieurs"; guests create, copy and stop own links, see counts only. Not public: someone coming through a guest's link waits ("À accepter"). Date poll. Personal calendar feed. Carpool (no money). QR ticket + Wallet. Groups: "Inviter avec un lien". Everyone signs in (name, nickname of 12 characters max). The page updates live; tap a name to open the profile; each answer shows its time. Admins: "Nouveau compte" alert, announcement or maintenance message.
 
 PAYMENTS (3.1.3(e))
-Party never sells, holds or transfers money; no digital goods. Real-world events only: organiser's own Revolut/Twint/IBAN, ticketing link (Safari) or on site. "J'ai payé" is a note the organiser confirms. "Pot commun" only records who owes what.
+Party never sells, holds or transfers money; no digital goods. Real-world events only: organiser's own Revolut/Twint/IBAN, ticketing link (Safari) or on site.
 
 PARTY BAR
-Organiser's option, off by default; paid bar only on private events. Physical drinks, age checked in person by the barman; tobacco/drugs refused; no ranking or prompt to drink. Balance in a Wallet card, repaid to the organiser outside the app.
+Organiser's option; paid bar only on private events. Age checked by the barman; tobacco/drugs refused; no prompt to drink. Repaid outside the app.
 
 DISCUSSIONS (1.2)
-Group chats and DMs between people sharing a group or event. Terms first, word filter, "Signaler" on messages, profiles, photos, events, polls, pronos. "Bloquer" hides that person's messages at once and notifies moderators. Reports handled within 24 h. Contact: support@vendrediparty.ch.
+Direct messages only with a real link (shared group or private event, organiser of an event you answered); anyone else sends a message request: one text, no photo/link/number; "Accepter / Supprimer / Bloquer / Signaler", sender never told. Settings > Confidentialité > "Demandes de message" (everyone / no one). "Nouveau message": real links only, search by name, never by number; 2+ people make a private group, not read by admins. Tap a name or photo: mini-profile ("Envoyer un message", Bloquer, Signaler). Terms first, word filter, "Signaler" on every message (photo/voice kept for moderators, last 10 messages if ticked); "Bloquer" hides messages at once and alerts moderators. Reports within 24 h. Second demo account "Apple-test 2" (number in the guide) shows a request from the other side. Contact: support@vendrediparty.ch.
 
 AI (5.1.2(i))
-"Avec l'IA", "Ton avis" and receipt reading send data to Anthropic (Claude) only after "J'accepte". Withdraw: Settings > Confidentialité > "IA de Party".
+"Avec l'IA", "Ton avis" and receipts go to Anthropic (Claude) only after "J'accepte". Withdraw: Settings > Confidentialité.
 
 GAMES (18+)
-Drinking modes optional, water counts, never ranked by drinks. No real-money gambling, purchases or prizes; no Casino/Blackjack.
+Drinking modes optional, water counts, never ranked by drinks. No real-money gambling, purchases or prizes; no Casino.
 
 PRONOS (Simulated Gambling declared)
-Settings > Autres apps > Pronos, or a group / event: friends guess an outcome for fun; points on the group ranking. Confetti (free, valueless play tokens): 100 per group or event each week (refilled to 100, never above), 1 to 20 per prono, shared among right answers (no odds, nothing created by the app). They cannot be bought, sold, given, transferred, converted or exchanged for anything; no prizes. Money words, betting sites and alcohol refused. Confetti are switched on in production only after this version is approved. Demo: group "Démo Apple" > Pronos.
+Settings > Autres apps > Pronos, or a group / event: guess an outcome for fun; points on the group ranking. Confetti (free, valueless play tokens): 100 per group or event each week (refilled, never above), 1 to 20 per prono, shared among right answers (no odds). They cannot be bought, sold, given, transferred, converted or exchanged for anything; no prizes. Money words and alcohol refused. Confetti are switched on in production only after this version is approved. Demo: group "Démo Apple" > Pronos.
 
 MUSIC
 Needs a live party (host's QR or 4-digit code).

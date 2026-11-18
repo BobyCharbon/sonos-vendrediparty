@@ -54,7 +54,7 @@
 - [ ] **User name** : `+41 79 000 09 99` (compte « Apple-test »).
 - [ ] **Password** : le code fixe à 6 chiffres (Supabase prod › Authentication › Phone › Test OTP ; le fichier
       `~/sb-work/apple/demo.txt` n'existe pas sur ce Mac : le reprendre là où il est). **Jamais dans le dépôt.**
-- [ ] **Notes** : la partie A de `notes-for-review.md` (3 807 caractères, limite 4 000). La recopier aussi dans
+- [ ] **Notes** : la partie A de `notes-for-review.md` (3 985 caractères, limite 4 000 ; = `ios/appstore/review-notes.txt`). La recopier aussi dans
       `ios/appstore/review-notes.txt` avant d'utiliser `tools/appstore_submit.py` (il envoie ce fichier), puis lancer
       `.venv/bin/python -m pytest -q tests/test_ios_app.py -p no:cacheprovider` (la partie A contient les mots exigés).
 - [ ] **Pronos et confettis (ex-patates, 18.11)** : la section PRONOS de `ios/appstore/review-notes.txt` (Simulated Gambling déclaré,
@@ -66,6 +66,14 @@
       dans les notes).
 - [ ] **Contact** : prénom, nom, téléphone qui répond vraiment pendant la revue (+41…), e-mail `support@vendrediparty.ch`
       (s'envoyer un message de test) — **À FOURNIR** (rien dans le dépôt).
+
+- [ ] **Discussions v2 (18.11)** : la section DISCUSSIONS des notes (demandes de message, « Nouveau message », groupes
+      privés non lus par l'administration, mini-profil, Signaler / Bloquer). **Deux comptes de démo** : « Apple-test » et
+      « Apple-test 2 » (second numéro à code fixe, Supabase › Test OTP ; son numéro dans le guide PDF, son code saisi
+      seulement dans App Store Connect ; jamais dans le dépôt), sans groupe ni événement privé en commun, avec une demande
+      de message en attente d'« Apple-test 2 » vers « Apple-test » (encadré « À FAIRE », point 4 bis, de `notes-for-review.md`).
+- [ ] Phrase Contacts (project.yml, `NSContactsUsageDescription`) : « … et te les proposer quand tu écris un nouveau
+      message » — à vérifier dans le build choisi (Réglages iOS › Party › Contacts).
 
 ## 5. Classification par âge (questionnaire) → **18+**
 
@@ -94,7 +102,8 @@ Pour chaque type : **lié à l'identité : oui · suivi : non · finalité : App
 
 - [ ] Contact Info : **Name**, **Phone Number**
 - [ ] Financial Info : **Other Financial Info** (IBAN, liens Twint / Revolut des organisateurs et du pot commun)
-- [ ] Contacts : **Contacts** (empreintes chiffrées, non gardées ; déclaré par prudence)
+- [ ] Contacts : **Contacts** (empreintes chiffrées, non gardées ; déclaré par prudence ; 18.11 : aussi les suggestions
+      de « Nouveau message », même type, même finalité App Functionality : **rien de neuf à cocher**, relire la description)
 - [ ] User Content : **Photos or Videos**, **Audio Data** (messages vocaux des Discussions — nouveau), **Emails or Text
       Messages**, **Gameplay Content** (description : + Pronos, soldes et confettis lancés — 18.11), **Customer Support** (« Ton avis » — nouveau), **Other User Content**
 - [ ] Purchases : **Purchase History** (commandes du bar, « J'ai payé » d'un événement — nouveau)
@@ -116,6 +125,11 @@ Pour chaque type : **lié à l'identité : oui · suivi : non · finalité : App
 - [ ] Gratuit ; 26 pays francophones (liste à contrôler dans Prix et disponibilité).
 - [ ] Statut **DSA** (Business › Digital Services Act) : déclarer **non-commerçant** (app gratuite, sans activité
       commerciale) ; sans déclaration, pas de distribution en France, Belgique et Luxembourg.
+- [ ] **Représentant légal dans l'UE — À DÉCIDER PAR L'ADMIN** (revue Discussions du 18.11, 🟠 11) : un service suisse
+      offert en France, en Belgique et au Luxembourg doit désigner un représentant dans l'UE (DSA art. 13, sans exception
+      pour les petits ; RGPD art. 27). Soit le désigner (et l'écrire dans la politique de confidentialité), soit retirer
+      ces 3 pays de la distribution. Questionnaire d'âge inchangé (Messaging and Chat : Oui) ; Google Data safety
+      seulement le jour d'une app Android publique (Messages, Contacts).
 - [ ] Droits sur le contenu : « contient du contenu de tiers » = Oui, avec les droits (titres et pochettes lus par les API
       de musique, lieux par Google).
 - [ ] Contrats « Apps gratuites » acceptés (Business) par le titulaire du compte.

@@ -191,8 +191,17 @@ struct PrivacyView: View {
             "Photo de groupe : facultative, choisie par qui gère le groupe ; seuls ses membres la voient et peuvent la signaler. Elle appartient au groupe : elle reste tant que le groupe la garde (son créateur la change ou la retire, la modération peut la retirer) et part avec le groupe.",
             "Groupe d'un événement : si tu coches « Rejoindre aussi le groupe », tu entres dans le groupe choisi par l'organisateur ; ses membres voient ton surnom, ton nom et ta photo (jamais ton numéro, sauf si tu le montres), lisent et écrivent dans sa discussion et peuvent t'inviter à ses événements. Base : ta demande. Tu quittes le groupe à tout moment ; nous gardons seulement la date de ton départ pour ne jamais t'y remettre sans toi, jusqu'à la suppression du groupe ou de ton compte.",
         ]),
+        ("Discussions et messages directs", [
+            "Qui peut t'écrire : une personne avec qui tu as un groupe en commun (hors Membres Vendredi Party), un événement non public en commun, ou l'organisateur d'un événement auquel tu as répondu t'écrit directement. Les autres membres (seulement Membres Vendredi Party en commun, le même événement public, ton numéro dans leurs contacts, ou trouvés par la recherche) ne peuvent t'envoyer qu'une demande de message : un seul message texte, sans photo, vocal, lien ni numéro. Tu l'acceptes, la supprimes, bloques ou signales la personne sans lui répondre ; elle n'est jamais prévenue d'un refus. Une personne bloquée, dans un sens ou dans l'autre, ne peut ni t'écrire ni t'envoyer de demande.",
+            "Demandes de message : dans Réglages › Confidentialité, tu choisis d'en recevoir de tout membre (par défaut) ou de personne. Une demande te prévient par une notification « … veut t'écrire », sans son contenu, une seule fois par personne, avec son interrupteur « Demandes de message » dans Réglages › Notifications.",
+            "Le filtre automatique des mots et les conditions d'utilisation s'appliquent à tous les messages : groupes, événements, messages directs et demandes compris.",
+            "Ce que l'administration de Party lit : les messages directs, les demandes de message et les groupes privés créés depuis « Nouveau message » ne sont jamais lus par l'administration ni par l'administrateur principal (Root) ; un modérateur ne voit que ce qu'on lui signale. Les autres groupes (créés depuis Groupes, groupe d'un événement, Membres Vendredi Party), y compris ceux qui existaient déjà, peuvent être lus par l'administrateur principal (Root) pour la modération. Les discussions d'événement sont lues par les personnes de l'événement et son organisation (organisateurs, administrateurs de Party).",
+            "Nouveau message : pour te proposer à qui écrire, Party utilise seulement tes vrais liens : tes conversations, les membres de tes groupes (hors Membres Vendredi Party), les personnes croisées à un événement des 60 derniers jours et, sur iPhone si tu l'autorises, tes contacts déjà inscrits. Jamais de personnes prises au hasard sur tout le site. La recherche se fait par prénom, nom ou surnom, jamais par numéro.",
+            "« Déjà vu N fois » : sur la fiche d'un membre et dans Nouveau message, Party compte les soirées passées où vous étiez tous les deux présents (réponse « Présent », organisation de l'événement ou billet scanné) et montre les trois dernières, seulement parmi les événements que tu peux voir. Ce nombre est calculé à chaque affichage à partir des réponses ; rien n'est gardé à part.",
+            "Confirmations de lecture : dans un message direct, l'autre voit « Vu » quand tu as lu son dernier message, seulement si vous avez tous les deux laissé « Confirmations de lecture » allumé (Réglages › Confidentialité) ; si tu le coupes, tu ne vois plus celles des autres. « écrit… » passe en direct, seulement pendant que tu écris, et n'est jamais enregistré. Ni l'un ni l'autre dans une demande ni avec une personne bloquée.",
+        ]),
         ("Contacts de ton iPhone", [
-            "Seulement si tu l'autorises : l'app transforme chaque numéro de tes contacts en une empreinte (un code chiffré dont on ne peut pas retrouver le numéro), sur ton iPhone, et l'envoie pour reconnaître les personnes déjà inscrites. Les noms de tes contacts ne quittent jamais ton iPhone et le serveur ne garde pas ces empreintes.",
+            "Seulement si tu l'autorises : l'app transforme chaque numéro de tes contacts en une empreinte (un code chiffré dont on ne peut pas retrouver le numéro), sur ton iPhone, et l'envoie pour reconnaître les personnes déjà inscrites. Les noms de tes contacts ne quittent jamais ton iPhone et le serveur ne garde pas ces empreintes. Ces personnes te sont aussi proposées quand tu écris un nouveau message. Les personnes qui ont ton numéro dans leurs contacts peuvent voir que tu es sur Party et t'envoyer une demande de message.",
         ]),
         ("Ton agenda", [
             "Quand tu ajoutes un événement à ton agenda, ton agenda s'abonne à ton calendrier « Vendredi Party », un lien secret propre à toi : il n'y lit que les événements que tu y as ajoutés et, une fois l'agenda activé, ceux où tu réponds Présent ou Peut-être (ou votes Oui / Si besoin pour une date), jamais un événement que tu ne vois plus dans Party (titre, description, lieu, date, ou tes dates votées tant que la date n'est pas fixée) et suit leurs changements. Party note seulement quand ton agenda l'a relu pour la dernière fois, pour savoir qu'il est abonné. Tout disparaît avec ton compte.",
@@ -233,11 +242,11 @@ struct PrivacyView: View {
             "Le serveur de Party est hébergé en Suisse. Twilio, Anthropic, GitHub, Spotify, Apple et Google peuvent traiter des données hors de Suisse, notamment aux États-Unis, avec les garanties prévues par la nLPD (Swiss-U.S. Data Privacy Framework ou clauses contractuelles types).",
         ]),
         ("Combien de temps", [
-            "Ton compte et ce qui s'y rattache : jusqu'à ce que tu le supprimes. Notifications : 90 jours. Signalements traités : un an. Compteur des invités : 6 mois sans visite. Compte créé seulement pour répondre à une invitation (prénom et numéro, sans l'app ni profil complété) : effacé avec ses réponses 7 jours après le dernier événement auquel il était invité. Activité de la soirée : le temps de la soirée et au plus 3 jours. Covoiturage, demandes d'accord et liens d'invitation : jusqu'à la suppression de l'événement (ou de ton compte). Bar de la soirée : 6 mois après sa fermeture. Pronos (réponses, confettis lancés, contestations, réactions) : jusqu'à la suppression du prono, de son groupe ou de son événement. Ton sac de confettis et son historique : jusqu'à la suppression de ton compte.",
+            "Ton compte et ce qui s'y rattache : jusqu'à ce que tu le supprimes. Notifications : 90 jours. Signalements traités : un an. Compteur des invités : 6 mois sans visite. Compte créé seulement pour répondre à une invitation (prénom et numéro, sans l'app ni profil complété) : effacé avec ses réponses 7 jours après le dernier événement auquel il était invité. Activité de la soirée : le temps de la soirée et au plus 3 jours. Covoiturage, demandes d'accord et liens d'invitation : jusqu'à la suppression de l'événement (ou de ton compte). Bar de la soirée : 6 mois après sa fermeture. Pronos (réponses, confettis lancés, contestations, réactions) : jusqu'à la suppression du prono, de son groupe ou de son événement. Ton sac de confettis et son historique : jusqu'à la suppression de ton compte. Messages directs : jusqu'à la suppression du compte de l'un des deux. Photos et messages vocaux des discussions : 90 jours. Demandes de message refusées ou supprimées : effacées aussitôt ; ignorées : effacées au bout de 30 jours. Copies jointes à un signalement (message, photo, vocal, 10 messages précédents) : effacées avec le signalement, au plus tard un an après.",
             "Les textes écrits par d'autres membres peuvent encore citer ton surnom après la suppression de ton compte.",
         ]),
         ("Tes droits", [
-            "Tu peux à tout moment : voir et corriger tes données dans l'app ; retirer un accord (IA, contacts, notifications) ; supprimer ton compte dans Réglages › Gérer mon compte. La suppression efface ton compte, tes photos de profil, tes contenus (réponses, votes, pronos et confettis, covoiturage, demandes, ton calendrier abonné), les événements que tu as créés, tes stats de jeux, tes accords pour l'IA et le journal de tes appels à l'IA ; tes avis sur l'app restent, sans ton nom.",
+            "Tu peux à tout moment : voir et corriger tes données dans l'app ; retirer un accord (IA, contacts, notifications) ; supprimer ton compte dans Réglages › Gérer mon compte. La suppression efface ton compte, tes photos de profil, tes contenus (réponses, votes, messages directs avec leurs photos et vocaux, demandes de message, réglages des discussions, pronos et confettis, covoiturage, demandes, ton calendrier abonné), les événements que tu as créés, tes stats de jeux, tes accords pour l'IA et le journal de tes appels à l'IA ; tes avis sur l'app restent, sans ton nom.",
             "Pour obtenir une copie de tes données ou toute autre demande : support@vendrediparty.ch. Tu peux aussi t'adresser au Préposé fédéral à la protection des données et à la transparence (PFPDT).",
         ]),
         ("Si tu vis dans l'Union européenne (RGPD, DSA)", [
@@ -248,12 +257,14 @@ struct PrivacyView: View {
             "Règlement sur les services numériques (DSA) : point de contact unique pour les utilisateurs et les autorités : support@vendrediparty.ch, en français. Un contenu illicite se signale dans l'app (« Signaler ») ou à cette adresse.",
         ]),
         ("Signalements et blocages", [
-            "Quand tu signales un contenu, les modérateurs reçoivent ta raison, ton commentaire et une copie de ce contenu (pour un message direct : ce seul message). La personne signalée ne sait pas qui l'a signalée. Les blocages restent jusqu'à ce que tu débloques.",
+            "Quand tu signales un contenu, les modérateurs reçoivent ta raison, ton commentaire et une copie de ce contenu. Pour un message : ce seul message, avec sa photo ou son vocal copiés dans un espace réservé aux modérateurs, et les 10 messages précédents (texte, auteur, heure) seulement si tu coches « Joindre les 10 messages précédents ». La personne signalée ne sait pas qui l'a signalée. Si un modérateur masque ton contenu, une notification te dit pourquoi et où le contester. Les blocages restent jusqu'à ce que tu débloques.",
         ]),
     ]
 
     /// Compte connecté : Personnes bloquées et conditions d'utilisation (modération commune).
     var moderation: ModerationStore?
+    /// Compte connecté, Discussions ouvertes : « Demandes de message » et « Confirmations de lecture ».
+    var chatPrefs: ChatPrefsStore?
 
     var body: some View {
         List {
@@ -282,6 +293,7 @@ struct PrivacyView: View {
             } header: {
                 Text("Mes choix")
             }
+            if let chatPrefs { ChatPrefsSection(store: chatPrefs) }
             if let moderation { AIConsentSection(store: moderation) }
             ForEach(Self.sections, id: \.0) { title, paragraphs in
                 Section(title) {
@@ -294,5 +306,6 @@ struct PrivacyView: View {
         .background(AppConfig.background.ignoresSafeArea())
         .navigationTitle("Confidentialité")
         .navigationBarTitleDisplayMode(.inline)
+        .task { await chatPrefs?.load() }
     }
 }

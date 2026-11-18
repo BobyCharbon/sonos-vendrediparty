@@ -222,6 +222,8 @@ export type NotificationPrefs = {
   contact_joins?: boolean;
   /** Messages directs (migration 20261104100000 ; absent avant : reçus) : « Nouveau message de X ». */
   direct_messages?: boolean;
+  /** Demandes de message (Discussions v2, 18.11) : « … veut t'écrire ». */
+  message_requests?: boolean;
   /** Compagnon (migration 20261104130000 ; absents avant : reçus) : rappel doux du jour, alertes avant son envol. */
   pet_daily?: boolean;
   pet_alerts?: boolean;
