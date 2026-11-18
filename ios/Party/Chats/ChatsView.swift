@@ -1,46 +1,111 @@
 import SwiftUI
 
-/// Onglet « Discussions » natif (avis n°10) : une discussion par groupe, la plus récente en haut, comme WhatsApp.
+/// Écrans des personnes (agent I2, ios/Party/Chats/People/) branchés sur la liste sans en dépendre à la compilation :
+/// « Nouveau message » (NewMessageView(eventID:)) et le mini-profil (MiniProfileSheet(userID:)). nil : pas encore
+/// branché (le bouton flottant et « Voir le profil » sont alors cachés).
+/// Branchement, une ligne (PartyApp ou ChatsView) :
+/// `.environment(\.chatsRoutes, ChatsRoutes(newMessage: { AnyView(NewMessageView(eventID: $0)) },
+///                                          miniProfile: { AnyView(MiniProfileSheet(userID: $0)) }))`
+struct ChatsRoutes {
+    var newMessage: (@MainActor (_ eventID: String?) -> AnyView)?
+    var miniProfile: (@MainActor (_ userID: String) -> AnyView)?
+}
+
+private struct ChatsRoutesKey: EnvironmentKey {
+    static let defaultValue = ChatsRoutes()
+}
+
+extension EnvironmentValues {
+    var chatsRoutes: ChatsRoutes {
+        get { self[ChatsRoutesKey.self] }
+        set { self[ChatsRoutesKey.self] = newValue }
+    }
+}
+
+/// Écrans poussés depuis la liste.
+enum ChatRoute: Hashable {
+    /// Groupe ou message direct (ConversationView du store des Discussions).
+    case chat(String)
+    /// Discussion d'un événement : l'écran natif existant (store des discussions d'événement).
+    case event(String)
+    case requests
+    case archived
+}
+
+/// Onglet « Discussions » natif, Discussions v2 « Néon club » (maquettes 1-neon) : grand titre, recherche
+/// (Personnes / Discussions / Messages), filtres, épinglées en tuiles, Demandes et Archivées, lignes direct / groupe /
+/// soirée, bouton flottant « Nouveau message », gestes (glisser, appui long). Données : chat_list (ChatsStore).
 struct ChatsView: View {
     @ObservedObject var store: ChatsStore
     let topInset: CGFloat
 
-    @State private var path: [String] = []
+    @State private var path: [ChatRoute] = []
     @State private var creating = false
+    @State private var query = ""
+    @State private var filter = ChatFilter.all
+    @State private var collapsed = false
+    @State private var topY: CGFloat?
+    @State private var writing = false
+    @State private var profile: ProfileTarget?
+    @State private var muting: ChatSummary?
+    @State private var blocking: ChatSummary?
     @Environment(\.openGroupPage) private var openGroupPage
+    @Environment(\.chatsRoutes) private var routes
+
+    private struct ProfileTarget: Identifiable { let id: String }
 
     var body: some View {
         NavigationStack(path: $path) {
-            list
+            content
                 .motion(Motion.smooth, value: listPhase)
+                .background(NeonGlow())
+                .background(NeonNavigationBar())
                 .navigationTitle("Discussions")
-                .background(AppConfig.background.ignoresSafeArea())
-                .toolbarBackground(AppConfig.background, for: .navigationBar)
-                .navigationDestination(for: String.self) { group in
-                    ConversationView(store: store, group: group)
-                }
+                .navigationBarTitleDisplayMode(.large)
+                .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Personnes, groupes, messages")
                 .toolbar {
-                    // Couper les notifications de toutes les Discussions : 30 min, 1 h, 2 h ou jusqu'à 8 h.
-                    ToolbarItem(placement: .navigationBarLeading) { ChatsPauseButton(store: store.pause) }
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        // Nouveau groupe (17.11) : la création en 2 étapes du module Événements (nom, emoji, couleur,
-                        // puis Inviter) ; hors de l'app (aperçus), l'ancien champ.
-                        Button { if let openGroupPage { openGroupPage.open("new") } else { creating = true } } label: {
-                            Image(systemName: "square.and.pencil")
-                        }
-                            .accessibilityLabel("Nouveau groupe")
-                            .accessibilityIdentifier("chats-new-group")
+                    ToolbarItemGroup(placement: .navigationBarTrailing) {
+                        ChatsMoonMenu(store: store.pause)
+                        moreMenu
                     }
                 }
+                .navigationDestination(for: ChatRoute.self) { route in
+                    switch route {
+                    case .chat(let id): ConversationView(store: store, group: id)
+                    case .event(let id): ConversationView(store: store.events, group: id)
+                    case .requests: ChatRequestsView(store: store)
+                    case .archived:
+                        ChatArchivedView(store: store, open: open, askMute: { muting = $0 }, askBlock: { blocking = $0 },
+                                         showProfile: showProfile)
+                    }
+                }
+                .overlay(alignment: .bottomTrailing) { fab }
+                .overlay(alignment: .bottom) { noticeBanner }
                 .sheet(isPresented: $creating) { NewGroupSheet(store: store) }
+                .sheet(isPresented: $writing) { routes.newMessage?(nil) }
+                .sheet(item: $profile) { target in routes.miniProfile?(target.id) }
+                .confirmationDialog(muting.map { "Sourdine : \($0.name)" } ?? "", isPresented: Binding(get: { muting != nil }, set: { if !$0 { muting = nil } }),
+                                    titleVisibility: .visible, presenting: muting) { chat in
+                    ForEach(ChatMuteSpan.allCases) { span in
+                        Button(span.label) { Task { await store.mute(chat, span) } }
+                    }
+                } message: { _ in
+                    Text("Plus de notification de cette discussion pendant ce temps. Les messages arrivent quand même.")
+                }
+                .confirmationDialog("Bloquer cette personne ?", isPresented: Binding(get: { blocking != nil }, set: { if !$0 { blocking = nil } }),
+                                    titleVisibility: .visible, presenting: blocking) { chat in
+                    Button("Bloquer", role: .destructive) { Task { await store.block(chat) } }
+                } message: { _ in
+                    Text("Elle ne pourra plus t'écrire. Tu pourras la débloquer dans les infos de la discussion.")
+                }
                 // Première ouverture des Discussions : proposer de reconnaître ses contacts (« Nom · pseudo »).
                 .contactsPrompt()
         }
         .tint(Color(uiColor: AppConfig.uiAccent))
         .padding(.top, topInset)
-        .background(AppConfig.background.ignoresSafeArea())
+        .background(ChatNeon.bg.ignoresSafeArea())
         .task(id: path.isEmpty) {
-            // Liste visible : relue au retour d'une conversation, puis toutes les 15 s.
+            // Liste visible : relue au retour d'une conversation, puis toutes les 30 s (secours du temps réel).
             guard path.isEmpty else { return store.stopListLive() }
             await store.loadList()
             openRequested()
@@ -56,38 +121,276 @@ struct ChatsView: View {
     }
 
     private func openRequested() {
-        guard let group = store.requested else { return }
+        guard let chat = store.requested else { return }
         store.requested = nil
-        path = [group]
+        path = [store.chat(chat)?.isEvent == true ? .event(chat) : .chat(chat)]
     }
 
-    @ViewBuilder private var list: some View {
+    private func open(_ chat: ChatSummary) {
+        Haptics.selection()
+        if chat.isEvent && chat.needsReading { Task { await store.markEventRead(chat.id) } }
+        path.append(chat.isEvent ? .event(chat.id) : .chat(chat.id))
+    }
+
+    private var showProfile: ((String) -> Void)? {
+        routes.miniProfile == nil ? nil : { profile = ProfileTarget(id: $0) }
+    }
+
+    private func newGroup() {
+        if let openGroupPage { openGroupPage.open("new") } else { creating = true }
+    }
+
+    // MARK: Contenu
+
+    @ViewBuilder private var content: some View {
         if let chats = store.chats {
-            List(chats) { chat in
-                NavigationLink(value: chat.id) { ChatRow(chat: chat) }
-                    .listRowBackground(AppConfig.background)
-            }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            // Nouveau message dans un groupe : sa discussion remonte en tête en glissant, sans saut.
-            .motion(Motion.snappy, value: chats.map(\.id))
-            .overlay {
-                if chats.isEmpty {
-                    ContentUnavailable(text: "Rejoins ou crée un groupe (bouton ✎ en haut) pour discuter avec ses membres, ou écris à un ami (Réglages › Mes amis).")
-                        .transition(.opacity)
+            if !query.trimmingCharacters(in: .whitespaces).isEmpty {
+                ChatSearchResults(query: query, store: store, open: open) { hit in
+                    if let chat = store.chat(hit.chatID) { open(chat) } else {
+                        Haptics.selection()
+                        path.append(hit.kind == .event ? .event(hit.chatID) : .chat(hit.chatID))
+                    }
                 }
+                .transition(.opacity)
+            } else if chats.isEmpty {
+                ChatsEmptyView(crossed: store.suggestions?.crossed ?? [], write: { person in Task { await store.openDirect(person.id) } },
+                               newMessage: routes.newMessage == nil ? nil : { writing = true }, newGroup: newGroup)
+                    .transition(.opacity)
+            } else {
+                list(chats).transition(.opacity)
             }
-            .refreshable { await store.loadList() }
-            .transition(.opacity)
         } else if let error = store.error {
             ContentUnavailable(text: error).transition(.opacity)
         } else {
-            ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity).transition(.opacity)
+            ProgressView().tint(ChatNeon.lav).frame(maxWidth: .infinity, maxHeight: .infinity).transition(.opacity)
+        }
+    }
+
+    private func list(_ chats: [ChatSummary]) -> some View {
+        let pinned = ChatListLogic.pinned(chats, filter: filter)
+        let rows = ChatListLogic.rows(chats, filter: filter)
+        let requests = ChatListLogic.requests(chats).count
+        let archived = ChatListLogic.archived(chats).count
+        return List {
+            filters(unread: ChatListLogic.unreadChats(chats))
+                .listRowInsets(EdgeInsets())
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+            if !pinned.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 4) {
+                        ForEach(pinned) { chat in
+                            Button { open(chat) } label: { ChatPinnedTile(chat: chat) }
+                                .buttonStyle(.plain)
+                                .chatRowActions(chat, store: store, askMute: { muting = $0 }, askBlock: { blocking = $0 }, showProfile: showProfile)
+                        }
+                    }
+                    .padding(.horizontal, 10)
+                }
+                .listRowInsets(EdgeInsets(top: 10, leading: 0, bottom: 4, trailing: 0))
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel("Épinglées")
+            }
+            if requests > 0 || archived > 0 {
+                HStack(spacing: 8) {
+                    if requests > 0 {
+                        Button { path.append(.requests) } label: {
+                            ChatSlimLink(title: "Demandes", systemImage: "tray", count: requests > 1 ? requests : 0, dot: true)
+                        }
+                        .accessibilityIdentifier("chats-requests")
+                    }
+                    if archived > 0 {
+                        Button { path.append(.archived) } label: {
+                            ChatSlimLink(title: "Archivées", systemImage: "archivebox", count: archived)
+                        }
+                        .accessibilityIdentifier("chats-archived")
+                    }
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 16)
+                .listRowInsets(EdgeInsets(top: 10, leading: 0, bottom: 6, trailing: 0))
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+            }
+            ForEach(rows) { chat in
+                Button { open(chat) } label: { ChatListRow(chat: chat).padding(.horizontal, 16) }
+                    .buttonStyle(ChatRowPressStyle())
+                    .chatRowActions(chat, store: store, askMute: { muting = $0 }, askBlock: { blocking = $0 }, showProfile: showProfile)
+                    .neonRow()
+                    .accessibilityIdentifier("chat-row-\(chat.id)")
+            }
+            if rows.isEmpty && pinned.isEmpty {
+                Text(Self.emptyFilter(filter))
+                    .font(.subheadline).foregroundStyle(ChatNeon.t2)
+                    .frame(maxWidth: .infinity).padding(.top, 40)
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+            }
+            // Place sous le bouton flottant : la dernière ligne reste lisible.
+            Color.clear.frame(height: 76).listRowBackground(Color.clear).listRowSeparator(.hidden)
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        // Nouveau message : sa discussion remonte en tête en glissant, sans saut.
+        .motion(Motion.snappy, value: chats.map(\.id))
+        .motion(Motion.smooth, value: filter)
+        .refreshable { await store.loadList() }
+        .onPreferenceChange(ChatsTopKey.self) { y in
+            guard let y else { return }
+            if topY == nil { topY = y }
+            let down = y < (topY ?? y) - 24
+            if down != collapsed { Motion.animate(Motion.snappy) { collapsed = down } }
+        }
+    }
+
+    static func emptyFilter(_ filter: ChatFilter) -> String {
+        switch filter {
+        case .all: return "Aucune discussion pour l'instant."
+        case .unread: return "Tout est lu 🎉"
+        case .people: return "Aucun message direct."
+        case .groups: return "Aucune discussion de groupe."
+        case .events: return "Aucune discussion de soirée en ce moment."
+        }
+    }
+
+    private func filters(unread: Int) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(ChatFilter.allCases) { f in
+                    ChatFilterChip(filter: f, selected: filter == f, count: f == .unread ? unread : 0) {
+                        Haptics.selection()
+                        filter = f
+                    }
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+        .padding(.top, 4)
+        .background(GeometryReader { g in Color.clear.preference(key: ChatsTopKey.self, value: g.frame(in: .global).minY) })
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Filtrer")
+    }
+
+    // MARK: Barre du haut, bouton flottant, bandeau
+
+    private var moreMenu: some View {
+        let chats = store.chats ?? []
+        let requests = ChatListLogic.requests(chats).count
+        let archived = ChatListLogic.archived(chats).count
+        return Menu {
+            if routes.newMessage != nil {
+                Button { writing = true } label: { Label("Nouveau message", systemImage: "square.and.pencil") }
+            }
+            Button { newGroup() } label: { Label("Nouveau groupe", systemImage: "person.2") }
+                .accessibilityIdentifier("chats-new-group")
+            Divider()
+            Button { path.append(.requests) } label: {
+                Label(requests > 0 ? "Demandes de message (\(requests))" : "Demandes de message", systemImage: "tray")
+            }
+            Button { path.append(.archived) } label: {
+                Label(archived > 0 ? "Archivées (\(archived))" : "Archivées", systemImage: "archivebox")
+            }
+            if ChatListLogic.unreadChats(chats) > 0 {
+                Button { Task { await store.markAllRead() } } label: { Label("Tout marquer comme lu", systemImage: "checkmark.circle") }
+            }
+        } label: {
+            NeonCircleLabel(systemImage: "ellipsis")
+        }
+        .accessibilityLabel("Plus : nouveau groupe, demandes de message, archivées")
+        .accessibilityIdentifier("chats-more")
+    }
+
+    @ViewBuilder private var fab: some View {
+        if routes.newMessage != nil, query.isEmpty, store.chats?.isEmpty == false, path.isEmpty {
+            Button {
+                Haptics.tap()
+                writing = true
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "square.and.pencil").font(.system(size: 19, weight: .bold))
+                    if !collapsed {
+                        Text("Nouveau message").font(.body.weight(.bold)).fixedSize()
+                            .transition(.opacity.combined(with: .move(edge: .trailing)))
+                    }
+                }
+                .foregroundStyle(ChatNeon.onPink)
+                .padding(.horizontal, collapsed ? 0 : 20)
+                .frame(width: collapsed ? 56 : nil, height: 56)
+                .background(ChatNeon.pinkGradient, in: Capsule())
+                .overlay(Capsule().strokeBorder(.white.opacity(0.25), lineWidth: 1))
+                .shadow(color: ChatNeon.pink.opacity(0.6), radius: 18, y: 8)
+            }
+            .buttonStyle(PronoKitPressStyle())
+            .padding(16)
+            .accessibilityLabel("Nouveau message")
+            .accessibilityIdentifier("chats-new-message")
+            .transition(.scale(scale: 0.8).combined(with: .opacity))
+        }
+    }
+
+    @ViewBuilder private var noticeBanner: some View {
+        if let notice = store.notice, path.isEmpty {
+            ChatNoticeBanner(text: notice) { if store.notice == notice { store.notice = nil } }
+                .motionTransition(.banner)
         }
     }
 
     /// Chargement → liste ou erreur : fondu (une relecture de la liste ne rejoue rien).
     private var listPhase: Int { store.chats != nil ? 2 : store.error != nil ? 1 : 0 }
+}
+
+/// Erreur d'un geste de la liste (épingler au-delà de 5, demande refusée…) : bandeau en bas, parti après 4 s ou au toucher.
+private struct ChatNoticeBanner: View {
+    let text: String
+    let close: () -> Void
+
+    var body: some View {
+        Text(text)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(ChatNeon.t1)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(.ultraThinMaterial, in: Capsule())
+            .overlay(Capsule().strokeBorder(ChatNeon.glassLine, lineWidth: 1))
+            .padding(.horizontal, 16)
+            .padding(.bottom, 84)
+            .onTapGesture(perform: close)
+            .task(id: text) {
+                try? await Task.sleep(for: .seconds(4))
+                guard !Task.isCancelled else { return }
+                Motion.animate(Motion.smooth, close)
+            }
+    }
+}
+
+/// Position de la rangée des filtres : le bouton flottant se replie en ✎ dès qu'on fait défiler, revient en haut.
+private struct ChatsTopKey: PreferenceKey {
+    static let defaultValue: CGFloat? = nil
+    static func reduce(value: inout CGFloat?, nextValue: () -> CGFloat?) { value = nextValue() ?? value }
+}
+
+/// Lune : couper les notifications de toutes les Discussions (30 min…8 h), même réglage que Réglages › Notifications.
+private struct ChatsMoonMenu: View {
+    @ObservedObject var store: PauseStore
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 30)) { context in
+            let until = store.active(.chats, now: context.date)
+            Menu {
+                PauseMenuItems(store: store, scope: .chats, until: until)
+            } label: {
+                NeonCircleLabel(systemImage: until == nil ? "moon" : "moon.fill", active: until != nil)
+            }
+            .disabled(store.busy)
+            .accessibilityLabel(until.map { "Discussions en pause jusqu'à \(NotificationPause.label($0))" }
+                                ?? "Couper les notifications des Discussions")
+            .accessibilityIdentifier("chats-pause-button")
+        }
+        .task { await store.load() }
+    }
 }
 
 /// Nouveau groupe depuis Discussions : le même champ que Réglages › Groupes ; le créateur en fait partie d'office,
@@ -140,57 +443,11 @@ private struct ContentUnavailable: View {
     let text: String
     var body: some View {
         VStack(spacing: 12) {
-            Image(systemName: "bubble.left.and.bubble.right").font(.largeTitle).foregroundStyle(.secondary)
-            Text(text).multilineTextAlignment(.center).foregroundStyle(.secondary)
+            Image(systemName: "bubble.left.and.bubble.right").font(.largeTitle).foregroundStyle(ChatNeon.lav)
+            Text(text).multilineTextAlignment(.center).foregroundStyle(ChatNeon.t2)
         }
         .padding(32)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
-private struct ChatRow: View {
-    let chat: ChatSummary
-    @ObservedObject private var contacts = ContactNames.shared
-
-    /// Message direct : « Nom du contact · pseudo » (contacts de l'iPhone) ; groupe : son nom.
-    private var title: String { chat.direct ? contacts.label(for: chat.userID, pseudo: chat.name).text : chat.name }
-
-    var body: some View {
-        HStack(spacing: 12) {
-            if chat.direct || chat.emoji == nil {
-                Initials(name: chat.direct ? contacts.label(for: chat.userID, pseudo: chat.name).primary : chat.name,
-                         photo: chat.direct ? chat.photo : nil, size: 48)
-            } else {
-                GroupTile(emoji: chat.emoji ?? "👯", color: chat.color, photo: chat.photo, system: chat.system, size: 48)
-            }
-            VStack(alignment: .leading, spacing: 3) {
-                HStack {
-                    Text(title).font(.body.weight(.semibold)).lineLimit(1)
-                    Spacer()
-                    Text(ChatDates.short(chat.lastAt)).font(.caption)
-                        .foregroundStyle(chat.unread > 0 ? Color(uiColor: AppConfig.uiAccent) : .secondary)
-                }
-                HStack {
-                    Text(chat.last ?? "Aucun message pour l'instant").font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
-                    Spacer()
-                    if chat.notify == .none { Image(systemName: "bell.slash").font(.caption).foregroundStyle(.secondary) }
-                    if chat.unread > 0 {
-                        Text(chat.unread > 99 ? "99+" : "\(chat.unread)")
-                            .font(.caption2.weight(.bold)).foregroundStyle(.black)
-                            .contentTransition(.numericText())
-                            .padding(.horizontal, 6).frame(minWidth: 22, minHeight: 22)
-                            .background(Color(uiColor: AppConfig.uiAccent), in: Capsule())
-                            .motionTransition(.scale(scale: 0.4).combined(with: .opacity))
-                    }
-                }
-            }
-        }
-        .padding(.vertical, 4)
-        // Pastille de non-lus qui arrive, compte qui change, dernier message : petit rebond, chiffres qui défilent.
-        .motion(Motion.bouncy, value: chat.unread)
-        .motion(Motion.smooth, value: chat.last)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(chat.direct ? "Message direct, " : "")\(title)\(chat.unread > 0 ? ", \(chat.unread) non lus" : "")")
     }
 }
 

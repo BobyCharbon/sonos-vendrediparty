@@ -58,7 +58,15 @@ final class ChatsStore: ObservableObject {
         return true
     }
 
-    var unread: Int { chats?.reduce(0) { $0 + $1.unread } ?? 0 }
+    /// Pastille des Discussions (`chat_badge` : non lus hors archivées et sourdine + demandes reçues).
+    var unread: Int { badge }
+    @Published private(set) var badge = 0
+    /// Personnes croisées (état vide : « Croisés à la soirée… »), lues une fois quand la liste est vide.
+    @Published private(set) var suggestions: ChatPeopleSuggestions?
+    /// Discussions d'événement ouvertes depuis la liste : l'écran natif existant, avec ses routes /event-chat/*.
+    private(set) lazy var events = ChatsStore(api: api, web: web, forEvents: true)
+    /// Relais v2 (/api/account/chats/rpc) présent sur ce serveur ; un serveur plus ancien : liste my_chats.
+    private var listV2 = true
 
     /// Conversation privée à deux (d'après la liste ou la conversation ouverte) ; inconnue : le serveur la reconnaît.
     func isDirect(_ id: String) -> Bool {
@@ -89,11 +97,172 @@ final class ChatsStore: ObservableObject {
             chats = ChatsCache.load([ChatSummary].self, account: account, name: "list")  // tout de suite, puis à jour
         }
         await run(loading: chats == nil) { token in
-            let (list, endpoint) = try await api.chats(token: token)
-            if list != chats { chats = list }
-            if let endpoint { self.endpoint = endpoint }
+            var list: [ChatSummary]?
+            if listV2 {
+                do {
+                    // Tout d'un coup (archivées et demandes comprises) : la liste, Demandes et Archivées en découlent.
+                    let fresh: [ChatSummary] = try await api.chatsRPC(token: token, fn: "chat_list", args: ["include_archived": true])
+                    list = fresh
+                } catch PartyAPIError.server(_) {
+                    listV2 = false  // serveur d'avant les Discussions v2 : l'ancienne liste
+                }
+            }
+            if list == nil || endpoint == nil {
+                let (old, endpoint) = try await api.chats(token: token)
+                if list == nil { list = old }
+                if let endpoint { self.endpoint = endpoint }
+            }
+            guard let list else { return }
+            if list != chats { showList(list) }
             if let account = ChatsCache.account(of: token) { ChatsCache.save(list, account: account, name: "list") }
+            if listV2, let n: Int = try? await api.chatsRPC(token: token, fn: "chat_badge") { setBadge(n) }
         }
+        if chats?.isEmpty == true, suggestions == nil { await loadSuggestions() }
+    }
+
+    /// Nouvelle liste à l'écran (et pastille recalculée d'après elle, en attendant chat_badge).
+    private func showList(_ list: [ChatSummary]) {
+        chats = list
+        setBadge(ChatListLogic.badge(list))
+    }
+
+    private func setBadge(_ n: Int) {
+        if n != badge { badge = n }
+    }
+
+    /// Change une ligne tout de suite (avant la réponse du serveur) ; la relecture suivante la corrige au besoin.
+    private func update(_ id: String, _ change: (inout ChatSummary) -> Void) {
+        guard var list = chats, let i = list.firstIndex(where: { $0.id == id }) else { return }
+        change(&list[i])
+        Motion.animate(Motion.snappy) { showList(list) }
+    }
+
+    // MARK: Gestes de la liste (Discussions v2)
+
+    func chat(_ id: String) -> ChatSummary? { chats?.first { $0.id == id } }
+
+    /// Épingler (5 au plus, `pin_limit`), archiver, marquer non lu : set_chat_state.
+    func setState(_ chat: ChatSummary, pinned: Bool? = nil, archived: Bool? = nil, unread: Bool? = nil) async {
+        var args: [String: Any] = ["kind": chat.kind.rawValue, "chat": chat.id]
+        if let pinned { args["pinned"] = pinned }
+        if let archived { args["archived"] = archived }
+        if let unread { args["unread"] = unread }
+        update(chat.id) { row in
+            if let pinned { row.pinnedAt = pinned ? ISO8601DateFormatter().string(from: Date()) : nil }
+            if let archived { row.archived = archived; if archived { row.pinnedAt = nil } }
+            if let unread { row.markedUnread = unread }
+        }
+        await listAct { token in try await api.chatsRPCRun(token: token, fn: "set_chat_state", args: args) }
+    }
+
+    /// Lu : les messages lus (groupe, direct) et la marque « non lu » retirée.
+    func markRead(_ chat: ChatSummary) async {
+        update(chat.id) { $0.unread = 0; $0.markedUnread = false }
+        await listAct { token in
+            if chat.kind == .event { try await api.chatsRPCRun(token: token, fn: "mark_event_chat_read", args: ["e": chat.id]) }
+            else { try await api.readChat(token: token, group: chat.id, direct: chat.direct) }
+            if chat.markedUnread {
+                try await api.chatsRPCRun(token: token, fn: "set_chat_state", args: ["kind": chat.kind.rawValue, "chat": chat.id, "unread": false])
+            }
+        }
+    }
+
+    /// Menu « … » › Tout marquer comme lu.
+    func markAllRead() async {
+        for chat in ChatListLogic.main(chats ?? []) where chat.needsReading { await markRead(chat) }
+    }
+
+    /// Sourdine depuis la liste : set_chat_state(muted_until) ; 1 h / 8 h / 1 semaine = une date, « Toujours » =
+    /// 'infinity'. nil : réactiver (une date passée l'annule ; une discussion réglée sur « Rien » repasse à son défaut).
+    func mute(_ chat: ChatSummary, _ span: ChatMuteSpan?) async {
+        let until = span.map { ChatListLogic.muteEnd($0) ?? ChatListLogic.muteForever }
+        update(chat.id) { row in
+            row.mutedUntil = until
+            if span == nil && row.notify == .none { row.notify = row.kind == .group ? .mentions : .all }
+        }
+        await listAct { token in
+            let end = until ?? ISO8601DateFormatter().string(from: Date().addingTimeInterval(-60))
+            try await api.chatsRPCRun(token: token, fn: "set_chat_state",
+                                      args: ["kind": chat.kind.rawValue, "chat": chat.id, "muted_until": end])
+            guard span == nil, chat.notify == .none else { return }
+            let level: ChatNotify = chat.kind == .group ? .mentions : .all
+            if chat.kind == .event { try await api.notifyEventChat(token: token, event: chat.id, level: level) }
+            else { try await api.notifyChat(token: token, group: chat.id, level: level, direct: chat.direct) }
+        }
+    }
+
+    /// Discussion d'événement ouverte depuis la liste : lue (mark_event_chat_read), comme groupes et directs.
+    func markEventRead(_ id: String) async {
+        update(id) { $0.unread = 0; $0.markedUnread = false }
+        guard listV2, let token = await web?.accountToken() else { return }
+        try? await api.chatsRPCRun(token: token, fn: "mark_event_chat_read", args: ["e": id])
+    }
+
+    /// Bloquer l'autre personne d'un message direct depuis la liste (signalée d'office aux modérateurs par la base).
+    func block(_ chat: ChatSummary) async {
+        guard chat.direct, let user = chat.userID else { return }
+        update(chat.id) { $0.blocked = true }
+        await listAct { token in try await api.blockDirect(token: token, user: user, on: true) }
+    }
+
+    /// Demande reçue : Accepter (la conversation devient normale et s'ouvre).
+    func accept(_ chat: ChatSummary) async -> Bool {
+        var done = false
+        await listAct { token in
+            try await api.chatsRPCRun(token: token, fn: "accept_message_request", args: ["chat": chat.id])
+            done = true
+        }
+        if done { update(chat.id) { $0.request = nil }; requested = chat.id }
+        return done
+    }
+
+    /// Demande reçue : Supprimer (elle disparaît ; l'autre n'est pas prévenu).
+    func decline(_ chat: ChatSummary) async {
+        update(chat.id) { $0.request = "declined" }
+        await listAct { token in try await api.chatsRPCRun(token: token, fn: "decline_message_request", args: ["chat": chat.id]) }
+    }
+
+    /// Demande reçue : Bloquer (la demande part avec).
+    func blockRequest(_ chat: ChatSummary) async {
+        await block(chat)
+        await decline(chat)
+    }
+
+    /// Qui veut t'écrire (member_mini) : nom, photo, « Déjà vu », groupes et soirées en commun.
+    func requester(_ user: String) async -> ChatRequester? {
+        guard let token = await web?.accountToken() else { return nil }
+        return try? await api.chatsRPC(token: token, fn: "member_mini", args: ["target": user])
+    }
+
+    /// Écrire à une personne (recherche, état vide) : open_direct_chat, puis la conversation s'ouvre ; sinon la raison.
+    func openDirect(_ user: String) async {
+        var opened: ChatOpenResult?
+        await run { token in
+            opened = try await api.chatsRPC(token: token, fn: "open_direct_chat", args: ["target": user])
+        }
+        guard let opened else { return }
+        if let chat = opened.chat, opened.status != "none" { requested = chat } else { notice = opened.refusal }
+    }
+
+    func searchPeople(_ q: String) async -> [ChatPerson] {
+        guard q.count >= 2, let token = await web?.accountToken() else { return [] }
+        return (try? await api.chatsRPC(token: token, fn: "chat_people_search", args: ["q": q])) ?? []
+    }
+
+    func searchMessages(_ q: String) async -> [ChatMessageHit] {
+        guard q.count >= 2, let token = await web?.accountToken() else { return [] }
+        return (try? await api.chatsRPC(token: token, fn: "chat_search", args: ["q": q])) ?? []
+    }
+
+    func loadSuggestions() async {
+        guard listV2, let token = await web?.accountToken() else { return }
+        if let s: ChatPeopleSuggestions = try? await api.chatsRPC(token: token, fn: "chat_people_suggestions") { suggestions = s }
+    }
+
+    /// Geste de la liste : erreur en bandeau, puis liste relue (l'état réel du serveur).
+    private func listAct(_ work: (String) async throws -> Void) async {
+        await run(work)
+        await loadList()
     }
 
     /// Au lancement de l'app : la liste est prête avant même d'ouvrir l'onglet (sans compte, rien).
@@ -127,8 +296,42 @@ final class ChatsStore: ObservableObject {
     func showDemo(list: [ChatSummary]? = nil, conversation: Conversation? = nil) {
         demo = true
         error = nil
-        if let list { chats = list }
+        // SIMCTL_CHILD_PARTY_DEBUG_CHATS=neon : la liste des maquettes Néon (épinglées, Demandes, soirée, VP…).
+        if list != nil, ProcessInfo.processInfo.environment["PARTY_DEBUG_CHATS"] == "neon" {
+            showList(Self.neonDemo())
+        } else if let list { chats = list }
         if let conversation { self.conversation = conversation }
+    }
+
+    private static func neonDemo() -> [ChatSummary] {
+        let f = ISO8601DateFormatter()
+        func ago(_ minutes: Double) -> String { f.string(from: Date().addingTimeInterval(-minutes * 60)) }
+        func last(_ m: Double, _ author: String?, _ text: String?, type: String = "text", me: Bool = false) -> [String: Any] {
+            var l: [String: Any] = ["id": UUID().uuidString, "at": ago(m), "from_me": me, "type": type]
+            if let author { l["author"] = author }
+            if let text { l["text"] = text }
+            return l
+        }
+        let rows: [[String: Any]] = [
+            ["kind": "direct", "id": "d-lea", "title": "Léa", "user_id": "u-lea", "last": last(3, "Léa", "Tu viens samedi ?"), "unread": 2, "pinned_at": ago(1)],
+            ["kind": "event", "id": "e-raclette", "title": "Raclette chez Léa", "event_start": f.string(from: Date().addingTimeInterval(3 * 86400)),
+             "last": last(6, "Julien", "J'amène le vin blanc"), "unread": 12, "pinned_at": ago(2)],
+            ["kind": "group", "id": "g-coloc", "title": "Coloc' de la Cité", "emoji": "🏡", "color": "coral", "last": last(80, "Zoé", "Courses faites"), "pinned_at": ago(3)],
+            ["kind": "direct", "id": "d-maman", "title": "Maman", "user_id": "u-maman", "last": last(200, nil, "Bisous", me: true), "pinned_at": ago(4)],
+            ["kind": "direct", "id": "d-mathieu", "title": "Mathieu Favre", "user_id": "u-mat", "last": last(2, "Mathieu", "On se retrouve où ?"), "unread": 2],
+            ["kind": "group", "id": "g-jura", "title": "Les Copains du Jura", "emoji": "🥾", "color": "mint",
+             "last": last(10, "Noé", "@Sam tu prends la voiture samedi ?"), "unread": 3, "mention": true, "notify": "mentions"],
+            ["kind": "direct", "id": "d-chloe", "title": "Chloé Bonvin", "user_id": "u-chloe", "last": last(19, "Chloé", nil, type: "audio"), "unread": 1],
+            ["kind": "event", "id": "e-paintball", "title": "Paintball à Bulle", "color": "mint", "event_start": f.string(from: Date().addingTimeInterval(4 * 86400)),
+             "last": last(52, "Julien", nil, type: "photo"), "unread": 6, "notify": "none"],
+            ["kind": "direct", "id": "d-anais", "title": "Anaïs Perrin", "user_id": "u-anais", "last": last(158, nil, "Merci pour hier soir, c'était top 🙏", me: true),
+             "seen_by_other": true],
+            ["kind": "group", "id": "g-basket", "title": "Basket du mardi", "emoji": "🏀", "color": "sky", "last": last(1500, "Kevin", "Salle 3 à Malley, même heure")],
+            ["kind": "group", "id": "g-vp", "title": "Membres Vendredi Party", "is_vp": true, "last": last(3000, "Party", "📣 Annonce : nouvelle saison de jeux")],
+            ["kind": "direct", "id": "d-req", "title": "Tom", "user_id": "u-tom", "last": last(30, "Tom", "Salut ! On s'est vus à la raclette"), "request": "incoming", "unread": 1],
+            ["kind": "group", "id": "g-old", "title": "Ski 2025", "emoji": "⛷️", "color": "lavender", "last": last(90000, "Léo", "Photos en ligne"), "archived": true],
+        ]
+        return rows.compactMap { try? JSONDecoder().decode(ChatSummary.self, from: JSONSerialization.data(withJSONObject: $0)) }
     }
     #endif
 

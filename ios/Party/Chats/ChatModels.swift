@@ -15,46 +15,134 @@ enum ChatNotify: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-/// Une ligne de la liste (POST /api/account/chats) : la plus récente en haut, comme WhatsApp.
+/// Sorte de discussion de la liste : rond = une personne, carré emoji = un groupe, petit calendrier = une soirée.
+enum ChatKind: String, Codable {
+    case direct, group, event
+}
+
+/// Dernier message d'une ligne (chat_list, Discussions v2).
+struct ChatLast: Codable, Equatable {
+    var id: String?
+    var at: String?
+    var fromMe = false
+    var author: String?
+    /// text, photo, audio, event (carte de soirée) ou deleted.
+    var type: String?
+    var text: String?
+
+    enum CodingKeys: String, CodingKey { case id, at, author, type, text, fromMe = "from_me" }
+
+    init(id: String? = nil, at: String? = nil, fromMe: Bool = false, author: String? = nil, type: String? = nil, text: String? = nil) {
+        self.id = id
+        self.at = at
+        self.fromMe = fromMe
+        self.author = author
+        self.type = type
+        self.text = text
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try? c.decodeIfPresent(String.self, forKey: .id)
+        at = try? c.decodeIfPresent(String.self, forKey: .at)
+        fromMe = ((try? c.decodeIfPresent(Bool.self, forKey: .fromMe)) ?? nil) ?? false
+        author = try? c.decodeIfPresent(String.self, forKey: .author)
+        type = try? c.decodeIfPresent(String.self, forKey: .type)
+        text = try? c.decodeIfPresent(String.self, forKey: .text)
+    }
+}
+
+/// Une ligne de la liste. Deux formats lus : `chat_list` (Discussions v2, relais /api/account/chats/rpc : kind
+/// direct / group / event, title, last en objet, épinglée, archivée, demande…) et l'ancien `my_chats`
+/// (POST /api/account/chats : name, last en texte, last_at) d'un serveur plus ancien. Le cache garde le format lu.
 struct ChatSummary: Codable, Equatable, Identifiable {
     let id: String
     let name: String
     let member: Bool
-    let notify: ChatNotify
+    var notify: ChatNotify
+    /// Aperçu du dernier message (« Léa : Salut ») ; v2 : calculé depuis `lastMessage`.
     let last: String?
     let lastAt: String?
-    let unread: Int
+    var unread: Int
+    var kind: ChatKind = .group
     /// Message direct (conversation privée à deux, 4.11) : l'autre personne, sa photo (lien signé), bloquée par moi.
-    var direct = false
+    var direct: Bool { kind == .direct }
     var userID: String?
     var photo: String?
     var blocked = false
-    /// Groupe : son emoji et sa couleur (nouveau graphisme du 17.11, my_chats) ; absents d'un serveur plus ancien.
+    /// Groupe : son emoji et sa couleur (nouveau graphisme du 17.11) ; absents d'un serveur plus ancien.
     var emoji: String?
     var color: String?
-    /// Groupe du système (Membres Vendredi Party) : sa tuile est le logo officiel de Party, que personne ne change.
+    /// Groupe du système (Membres Vendredi Party, `is_vp`) : sa tuile est le logo officiel de Party.
     var system = false
 
+    // Discussions v2 (chat_list) ; absents de l'ancien format.
+    var lastMessage: ChatLast?
+    var eventStart: String?
+    var eventPast = false
+    var mention = false
+    var markedUnread = false
+    var pinnedAt: String?
+    var archived = false
+    var mutedUntil: String?
+    /// Demande de message : « incoming » (à part, écran Demandes) ou « outgoing » (envoyée, en attente).
+    var request: String?
+    /// ✓✓ Vu (message direct, confirmations de lecture des deux côtés) ; nil : rien à montrer.
+    var seenByOther: Bool?
+    var members: Int?
+
+    var pinned: Bool { pinnedAt != nil }
+    var incomingRequest: Bool { request == "incoming" }
+    var outgoingRequest: Bool { request == "outgoing" }
+    var isEvent: Bool { kind == .event }
+
     enum CodingKeys: String, CodingKey {
-        case id, name, member, notify, last, unread, kind, photo, blocked, emoji, color, system, lastAt = "last_at", userID = "user_id"
+        case id, name, title, member, notify, last, unread, kind, photo, blocked, emoji, color, system, mention, archived
+        case request, members
+        case lastAt = "last_at", userID = "user_id", isVP = "is_vp", eventStart = "event_start", eventPast = "event_past"
+        case markedUnread = "marked_unread", pinnedAt = "pinned_at", mutedUntil = "muted_until", seenByOther = "seen_by_other"
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
-        name = try c.decode(String.self, forKey: .name)
-        member = try c.decodeIfPresent(Bool.self, forKey: .member) ?? false
+        let v2 = c.contains(.title)
+        name = try c.decodeIfPresent(String.self, forKey: .title) ?? c.decodeIfPresent(String.self, forKey: .name) ?? ""
+        kind = ((try? c.decodeIfPresent(ChatKind.self, forKey: .kind)) ?? nil) ?? .group
+        // chat_list : toute ligne est une discussion où je suis ; my_chats le dit (Root lit des groupes sans en être).
+        member = try c.decodeIfPresent(Bool.self, forKey: .member) ?? v2
         notify = (try? c.decode(ChatNotify.self, forKey: .notify)) ?? .mentions
-        last = try c.decodeIfPresent(String.self, forKey: .last)
-        lastAt = try c.decodeIfPresent(String.self, forKey: .lastAt)
         unread = try c.decodeIfPresent(Int.self, forKey: .unread) ?? 0
-        direct = (try? c.decodeIfPresent(String.self, forKey: .kind)) == "direct"
         userID = try c.decodeIfPresent(String.self, forKey: .userID)
         photo = try c.decodeIfPresent(String.self, forKey: .photo)
         blocked = try c.decodeIfPresent(Bool.self, forKey: .blocked) ?? false
         emoji = try? c.decodeIfPresent(String.self, forKey: .emoji)
         color = try? c.decodeIfPresent(String.self, forKey: .color)
-        system = (try? c.decodeIfPresent(Bool.self, forKey: .system)) ?? false
+        system = Self.flag(c, .system) || Self.flag(c, .isVP)
+        eventStart = try? c.decodeIfPresent(String.self, forKey: .eventStart)
+        eventPast = Self.flag(c, .eventPast)
+        mention = Self.flag(c, .mention)
+        markedUnread = Self.flag(c, .markedUnread)
+        pinnedAt = try? c.decodeIfPresent(String.self, forKey: .pinnedAt)
+        archived = Self.flag(c, .archived)
+        mutedUntil = try? c.decodeIfPresent(String.self, forKey: .mutedUntil)
+        request = try? c.decodeIfPresent(String.self, forKey: .request)
+        seenByOther = try? c.decodeIfPresent(Bool.self, forKey: .seenByOther)
+        members = try? c.decodeIfPresent(Int.self, forKey: .members)
+        if let text = try? c.decodeIfPresent(String.self, forKey: .last) {
+            last = text
+            lastAt = try c.decodeIfPresent(String.self, forKey: .lastAt)
+        } else {
+            let message = (try? c.decodeIfPresent(ChatLast.self, forKey: .last)) ?? nil
+            let kind = kind
+            lastMessage = message
+            lastAt = try message?.at ?? c.decodeIfPresent(String.self, forKey: .lastAt)
+            last = message.map { ChatListText.preview(of: $0, kind: kind) }
+        }
+    }
+
+    private static func flag(_ c: KeyedDecodingContainer<CodingKeys>, _ key: CodingKeys) -> Bool {
+        ((try? c.decodeIfPresent(Bool.self, forKey: key)) ?? nil) ?? false
     }
 
     func encode(to encoder: Encoder) throws {
@@ -63,17 +151,35 @@ struct ChatSummary: Codable, Equatable, Identifiable {
         try c.encode(name, forKey: .name)
         try c.encode(member, forKey: .member)
         try c.encode(notify, forKey: .notify)
-        try c.encodeIfPresent(last, forKey: .last)
+        if let lastMessage { try c.encode(lastMessage, forKey: .last) } else { try c.encodeIfPresent(last, forKey: .last) }
         try c.encodeIfPresent(lastAt, forKey: .lastAt)
         try c.encode(unread, forKey: .unread)
-        try c.encode(direct ? "direct" : "group", forKey: .kind)
+        try c.encode(kind, forKey: .kind)
         try c.encodeIfPresent(userID, forKey: .userID)
         try c.encodeIfPresent(photo, forKey: .photo)
         try c.encode(blocked, forKey: .blocked)
         try c.encodeIfPresent(emoji, forKey: .emoji)
         try c.encodeIfPresent(color, forKey: .color)
         try c.encode(system, forKey: .system)
+        try c.encodeIfPresent(eventStart, forKey: .eventStart)
+        try c.encode(eventPast, forKey: .eventPast)
+        try c.encode(mention, forKey: .mention)
+        try c.encode(markedUnread, forKey: .markedUnread)
+        try c.encodeIfPresent(pinnedAt, forKey: .pinnedAt)
+        try c.encode(archived, forKey: .archived)
+        try c.encodeIfPresent(mutedUntil, forKey: .mutedUntil)
+        try c.encodeIfPresent(request, forKey: .request)
+        try c.encodeIfPresent(seenByOther, forKey: .seenByOther)
+        try c.encodeIfPresent(members, forKey: .members)
     }
+
+    /// En sourdine : « Rien », « Toujours » (muted_until 'infinity') ou sourdine datée pas encore finie (pastille grise).
+    func isMuted(now: Date = Date()) -> Bool {
+        notify == .none || mutedUntil == ChatListLogic.muteForever || (ChatDates.parse(mutedUntil).map { $0 > now } ?? false)
+    }
+
+    /// À lire : des non lus, ou marquée « non lue » à la main.
+    var needsReading: Bool { unread > 0 || markedUnread }
 }
 
 /// Une conversation (POST /api/account/chats/open) : messages du plus ancien au plus récent.
