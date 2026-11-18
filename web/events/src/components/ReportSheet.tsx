@@ -12,16 +12,19 @@ type Props = {
   onClose: (sent: boolean) => void;
   /** Envoi propre à un contenu hors de report_content (demande de rendez-vous : agenda_booking_report). */
   send?: (reason: ReportReason, comment: string) => Promise<void>;
+  /** Message d'une discussion : case « Joindre les 10 messages précédents » (décochée par défaut, conformité 🟠 8). */
+  allowContext?: boolean;
 };
 
 /** « Signaler » (Apple 1.2, Google UGC) : une raison, un commentaire facultatif ; la file des modérateurs le reçoit.
  * La personne signalée n'est pas prévenue ; la base garde une copie du contenu au moment du signalement. */
-export function ReportSheet({ target, onClose, send: sendOwn }: Props) {
+export function ReportSheet({ target, onClose, send: sendOwn, allowContext = false }: Props) {
   const [reason, setReason] = useState<ReportReason | null>(null);
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  const [context, setContext] = useState(false);
   const card = useRef<View>(null);
   const overlay = useRef<View>(null);
   const sheetTop = useSheetTop();
@@ -32,6 +35,7 @@ export function ReportSheet({ target, onClose, send: sendOwn }: Props) {
     setComment('');
     setError(null);
     setSent(false);
+    setContext(false);
     onClose(done);
   }
 
@@ -43,7 +47,7 @@ export function ReportSheet({ target, onClose, send: sendOwn }: Props) {
     setError(null);
     try {
       if (sendOwn) await sendOwn(reason, comment);
-      else await reportContent(target, reason, comment);
+      else await reportContent(target, reason, comment, allowContext && context);
       setSent(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Le signalement n’a pas pu être envoyé. Réessaie.');
@@ -77,6 +81,16 @@ export function ReportSheet({ target, onClose, send: sendOwn }: Props) {
                   <T muted size={12}>{r.hint}</T>
                 </Pressable>
               ))}
+              {allowContext ? (
+                <Pressable accessibilityRole="checkbox" aria-checked={context} accessibilityState={{ checked: context }} accessibilityLabel="Joindre les 10 messages précédents"
+                  onPress={() => setContext((v) => !v)} style={[st.reason, { flexDirection: 'row', alignItems: 'center', gap: 12 }, context && st.chosen]}>
+                  <View style={[st.box, context && st.boxOn]}>{context ? <T size={14} weight="bold" color={colors.onAccent}>✓</T> : null}</View>
+                  <View style={{ flex: 1, gap: 2 }}>
+                    <T weight="semibold">Joindre les 10 messages précédents</T>
+                    <T muted size={12}>Le modérateur reçoit aussi leur texte, leur auteur et leur heure, pour comprendre le contexte.</T>
+                  </View>
+                </Pressable>
+              ) : null}
               <Input accessibilityLabel="Commentaire" placeholder="Commentaire (facultatif)" value={comment}
                 onChangeText={setComment} maxLength={500} multiline style={{ minHeight: 70 }} />
               <ErrorText error={error} />
@@ -98,4 +112,6 @@ const st = StyleSheet.create({
   sheet: { width: '100%', maxWidth: 420, marginVertical: 'auto', gap: 10, padding: 18, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.lineStrong },
   reason: { padding: 12, borderRadius: radius.md, backgroundColor: colors.fill, borderWidth: 1, borderColor: 'transparent', gap: 2 },
   chosen: { borderColor: colors.accent, backgroundColor: colors.accentDim },
+  box: { width: 24, height: 24, borderRadius: 7, borderWidth: 2, borderColor: colors.lineStrong, alignItems: 'center', justifyContent: 'center' },
+  boxOn: { backgroundColor: colors.accent, borderColor: colors.accent },
 });
