@@ -2287,6 +2287,8 @@ class AdminJournal(MemberToken):
 class ChatRef(MemberToken):
     group_id: str = Field(pattern=UUID)
     direct: bool = False
+    # Préchargement par l'app (liste affichée) : lecture seule, le bandeau « Tu es dans le groupe » n'est pas consommé.
+    prefetch: bool = False
 
 
 class ChatDirectStart(MemberToken):
@@ -2360,7 +2362,7 @@ def account_chats(body: MemberToken):
 
 @app.post("/api/account/chats/open")
 def account_chat_open(body: ChatRef):
-    return chats_call(body.token, lambda: group_chats.conversation(body.token, body.group_id, body.direct))
+    return chats_call(body.token, lambda: group_chats.conversation(body.token, body.group_id, body.direct, body.prefetch))
 
 
 @app.post("/api/account/chats/direct")

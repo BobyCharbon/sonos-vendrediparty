@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 from .accounts import SUPABASE_ANON_KEY, SUPABASE_URL, AccountError
 from .group_admin import OK, refusal
-from .group_chats import AUDIO_MAX_SECONDS, BLOCKED_TEXT, HIGHLIGHTS, PAGE, POOL, REACTIONS, GroupChats, mentions_in
+from .group_chats import AUDIO_MAX_SECONDS, BLOCKED_TEXT, HIGHLIGHTS, PAGE, POOL, REACTIONS, GroupChats, already_sent, mentions_in
 
 # Citations spéciales de la discussion d'un événement (organisation seulement) : nom tapé après l'@ et explication.
 TAGS = ({"tag": "toutlemonde", "hint": "Tout le monde : invités et participants"},
@@ -111,7 +111,7 @@ class EventChats:
         if message_id:
             row["id"] = message_id
         r = self.admin._call("POST", "/rest/v1/messages", token, json=row, headers={"Prefer": "return=minimal"})
-        if r.status_code not in OK:
+        if r.status_code not in OK and not already_sent(r, row.get("id")):
             raise refusal(r, "Le message n'a pas pu être envoyé. Réessaie.")
         return {"ok": True}
 

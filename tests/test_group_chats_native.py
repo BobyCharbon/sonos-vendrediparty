@@ -13,7 +13,7 @@ M1, M2, M3 = ("aaaaaaaa-0000-0000-0000-00000000000" + str(i) for i in (1, 2, 3))
 JPEG = bytes.fromhex("ffd8ffe000104a46494600010100000100010000ffd9")
 
 
-def fake(admin=False, rank=1, creator=LEA, write_status=201, organizer=LEA, blocked=()):
+def fake(admin=False, rank=1, creator=LEA, write_status=201, organizer=LEA, blocked=(), embed=False, write_body=None):
     seen = []
 
     def handler(request: httpx.Request):
@@ -33,6 +33,14 @@ def fake(admin=False, rank=1, creator=LEA, write_status=201, organizer=LEA, bloc
         if path == "/rest/v1/member_groups":
             return httpx.Response(200, json=[{"id": GRP, "name": "Les amis", "created_by": creator, "everyone_tag": "staff",
                                               "member_group_members": [{"user_id": ME}, {"user_id": LEA}, {"user_id": TOM}]}])
+        if path == "/rest/v1/group_messages" and request.method == "GET" and embed and "group_message_reactions(" in str(request.url.query, "ascii"):
+            # Base réelle (PostgREST) : réactions jointes à chaque message, liste vide comprise.
+            return httpx.Response(200, json=[
+                {"id": M2, "user_id": ME, "body": "Oui !", "photo_path": None, "reply_to": M1, "pinned": False,
+                 "created_at": "2026-10-29T10:01:00Z", "deleted_at": None, "group_message_reactions": []},
+                {"id": M1, "user_id": LEA, "body": "Tu viens ?", "photo_path": None, "reply_to": None, "pinned": False,
+                 "created_at": "2026-10-29T10:00:00Z", "deleted_at": None,
+                 "group_message_reactions": [{"message_id": M1, "user_id": ME, "emoji": "👍"}, {"message_id": M1, "user_id": TOM, "emoji": "👍"}]}])
         if path == "/rest/v1/group_messages" and request.method == "GET":
             return httpx.Response(200, json=[  # du plus récent au plus ancien, comme la base
                 {"id": M3, "user_id": LEA, "body": "", "photo_path": None, "reply_to": None, "pinned": True,
@@ -42,7 +50,7 @@ def fake(admin=False, rank=1, creator=LEA, write_status=201, organizer=LEA, bloc
                 {"id": M1, "user_id": LEA, "body": "Tu viens ?", "photo_path": None, "reply_to": None, "pinned": True,
                  "created_at": "2026-10-29T10:00:00Z", "deleted_at": None}])
         if path == "/rest/v1/group_messages":
-            return httpx.Response(write_status, json={"message": "new row violates row-level security policy"} if write_status >= 400 else None)
+            return httpx.Response(write_status, json=write_body or ({"message": "new row violates row-level security policy"} if write_status >= 400 else None))
         if path == "/rest/v1/group_message_reactions" and request.method == "GET":
             return httpx.Response(200, json=[{"message_id": M1, "user_id": ME, "emoji": "👍"},
                                              {"message_id": M1, "user_id": TOM, "emoji": "👍"},
@@ -294,3 +302,34 @@ def test_messages_of_someone_i_blocked_are_masked_in_a_group():
     lea = [m for m in conv["messages"] if m.get("author_name") == "Léa" and not m.get("deleted")]
     assert lea and all(m["body"] == gc.BLOCKED_TEXT and not m.get("photo") and not m.get("audio") for m in lea), lea
     assert all(h["author_name"] != "Léa" for h in conv["highlights"])
+
+
+def test_the_conversation_reads_reactions_with_the_messages_in_one_round_trip():
+    """Vitesse (18.11) : réactions jointes aux messages (PostgREST), plus de deuxième vague de lectures pour elles."""
+    chats, seen = fake(embed=True)
+    c = chats.conversation("jeton", GRP)
+    assert [m["id"] for m in c["messages"]] == [M1, M2]
+    assert c["messages"][0]["reactions"] == [{"emoji": "👍", "count": 2, "mine": True}]
+    assert "group_message_reactions" not in c["messages"][0]
+    assert not [p for m, p, _, _ in seen if p == "/rest/v1/group_message_reactions"]
+
+
+def test_a_preloaded_conversation_leaves_the_join_note_for_the_real_opening():
+    """Préchargement par la liste (iPhone) : lecture seule, le bandeau « Tu es dans le groupe » n'est pas consommé."""
+    chats, seen = fake()
+    chats.conversation("jeton", GRP, prefetch=True)
+    assert not [p for m, p, _, _ in seen if p.endswith("/take_group_join_note")]
+    chats.conversation("jeton", GRP)
+    assert [p for m, p, _, _ in seen if p.endswith("/take_group_join_note")]
+
+
+def test_a_retried_message_already_saved_counts_as_sent():
+    """Envoi optimiste : réponse perdue puis nouvel essai avec le même identifiant → la base dit « déjà là » = envoyé."""
+    chats, _ = fake(write_status=409, write_body={"code": "23505", "message": "duplicate key value violates unique constraint"})
+    assert chats.send("jeton", GRP, "Salut", None, None, mentions=[], message_id=M2) == {"ok": True}
+    chats, _ = fake(write_status=409, write_body={"code": "23505", "message": "duplicate key"})
+    try:
+        chats.send("jeton", GRP, "Salut", None, None, mentions=[])  # sans identifiant : un vrai refus
+        raise AssertionError("refus attendu")
+    except Exception as e:  # noqa: BLE001
+        assert "AssertionError" not in type(e).__name__

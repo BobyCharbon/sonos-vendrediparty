@@ -21,6 +21,8 @@ EVERYONE_BY = ("all", "staff")       # qui écrit @tout dans un groupe : tous le
 SITE_ADMIN_RANK = 3                  # (anciens rangs, si access() ne donne pas site_admin) Co-admin et au-dessus : admins d'office des groupes dont ils font partie
 EVERYONE = re.compile(r"(^|\s)@tout(\s|$|[!?.,])", re.I)
 HIGHLIGHTS = 20                      # annonces et messages épinglés gardés en tête, même plus anciens que la page
+DIRECT_REACTIONS = "direct_message_reactions(message_id,user_id,emoji)"
+GROUP_REACTIONS = "group_message_reactions(message_id,user_id,emoji)"
 IMAGE_MAGIC = (b"\xff\xd8\xff", b"\x89PNG")
 AUDIO_MAX_SECONDS = 600              # 10 minutes par message vocal (même borne que la base)
 
@@ -72,6 +74,11 @@ def reactions_of(message_id: str, reactions: list, me: str) -> list[dict]:
 BLOCKED_TEXT = "Message masqué (personne bloquée)"
 
 
+def already_sent(r, message_id: str | None) -> bool:
+    """Nouvel essai d'un envoi dont la réponse s'est perdue (réseau) : même identifiant déjà enregistré → envoyé."""
+    return bool(message_id) and r.status_code == 409 and "23505" in r.text
+
+
 class GroupChats:
     def __init__(self, admin: GroupAdmin):
         self.admin = admin
@@ -95,6 +102,24 @@ class GroupChats:
 
     def _rows(self, path: str, token: str) -> list:
         return self.admin._rows(path, token)
+
+    def _split_reactions(self, rows: list, table: str, token: str, fetch: bool = True) -> tuple[list, list]:
+        """Réactions jointes aux messages (un aller-retour de moins, vitesse 18.11) : (messages sans la jointure, réactions).
+        Réponse sans la jointure (ancienne base) : lues à part si fetch, comme avant."""
+        reactions: list = []
+        joined = False
+        clean = []
+        for m in rows:
+            m = dict(m)
+            embedded = m.pop(table, None)
+            if isinstance(embedded, list):
+                joined = True
+                reactions += [{**r, "message_id": r.get("message_id", m["id"])} for r in embedded]
+            clean.append(m)
+        if fetch and clean and not joined:
+            ids = ",".join(m["id"] for m in clean)
+            reactions = self._rows(f"/rest/v1/{table}?select=message_id,user_id,emoji&message_id=in.({ids})", token)
+        return clean, reactions
 
     def _sign(self, paths: list, token: str) -> dict[str, str]:
         paths = sorted({p for p in paths if p})
@@ -177,7 +202,7 @@ class GroupChats:
             "chat": POOL.submit(self._rows, f"/rest/v1/direct_chats?select=user_a,user_b&id=eq.{chat_id}", token),
             "settings": POOL.submit(self._rows, f"/rest/v1/direct_chat_settings?select=notify&chat_id=eq.{chat_id}", token),
             "blocks": POOL.submit(self._rows, "/rest/v1/direct_blocks?select=blocked_id", token),
-            "messages": POOL.submit(self._rows, f"/rest/v1/direct_messages?select=*&chat_id=eq.{chat_id}"
+            "messages": POOL.submit(self._rows, f"/rest/v1/direct_messages?select=*,{DIRECT_REACTIONS}&chat_id=eq.{chat_id}"
                                                 f"&order=created_at.desc&limit={PAGE}", token),
             "highlights": POOL.submit(self._rows, f"/rest/v1/direct_messages?select=*&chat_id=eq.{chat_id}&pinned=is.true"
                                                   f"&deleted_at=is.null&order=created_at.desc&limit={HIGHLIGHTS}", token),
@@ -190,11 +215,8 @@ class GroupChats:
         other = pair["user_b"] if pair["user_a"] == me_id else pair["user_a"]
         notify = (got["settings"] or [{}])[0].get("notify") or "all"
         blocked = any(b.get("blocked_id") == other for b in got["blocks"] or [])
-        messages = list(reversed(got["messages"]))
+        messages, reactions = self._split_reactions(list(reversed(got["messages"])), "direct_message_reactions", token)
         people = {p["id"]: p for p in got["profiles"] or []}
-        ids = ",".join(m["id"] for m in messages)
-        reactions = self._rows(f"/rest/v1/direct_message_reactions?select=message_id,user_id,emoji&message_id=in.({ids})",
-                               token) if ids else []
         photos = self._cached_sign("chat-photos", [p for m in messages if not m.get("deleted_at")
                                                    for p in (m.get("photo_path"), m.get("audio_path"))],
                                    lambda paths: self._sign(paths, token))
@@ -221,29 +243,29 @@ class GroupChats:
                            for m in reversed(got["highlights"] or []) if m.get("pinned") and not m.get("deleted_at")],
         }
 
-    def conversation(self, token: str, group_id: str, direct: bool = False) -> dict:
+    def conversation(self, token: str, group_id: str, direct: bool = False, prefetch: bool = False) -> dict:
         if direct:
             return self._direct_conversation(token, group_id)
         try:
-            return self._group_conversation(token, group_id)
+            return self._group_conversation(token, group_id, take_note=not prefetch)
         except AccountError:
             # Toucher d'une notification (id seul) : un message direct se reconnaît ici, l'app n'a pas à le savoir.
             if self._is_direct(token, group_id):
                 return self._direct_conversation(token, group_id)
             raise
 
-    def _group_conversation(self, token: str, group_id: str) -> dict:
+    def _group_conversation(self, token: str, group_id: str, take_note: bool = True) -> dict:
         self.admin.accounts._uid(token)  # jeton vérifié une fois (gardé 5 min), avant les lectures parallèles
         jobs = {
             "me": POOL.submit(self.admin.access, token),
             "chat": POOL.submit(self._chat, token, group_id),
             "group": POOL.submit(self._rows, f"/rest/v1/member_groups?select=id,name,created_by,everyone_tag,member_group_members(user_id)"
                                              f"&id=eq.{group_id}", token),
-            "messages": POOL.submit(self._rows, f"/rest/v1/group_messages?select=*&group_id=eq.{group_id}"
+            "messages": POOL.submit(self._rows, f"/rest/v1/group_messages?select=*,{GROUP_REACTIONS}&group_id=eq.{group_id}"
                                                 f"&order=created_at.desc&limit={PAGE}", token),
             "admins": POOL.submit(self._rows, f"/rest/v1/group_admins?select=user_id&group_id=eq.{group_id}", token),
             "organizers": POOL.submit(self._organizers, token, group_id),
-            "join_note": POOL.submit(self._join_note, token, group_id),
+            "join_note": POOL.submit(self._join_note, token, group_id) if take_note else None,
             # Annonces (@annonce) et messages épinglés : le bandeau du haut, même au-delà des derniers messages.
             "highlights": POOL.submit(self._rows, f"/rest/v1/group_messages?select=*&group_id=eq.{group_id}&pinned=is.true"
                                                   f"&deleted_at=is.null&order=created_at.desc&limit={HIGHLIGHTS}", token),
@@ -253,14 +275,16 @@ class GroupChats:
             "profiles": POOL.submit(self.admin._rpc, token, "group_chat_people", {"grp": group_id}, "Les membres n'ont pas pu être lus."),
             "blocks": POOL.submit(self._rows, "/rest/v1/direct_blocks?select=blocked_id", token),
         }
-        got = {k: f.result() for k, f in jobs.items()}
+        got = {k: f.result() if f else None for k, f in jobs.items()}
         me, chat, group = got["me"], got["chat"], got["group"]
         if not group:
             raise AccountError("Cette discussion n'est pas accessible.")
         # Personnes que j'ai bloquées (App Store 1.2) : texte, photo et vocal masqués aussitôt, épinglés retirés.
         hidden = {b.get("blocked_id") for b in got["blocks"] or []}
+        joined = "group_message_reactions" in (got["messages"][0] if got["messages"] else {})
+        rows, embedded = self._split_reactions(list(reversed(got["messages"])), "group_message_reactions", token, fetch=False)
         messages = [{**m, "body": BLOCKED_TEXT, "photo_path": None, "audio_path": None} if m.get("user_id") in hidden else m
-                    for m in reversed(got["messages"])]
+                    for m in rows]
         got["highlights"] = [m for m in got["highlights"] or [] if m.get("user_id") not in hidden]
         admins = {a["user_id"] for a in got["admins"]}
         organizers = got["organizers"]
@@ -272,15 +296,16 @@ class GroupChats:
         people = {p["id"]: p for p in got["profiles"] or [] if p["id"] in wanted}
         ids = ",".join(m["id"] for m in messages)
         second = {
+            # Réactions lues avec les messages (jointure) ; ancienne base sans la jointure : à part, comme avant.
             "reactions": POOL.submit(self._rows, f"/rest/v1/group_message_reactions?select=message_id,user_id,emoji"
-                                                 f"&message_id=in.({ids})", token) if ids else None,
+                                                 f"&message_id=in.({ids})", token) if ids and not joined else None,
             "photos": POOL.submit(self._cached_sign, "chat-photos",
                                   [p for m in messages if not m.get("deleted_at") for p in (m.get("photo_path"), m.get("audio_path"))],
                                   lambda paths: self._sign(paths, token)),
             "faces": POOL.submit(self._cached_sign, "profile-photos", [p.get("avatar_url") for p in people.values()],
                                  lambda paths: self.admin._photos(paths, token)),
         }
-        reactions = second["reactions"].result() if second["reactions"] else []
+        reactions = second["reactions"].result() if second["reactions"] else embedded
         photos, faces = second["photos"].result(), second["faces"].result()
 
         def name(uid: str) -> str:
@@ -367,7 +392,7 @@ class GroupChats:
             row["id"] = message_id  # identifiant choisi par l'app : le message affiché tout de suite garde sa place
         table = "direct_messages" if direct else "group_messages"
         r = self.admin._call("POST", f"/rest/v1/{table}", token, json=row, headers={"Prefer": "return=minimal"})
-        if r.status_code not in OK:
+        if r.status_code not in OK and not already_sent(r, message_id):
             raise refusal(r, "Le message n'a pas pu être envoyé. Réessaie.")
         return {"ok": True}
 
