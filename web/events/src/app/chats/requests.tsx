@@ -29,7 +29,7 @@ function Requests() {
   const mini = useMiniProfile();
   const insets = useSafeAreaInsets();
   const { data, error, loading, reload, setData } = useQuery(fetchChatList, []);
-  useRealtime('chats-requests', [{ table: 'direct_messages' }, { table: 'direct_chats' }], reload);
+  useRealtime('chats-requests', [{ table: 'direct_messages' }], reload);
   useSignal([`user:${me.id}`], reload);
   const list = useMemo(() => (data ?? []).filter((x) => x.request === 'incoming'), [data]);
   const [busy, setBusy] = useState<string | null>(null);

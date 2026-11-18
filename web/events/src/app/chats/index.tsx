@@ -40,8 +40,8 @@ function ChatsHome() {
   const push = useCallback((path: string) => router.push(path as never), []);
   const mini = useMiniProfile();
   const { data, error: loadError, loading, reload, setData } = useQuery(fetchChatList, []);
-  // Temps réel comme avant (messages des groupes et des messages directs, demandes) + signal de mes groupes / droits.
-  useRealtime('chats-list', [{ table: 'group_messages' }, { table: 'direct_messages' }, { table: 'messages' }, { table: 'direct_chats' }], reload);
+  // Temps réel des messages ; demande acceptée / refusée : signal user:<id> (direct_chat_changed), direct_chats n’est pas publiée.
+  useRealtime('chats-list', [{ table: 'group_messages' }, { table: 'direct_messages' }, { table: 'messages' }], reload);
   useSignal([`user:${me.id}`, 'events'], reload);
 
   const all = useMemo(() => data ?? [], [data]);
