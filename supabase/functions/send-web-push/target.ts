@@ -8,6 +8,10 @@ export function notificationTarget(row: {
     // Discussion de groupe (avis n°10) ou message direct (4.11) : le toucher ouvre la conversation.
     target.searchParams.set('tab', 'chats');
     target.searchParams.set('chat', row.group_id);
+  } else if (row.kind === 'message_request') {
+    // Demande de message (Discussions v2, 18.11) : l'écran des demandes.
+    target.searchParams.set('tab', 'chats');
+    target.searchParams.set('requests', '1');
   } else if (typeof row.kind === 'string' && row.kind.startsWith('pet_')) {
     // Compagnon (4.11) : le toucher ouvre le personnage dans l'onglet Jeux (rappel, alertes, cadeau d'un
     // ami, palier de série) ; src=notif pour la mesure des ouvertures (pet_opens).

@@ -766,17 +766,28 @@ async function eventPass(token) {
 }
 setInterval(() => { if (supabaseToken()) freshToken().then((token) => token && eventPass(token)); }, EVENT_PASS_EVERY);
 // Pastille de l'onglet Discussions : messages non lus de tous mes groupes (la barre native la reprend).
+function setChatsBadge(unread) {
+  const badge = $("chatsBadge");
+  if (!badge) return;
+  badge.textContent = unread > 99 ? "99+" : String(unread);
+  badge.classList.toggle("hidden", !unread);
+}
 const CHATS_BADGE_EVERY = 60000;
 async function refreshChatsBadge() {
   const badge = $("chatsBadge");
   const token = account && discussionsOn && supabaseToken() ? await freshToken() : null;
   if (!badge || !token) return badge?.classList.add("hidden");
   try {
-    const r = await fetch("/api/account/chats", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) });
-    if (!r.ok) return;
-    const unread = ((await r.json()).chats || []).reduce((n, c) => n + (c.unread || 0), 0);
-    badge.textContent = unread > 99 ? "99+" : String(unread);
-    badge.classList.toggle("hidden", !unread);
+    // Discussions v2 : chat_badge (non lus hors archivées et sourdine + demandes reçues) ; sinon l'ancienne somme.
+    let unread = null;
+    const v2 = await fetch("/api/account/chats/rpc", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, fn: "chat_badge", args: {} }) });
+    if (v2.ok) unread = Number((await v2.json()).result) || 0;
+    else {
+      const r = await fetch("/api/account/chats", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token }) });
+      if (!r.ok) return;
+      unread = ((await r.json()).chats || []).reduce((n, c) => n + (c.unread || 0), 0);
+    }
+    setChatsBadge(unread);
   } catch { /* hors ligne : la pastille reste telle quelle */ }
 }
 setInterval(refreshChatsBadge, CHATS_BADGE_EVERY);
@@ -786,6 +797,8 @@ showAccount();
 window.addEventListener("message", (event) => {
   if (event.origin !== location.origin) return;
   if (event.data?.type === "party-events:account") linkAccount();
+  // Liste des Discussions (module) : sa pastille chat_badge, aussitôt (lu, archivé, sourdine).
+  if (event.data?.type === "party-events:chats-badge" && Number.isFinite(event.data.count)) setChatsBadge(event.data.count);
   // Feuille ouverte dans le module (Inviter, QR, billet…) : rien ne flotte par-dessus (pastille de Zicou sur le ✕).
   if (event.data?.type === "party-events:sheet") document.documentElement.classList.toggle("events-sheet", event.data.open === true);
   if (event.data?.type === "party-events:ready") {
@@ -1174,7 +1187,8 @@ addEventListener("DOMContentLoaded", async () => {
   } else if (params.get("tab") === "chats") {
     // Notification de discussion : la conversation du groupe (sinon la liste des discussions).
     const chat = params.get("chat") || "";
-    showTab("chats", /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(chat) ? "/chats/" + chat : "/chats");
+    showTab("chats", /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(chat) ? "/chats/" + chat
+      : params.get("requests") === "1" ? "/chats/requests" : "/chats");  // « X veut t'écrire » : les demandes
     history.replaceState(null, "", location.pathname);
   } else if (!compagnonOn && (params.get("tab") === "pet" || params.has("pet"))) {
     // Compagnon éteint (production) : ses liens (widgets, notifications, ?pet=1) retombent sur la musique.
