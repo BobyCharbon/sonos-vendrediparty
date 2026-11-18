@@ -48,6 +48,12 @@ def chat_services(page, admin=False, organizer=False, everyone='all'):
             result = [{'id': g, 'name': n, 'system': False, 'member': USER in state['members'][g], 'admin': state['admin'],
                        'creator': False, 'members': len(state['members'][g]), 'notify': 'mentions', 'unread': 0,
                        'last_at': None, 'last': None} for g, n in state['groups'].items()]
+        elif path.endswith('/rpc/chat_list'):  # Discussions v2 (liste unique, contrat §3)
+            result = [{'kind': 'group', 'id': g, 'title': n, 'photo': None, 'emoji': '👯', 'color': 'pink', 'user_id': None,
+                       'event_start': None, 'event_past': False, 'last': None, 'unread': 0, 'mention': False, 'marked_unread': False,
+                       'pinned_at': None, 'archived': False, 'notify': 'mentions', 'muted_until': None, 'request': None,
+                       'seen_by_other': None, 'members': len(state['members'][g]), 'is_vp': False, 'blocked': False}
+                      for g, n in state['groups'].items()]
         elif path.endswith('/member_groups') and request.method == 'POST':
             state['groups'][NEW_GROUP] = body['name']
             state['members'][NEW_GROUP] = []
@@ -136,19 +142,8 @@ def phone(browser):
     context.close()
 
 
-def test_new_group_from_discussions_includes_me_and_opens_its_chat(phone, events_origin):
-    """Nouveau graphisme (17.11) : « Nouveau groupe » ouvre la création en 2 étapes (nom, emoji, couleur, puis Inviter) ;
-    son créateur en fait partie d'office."""
-    page, errors = phone
-    frame, state = open_chats(page, events_origin)
-    frame.get_by_role('button', name='Nouveau groupe', exact=True).first.click()
-    frame.get_by_label('Nom du groupe', exact=True).fill('Apéro du jeudi', timeout=15000)
-    frame.get_by_role('radio', name='Emoji 🍻').click()
-    frame.get_by_role('button', name='Continuer', exact=True).click()
-    pw.expect(frame.get_by_text('Invite ta bande', exact=True)).to_be_visible(timeout=15000)
-    assert ('group', {'name': 'Apéro du jeudi', 'emoji': '🍻', 'color': 'pink', 'created_by': USER}) in state['posts']
-    assert ('member', {'group_id': NEW_GROUP, 'user_id': USER}) in state['posts']
-    assert not errors, errors
+# « Nouveau groupe » depuis Discussions (Discussions v2, 18.11) : le menu « … » ouvre Nouveau message en mode groupe
+# (tests/test_chats_list_browser.py) ; la création d'un groupe en 2 étapes est vérifiée par tests/test_groups_browser.py.
 
 
 def test_at_sign_suggests_group_members_as_you_type_and_everyone(phone, events_origin):

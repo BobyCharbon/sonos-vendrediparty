@@ -31,7 +31,7 @@ def direct_services(page):
             state['started'] = True
             state['dm_rpc'].append(('start', body))
             result = DM
-        elif path.endswith('/rpc/my_chats'):
+        elif path.endswith('/rpc/my_chats') or path.endswith('/rpc/chat_list'):
             route.fallback()
             return
         elif path.endswith('/direct_chats'):
@@ -64,19 +64,23 @@ def direct_services(page):
 
     page.route(SUPABASE, handle)
 
-    # Liste : les groupes de chat_services + la conversation directe dès qu'elle a un message.
+    # Liste (chat_list, Discussions v2) : les groupes de chat_services + la conversation directe dès qu'elle a un message.
     def chats(route):
-        rows = [{'id': GROUP, 'name': 'Les amis', 'kind': 'group', 'system': False, 'member': True, 'admin': False, 'creator': False,
-                 'members': 4, 'notify': 'mentions', 'unread': 0, 'last_at': '2026-11-03T10:00:00Z', 'last': 'Léa : Salut'}]
+        def row(kind, cid, title, last, **extra):
+            return {'kind': kind, 'id': cid, 'title': title, 'photo': None, 'emoji': '👯', 'color': 'pink', 'user_id': None,
+                    'event_start': None, 'event_past': False, 'last': last, 'unread': 0, 'mention': False, 'marked_unread': False,
+                    'pinned_at': None, 'archived': False, 'notify': 'all', 'muted_until': None, 'request': None,
+                    'seen_by_other': None, 'members': 2, 'is_vp': False, 'blocked': False, **extra}
+        rows = [row('group', GROUP, 'Les amis', {'id': 'a1', 'at': '2026-11-03T10:00:00Z', 'from_me': False, 'author': 'Léa',
+                                                 'type': 'text', 'text': 'Salut'}, members=4, notify='mentions')]
         if state['dm_messages']:
-            rows.insert(0, {'id': DM, 'name': 'Léa', 'kind': 'direct', 'user_id': LEA, 'avatar_url': None, 'blocked': False,
-                            'system': False, 'member': True, 'admin': False, 'creator': False, 'members': 2, 'notify': 'all',
-                            'unread': 0, 'last_at': '2026-11-04T10:00:00Z', 'last': 'Toi : ' + state['dm_messages'][-1]['body']})
+            rows.insert(0, row('direct', DM, 'Léa', {'id': 'd1', 'at': '2026-11-04T10:00:00Z', 'from_me': True, 'author': None,
+                                                    'type': 'text', 'text': state['dm_messages'][-1]['body']}, user_id=LEA, emoji=None))
         if route.request.method == 'OPTIONS':
             return route.fulfill(status=204, headers=CORS)
         route.fulfill(status=200, content_type='application/json', body=json.dumps(rows), headers=CORS)
 
-    page.route('**/rest/v1/rpc/my_chats', chats)
+    page.route('**/rest/v1/rpc/chat_list', chats)
     return state
 
 
