@@ -507,6 +507,8 @@ begin
     'bag', case when p.patates and plays and private.prono_terrain(p) is not null then jsonb_build_object(
         'balance', private.prono_bag_balance(private.prono_terrain(p), me), 'refill_at', private.prono_refill_at(), 'max_stake', 20) end,
     'settled', p.settled_at is not null,
+    'my_harvest_pending', case when p.patates and p.result_at is not null and p.settled_at is null and p.cancelled_at is null
+      then (select z.back from private.prono_split(p) z where z.user_id = me) end,
     'cancel_reason', p.cancel_reason,
     'contest', case when p.result_at is not null and not auto then jsonb_build_object(
         'until', p.contest_until,
@@ -566,6 +568,11 @@ begin
         'field_total', case when p.patates then (select coalesce(sum(x.stake), 0) from private.prono_answers x where x.prono_id = p.id) end,
         'my_stake', (select x.stake from private.prono_answers x where x.prono_id = p.id and x.user_id = me),
         'my_harvest', (select x.harvest from private.prono_answers x where x.prono_id = p.id and x.user_id = me),
+        'my_harvest_pending', case when p.patates and p.result_at is not null and p.settled_at is null and p.cancelled_at is null
+          then (select z.back from private.prono_split(p) z where z.user_id = me) end,
+        'my_answer', (select jsonb_build_object('option_id', x.option_id, 'number', x.number, 'text', x.answer_text,
+            'person_id', x.person_id, 'winner', x.winner, 'stake', x.stake, 'answer_at', x.answer_at, 'harvest', x.harvest)
+          from private.prono_answers x where x.prono_id = p.id and x.user_id = me),
         'template', p.template, 'award', p.award,
         'award_emoji', (select c.emoji from private.prono_award_categories c where c.id = p.award),
         'award_label', (select c.emoji || ' ' || c.label from private.prono_award_categories c where c.id = p.award),

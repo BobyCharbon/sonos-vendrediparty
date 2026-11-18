@@ -127,6 +127,10 @@ def test_patates_are_shared_exactly_with_the_largest_remainder(people, group):
     done = ok(a.rpc('prono_result', id=p['id'], body={'option_id': opt(p, 'Max')}))
     # 23 dans le champ, 12 sur Max : Léa 7 × 23 / 12 = 13,42 → 13 ; Marc 5 × 23 / 12 = 9,58 → 9 + le reste = 10.
     assert not done['settled'] and all(x['harvest'] is None for x in done['answers'])  # en attente 12 h
+    assert done['my_harvest_pending'] == 13
+    card = next(x for x in ok(b.rpc('prono_list', group_id=group)) if x['id'] == p['id'])
+    assert card['my_harvest_pending'] == 10 and card['my_harvest'] is None
+    assert card['my_answer']['option_id'] == opt(p, 'Max') and card['my_answer']['stake'] == 5
     assert {x['option_id']: x['total'] for x in done['field']['by_option']} == {opt(p, 'Max'): 12, opt(p, 'Jo'): 10, opt(p, 'Personne'): 1}
     note = sql(f"select body from public.notifications where kind = 'prono_result' and user_id = '{b.uid}' and data->>'prono_id' = '{p['id']}'")
     assert note[0]['body'].startswith("🔮 Tu l'avais vu ! +10 🥔"), note
