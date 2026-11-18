@@ -337,8 +337,17 @@ final class WebModel: ObservableObject {
         secretCards = nil  // page rechargée : elle redemandera le panneau si la partie en est encore là
     }
 
+    /// iPhone Duo : posture et pli de l'écran (Fold.swift) ; nil sur les autres iPhone.
+    @Published private(set) var fold: FoldState?
+
+    func foldChanged(_ state: FoldState?) {
+        fold = state
+        if let state { webView?.evaluateJavaScript(state.script) }
+    }
+
     func pageLoaded() {
         Task { await shareSession() }
+        if let fold { webView?.evaluateJavaScript(fold.script) }  // page rechargée : elle reçoit l'état aussitôt
         guard awaitingTabs else { return }
         awaitingTabs = false
         tabs = nil

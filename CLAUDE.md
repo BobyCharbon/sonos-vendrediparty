@@ -34,6 +34,31 @@ App iOS native (ios/, WKWebView) : la barre d'onglets y est une vraie UITabBar, 
 la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un bouton `#tabs [data-tab]` de plus
 (icône SF Symbol dans `ios/Party/NativeTabBar.swift`). Tests : `tests/e2e/test_native_tabs.py`.
 
+## iPhone Duo (pliable d'Apple, iOS 27.1, 18.11) — règles à garder
+- Compilée avec un SDK < iOS 27.1, l'app tourne en mode compatibilité sur le Duo (petit iPhone entouré de noir). Le job
+  iPhone de `ios-testflight.yml` tourne sur l'image GitHub `xcode-27`, Xcode épinglé (≥ 27.1) ; jamais `macos-15` ni
+  `latest-stable` (test `test_testflight_builds_the_iphone_app_with_the_ios_27_1_sdk`). Cible minimale : iOS 16 ; toute API
+  du Duo sous `#available(iOS 27.1, *)`. Cycle de vie par scènes (SwiftUI `App`) : exigé par les derniers SDK, à garder.
+- Barre d'onglets : sur les autres iPhone, `NativeTabBar` (UITabBar en bas) inchangée. Quand le système veut une barre
+  verticale (`traitCollection.verticalBarEdge`, lue par `VerticalBarEdgeReader` : écran extérieur, intérieur en paysage),
+  `SystemTabBar` la remplace : un vrai `UITabBarController` aux écrans vides et transparents, par-dessus la page, qui ne
+  prend que les touchers de sa bande (une UITabBar posée à la main ne passe JAMAIS à la verticale). Même pont
+  (`PartyNative.tabs` / `PartyTabs.select`), la page décide toujours. La vue web ne change jamais de place dans l'arbre
+  SwiftUI (sinon elle est recréée et la page rechargée au pliage).
+- Éléments flottants natifs (« Réglages », « Vue invité », bulle de Zicou, `SecretCardsView`, `PartyNoticeView`) : zones
+  sûres de CHAQUE côté (colonne de la barre d'état à droite sur l'écran extérieur), jamais seulement le haut ; jamais sur
+  le pli (cartes de la Pyramide à droite du pli en livre, bulle au-dessus du pli posé en portable).
+- Pont du pli (`ios/Party/Fold.swift`) : WebKit ne voit pas le pli. L'app pose sur `<html>` `data-posture`
+  (closed / flat / book / laptop / half) et `--fold-x/-y/-width/-height` (px, seulement si un pli traverse la page),
+  `window.PartyFold` et l'événement `party-fold` ; page principale seulement, rien sur un iPhone sans charnière. Mise en
+  page d'après le pli (régions réservées), jamais d'après l'angle de la charnière (Apple : entrée de jeu seulement).
+  `ios-app.js` / `html.native-tabs` inchangés.
+- Portrait gardé dans project.yml (iPhone classiques) ; l'écran intérieur du Duo l'ignore : tout écran doit suivre toute
+  taille, et le pliage / dépliage garder l'état (page, brouillon, partie).
+- Tests : `PartyTests/DuoTests.swift` ; `PartyUITests/DuoTabBarUITests.swift` (simulateur « iPhone Duo » :
+  `TEST_RUNNER_PARTY_DUO_UI=1 TEST_RUNNER_PARTY_DUO_VERTICAL=1` ; autre iPhone : sans `…_VERTICAL`). La charnière ne se
+  règle qu'à la main dans Device Hub (aucune commande `simctl`) : écran intérieur, livre et portable sur le vrai Duo.
+
 ## Page Party ↔ module Événements (iframe)
 - Une page ouverte de l'extérieur (app iPhone : `PartyEvents.open('/events/event/<id>/invite')`) doit mettre à jour
   `frameAt` (app/static/index.html) : sinon, au « prêt » du module, la page le renvoie à son ancienne page (bug de prod du

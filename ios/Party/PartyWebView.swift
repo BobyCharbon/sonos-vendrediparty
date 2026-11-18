@@ -22,7 +22,10 @@ struct PartyWebView: UIViewRepresentable {
         // Taille du texte d'iOS (Dynamic Type) : le texte des pages grandit avec elle (TextScale).
         TextScale.install(in: config.userContentController)
 
-        let webView = WKWebView(frame: .zero, configuration: config)
+        let webView = PartyWKWebView(frame: .zero, configuration: config)
+        // iPhone Duo : posture et pli transmis à la page (Fold.swift) ; rien sur les autres iPhone.
+        webView.foldChanged = { [weak model] fold in model?.foldChanged(fold) }
+        webView.followHinge()
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
         webView.isOpaque = false

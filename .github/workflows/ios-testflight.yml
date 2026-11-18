@@ -26,7 +26,11 @@ concurrency:
 
 jobs:
   testflight:
-    runs-on: macos-15
+    # iPhone Duo (18.11) : l'app doit être compilée avec le SDK iOS 27.1 ou plus, sinon le Duo l'affiche en mode
+    # compatibilité (petit iPhone entouré de noir, barre d'onglets en bas). Image GitHub « xcode-27 » (macOS 27,
+    # Xcode 27.0 / 27.1 / 27.2, encore « preview » chez GitHub : file d'attente possible), Xcode épinglé.
+    # Ne jamais revenir à macos-15 / latest-stable (Xcode 16, SDK iOS 18).
+    runs-on: xcode-27
     # Envoi (~20 min) + attente du traitement par Apple pour publier la BETA (30 min au plus).
     timeout-minutes: 80
     env:
@@ -37,7 +41,16 @@ jobs:
 
       - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1 (épinglé : action tierce, la clé App Store Connect est sur la même machine)
         with:
-          xcode-version: latest-stable
+          xcode-version: "27.2"
+
+      - name: SDK iOS 27.1 ou plus (iPhone Duo)
+        run: |
+          xcodebuild -version
+          SDK=$(xcrun --sdk iphoneos --show-sdk-version)
+          echo "SDK iOS : $SDK"
+          # Garde-fou : un Xcode plus ancien rendrait l'app « compatibilité » sur l'iPhone Duo.
+          python3 -c "import sys; v=tuple(int(x) for x in '$SDK'.split('.')[:2]); sys.exit(0 if v >= (27, 1) else 1)" \
+            || { echo "::error::SDK iOS $SDK < 27.1 : l'app ne serait pas optimisée pour l'iPhone Duo"; exit 1; }
 
       - name: Clé API App Store Connect
         env:
