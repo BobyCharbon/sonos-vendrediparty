@@ -495,7 +495,7 @@ begin
         'path', case when p.link_token is not null and p.link_stopped_at is null then '/prono/' || p.link_token end) end)
   || jsonb_build_object(
     'line', p.line, 'not_over', p.not_over, 'rules', p.rules, 'template', p.template, 'patates', p.patates,
-    'award', p.award, 'award_emoji', cat.emoji, 'award_label', cat.label,
+    'award', p.award, 'award_emoji', cat.emoji, 'award_label', cat.emoji || ' ' || cat.label, 'award_name', cat.label,
     'terrain', case when p.group_id is not null then jsonb_build_object('kind', 'group', 'id', p.group_id)
                     when p.event_id is not null then jsonb_build_object('kind', 'event', 'id', p.event_id) end,
     'field', case when p.patates then jsonb_build_object(
@@ -568,12 +568,21 @@ begin
         'my_harvest', (select x.harvest from private.prono_answers x where x.prono_id = p.id and x.user_id = me),
         'template', p.template, 'award', p.award,
         'award_emoji', (select c.emoji from private.prono_award_categories c where c.id = p.award),
-        'award_label', (select c.label from private.prono_award_categories c where c.id = p.award),
+        'award_label', (select c.emoji || ' ' || c.label from private.prono_award_categories c where c.id = p.award),
+        'award_name', (select c.label from private.prono_award_categories c where c.id = p.award),
         'line', p.line, 'settled', p.settled_at is not null, 'cancel_reason', p.cancel_reason,
         'closes_soon', private.prono_state(p) = 'open' and p.closes_at <= now() + interval '1 hour',
         'cover', (select jsonb_build_object('color', g.color, 'emoji', g.emoji, 'photo', g.photo_path)
                   from public.member_groups g where g.id = p.group_id),
-        'patates_on', private.patates_on()
+        'patates_on', private.patates_on(),
+        'planters', (select count(*) from private.prono_answers x where x.prono_id = p.id and x.stake > 0),
+        'options', coalesce((select jsonb_agg(jsonb_build_object('id', o.id, 'label', o.label) order by o.position)
+          from private.prono_options o where o.prono_id = p.id), '[]'::jsonb),
+        'candidates', case when p.kind in ('person', 'award') then coalesce((select jsonb_agg(private.prono_face(u.u) order by pr.display_name)
+          from private.prono_people(p) u(u) join public.profiles pr on pr.id = u.u
+          where not private.blocked_either(me, u.u)
+            and (p.kind <> 'award' or (u.u <> me and not exists (select 1 from private.prono_optouts o where o.prono_id = p.id and o.user_id = u.u)))),
+          '[]'::jsonb) end
       ) as j
     from private.pronos p
     where p.hidden_at is null
@@ -695,7 +704,15 @@ begin
     if v_line is null or abs(v_line) > 1e6 or v_line - floor(v_line) <> 0.5 then
       raise exception 'invalid: La ligne se termine par ,5 (par exemple 7,5) : jamais d''égalité.' using errcode = '22023';
     end if;
-    opts := array['Plus de ' || private.prono_line_label(v_line), 'Moins de ' || private.prono_line_label(v_line)];
+    -- Libellés envoyés (avec l'unité : « Plus de 7,5 buts ») s'il y en a deux, filtrés ; sinon « Plus de 7,5 » / « Moins de 7,5 ».
+    if jsonb_typeof(body -> 'options') = 'array' then
+      for o in select v from jsonb_array_elements_text(body -> 'options') v loop
+        if btrim(coalesce(o, '')) <> '' then opts := opts || private.prono_text(o, 'Un choix'); end if;
+      end loop;
+    end if;
+    if cardinality(opts) <> 2 or lower(opts[1]) = lower(opts[2]) or char_length(opts[1]) > 60 or char_length(opts[2]) > 60 then
+      opts := array['Plus de ' || private.prono_line_label(v_line), 'Moins de ' || private.prono_line_label(v_line)];
+    end if;
   end if;
   insert into private.pronos (created_by, group_id, event_id, question, kind, points, closes_at, reveal, link_token,
                               line, not_over, rules, template, patates, award)
@@ -1265,47 +1282,48 @@ grant execute on function public.prono_season(uuid, date) to authenticated;
 create or replace function public.prono_templates() returns jsonb
 language sql stable security definer set search_path = '' as $$
   select $j$[
-    {"id": "dernier", "kind": "person", "emoji": "🐢", "title": "Le dernier arrivé", "question": "Qui arrive en dernier ?",
+    {"id": "dernier", "family": "soiree", "rules": "La dernière personne à passer la porte.", "kind": "person", "emoji": "🐢", "title": "Le dernier arrivé", "question": "Qui arrive en dernier ?",
      "hint": "Chacun devine qui sera le plus en retard."},
-    {"id": "heure_arrivee", "kind": "when", "emoji": "⏰", "title": "L'heure d'arrivée", "question": "À quelle heure Max arrive ?",
+    {"id": "heure_arrivee", "family": "soiree", "rules": "L'heure où Max passe la porte.", "kind": "when", "emoji": "⏰", "title": "L'heure d'arrivée", "question": "À quelle heure Max arrive ?",
      "hint": "Remplace Max par le bon prénom. L'heure la plus proche l'emporte."},
-    {"id": "retard", "kind": "number", "emoji": "⏱️", "title": "Les minutes de retard", "question": "Combien de minutes de retard pour Max ?",
+    {"id": "retard", "family": "soiree", "unit": "minutes", "rules": "Compté depuis l'heure annoncée.", "kind": "number", "emoji": "⏱️", "title": "Les minutes de retard", "question": "Combien de minutes de retard pour Max ?",
      "hint": "Le nombre le plus proche l'emporte."},
-    {"id": "match", "kind": "choice", "emoji": "⚽", "title": "Le match de ce soir", "question": "Le match de ce soir : qui gagne ?",
+    {"id": "match", "family": "sport", "rules": "Résultat à la fin du temps réglementaire.", "kind": "choice", "emoji": "⚽", "title": "Le match de ce soir", "question": "Le match de ce soir : qui gagne ?",
      "options": ["Équipe A", "Match nul", "Équipe B"], "hint": "Écris le nom des deux équipes."},
-    {"id": "buts", "kind": "overunder", "emoji": "🥅", "title": "Plus ou moins de buts", "question": "Plus ou moins de 2,5 buts dans le match ?",
-     "line": 2.5, "hint": "La ligne se termine par ,5 : jamais d'égalité."},
-    {"id": "score", "kind": "number", "emoji": "🔢", "title": "Le nombre de buts", "question": "Combien de buts dans le match ?",
+    {"id": "buts", "family": "sport", "rules": "Prolongations non comprises.", "kind": "overunder", "emoji": "🥅", "title": "Plus ou moins de buts", "question": "Plus ou moins de 2,5 buts dans le match ?",
+     "line": 2.5, "unit": "buts", "options": ["Plus de 2,5 buts", "Moins de 2,5 buts"],
+     "hint": "La ligne se termine par ,5 : jamais d'égalité."},
+    {"id": "score", "family": "sport", "unit": "buts", "rules": "Prolongations non comprises.", "kind": "number", "emoji": "🔢", "title": "Le nombre de buts", "question": "Combien de buts dans le match ?",
      "hint": "Le nombre le plus proche l'emporte."},
-    {"id": "babyfoot", "kind": "number", "emoji": "🎯", "title": "Les parties de baby-foot", "question": "Combien de parties de baby-foot ce soir ?",
+    {"id": "babyfoot", "family": "sport", "unit": "parties", "rules": "Seulement les parties terminées.", "kind": "number", "emoji": "🎯", "title": "Les parties de baby-foot", "question": "Combien de parties de baby-foot ce soir ?",
      "hint": "Le nombre le plus proche l'emporte."},
-    {"id": "babyfoot_champion", "kind": "person", "emoji": "🏓", "title": "Le roi du baby-foot", "question": "Qui gagne le plus de parties de baby-foot ?",
+    {"id": "babyfoot_champion", "family": "sport", "rules": "Seulement les parties terminées.", "kind": "person", "emoji": "🏓", "title": "Le roi du baby-foot", "question": "Qui gagne le plus de parties de baby-foot ?",
      "hint": "Une personne de la bande."},
-    {"id": "karaoke", "kind": "person", "emoji": "🎤", "title": "Le premier au karaoké", "question": "Qui ose le karaoké en premier ?",
+    {"id": "karaoke", "family": "soiree", "rules": "La première chanson commencée au micro.", "kind": "person", "emoji": "🎤", "title": "Le premier au karaoké", "question": "Qui ose le karaoké en premier ?",
      "hint": "Une personne de la bande."},
-    {"id": "piste", "kind": "when", "emoji": "💃", "title": "La piste se remplit", "question": "À quelle heure la piste de danse se remplit ?",
+    {"id": "piste", "family": "soiree", "rules": "Au moins cinq personnes qui dansent.", "kind": "when", "emoji": "💃", "title": "La piste se remplit", "question": "À quelle heure la piste de danse se remplit ?",
      "hint": "L'heure la plus proche l'emporte."},
-    {"id": "dernier_parti", "kind": "when", "emoji": "🌙", "title": "Le dernier départ", "question": "À quelle heure part le dernier invité ?",
+    {"id": "dernier_parti", "family": "soiree", "rules": "Le dernier départ, organisation comprise.", "kind": "when", "emoji": "🌙", "title": "Le dernier départ", "question": "À quelle heure part le dernier invité ?",
      "hint": "L'heure la plus proche l'emporte."},
-    {"id": "premier_parti", "kind": "person", "emoji": "🚪", "title": "Le premier départ", "question": "Qui part en premier ?",
+    {"id": "premier_parti", "family": "soiree", "kind": "person", "emoji": "🚪", "title": "Le premier départ", "question": "Qui part en premier ?",
      "hint": "Une personne de la bande."},
-    {"id": "photos", "kind": "person", "emoji": "📸", "title": "Le photographe", "question": "Qui prend le plus de photos ce soir ?",
+    {"id": "photos", "family": "soiree", "kind": "person", "emoji": "📸", "title": "Le photographe", "question": "Qui prend le plus de photos ce soir ?",
      "hint": "Une personne de la bande."},
-    {"id": "invites", "kind": "number", "emoji": "👫", "title": "Le nombre de personnes", "question": "Combien de personnes à la soirée ?",
+    {"id": "invites", "family": "soiree", "unit": "personnes", "rules": "Compté à minuit, organisation comprise.", "kind": "number", "emoji": "👫", "title": "Le nombre de personnes", "question": "Combien de personnes à la soirée ?",
      "hint": "Le nombre le plus proche l'emporte."},
-    {"id": "pluie", "kind": "yesno", "emoji": "🌧️", "title": "Il va pleuvoir ?", "question": "Il va pleuvoir samedi ?",
+    {"id": "pluie", "family": "soiree", "rules": "D'après MétéoSuisse.", "kind": "yesno", "emoji": "🌧️", "title": "Il va pleuvoir ?", "question": "Il va pleuvoir samedi ?",
      "hint": "Oui ou non."},
-    {"id": "celine", "kind": "yesno", "emoji": "🎶", "title": "Le tube de la soirée", "question": "Quelqu'un met du Céline Dion ce soir ?",
+    {"id": "celine", "family": "soiree", "kind": "yesno", "emoji": "🎶", "title": "Le tube de la soirée", "question": "Quelqu'un met du Céline Dion ce soir ?",
      "hint": "Oui ou non."},
-    {"id": "preferes", "kind": "majority", "emoji": "🤔", "title": "Tu préfères…", "question": "Tu préfères : montagne ou mer ?",
+    {"id": "preferes", "family": "bande", "kind": "majority", "emoji": "🤔", "title": "Tu préfères…", "question": "Tu préfères : montagne ou mer ?",
      "options": ["Montagne", "Mer"], "hint": "La réponse la plus choisie l'emporte, toute seule à la fin."},
-    {"id": "bande_pense", "kind": "majority", "emoji": "👥", "title": "Devine ce que pense la bande", "question": "Fondue ou raclette : que choisira la bande ?",
+    {"id": "bande_pense", "family": "bande", "kind": "majority", "emoji": "👥", "title": "Devine ce que pense la bande", "question": "Fondue ou raclette : que choisira la bande ?",
      "options": ["Fondue", "Raclette"], "hint": "Devine la réponse la plus choisie : tranché tout seul à la fin."},
-    {"id": "film", "kind": "majority", "emoji": "🎬", "title": "Le film du soir", "question": "Quel film la bande choisira ?",
+    {"id": "film", "family": "bande", "kind": "majority", "emoji": "🎬", "title": "Le film du soir", "question": "Quel film la bande choisira ?",
      "options": ["Comédie", "Action", "Horreur"], "hint": "La réponse la plus choisie l'emporte."},
-    {"id": "libre", "kind": "text", "emoji": "✍️", "title": "Réponse libre", "question": "Le mot de la soirée ?",
+    {"id": "libre", "family": "soiree", "kind": "text", "emoji": "✍️", "title": "Réponse libre", "question": "Le mot de la soirée ?",
      "hint": "Tu coches les bonnes réponses à la fin."}
-  ]$j$::jsonb || jsonb_build_array(jsonb_build_object('id', 'trophee', 'kind', 'award', 'emoji', '🏆', 'title', 'Trophée de la soirée',
+  ]$j$::jsonb || jsonb_build_array(jsonb_build_object('id', 'trophee', 'family', 'votes', 'kind', 'award', 'emoji', '🏆', 'title', 'Trophée de la soirée',
     'question', 'Qui mérite le trophée « Ambianceur·euse » ?', 'award', 'ambiance',
     'hint', 'Vote pour une personne. Dévoilé avec 3 votes au moins ; chacun peut se retirer de la liste.',
     'awards', (select jsonb_agg(jsonb_build_object('id', c.id, 'emoji', c.emoji, 'label', c.label) order by c.position)

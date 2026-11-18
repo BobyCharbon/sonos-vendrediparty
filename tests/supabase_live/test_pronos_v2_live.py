@@ -91,6 +91,12 @@ def test_yes_no_and_over_under_lines(people, group):
     ou = ok(create(a, question='Plus ou moins de buts ?', kind='overunder', line=7.5, group_id=group, template='buts'))
     assert [o['label'] for o in ou['options']] == ['Plus de 7,5', 'Moins de 7,5']
     assert float(ou['line']) == 7.5 and ou['template'] == 'buts'
+    # iPhone : libellés avec l'unité gardés ; oui / non : libellés envoyés ignorés.
+    unit = ok(create(b, question='Plus ou moins de cartons ?', kind='overunder', line=3.5, group_id=group,
+                     options=['Plus de 3,5 cartons', 'Moins de 3,5 cartons']))
+    assert [o['label'] for o in unit['options']] == ['Plus de 3,5 cartons', 'Moins de 3,5 cartons']
+    yn2 = ok(create(b, question='Il neige ?', kind='yesno', group_id=group, options=['Ouais', 'Nan']))
+    assert [o['label'] for o in yn2['options']] == ['Oui', 'Non']
     ok(b.rpc('prono_answer', id=ou['id'], answer={'option_id': opt(ou, 'Plus de 7,5')}))
     ok(c.rpc('prono_answer', id=ou['id'], answer={'option_id': opt(ou, 'Moins de 7,5')}))
     close_now(ou['id'])
@@ -115,6 +121,8 @@ def test_patates_are_shared_exactly_with_the_largest_remainder(people, group):
     assert seen['field'] == {'total': 23, 'planters': 4, 'by_option': None} and seen['answers'] is None
     listed = next(x for x in ok(c.rpc('prono_list', group_id=group)) if x['id'] == p['id'])
     assert listed['field_total'] == 23 and listed['my_stake'] == 10 and listed['patates_on'] and listed['cover'] is not None
+    assert listed['planters'] == 4 and [o['label'] for o in listed['options']] == ['Max', 'Jo', 'Personne']
+    assert all('count' not in o for o in listed['options']) and listed['candidates'] is None
     close_now(p['id'])
     done = ok(a.rpc('prono_result', id=p['id'], body={'option_id': opt(p, 'Max')}))
     # 23 dans le champ, 12 sur Max : Léa 7 × 23 / 12 = 13,42 → 13 ; Marc 5 × 23 / 12 = 9,58 → 9 + le reste = 10.
@@ -266,13 +274,18 @@ def test_award_needs_three_voters_and_people_can_opt_out(people, group):
     a, b, c, d = people
     refused(create(a, kind='award', award='plus_bourre', group_id=group), 'invalid')
     refused(create(a, kind='award', award='ambiance', group_id=group, patates=True), 'invalid')
-    t = ok(create(a, kind='award', award='voix', group_id=group))
+    t = ok(create(a, kind='award', award='voix', group_id=group, points=1, question=''))
     assert t['question'] == 'Qui mérite le trophée « Voix d\'or » ?' and t['award'] == 'voix' and t['award_emoji'] == '🎤'
+    assert t['award_label'] == "🎤 Voix d'or" and t['award_name'] == "Voix d'or" and t['points'] == 1
+    assert [r['id'] for r in sql('select id from private.prono_award_categories order by position')] == \
+        ['ambiance', 'piste', 'fou_rire', 'look', 'chef', 'voix', 'accueil', 'danse']
     assert t['reveal'] == 'result' and a.uid not in {x['id'] for x in t['candidates']} and t['optout'] is False
     refused(a.rpc('prono_answer', id=t['id'], answer={'person_id': a.uid}), 'invalid')  # pas pour soi
     ok(a.rpc('prono_answer', id=t['id'], answer={'person_id': b.uid}))
     out = ok(b.rpc('prono_optout', id=t['id'], out=True))  # Marc se retire : le vote reçu part
     assert out['optout'] and len(out['answered']) == 0
+    card = next(x for x in ok(c.rpc('prono_list', group_id=group)) if x['id'] == t['id'])
+    assert {f['id'] for f in card['candidates']} == {a.uid, d.uid}  # ni soi-même, ni Marc (retiré)
     refused(c.rpc('prono_answer', id=t['id'], answer={'person_id': b.uid}), 'invalid')
     ok(b.rpc('prono_optout', id=t['id'], out=False))
     ok(a.rpc('prono_answer', id=t['id'], answer={'person_id': b.uid}))
@@ -369,11 +382,37 @@ def test_templates_are_clean(people):
     t = ok(people[0].rpc('prono_templates'))
     assert len(t) >= 20 and {x['kind'] for x in t} >= {'yesno', 'overunder', 'when', 'majority', 'award', 'person', 'number', 'choice', 'text'}
     award = next(x for x in t if x['kind'] == 'award')
-    assert len(award['awards']) == 8
-    sql("select private.prono_text(t->>'question', 'q') from jsonb_array_elements(public.prono_templates()) t")
+    assert len(award['awards']) == 8 and all(set(x) == {'id', 'emoji', 'label'} for x in award['awards'])
+    assert all(x['family'] in ('soiree', 'sport', 'bande', 'votes') for x in t) and award['family'] == 'votes'
+    assert len({x['id'] for x in t}) == len(t) and sum(1 for x in t if x.get('rules')) >= 8
+    sql("select private.prono_text(t->>'question', 'q'), private.prono_text(coalesce(t->>'rules', 'ok'), 'r') "
+        "from jsonb_array_elements(public.prono_templates()) t")
     text = str(t).lower()
     for word in ('mise', 'pari ', 'cote', 'gain', 'jackpot', 'alcool', 'bière', 'shot', 'chf'):
         assert word not in text, word
+
+
+def test_every_template_is_created_as_the_creation_screen_sends_it(people, group):
+    """Corps exact de l'écran de création (W3) pour chaque modèle : options [] sauf choice / majority, question « »
+    pour un trophée (la base l'écrit), rules et template ; retour : id et link.path."""
+    who = people[1:]  # 21 modèles : répartis (30 créations par jour et par personne au plus)
+    for i, tpl in enumerate(ok(people[0].rpc('prono_templates'))):
+        body = {'question': '' if tpl['kind'] == 'award' else tpl['question'], 'kind': tpl['kind'],
+                'options': tpl.get('options', []) if tpl['kind'] in ('choice', 'majority') else [],
+                'points': 3, 'closes_at': later(), 'reveal': 'close', 'group_id': group, 'event_id': None,
+                'people': [], 'link': i == 0, 'template': tpl['id'], 'rules': tpl.get('rules') or '',
+                'patates': tpl['kind'] not in ('award', 'text'), 'line': tpl.get('line'), 'not_over': False,
+                'award': tpl.get('award')}
+        p = ok(who[i % 3].rpc('prono_create', body=body))
+        assert p['id'] and p['template'] == tpl['id'] and p['rules'] == tpl.get('rules')
+        assert (p['link']['path'] or '').startswith('/prono/') if i == 0 else p['link']['path'] is None
+        if tpl['kind'] == 'yesno':
+            assert [o['label'] for o in p['options']] == ['Oui', 'Non']
+        if tpl['kind'] == 'overunder':
+            assert len(p['options']) == 2 and p['options'][0]['label'].startswith('Plus de ')
+        if tpl['kind'] == 'award':
+            assert p['question'] == 'Qui mérite le trophée « Ambianceur·euse » ?' and not p['patates']
+    assert ok(people[1].rpc('prono_bag', group_id=group))['balance'] == 100  # patates allumées : le sac existe
 
 
 def test_no_direct_access_to_tables_or_bag_functions(people):
