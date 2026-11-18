@@ -1,10 +1,10 @@
 import SwiftUI
 
-/// Conditions d'utilisation (version 2026-11-16) : même texte que le module web (web/events/src/lib/terms.ts).
+/// Conditions d'utilisation (version 2026-11-18) : même texte que le module web (web/events/src/lib/terms.ts).
 struct TermsView: View {
     @ObservedObject var store: ModerationStore
 
-    static let updated = "16 novembre 2026"
+    static let updated = "18 novembre 2026"
     /// Responsable et contact de Party (web/events/src/lib/contact.ts) ; l'admin peut en afficher un autre.
     static let supportEmail = "support@vendrediparty.ch"
     static let sections: [(String, [String])] = [
@@ -23,6 +23,12 @@ struct TermsView: View {
         ("Le jeu n'a aucune valeur en argent", [
             "Les pièces, objets, cartes et récompenses des jeux de Party n'ont aucune valeur monétaire. Ils ne s'achètent pas, ne se vendent pas et ne s'échangent pas contre de l'argent ou un service, ni dans Party ni ailleurs.",
             "Toute vente, achat ou proposition de vente d'un objet ou d'un compte est interdite. Le paiement entre amis et les billets d'événement ne concernent jamais un objet du jeu.",
+        ]),
+        ("Pronos et patates", [
+            "Les Pronos se jouent entre amis, pour l'honneur : on devine, on marque des points et, dans un groupe ou un événement, on plante des patates pour rire. Apple et Google ne sont ni organisateurs ni sponsors des Pronos.",
+            "Les patates sont gratuites et n'ont aucune valeur. Elles ne s'achètent pas, ne se vendent pas, ne s'échangent pas et ne se transfèrent pas d'une personne à une autre. Elles ne se convertissent en rien (ni argent, ni boisson, ni objet du jeu) et aucun lot ne récompense le classement.",
+            "Il est interdit de régler un prono ou des patates en argent, en boissons, en objets ou en services, dans Party ou ailleurs, et de proposer d'acheter ou de vendre des patates. Jamais de prono sur l'alcool ni sur ce que boit quelqu'un.",
+            "Un compte qui détourne les Pronos ou les patates (argent, boissons, vente, triche) peut être suspendu, et ses patates retirées. Un résultat qui te semble injuste se conteste ou se signale.",
         ]),
         ("Paiements, billets et bar", [
             "Party ne vend rien et ne touche jamais d'argent : ni paiement, ni portefeuille, ni commission. Un organisateur peut indiquer un prix et un moyen de payer qui est le sien (Revolut, billetterie, sur place) ; le paiement se fait en dehors de Party, entre personnes. Un « J'ai payé » n'est confirmé que par l'organisateur.",
