@@ -1,84 +1,92 @@
-import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { DateTimeField } from '@/components/DateTimeField';
-import { goBack, TopBar } from '@/components/agenda/Bits';
-import { GroupTile } from '@/components/GroupBits';
-import { HonourNote } from '@/components/pronos/Bits';
+import { goBack } from '@/components/agenda/Bits';
+import { AWARDS, createBody, draftFrom, endChoices, patatesPossible, type Award, type Draft, type Template, type Who } from '@/components/pronos/create/model';
+import type { Place } from '@/components/pronos/create/PreviewCard';
+import { StepLaunched } from '@/components/pronos/create/StepLaunched';
+import { StepQuestion } from '@/components/pronos/create/StepQuestion';
+import { StepSettings, type Bag } from '@/components/pronos/create/StepSettings';
+import { StepTemplate } from '@/components/pronos/create/StepTemplate';
 import { useTermsGate } from '@/components/TermsSheet';
-import { Avatar, Button, ErrorText, Input, Loading, Screen, Segmented, T, ToggleRow } from '@/components/ui';
+import { Loading } from '@/components/ui';
 import { useQuery } from '@/lib/data';
-import { parseLocalDateTime, plural, toLocalInput } from '@/lib/format';
+import { parseLocalDateTime, plural } from '@/lib/format';
 import { fetchMyGroups, groupName } from '@/lib/groups';
-import { enter, pressTransition } from '@/lib/motion';
-import { errorText, isTerms, KINDS, nativePronos, pointsLabel, rpc, type Face, type Prono, type PronoKind, type Reveal } from '@/lib/pronos';
+import { errorText, isTerms, nativePronos, rpc, type Face } from '@/lib/pronos';
 import { supabase } from '@/lib/supabase';
-import { colors, font, radius } from '@/lib/theme';
-
-/** Demain 20:00 : une fin raisonnable par défaut. */
-function defaultEnd(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  d.setHours(20, 0, 0, 0);
-  return toLocalInput(d.toISOString());
-}
 
 /**
- * « Nouveau prono » (maquette du 17.11, écran 2) : la question, le type de réponse (choix, une personne, nombre, libre),
- * qui joue (un de mes groupes, des personnes croisées dans Party, et / ou un lien), la fin, le dévoilement et les points
- * (1 à 10). Ouvert depuis un groupe ou un événement : il est déjà choisi. Pour l'honneur : aucun champ d'enjeu.
+ * « Nouveau prono » en 4 étapes (Pronos v2, maquettes 2-1 à 2-4 du 18.11) : 1 un modèle (prono_templates) ou « Partir
+ * de zéro » ; 2 la question avec l'aperçu en direct de la carte ; 3 qui joue, la fin, les patates (seulement dans un
+ * groupe ou une soirée, si la base les a allumées), les points, le dévoilement ; 4 « C'est lancé ! ». Ouvert depuis un
+ * groupe (?group=) ou un événement (?event=) : il est déjà choisi. Dans l'app iPhone, l'écran natif prend la main.
  */
 export default function NewProno() {
   const params = useLocalSearchParams<{ group?: string; event?: string }>();
   const fixedGroup = typeof params.group === 'string' ? params.group : null;
   const fixedEvent = typeof params.event === 'string' ? params.event : null;
+  const listPath = fixedGroup ? `/group/${fixedGroup}/pronos` : fixedEvent ? `/event/${fixedEvent}` : '/pronos';
   const native = nativePronos();
   useEffect(() => {
     if (native?.create) { native.create({ group: fixedGroup ?? undefined, event: fixedEvent ?? undefined }); goBack(fixedGroup ? `/group/${fixedGroup}` : fixedEvent ? `/event/${fixedEvent}` : '/'); }
   }, [native, fixedGroup, fixedEvent]);
   const terms = useTermsGate('Avant de lancer un prono');
   const { data, loading } = useQuery(async () => {
-    const [groups, people, event] = await Promise.all([
+    const [groups, people, event, templates] = await Promise.all([
       fetchMyGroups(),
       rpc<Face[]>('prono_suggestions').catch((): Face[] => []),
       fixedEvent ? supabase.from('events').select('id, title').eq('id', fixedEvent).maybeSingle().then((r) => r.data as { id: string; title: string } | null)
         : Promise.resolve(null),
+      // Base d'avant Pronos v2 : pas de modèles, il reste « Partir de zéro ».
+      rpc<Template[] | null>('prono_templates').catch((): Template[] => []),
     ]);
-    return { groups: groups.filter((g) => !g.system && g.member), people, event };
+    return { groups: groups.filter((g) => !g.system && g.member), people, event, templates: templates ?? [] };
   }, [fixedEvent]);
 
-  const [question, setQuestion] = useState('');
-  const [kind, setKind] = useState<PronoKind>('choice');
-  const [options, setOptions] = useState<string[]>(['', '']);
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [draft, setDraft] = useState<Draft>(() => draftFrom(null));
+  const [who, setWho] = useState<Who>({ group: fixedGroup, event: fixedEvent, people: [], link: false });
+  const [end, setEnd] = useState(() => endChoices()[1].local);
+  const [patates, setPatates] = useState(true);
   const [points, setPoints] = useState(3);
-  const [end, setEnd] = useState(defaultEnd);
-  const [reveal, setReveal] = useState<Reveal>('close');
-  const [group, setGroup] = useState<string | null>(fixedGroup);
-  const [people, setPeople] = useState<Set<string>>(new Set());
-  const [link, setLink] = useState(false);
-  const [showPeople, setShowPeople] = useState(false);
+  const [reveal, setReveal] = useState<'close' | 'result'>('close');
+  const [bag, setBag] = useState<Bag | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [created, setCreated] = useState<{ id: string; linkPath: string | null; closesAt: string; patates: boolean } | null>(null);
 
-  const filled = options.map((o) => o.trim()).filter(Boolean);
-  const who = !!(group || fixedEvent || people.size || link);
-  const iso = parseLocalDateTime(end);
-  const ready = question.trim().length >= 3 && who && !!iso && (kind !== 'choice' || filled.length >= 2);
-  const groupRow = useMemo(() => data?.groups.find((g) => g.id === group) ?? null, [data, group]);
+  // Le sac du terrain choisi dit si les patates sont allumées (null : éteintes, ou ni groupe ni soirée).
+  useEffect(() => {
+    if (!who.group && !who.event) return;
+    let live = true;
+    rpc<Bag>('prono_bag', { group_id: who.group, event_id: who.group ? null : who.event })
+      .then((b) => { if (live) setBag(b ?? null); }).catch(() => { if (live) setBag(null); });
+    return () => { live = false; };
+  }, [who.group, who.event]);
+  const terrainBag = who.group || who.event ? bag : null;
 
-  async function create(): Promise<void> {
+  const awards: Award[] = useMemo(() => data?.templates.find((t) => t.awards?.length)?.awards ?? AWARDS, [data]);
+  const group = data?.groups.find((g) => g.id === who.group) ?? null;
+  const event = data?.event ?? null;
+  const place: Place = group
+    ? { group: { id: group.id, name: groupName(group), emoji: group.emoji, color: group.color, photo: group.photo }, event: null,
+      label: groupName(group), emoji: group.emoji, faces: group.faces, members: group.members }
+    : event ? { group: null, event, label: event.title, emoji: '📅', faces: [], members: 0 }
+      : { group: null, event: null, label: 'Invités', emoji: '👥', faces: [], members: 0 };
+
+  async function launch(): Promise<void> {
+    const iso = parseLocalDateTime(end);
     if (!iso) return;
     setBusy(true);
     setErr(null);
     try {
-      const p = await rpc<Prono>('prono_create', { body: {
-        question: question.trim(), kind, options: kind === 'choice' ? filled : [], points, closes_at: iso,
-        reveal: kind === 'text' ? 'close' : reveal, group_id: group, event_id: fixedEvent, people: [...people], link,
-      } });
-      router.replace(`/prono/${p.id}`);
+      const body = createBody(draft, { who, end, patates: patates && !!terrainBag && patatesPossible(draft.kind), points, reveal }, iso);
+      const p = await rpc<{ id: string; link?: { path: string | null } | null }>('prono_create', { body });
+      setCreated({ id: p.id, linkPath: p.link?.path ?? null, closesAt: iso, patates: body.patates === true });
+      setStep(4);
     } catch (e) {
-      if (isTerms(e) && (await terms.ensure())) return create();
+      if (isTerms(e) && (await terms.ensure())) return launch();
       setErr(errorText(e));
     } finally {
       setBusy(false);
@@ -86,120 +94,29 @@ export default function NewProno() {
   }
 
   if (loading && !data) return <Loading />;
+  const told = group ? `Tout le groupe « ${groupName(group)} » est prévenu.`
+    : event ? 'Les participants sont prévenus.'
+      : who.people.length ? `${plural(who.people.length, 'personne')} ${who.people.length > 1 ? 'sont prévenues' : 'est prévenue'}.`
+        : 'Partage le lien : qui l’ouvre peut jouer.';
   return (
-    <Screen contentStyle={{ gap: 14, paddingBottom: 48 }}>
+    <>
       <Stack.Screen options={{ headerShown: false, title: 'Nouveau prono' }} />
-      <TopBar back="Pronos" fallback={fixedGroup ? `/group/${fixedGroup}/pronos` : '/pronos'} title="Nouveau prono"
-        subtitle="Une question, des réponses cachées jusqu’au dévoilement, des points pour qui voit juste." />
-
-      <Input value={question} onChangeText={setQuestion} placeholder="Qui marque le premier but samedi ?" maxLength={200}
-        accessibilityLabel="La question" style={{ fontSize: 18 }} testID="prono-question" />
-
-      <Segmented options={KINDS.map((k) => ({ key: k.key, label: k.label }))} value={kind} onChange={setKind} />
-      <T size={13} muted>{KINDS.find((k) => k.key === kind)?.hint}</T>
-
-      {kind === 'choice' ? (
-        <View style={{ gap: 6 }}>
-          {options.map((o, i) => (
-            <View key={i} style={[st.opt, enter('rise', i)]}>
-              <Text style={st.num}>{i + 1}</Text>
-              <Input value={o} onChangeText={(v) => setOptions((all) => all.map((x, j) => (j === i ? v : x)))} placeholder={`Choix ${i + 1}`}
-                maxLength={60} accessibilityLabel={`Choix ${i + 1}`} style={{ flex: 1 }} />
-              {options.length > 2 ? (
-                <Pressable accessibilityRole="button" accessibilityLabel={`Retirer le choix ${i + 1}`} onPress={() => setOptions((all) => all.filter((_, j) => j !== i))}
-                  style={st.remove}><Text style={{ color: colors.muted, fontSize: 18 }}>✕</Text></Pressable>
-              ) : null}
-            </View>
-          ))}
-          {options.length < 8 ? (
-            <Pressable accessibilityRole="button" onPress={() => setOptions((all) => [...all, ''])} style={({ pressed }) => [st.add, pressTransition, pressed && { opacity: 0.7 }]}>
-              <T weight="semibold" color={colors.accentSoft}>＋ Ajouter un choix</T>
-            </Pressable>
-          ) : null}
-        </View>
-      ) : null}
-
-      <T size={13} weight="bold" color={colors.muted} style={st.label}>QUI JOUE</T>
-      {fixedEvent ? (
-        <View style={st.fixed}><T weight="semibold">📅 Les participants de « {data?.event?.title ?? 'l’événement'} »</T></View>
+      {step === 1 ? (
+        <StepTemplate templates={data?.templates ?? null} onClose={() => goBack(listPath)}
+          onPick={(t) => { setDraft(draftFrom(t)); setStep(2); }} onScratch={(k) => { setDraft(draftFrom(null, k)); setStep(2); }} />
+      ) : step === 2 ? (
+        <StepQuestion d={draft} setD={setDraft} awards={awards} place={place} onBack={() => setStep(1)} onNext={() => setStep(3)} />
+      ) : step === 3 || !created ? (
+        <StepSettings d={draft} awards={awards} groups={data?.groups ?? []} event={event} people={data?.people ?? []}
+          who={who} setWho={setWho} end={end} setEnd={setEnd} bag={terrainBag} patates={patates} setPatates={setPatates}
+          points={points} setPoints={setPoints} reveal={reveal} setReveal={setReveal} busy={busy} err={err}
+          onBack={() => setStep(2)} onLaunch={() => void launch()} />
       ) : (
-        <View style={{ gap: 8 }}>
-          {data?.groups.length ? (
-            <View style={st.groups}>
-              {data.groups.map((g) => {
-                const on = group === g.id;
-                return (
-                  <Pressable key={g.id} accessibilityRole="radio" accessibilityState={{ selected: on }} aria-checked={on} onPress={() => setGroup(on ? null : g.id)}
-                    style={({ pressed }) => [st.group, on && st.on, pressTransition, pressed && { transform: [{ scale: 0.96 }] }]}>
-                    <GroupTile group={g} size={30} />
-                    <T size={14} weight="semibold" numberOfLines={1} style={{ maxWidth: 150 }}>{groupName(g)}</T>
-                  </Pressable>
-                );
-              })}
-            </View>
-          ) : <T size={13} muted>Tu n’as pas encore de groupe : invite des personnes ou crée un lien.</T>}
-          <Pressable accessibilityRole="button" onPress={() => setShowPeople(!showPeople)} style={st.fixed}>
-            <T weight="semibold">👤 Des personnes{people.size ? ` · ${people.size}` : ''}</T>
-            <T size={13} muted>Croisées à un événement ou dans tes groupes</T>
-          </Pressable>
-          {showPeople ? (
-            <View style={st.groups}>
-              {(data?.people ?? []).map((f) => {
-                const on = people.has(f.id);
-                return (
-                  <Pressable key={f.id} accessibilityRole="checkbox" accessibilityState={{ checked: on }} aria-checked={on}
-                    onPress={() => setPeople((s) => { const n = new Set(s); if (on) n.delete(f.id); else n.add(f.id); return n; })}
-                    style={({ pressed }) => [st.group, on && st.on, pressTransition, pressed && { transform: [{ scale: 0.96 }] }]}>
-                    <Avatar id={f.id} name={f.name} photo={f.avatar_url} size={26} profile={false} />
-                    <T size={14} numberOfLines={1} style={{ maxWidth: 130 }}>{f.name}</T>
-                  </Pressable>
-                );
-              })}
-              {!data?.people.length ? <T size={13} muted>Personne pour l’instant.</T> : null}
-            </View>
-          ) : null}
-          <ToggleRow label="🔗 Un lien à partager" hint="Qui l’ouvre se connecte à Party, puis joue." value={link} onChange={setLink} />
-        </View>
+        <StepLaunched id={created.id} linkPath={created.linkPath} d={draft} awards={awards} place={place} closesAt={created.closesAt}
+          patates={created.patates} told={told} listPath={listPath}
+          chat={who.group ? `/chats/${who.group}` : who.event ? `/event/${who.event}/chat` : null} />
       )}
-      {groupRow ? <T size={13} muted>Tout le groupe « {groupName(groupRow)} » sera prévenu.</T> : null}
-
-      <T size={13} weight="bold" color={colors.muted} style={st.label}>RÉGLAGES</T>
-      <DateTimeField label="Fin des pronos" value={end} onChangeText={setEnd} hint="Plus personne ne joue après." />
-      {kind !== 'text' ? (
-        <View style={{ gap: 6 }}>
-          <T weight="semibold">Dévoiler les réponses</T>
-          <Segmented options={[{ key: 'close', label: 'À la fin' }, { key: 'result', label: 'Avec le résultat' }]} value={reveal} onChange={(v) => setReveal(v as Reveal)} />
-          <T size={12} muted>Avant : chacun voit seulement qui a joué, jamais quoi (toi compris).</T>
-        </View>
-      ) : <T size={12} muted>Réponse libre : les réponses se dévoilent à la fin, puis tu coches les bonnes.</T>}
-      <View style={st.points}>
-        <T weight="semibold" style={{ flex: 1 }}>Points pour une bonne réponse</T>
-        <Pressable accessibilityRole="button" accessibilityLabel="Un point de moins" disabled={points <= 1} onPress={() => setPoints(points - 1)} style={st.step}><Text style={st.stepText}>−</Text></Pressable>
-        <Text style={st.pts} accessibilityLabel={pointsLabel(points)}>{points}</Text>
-        <Pressable accessibilityRole="button" accessibilityLabel="Un point de plus" disabled={points >= 10} onPress={() => setPoints(points + 1)} style={st.step}><Text style={st.stepText}>＋</Text></Pressable>
-      </View>
-      <HonourNote points={points} />
-      <ErrorText error={err} />
-      <Button label={group || fixedEvent || people.size ? `Publier et prévenir${people.size && !group ? ` ${plural(people.size, 'personne')}` : ''}` : 'Publier'}
-        disabled={!ready} loading={busy} onPress={() => void create()} />
       {terms.sheet}
-    </Screen>
+    </>
   );
 }
-
-const st = StyleSheet.create({
-  opt: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  num: { width: 22, color: colors.muted, textAlign: 'center', ...font.bold },
-  remove: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  add: { height: 44, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', borderColor: colors.lineStrong, alignItems: 'center', justifyContent: 'center' },
-  label: { letterSpacing: 0.8, marginTop: 6 },
-  fixed: { padding: 12, borderRadius: 14, backgroundColor: colors.surface, gap: 2 },
-  groups: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  group: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6, paddingHorizontal: 10, borderRadius: radius.pill,
-    backgroundColor: colors.surface, borderWidth: 2, borderColor: 'transparent' },
-  on: { borderColor: colors.accent, backgroundColor: colors.accentDim },
-  points: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 14, backgroundColor: colors.surface },
-  step: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.fill, alignItems: 'center', justifyContent: 'center' },
-  stepText: { color: colors.text, fontSize: 20, ...font.bold },
-  pts: { minWidth: 28, textAlign: 'center', color: '#FFE27A', fontSize: 22, ...font.display },
-});
