@@ -1,14 +1,16 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { IdentityForm } from '@/components/IdentityForm';
-import { HonourNote } from '@/components/pronos/Bits';
+import { GlassCard, PrimaryButton, Seal } from '@/components/pronos/Kit';
+import { C, rounded } from '@/components/pronos/play/model';
 import { useTermsGate } from '@/components/TermsSheet';
 import { Avatar, Button, ErrorText, Loading, Screen, T, Title } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
 import { formatShort } from '@/lib/format';
+import { enter } from '@/lib/motion';
 import { hasCompleteIdentity } from '@/lib/profile';
 import { errorText, isTerms, openProno, rpc, type Face, type Prono } from '@/lib/pronos';
 import { colors } from '@/lib/theme';
@@ -73,21 +75,32 @@ function Join({ token }: { token: string }) {
   if (loading && !data) return <Loading />;
   if (!data) return <Gone error={error} />;
   return (
-    <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center', gap: 16 }}>
+    <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center', gap: 18 }}>
       <Stack.Screen options={{ title: 'Un prono pour toi' }} />
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        <Avatar id={data.creator.id} name={data.creator.name} photo={data.creator.avatar_url} size={40} profile={false} />
-        <T muted style={{ flex: 1 }}>{data.creator.name} t’invite à un prono</T>
+      <View style={[{ alignItems: 'center' }, enter('pop')]}><Seal emoji="🔮" size={104} /></View>
+      <View style={st.from}>
+        <Avatar id={data.creator.id} name={data.creator.name} photo={data.creator.avatar_url} size={36} profile={false} />
+        <Text style={st.help} numberOfLines={2}>{data.creator.name} t’invite à un prono</Text>
       </View>
-      <Title size={30}>{data.question}</Title>
-      <T muted>Les réponses restent cachées jusqu’au dévoilement. À jouer jusqu’au {formatShort(data.closes_at)}.</T>
-      <HonourNote />
+      <Text role="heading" aria-level={1} style={[rounded(30), { textAlign: 'center', lineHeight: 34 }]}>{data.question}</Text>
+      <GlassCard style={st.card}>
+        <Text style={st.line}>🔒  Les réponses restent scellées jusqu’à la fin : personne ne les voit, pas même {data.creator.name}.</Text>
+        <Text style={st.line}>⏱  À jouer jusqu’au {formatShort(data.closes_at)}.</Text>
+        <Text style={st.line}>🏅  Pour l’honneur : des points au classement, rien d’autre.</Text>
+      </GlassCard>
       <ErrorText error={err} />
-      <Button label={data.joined ? 'Ouvrir le prono' : '🔮 Jouer'} loading={busy} onPress={() => (data.joined ? go(data.id) : void join())} />
+      <PrimaryButton label={data.joined ? 'Ouvrir le prono' : '🔮 Jouer'} loading={busy} onPress={() => (data.joined ? go(data.id) : void join())} />
       {terms.sheet}
     </Screen>
   );
 }
+
+const st = StyleSheet.create({
+  from: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  help: { color: C.t2, fontSize: 15, flexShrink: 1 },
+  card: { gap: 12, padding: 18, borderRadius: 24 },
+  line: { color: C.t1, fontSize: 15, lineHeight: 21 },
+});
 
 function Gone({ error }: { error?: string | null }) {
   return (
