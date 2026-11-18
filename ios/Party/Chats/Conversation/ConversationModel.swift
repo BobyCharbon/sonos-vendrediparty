@@ -65,7 +65,10 @@ final class ConversationModel: ObservableObject {
             if (try? await relay.run("mark_event_chat_read", ["e": chat.id])) != nil, chatID == chat.id { markedRead = ids.last }
         }
         if !chat.isEvent, !ids.isEmpty, ids != readIDs {
-            if let list = try? await relay.extras(chat: chat.id, direct: chat.isDirect), chatID == chat.id {
+            // Champs v2 lus avec la conversation (même réponse) ; serveur d'avant : une lecture à part.
+            let fromChat = chat.extras
+            let fetched = fromChat == nil ? try? await relay.extras(chat: chat.id, direct: chat.isDirect) : nil
+            if let list = fromChat ?? fetched, chatID == chat.id {
                 readIDs = ids
                 extras = Dictionary(list.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
                 let missing = Set(list.compactMap(\.eventID)).subtracting(cards.keys)

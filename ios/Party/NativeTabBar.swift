@@ -81,6 +81,7 @@ struct NativeTabBar: UIViewRepresentable {
 
         func tabBar(_ tabBar: UITabBar, didSelect item: UITabBarItem) {
             guard ids.indices.contains(item.tag) else { return }
+            ChatTiming.mark("tab." + ids[item.tag])
             if item.tag != activeIndex { feedback.selectionChanged() }
             select(ids[item.tag])
             // La page confirme d'ordinaire dans la même image ; si elle refuse, on revient à l'onglet affiché.

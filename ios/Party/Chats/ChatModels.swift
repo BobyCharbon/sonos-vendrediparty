@@ -228,6 +228,8 @@ struct Conversation: Codable, Equatable {
         var audioSeconds: Double? = nil
         /// Affiché tout de suite à l'envoi, avant la réponse du serveur (horloge à la place de l'heure).
         var pending = false
+        /// Pas parti (réseau absent après les nouveaux essais) : gardé, « Pas envoyé · Toucher pour réessayer ».
+        var failed = false
 
         var preview: String { !body.isEmpty ? body : audioSeconds != nil ? "🎤 Message vocal" : "📷 Photo" }
         var date: Date? { ChatDates.parse(at) }
@@ -311,10 +313,13 @@ struct Conversation: Codable, Equatable {
     /// Temps réel de l'événement (adresse et clé publiques de Supabase), donné avec la discussion d'un événement.
     var realtime: ChatRealtime.Endpoint? = nil
     var joinNote: JoinNote? = nil
+    /// Champs v2 de chaque message (carte de soirée, citation privée), lus dans la MÊME réponse que la conversation
+    /// (vitesse, 18.11 : plus de deuxième lecture complète à chaque nouveau message). nil : serveur d'avant.
+    var extras: [MessageExtra]? = nil
 
     enum CodingKeys: String, CodingKey {
         case id, name, member, admin, notify, reactions, members, messages, me, highlights, organizer, everyone, direct, photo, blocked
-        case event, tags, realtime, joinNote = "join_note"
+        case event, tags, realtime, extras, joinNote = "join_note"
         case canNameAdmins = "can_name_admins", userID = "user_id"
     }
 
@@ -376,7 +381,7 @@ struct Conversation: Codable, Equatable {
         Conversation(id: id, name: name, member: member, admin: admin, notify: notify, canNameAdmins: canNameAdmins,
                      me: me, reactions: reactions, members: members, messages: messages, highlights: highlights,
                      organizer: organizer, everyone: everyone, direct: direct, userID: userID, photo: photo, blocked: blocked,
-                     event: event, tags: tags, realtime: realtime, joinNote: joinNote)
+                     event: event, tags: tags, realtime: realtime, joinNote: joinNote, extras: extras)
     }
 
     /// Membres cités par « @surnom » (sans accents ni casse) dans le texte (sauf moi) : envoyés avec le message,
@@ -619,6 +624,17 @@ private struct ChatList: Decodable {
     let realtime: ChatRealtime.Endpoint?
 }
 private struct PhotoPath: Decodable { let path: String }
+
+/// Réponse de /chats/open : la conversation, et les champs v2 de ses messages (event_id, quote) lus au passage.
+private struct OpenedConversation: Decodable {
+    let chat: Conversation
+    init(from decoder: Decoder) throws {
+        var chat = try Conversation(from: decoder)
+        struct Extras: Decodable { let messages: [MessageExtra] }
+        chat.extras = (try? Extras(from: decoder))?.messages
+        self.chat = chat
+    }
+}
 private struct DirectChatID: Decodable { let id: String }
 
 extension PartyAPI {
@@ -627,8 +643,11 @@ extension PartyAPI {
         return (list.chats, list.realtime)
     }
 
-    func openChat(token: String, group: String, direct: Bool = false) async throws -> Conversation {
-        try await postDecoding("/api/account/chats/open", body: ["token": token, "group_id": group, "direct": direct])
+    /// prefetch : préchargement depuis la liste (lecture seule : le bandeau « Tu es dans le groupe » reste à montrer).
+    func openChat(token: String, group: String, direct: Bool = false, prefetch: Bool = false) async throws -> Conversation {
+        let opened: OpenedConversation = try await postDecoding("/api/account/chats/open",
+                                                                body: ["token": token, "group_id": group, "direct": direct, "prefetch": prefetch])
+        return opened.chat
     }
 
     /// « Écrire » : LA conversation privée avec cette personne (créée au besoin). contactHash : empreinte de son numéro

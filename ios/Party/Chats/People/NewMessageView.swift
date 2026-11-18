@@ -370,12 +370,14 @@ struct NewMessageView: View {
     private func search() async {
         guard let people else { return }
         guard searching else { results = nil; return }
+        ChatTiming.mark("search.type")
         results = nil
         try? await Task.sleep(nanoseconds: 250_000_000)  // on attend la fin de la frappe
         guard !Task.isCancelled else { return }
         let found = (try? await people.search(query)) ?? []
         guard !Task.isCancelled else { return }
         results = found
+        ChatTiming.mark("search.results")
     }
 
     /// Le toucher de la section demande l'accès (fenêtre d'iOS), puis la comparaison sur l'iPhone.

@@ -7,6 +7,10 @@ enum ChatsCache {
     private static let folder: URL? = {
         guard let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else { return nil }
         let url = caches.appendingPathComponent("chats", isDirectory: true)
+        #if E2E_HOOKS
+        // Mesure de la vitesse (VitesseDiscussionsUITests) : départ à froid, sans liste ni conversation gardées.
+        if ProcessInfo.processInfo.environment["PARTY_CLEAR_CHATS_CACHE"] == "1" { try? FileManager.default.removeItem(at: url) }
+        #endif
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }()

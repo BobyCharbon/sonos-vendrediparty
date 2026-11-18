@@ -62,7 +62,7 @@ struct DirectOpening: Decodable, Equatable {
 }
 
 /// Ce que `/chats/open` renvoie en plus par message (event_id, quote) : lu à part tant que le modèle commun ne l'a pas.
-struct MessageExtra: Decodable, Equatable {
+struct MessageExtra: Codable, Equatable {
     let id: String
     let eventID: String?
     let quote: PrivateQuote?

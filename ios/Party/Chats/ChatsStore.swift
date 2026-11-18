@@ -22,8 +22,37 @@ final class ChatsStore: ObservableObject {
     private var endpoint: ChatRealtime.Endpoint?
     private var listLive: ChatRealtime?
     private var chatLive: ChatRealtime?
-    /// Messages envoyés pas encore confirmés : gardés en bas de la conversation jusqu'à leur retour du serveur.
-    private var pending: [Conversation.Message] = []
+    /// Messages envoyés pas encore revenus du serveur, par conversation : gardés en bas de la conversation (« Envoi… »,
+    /// envoyé, ou « Pas envoyé »), même quand l'écran se ferme : un message n'est jamais perdu.
+    private var outgoing: [String: [Conversation.Message]] = [:]
+    /// Envoi à rejouer (« Toucher pour réessayer », réseau revenu), par message.
+    private var resend: [String: (chat: String, work: (String) async throws -> Void)] = [:]
+    /// Compte qui a écrit chaque message en attente.
+    private var authors: [String: String] = [:]
+    /// Réseau absent : nouveaux essais tout seuls avant « Pas envoyé ».
+    static var retryDelays: [Duration] = [.milliseconds(800), .milliseconds(2500)]
+    /// Conversations préchargées depuis la liste (dernier message connu) : une seule lecture par nouveau message.
+    private var prefetched: [String: String] = [:]
+    /// Dernière version de chaque conversation, en mémoire (compte memoryAccount) : affichée dès le toucher, sans même
+    /// relire le fichier du cache. Oubliée quand un autre compte se connecte.
+    private var memory: [String: Conversation] = [:]
+    private var memoryAccount: String?
+
+    /// Compte du jeton : un autre compte qu'avant → rien de l'ancien n'est gardé (mémoire, préchargements).
+    private func owner(_ token: String) -> String? {
+        let account = ChatsCache.account(of: token)
+        if account != memoryAccount {
+            memory = [:]
+            prefetched = [:]
+            memoryAccount = account
+        }
+        return account
+    }
+
+    private var pending: [Conversation.Message] {
+        get { conversation.flatMap { outgoing[$0.id] } ?? [] }
+        set { if let id = conversation?.id { outgoing[id] = newValue.isEmpty ? nil : newValue } }
+    }
     private var refreshing: Task<Void, Never>?
 
     /// Discussion d'un événement (écran natif ouvert depuis sa fiche) : mêmes écrans, routes /api/account/event-chat/*.
@@ -100,9 +129,12 @@ final class ChatsStore: ObservableObject {
             var list: [ChatSummary]?
             if listV2 {
                 do {
-                    // Tout d'un coup (archivées et demandes comprises) : la liste, Demandes et Archivées en découlent.
-                    let fresh: [ChatSummary] = try await api.chatsRPC(token: token, fn: "chat_list", args: ["include_archived": true])
-                    list = fresh
+                    // Tout d'un coup (archivées et demandes comprises) : la liste, Demandes et Archivées en découlent ;
+                    // l'adresse du temps réel vient avec (plus de deuxième appel à l'ancienne liste pour elle).
+                    let reply: ChatListReply = try await api.postDecoding("/api/account/chats/rpc", body: [
+                        "token": token, "fn": "chat_list", "args": ["include_archived": true]])
+                    list = reply.result
+                    if let live = reply.realtime { endpoint = live }
                 } catch PartyAPIError.server(_) {
                     listV2 = false  // serveur d'avant les Discussions v2 : l'ancienne liste
                 }
@@ -114,10 +146,32 @@ final class ChatsStore: ObservableObject {
             }
             guard let list else { return }
             if list != chats { showList(list) }
-            if let account = ChatsCache.account(of: token) { ChatsCache.save(list, account: account, name: "list") }
+            if let account = owner(token) { ChatsCache.save(list, account: account, name: "list") }
+            prefetch(list, token: token)
             if listV2, let n: Int = try? await api.chatsRPC(token: token, fn: "chat_badge") { setBadge(n) }
         }
         if chats?.isEmpty == true, suggestions == nil { await loadSuggestions() }
+    }
+
+    /// Les 3 premières discussions (hors soirées, demandes reçues et archivées) se préchargent dans le cache du téléphone
+    /// quand leur dernier message a changé : un toucher les ouvre sans attendre (lecture seule, rien n'est marqué lu).
+    private func prefetch(_ list: [ChatSummary], token: String) {
+        guard !forEvents, let account = ChatsCache.account(of: token) else { return }
+        for chat in list.filter({ !$0.isEvent && !$0.incomingRequest && !$0.archived }).prefix(3) {
+            let last = chat.lastMessage?.id ?? chat.lastAt ?? ""
+            guard prefetched[chat.id] != last, conversation?.id != chat.id else { continue }
+            prefetched[chat.id] = last
+            Task(priority: .utility) { [api] in
+                let kept = ChatsCache.load(Conversation.self, account: account, name: "chat-" + chat.id)
+                if !last.isEmpty, kept?.messages.last?.id == last { return }
+                guard let fresh = try? await api.openChat(token: token, group: chat.id, direct: chat.direct, prefetch: true) else {
+                    self.prefetched[chat.id] = nil
+                    return
+                }
+                ChatsCache.save(fresh, account: account, name: "chat-" + chat.id)
+                if self.memoryAccount == account { self.memory[chat.id] = fresh }
+            }
+        }
     }
 
     /// Nouvelle liste à l'écran (et pastille recalculée d'après elle, en attendant chat_badge).
@@ -341,20 +395,33 @@ final class ChatsStore: ObservableObject {
         if demo { return }
         #endif
         if conversation?.id != group {
-            pending = []
-            // Dernière version gardée sur le téléphone : la conversation s'affiche sans attendre le serveur.
-            conversation = await account().flatMap { ChatsCache.load(Conversation.self, account: $0, name: "chat-" + group) }
+            // Dernière version gardée sur le téléphone : la conversation s'affiche sans attendre le serveur (avec les
+            // messages pas encore partis de cette conversation).
+            var kept = memory[group]
+            if kept == nil { kept = await account().flatMap { ChatsCache.load(Conversation.self, account: $0, name: "chat-" + group) } }
+            let waiting = outgoing[group] ?? []
+            conversation = kept.map { waiting.isEmpty ? $0 : $0.with(messages: $0.messages.filter { m in !waiting.contains { $0.id == m.id } } + waiting) }
         }
         await run(loading: conversation == nil) { token in
             let fresh = forEvents ? try await api.openEventChat(token: token, event: group)
                                   : try await api.openChat(token: token, group: group, direct: isDirect(group))
             if let live = fresh.realtime { endpoint = live }
-            if let account = ChatsCache.account(of: token) { ChatsCache.save(fresh, account: account, name: "chat-" + group) }
+            if let account = owner(token) { ChatsCache.save(fresh, account: account, name: "chat-" + group) }
+            memory[group] = fresh
             let changed = fresh.messages.last?.id != conversation?.messages.filter { !$0.pending }.last?.id || conversation == nil
-            pending.removeAll { p in fresh.messages.contains { $0.id == p.id } }
-            let shown = pending.isEmpty ? fresh : fresh.with(messages: fresh.messages + pending)
+            // Revenus du serveur : ils quittent la file ; les autres restent en bas (envoi, envoyé, pas envoyé).
+            var waiting = outgoing[group] ?? []
+            waiting.removeAll { p in fresh.messages.contains { $0.id == p.id } }
+            outgoing[group] = waiting.isEmpty ? nil : waiting
+            ChatTiming.mark("conv.fresh")
+            for m in fresh.messages where !m.mine && conversation?.messages.contains(where: { $0.id == m.id }) == false {
+                ChatTiming.mark("recv." + m.id)
+            }
+            let shown = waiting.isEmpty ? fresh : fresh.with(messages: fresh.messages + waiting)
             if shown != conversation { conversation = shown }
             if changed && fresh.member && !forEvents { try? await api.readChat(token: token, group: group, direct: fresh.isDirect) }
+            // Le serveur répond : les messages restés « pas envoyés » repartent.
+            for m in waiting where m.failed { Task { await self.retry(m) } }
         }
         if chatLive == nil, conversation?.id == group { await startChatLive(group) }
     }
@@ -383,69 +450,169 @@ final class ChatsStore: ObservableObject {
         chatLive?.stop()
         chatLive = nil
         conversation = nil
-        pending = []
     }
 
     /// Texte : affiché tout de suite, envoyé en un seul appel (citations calculées ici). Photo : envoyée d'abord.
     /// announce : interrupteur 📣 de l'organisation d'un événement (vaut « @annonce »).
+    /// false seulement si le message est refusé (filtre, demande, CGU…) : le texte revient alors dans le champ ;
+    /// réseau absent : la bulle reste (« Pas envoyé · Toucher pour réessayer »), rien n'est perdu.
     func send(_ text: String, replyTo: String?, photo: Data? = nil, announce: Bool = false) async -> Bool {
         guard let chat = conversation else { return false }
         let body = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty || photo != nil else { return false }
         let id = UUID().uuidString.lowercased()
-        if photo == nil { show(Self.draft(id: id, body: body, replyTo: replyTo, in: chat, announce: announce)) } else { sending = true }
-        defer { sending = false }
-        var sent = false
-        await run { token in
-            if forEvents {
-                let path = try await photo.asyncMap { try await api.uploadEventChatFile(token: token, event: chat.id, data: $0, audio: false) }
-                try await api.sendEventChat(token: token, event: chat.id, body: body, replyTo: replyTo, photoPath: path,
-                                            mentions: chat.mentions(in: body, me: chat.me), id: id, announcement: announce)
-            } else {
-                let path = try await photo.asyncMap { try await api.uploadChatPhoto(token: token, group: chat.id, jpeg: $0) }
-                try await api.sendChat(token: token, group: chat.id, body: body, replyTo: replyTo, photoPath: path,
-                                       mentions: chat.mentions(in: body, me: chat.me), id: id, direct: chat.isDirect)
+        let mentions = chat.mentions(in: body, me: chat.me)
+        let (api, forEvents) = (api, forEvents)
+        if let photo {
+            sending = true
+            defer { sending = false }
+            var sent = false
+            await run { token in
+                if forEvents {
+                    let path = try await api.uploadEventChatFile(token: token, event: chat.id, data: photo, audio: false)
+                    try await api.sendEventChat(token: token, event: chat.id, body: body, replyTo: replyTo, photoPath: path,
+                                                mentions: mentions, id: id, announcement: announce)
+                } else {
+                    let path = try await api.uploadChatPhoto(token: token, group: chat.id, jpeg: photo)
+                    try await api.sendChat(token: token, group: chat.id, body: body, replyTo: replyTo, photoPath: path,
+                                           mentions: mentions, id: id, direct: chat.isDirect)
+                }
+                sent = true
             }
-            sent = true
+            await open(chat.id)
+            return sent
         }
-        if !sent { drop(id) }
-        await open(chat.id)
-        return sent
+        guard let sending = sendNow(body, replyTo: replyTo, announce: announce) else { return false }
+        return await sending.value
     }
 
-    /// Vocal : bulle affichée tout de suite (« Envoi… »), fichier envoyé puis message ; le fichier local est effacé.
+    /// Texte : la bulle est affichée tout de suite, dans le geste même (synchrone), puis l'envoi part ; rend la tâche
+    /// d'envoi (false : refusé). nil : rien à envoyer.
+    func sendNow(_ text: String, replyTo: String?, announce: Bool = false) -> Task<Bool, Never>? {
+        guard let chat = conversation else { return nil }
+        let body = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !body.isEmpty else { return nil }
+        let id = UUID().uuidString.lowercased()
+        let mentions = chat.mentions(in: body, me: chat.me)
+        let (api, forEvents) = (api, forEvents)
+        show(Self.draft(id: id, body: body, replyTo: replyTo, in: chat, announce: announce))
+        return Task {
+            await deliver(id, chat: chat.id) { token in
+                if forEvents {
+                    try await api.sendEventChat(token: token, event: chat.id, body: body, replyTo: replyTo, photoPath: nil,
+                                                mentions: mentions, id: id, announcement: announce)
+                } else {
+                    try await api.sendChat(token: token, group: chat.id, body: body, replyTo: replyTo, photoPath: nil,
+                                           mentions: mentions, id: id, direct: chat.isDirect)
+                }
+            }
+        }
+    }
+
+    /// Vocal : bulle affichée tout de suite (« Envoi… »), fichier envoyé puis message ; le fichier local est effacé
+    /// (l'enregistrement reste en mémoire pour un nouvel essai, le fichier n'est déposé qu'une fois).
     func sendVoice(_ file: URL, seconds: TimeInterval, replyTo: String?) async {
         guard let chat = conversation, let data = try? Data(contentsOf: file) else { return }
-        defer { try? FileManager.default.removeItem(at: file) }
+        try? FileManager.default.removeItem(at: file)
         let id = UUID().uuidString.lowercased()
         var draft = Self.draft(id: id, body: "", replyTo: replyTo, in: chat)
         draft.audioSeconds = seconds
         show(draft)
-        var sent = false
-        await run { token in
+        let (api, forEvents) = (api, forEvents)
+        let uploaded = UploadedPath()
+        _ = await deliver(id, chat: chat.id) { token in
             if forEvents {
-                let path = try await api.uploadEventChatFile(token: token, event: chat.id, data: data, audio: true)
+                let path = try await uploaded.value { try await api.uploadEventChatFile(token: token, event: chat.id, data: data, audio: true) }
                 try await api.sendEventChat(token: token, event: chat.id, body: "", replyTo: replyTo, photoPath: nil, mentions: [],
                                             id: id, audioPath: path, audioSeconds: seconds)
             } else {
-                let path = try await api.uploadChatAudio(token: token, group: chat.id, audio: data)
+                let path = try await uploaded.value { try await api.uploadChatAudio(token: token, group: chat.id, audio: data) }
                 try await api.sendChat(token: token, group: chat.id, body: "", replyTo: replyTo, photoPath: nil, mentions: [],
                                        id: id, audioPath: path, audioSeconds: seconds, direct: chat.isDirect)
             }
-            sent = true
         }
-        if !sent { drop(id) }
-        await open(chat.id)
+    }
+
+    /// « Pas envoyé · Toucher pour réessayer » (ou réseau revenu) : le même message, avec le même identifiant.
+    func retry(_ message: Conversation.Message) async {
+        // État actuel (pas celui du toucher) : un message déjà reparti n'est pas envoyé deux fois.
+        guard let job = resend[message.id], outgoing[job.chat]?.first(where: { $0.id == message.id })?.failed == true else { return }
+        mark(message.id, in: job.chat) { $0.failed = false; $0.pending = true }
+        _ = await deliver(message.id, chat: job.chat, job.work)
+    }
+
+    /// Envoie (dans l'ordre d'appel) ; réseau absent : nouveaux essais, puis « Pas envoyé ». Rend false si refusé.
+    private func deliver(_ id: String, chat: String, _ work: @escaping (String) async throws -> Void) async -> Bool {
+        resend[id] = (chat, work)
+        var attempt = 0
+        while true {
+            guard let token = await web?.accountToken() else {
+                mark(id, in: chat) { $0.pending = false; $0.failed = true }
+                return true
+            }
+            // Écrit avec un compte : jamais renvoyé avec un autre (déconnexion, autre compte entre deux essais).
+            let account = ChatsCache.account(of: token) ?? ""
+            if let author = authors[id], author != account {
+                resend[id] = nil
+                authors[id] = nil
+                forget(id, in: chat)
+                return true
+            }
+            authors[id] = account
+            do {
+                try await work(token)
+                resend[id] = nil
+                authors[id] = nil
+                ChatTiming.mark("send.ok")
+                // Envoyé : ✓ tout de suite ; la relecture (temps réel, ou juste après) le remplace par la version du serveur.
+                mark(id, in: chat) { $0.pending = false; $0.failed = false }
+                if conversation?.id == chat { refreshSoon(chat) }
+                return true
+            } catch PartyAPIError.offline {
+                if attempt < Self.retryDelays.count {
+                    try? await Task.sleep(for: Self.retryDelays[attempt])
+                    attempt += 1
+                    continue
+                }
+                mark(id, in: chat) { $0.pending = false; $0.failed = true }
+                return true
+            } catch PartyAPIError.needsCode {
+                mark(id, in: chat) { $0.pending = false; $0.failed = true }
+                notice = "Ta connexion a expiré : reconnecte-toi dans Réglages"
+                return true
+            } catch {
+                resend[id] = nil
+                authors[id] = nil
+                forget(id, in: chat)
+                notice = error.localizedDescription
+                return false
+            }
+        }
     }
 
     private func show(_ message: Conversation.Message) {
         pending.append(message)
         if let chat = conversation { conversation = chat.with(messages: chat.messages + [message]) }
+        ChatTiming.mark("send.bubble")
     }
 
-    private func drop(_ id: String) {
-        pending.removeAll { $0.id == id }
-        if let chat = conversation { conversation = chat.with(messages: chat.messages.filter { $0.id != id }) }
+    /// Change l'état d'un message en attente (dans sa conversation, et à l'écran si elle est ouverte).
+    private func mark(_ id: String, in chat: String, _ change: (inout Conversation.Message) -> Void) {
+        if var list = outgoing[chat], let i = list.firstIndex(where: { $0.id == id }) {
+            change(&list[i])
+            outgoing[chat] = list
+        }
+        if let open = conversation, open.id == chat, let i = open.messages.firstIndex(where: { $0.id == id }) {
+            var messages = open.messages
+            change(&messages[i])
+            conversation = open.with(messages: messages)
+        }
+    }
+
+    private func forget(_ id: String, in chat: String) {
+        outgoing[chat]?.removeAll { $0.id == id }
+        if outgoing[chat]?.isEmpty == true { outgoing[chat] = nil }
+        if let open = conversation, open.id == chat { conversation = open.with(messages: open.messages.filter { $0.id != id }) }
     }
 
     nonisolated static func draft(id: String, body: String, replyTo: String?, in chat: Conversation,
@@ -563,4 +730,22 @@ private extension Optional {
         guard let value = self else { return nil }
         return try await transform(value)
     }
+}
+
+/// Chemin du vocal déposé : gardé d'un essai à l'autre (le fichier n'est déposé qu'une fois).
+private final class UploadedPath: @unchecked Sendable {
+    private var path: String?
+
+    func value(_ upload: () async throws -> String) async throws -> String {
+        if let path { return path }
+        let fresh = try await upload()
+        path = fresh
+        return fresh
+    }
+}
+
+/// Réponse de chat_list par le relais : la liste et l'adresse du temps réel.
+private struct ChatListReply: Decodable {
+    let result: [ChatSummary]
+    let realtime: ChatRealtime.Endpoint?
 }

@@ -93,7 +93,7 @@ struct ConversationView: View {
                 if let request, chat.blocked != true {
                     requestBanner(request, chat: chat).motionTransition(.unfold)
                 }
-                messages(chat).transition(.opacity)
+                messages(chat).transition(.opacity).onAppear { ChatTiming.mark("conv.shown") }
                 if chat.blocked == true {
                     // Message direct : j'ai bloqué cette personne ; l'historique reste, l'écriture revient en la débloquant.
                     footNote("Tu as bloqué \(title). Débloque-le dans les infos (…) pour lui écrire.")
@@ -153,6 +153,8 @@ struct ConversationView: View {
         .overlay(alignment: .bottom) { notice }
         .task(id: group) {
             v2.attach(store)
+            // Conditions d'utilisation lues dès l'ouverture : le premier message part sans attendre le serveur.
+            Task { _ = await store.moderation.termsAccepted() }
             while !Task.isCancelled {
                 await store.open(group)
                 if let chat { await v2.refreshSeen(chat) }
@@ -485,7 +487,12 @@ struct ConversationView: View {
         let extra = v2.extras[m.id]
         let canEdit = chat.member && chat.blocked != true && ConversationRules.canEdit(m, isEvent: chat.isEvent)
         let canPrivate = writeDirect != nil && !chat.isDirect && !m.mine && !m.deleted && !m.pending && v2.canRelay
-        Group {
+        let seen = chat.isDirect && ConversationRules.seen(m, lastMine: lastMine, seenAt: v2.seenAt)
+        let key = BubbleKey(message: m, first: first, last: last, names: names, reactions: chat.reactions, chatName: chat.name,
+                            flags: [chat.member, chat.admin, chat.isStaff, chat.isDirect, chat.isEvent, v2.request(in: chat) == nil,
+                                    canEdit, canPrivate, seen],
+                            extra: extra, card: extra?.eventID.flatMap { v2.cards[$0] })
+        SameBubble(key: key) { Group {
             if m.isAnnouncement {
                 AnnouncementCard(message: m, names: names, reactions: chat.reactions, canWrite: chat.member, isStaff: chat.isStaff,
                                  isAdmin: chat.admin, player: player,
@@ -498,7 +505,7 @@ struct ConversationView: View {
                            reactions: chat.reactions, canWrite: chat.member && v2.request(in: chat) == nil, isAdmin: chat.admin,
                            isStaff: chat.isStaff, canPin: chat.admin || chat.isDirect, player: player,
                            quote: extra?.quote, eventID: extra?.eventID, card: extra?.eventID.flatMap { v2.cards[$0] } ?? extra?.eventCard,
-                           seen: chat.isDirect && ConversationRules.seen(m, lastMine: lastMine, seenAt: v2.seenAt),
+                           seen: seen,
                            onReact: { emoji in Haptics.tap(); Task { await store.react(m, emoji) } },
                            onReply: { reply(to: m) },
                            onQuote: { if let id = m.reply?.id { jumpTo = id } },
@@ -508,9 +515,11 @@ struct ConversationView: View {
                            onEdit: canEdit ? { startEdit(m) } : nil,
                            onPrivateReply: canPrivate ? { replyPrivately(to: m, in: chat) } : nil,
                            onAuthor: { person = PersonRef(id: m.author) },
-                           onOpenEvent: routes.openEvent)
+                           onOpenEvent: routes.openEvent,
+                           onRetry: m.failed ? { Haptics.tap(); Task { await store.retry(m) } } : nil)
             }
-        }
+        } }
+        .equatable()
         .background(RoundedRectangle(cornerRadius: 14).fill(accent.opacity(flashing == m.id ? 0.22 : 0)).padding(-4))
         .id(m.id)
         .listRowBackground(Color.clear)
@@ -746,6 +755,7 @@ struct ConversationView: View {
     private func sendButton(_ chat: Conversation) -> some View {
         Button {
             // Champ vidé tout de suite, message affiché aussitôt ; en cas d'échec, le texte revient.
+            ChatTiming.mark("send.tap")
             Haptics.tap()
             let typed = text, quoted = replyTo, announce = announcing, edited = editing, privateQuoted = privateQuote
             text = ""
@@ -753,6 +763,18 @@ struct ConversationView: View {
             announcing = false
             editing = nil
             privateQuote = nil
+            // CGU déjà acceptées (lues à l'ouverture) : la bulle s'affiche dans ce même geste, sans attendre.
+            if edited == nil, privateQuoted == nil || !chat.isDirect, store.moderation.terms?.accepted == true,
+               let sending = store.sendNow(typed, replyTo: quoted?.id, announce: announce) {
+                Task {
+                    guard !(await sending.value) else { return }
+                    // Refusé : le texte revient (sans écraser ce qui a été écrit entre-temps).
+                    if text.isEmpty { text = typed }
+                    if replyTo == nil { replyTo = quoted }
+                    announcing = announce
+                }
+                return
+            }
             Task {
                 if let edited {
                     if !(await v2.edit(edited, to: typed, in: chat)) { text = typed; editing = edited }
@@ -768,8 +790,9 @@ struct ConversationView: View {
                 if let privateQuoted, chat.isDirect {
                     if !(await v2.send(typed, quote: privateQuoted, in: chat)) { text = typed; privateQuote = privateQuoted }
                 } else if !(await store.send(typed, replyTo: quoted?.id, announce: announce)) {
-                    text = typed
-                    replyTo = quoted
+                    // Refusé : le texte revient (sans écraser ce qui a été écrit entre-temps).
+                    if text.isEmpty { text = typed }
+                    if replyTo == nil { replyTo = quoted }
                     announcing = announce
                 }
             }
@@ -901,6 +924,29 @@ struct ConversationView: View {
     }
 }
 
+/// Ce qu'une bulle montre : si rien n'a changé, elle n'est pas redessinée quand le reste de l'écran l'est (chaque
+/// lettre tapée, vitesse 18.11 : la frappe ne refait plus tout le fil). Ses actions suivent le même message.
+private struct BubbleKey: Equatable {
+    let message: Conversation.Message
+    let first: Bool
+    let last: Bool
+    let names: [String]
+    let reactions: [String]
+    let chatName: String
+    let flags: [Bool]
+    let extra: MessageExtra?
+    let card: ChatEventCard?
+}
+
+private struct SameBubble<Content: View>: View, Equatable {
+    let key: BubbleKey
+    @ViewBuilder let content: () -> Content
+
+    static func == (a: Self, b: Self) -> Bool { a.key == b.key }
+
+    var body: some View { content() }
+}
+
 /// Séparateur de jour, centré, en capitales : « AUJOURD'HUI », « HIER », « LUNDI », « 12 NOVEMBRE ».
 private struct DayPill: View {
     let label: String
@@ -927,7 +973,9 @@ private struct MessageMeta: View {
             Text(message.date?.formatted(date: .omitted, time: .shortened) ?? "")
             if seen { Text("· Vu") }
             if message.mine && !message.deleted {
-                if message.pending {
+                if message.failed {
+                    Image(systemName: "exclamationmark.circle.fill").font(.system(size: 10, weight: .bold))
+                } else if message.pending {
                     Image(systemName: "clock").font(.system(size: 9, weight: .bold))
                 } else {
                     // ✓ envoyé ; ✓✓ lavande clair une fois vu.
@@ -1015,8 +1063,10 @@ private struct ChatBubble: View {
     var onPrivateReply: (() -> Void)?
     var onAuthor: (() -> Void)?
     var onOpenEvent: (@MainActor (String) -> Void)?
+    /// Message pas parti (réseau absent) : un toucher le renvoie.
+    var onRetry: (() -> Void)?
 
-    private var actions: Bool { (canWrite || (!message.mine && onReport != nil)) && !message.deleted && !message.pending }
+    private var actions: Bool { (canWrite || (!message.mine && onReport != nil)) && !message.deleted && !message.pending && !message.failed }
     private var avatar: CGFloat { 28 }
     /// Une carte de soirée seule (sans texte) : pas de bulle autour, l'heure dessous.
     private var cardOnly: Bool {
@@ -1060,21 +1110,35 @@ private struct ChatBubble: View {
                         .offset(y: -9).padding(.horizontal, 10).padding(.bottom, -9)
                         .motionTransition(.scale(scale: 0.6, anchor: message.mine ? .trailing : .leading).combined(with: .opacity))
                 }
+                if message.failed {
+                    Button { onRetry?() } label: {
+                        Label("Pas envoyé · Toucher pour réessayer", systemImage: "exclamationmark.circle.fill")
+                            .font(.caption.weight(.semibold)).foregroundStyle(PronoTheme.pinkInk)
+                            .frame(minHeight: 30)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("chat-retry")
+                    .motionTransition(.opacity.combined(with: .move(edge: .top)))
+                }
             }
             if !message.mine { Spacer(minLength: 56) }
         }
         .motion(Motion.smooth, value: message.pending)
+        .motion(Motion.snappy, value: message.failed)
+        .onAppear { ChatTiming.mark(message.pending ? "send.appear" : message.mine ? "mine.appear" : "recv.appear." + message.id) }
         .motion(Motion.smooth, value: seen)
         .motion(Motion.bouncy, value: message.reactions.map { "\($0.emoji)\($0.count)\($0.mine)" })
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibility)
         .accessibilityHint(actions ? "Glisse vers la droite pour répondre ; appui long pour réagir\(onEdit != nil ? ", modifier" : "")\(canPin ? ", épingler" : "") ou supprimer" : "")
         .accessibilityAction(named: "Répondre") { if actions && canWrite { onReply() } }
+        .accessibilityAction(named: "Réessayer") { onRetry?() }
     }
 
     private var accessibility: String {
         let who = message.mine ? "Toi" : ContactNames.shared.label(for: message.author, pseudo: message.authorName).text
-        let time = message.pending ? "envoi en cours" : message.date?.formatted(date: .omitted, time: .shortened) ?? ""
+        let time = message.failed ? "pas envoyé, touche pour réessayer" : message.pending ? "envoi en cours"
+            : message.date?.formatted(date: .omitted, time: .shortened) ?? ""
         var parts = ["\(who), \(time)"]
         if let card { parts.append("soirée \(card.title)") }
         if let quote { parts.append("réponse privée à \(quote.author) : \(quote.excerpt)") }

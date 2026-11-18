@@ -127,6 +127,7 @@ struct ChatsView: View {
     }
 
     private func open(_ chat: ChatSummary) {
+        ChatTiming.mark("row.tap")
         Haptics.selection()
         if chat.isEvent && chat.needsReading { Task { await store.markEventRead(chat.id) } }
         path.append(chat.isEvent ? .event(chat.id) : .chat(chat.id))
@@ -233,6 +234,7 @@ struct ChatsView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
+        .onAppear { ChatTiming.mark("list.shown") }
         // Nouveau message : sa discussion remonte en tête en glissant, sans saut.
         .motion(Motion.snappy, value: chats.map(\.id))
         .motion(Motion.smooth, value: filter)
