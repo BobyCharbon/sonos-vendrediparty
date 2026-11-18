@@ -23,6 +23,10 @@ final class ChatRealtime {
     /// messages, réactions, épingles et suppressions (migration 20261116140000).
     private let broadcast: Bool
     private let changed: () -> Void
+    /// « écrit… » (Discussions v2, 18.11) : canal de diffusion « typing:<kind>:<id> », rien n'est écrit en base ;
+    /// chaque signal reçu (`{user, name}`) passe ici au lieu de `changed`.
+    private var onTyping: (([String: String]) -> Void)?
+    private var joinRef = "1"
     private var socket: URLSessionWebSocketTask?
     private var tasks: [Task<Void, Never>] = []
     private var ref = 0
@@ -55,6 +59,18 @@ final class ChatRealtime {
         self.changed = changed
     }
 
+    /// « écrit… » : même canal que la page web (`typing:direct:<id>`, `typing:group:<id>`, `typing:event:<id>`).
+    convenience init(endpoint: Endpoint, token: String, typing channel: String, onTyping: @escaping ([String: String]) -> Void) {
+        self.init(endpoint: endpoint, token: token, signal: channel, changed: {})
+        self.onTyping = onTyping
+    }
+
+    /// Signale que j'écris (canal « écrit… » seulement).
+    func sendTyping(_ payload: [String: String]) {
+        guard onTyping != nil else { return }
+        send(Self.typingMessage(topic: topic, payload: payload, ref: nextRef(), joinRef: joinRef))
+    }
+
     func start() {
         stopped = false
         connect()
@@ -80,6 +96,7 @@ final class ChatRealtime {
         let socket = URLSession.shared.webSocketTask(with: url)
         self.socket = socket
         socket.resume()
+        joinRef = String(ref + 1)
         send(broadcast ? Self.signalJoin(topic: topic, token: token, ref: nextRef())
                        : Self.joinMessage(topic: topic, filter: filter, token: token, ref: nextRef(), direct: direct))
         tasks.append(Task { [weak self] in await self?.listen(socket) })
@@ -124,7 +141,10 @@ final class ChatRealtime {
     private func listen(_ socket: URLSessionWebSocketTask) async {
         while !Task.isCancelled {
             guard let message = try? await socket.receive() else { break }
-            if case .string(let text) = message, Self.isChange(text) { changed() }
+            guard case .string(let text) = message else { continue }
+            if let onTyping {
+                if let who = Self.typingPayload(text) { onTyping(who) }
+            } else if Self.isChange(text) { changed() }
         }
         // Coupure (réseau, app en arrière-plan) : on se reconnecte tant que l'écran est ouvert.
         guard !stopped, !Task.isCancelled else { return }
@@ -133,6 +153,23 @@ final class ChatRealtime {
         tasks.forEach { $0.cancel() }
         tasks = []
         connect()
+    }
+
+    /// Diffusion « typing » (protocole Phoenix de Supabase Realtime, comme `channel.send` côté web).
+    nonisolated static func typingMessage(topic: String, payload: [String: String], ref: String, joinRef: String) -> [String: Any] {
+        ["topic": topic, "event": "broadcast", "ref": ref, "join_ref": joinRef,
+         "payload": ["type": "broadcast", "event": "typing", "payload": payload]]
+    }
+
+    /// `{user, name}` d'un signal « typing » reçu ; nil pour tout le reste (réponses, battements, autres diffusions).
+    nonisolated static func typingPayload(_ text: String) -> [String: String]? {
+        guard let data = text.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              json["event"] as? String == "broadcast",
+              let outer = json["payload"] as? [String: Any], outer["event"] as? String == "typing",
+              let inner = outer["payload"] as? [String: Any],
+              let user = inner["user"] as? String, !user.isEmpty else { return nil }
+        return ["user": user, "name": (inner["name"] as? String) ?? ""]
     }
 
     /// Un événement « postgres_changes » (nouveau message, suppression, réaction…) ; le reste (réponses, battements) est ignoré.

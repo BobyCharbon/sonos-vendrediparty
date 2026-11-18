@@ -5,13 +5,24 @@ import SwiftUI
 /// messages d'une même personne regroupés (nom en tête, photo en bas), heure dans la bulle, @citations en couleur,
 /// citation qui remonte au message d'origine, bouton ↓ avec les nouveaux messages, bandeau des annonces et épinglés
 /// qui passe de l'un à l'autre, annonces en carte. Glisser une bulle vers la droite : répondre ; appui long : réagir,
-/// répondre, copier, épingler, supprimer, signaler.
+/// répondre, copier, modifier, répondre en privé, épingler, supprimer, signaler.
+/// Discussions v2 (18.11) : graphisme Néon club (maquette 1-neon/4), en-tête photo + nom (→ mini-profil), carte de soirée,
+/// citation privée, « Vu », « écrit… », demandes de message (ConversationModel).
 struct ConversationView: View {
     @ObservedObject var store: ChatsStore
     let group: String
 
+    @StateObject private var v2 = ConversationModel()
+    @Environment(\.conversationRoutes) private var routes
+    @Environment(\.writeDirect) private var writeDirect
+    @Environment(\.dismiss) private var dismiss
     @State private var text = ""
     @State private var replyTo: Conversation.Message?
+    /// « Modifier » : le message dont le texte est dans le champ (15 min après l'envoi au plus).
+    @State private var editing: Conversation.Message?
+    /// « Répondre en privé » depuis un groupe ou une soirée : la citation part avec le prochain message direct.
+    @State private var privateQuote: PrivateQuote?
+    @State private var person: PersonRef?
     @State private var picked: PhotosPickerItem?
     @State private var showInfo = false
     @FocusState private var writing: Bool
@@ -26,6 +37,7 @@ struct ConversationView: View {
     /// Modération commune : « Signaler » un message ; conditions d'utilisation avant le premier message.
     @State private var reporting: ReportTarget?
     @State private var askTerms = false
+    @State private var confirmBlock = false
     /// Organisation d'un événement : le prochain message part en annonce (📣).
     @State private var announcing = false
     /// Bas du fil visible ; sinon le bouton ↓ apparaît avec le nombre de messages arrivés entre-temps.
@@ -40,7 +52,7 @@ struct ConversationView: View {
     @State private var confirmLeave = false
 
     private var chat: Conversation? { store.conversation?.id == group ? store.conversation : nil }
-    private var accent: Color { Color(uiColor: AppConfig.uiAccent) }
+    private var accent: Color { ConvNeon.lav }
     private static let end = "chat-end"
 
     /// Titre : message direct, « Nom du contact · pseudo » de l'autre personne ; groupe ou événement, son nom.
@@ -56,6 +68,17 @@ struct ConversationView: View {
         return n == 1 ? "1 membre" : "\(n) membres"
     }
 
+    private var typingLine: String? {
+        guard let chat else { return nil }
+        return ConversationRules.typingLabel(v2.typing.values.sorted(), direct: chat.isDirect)
+    }
+
+    /// Clé des relectures v2 : nouvelle conversation, nouveau message, message confirmé.
+    private var v2Key: String {
+        guard let chat else { return "" }
+        return "\(chat.id)|\(chat.messages.count)|\(chat.messages.last?.id ?? "")|\(chat.messages.last?.pending == true)"
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             if let note = joinNote {
@@ -66,76 +89,174 @@ struct ConversationView: View {
                 if !pins.isEmpty {
                     pinnedBanner(pins, chat: chat).motionTransition(.unfold)
                 }
+                let request = v2.request(in: chat)
+                if let request, chat.blocked != true {
+                    requestBanner(request, chat: chat).motionTransition(.unfold)
+                }
                 messages(chat).transition(.opacity)
                 if chat.blocked == true {
                     // Message direct : j'ai bloqué cette personne ; l'historique reste, l'écriture revient en la débloquant.
-                    Text("Tu as bloqué \(title). Débloque-le dans les infos (ⓘ) pour lui écrire.")
-                        .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                        .padding().frame(maxWidth: .infinity).background(.bar)
+                    footNote("Tu as bloqué \(title). Débloque-le dans les infos (…) pour lui écrire.")
+                } else if request == .incoming || (request == .outgoing && chat.messages.contains { $0.mine }) {
+                    // Demande : le destinataire répond après avoir accepté ; l'expéditeur a envoyé son seul message.
+                    EmptyView()
                 } else if chat.member {
-                    composer(chat)
+                    composer(chat, textOnly: request == .outgoing)
                 } else if chat.isEvent {
-                    Text("Tu peux lire la discussion ; tu pourras écrire une fois l'événement publié et ta place confirmée.")
-                        .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center)
-                        .padding().frame(maxWidth: .infinity).background(.bar)
+                    footNote("Tu peux lire la discussion ; tu pourras écrire une fois l'événement publié et ta place confirmée.")
                 }
             } else if let error = store.error {
-                Text(error).foregroundStyle(.secondary).padding().frame(maxHeight: .infinity).transition(.opacity)
+                Text(error).foregroundStyle(ConvNeon.t2).padding().frame(maxHeight: .infinity).transition(.opacity)
             } else {
-                ProgressView().frame(maxHeight: .infinity).transition(.opacity)
+                ProgressView().tint(ConvNeon.lav).frame(maxHeight: .infinity).transition(.opacity)
             }
         }
         // Chargement → conversation : fondu ; message épinglé ou désépinglé : le bandeau se déplie.
         .motion(Motion.smooth, value: chat == nil)
         .motion(Motion.snappy, value: chat?.pins.map(\.id))
-        .background(AppConfig.background.ignoresSafeArea())
+        .motion(Motion.snappy, value: v2.status)
+        .foregroundStyle(ConvNeon.t1)
+        .background(ZStack { ConvNeon.bg; ConvNeon.halo }.ignoresSafeArea())
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(ConvNeon.bg, for: .navigationBar)
         .toolbar {
-            ToolbarItem(placement: .principal) {
-                // Titre et sous-titre, comme WhatsApp : un toucher ouvre les infos.
-                Button { showInfo = true } label: {
-                    VStack(spacing: 0) {
-                        Text(title).font(.headline).lineLimit(1)
-                        if let subtitle { Text(subtitle).font(.caption2).foregroundStyle(.secondary).lineLimit(1) }
-                    }
-                }
-                .buttonStyle(.plain)
-                .disabled(chat == nil)
-                .accessibilityHint("Ouvre les infos")
-            }
+            ToolbarItem(placement: .principal) { header }
             ToolbarItem(placement: .navigationBarTrailing) {
-                Button { showInfo = true } label: { Image(systemName: "info.circle") }
-                    .accessibilityLabel(chat?.isDirect == true ? "Infos de la conversation" : chat?.isEvent == true ? "Participants et notifications" : "Infos du groupe")
-                    .disabled(chat == nil)
+                Button { showInfo = true } label: {
+                    Image(systemName: "ellipsis").font(.body.weight(.bold)).foregroundStyle(ConvNeon.lav)
+                        .frame(width: 44, height: 44)
+                }
+                .accessibilityLabel(chat?.isDirect == true ? "Infos de la conversation" : chat?.isEvent == true ? "Participants et notifications" : "Infos du groupe")
+                .disabled(chat == nil)
             }
         }
         .sheet(isPresented: $showInfo) {
             if store.conversation?.isEvent == true { EventChatInfoView(store: store) }
             else if store.conversation?.isDirect == true { DirectChatInfoView(store: store) } else { ChatInfoView(store: store) }
         }
-        .sheet(item: $reporting) { ReportSheet(store: store.moderation, target: $0) }
+        .sheet(item: $reporting) { target in
+            if v2.canRelay { MessageReportSheet(model: v2, target: target) } else { ReportSheet(store: store.moderation, target: target) }
+        }
         .sheet(isPresented: $askTerms) { TermsAcceptSheet(store: store.moderation) }
+        .personSheet($person, store: store, routes: routes, canWrite: chat?.isDirect != true)
+        .confirmationDialog("Bloquer \(title) ?", isPresented: $confirmBlock, titleVisibility: .visible) {
+            Button("Bloquer", role: .destructive) {
+                Task {
+                    await store.setBlocked(true)
+                    dismiss()
+                }
+            }
+        } message: {
+            Text("Sa demande disparaît et elle ne pourra plus t'écrire. Les modérateurs sont prévenus. Tu pourras débloquer dans Réglages › Confidentialité.")
+        }
         .overlay(alignment: .bottom) { notice }
         .task(id: group) {
+            v2.attach(store)
             while !Task.isCancelled {
                 await store.open(group)
+                if let chat { await v2.refreshSeen(chat) }
                 try? await Task.sleep(for: ChatsStore.conversationEvery)
             }
         }
-        .onDisappear { store.close(); player.stop(); micLocked = false; _ = recorder.stop(send: false) }
+        .task(id: v2Key) {
+            v2.attach(store)
+            if let chat { await v2.update(chat) }
+        }
+        // « Répondre en privé » : la citation attend la conversation directe avec cette personne.
+        .task(id: chat?.userID) {
+            if let user = chat?.userID, chat?.isDirect == true, let quote = ConversationRules.pendingQuotes.removeValue(forKey: user) {
+                Motion.animate { privateQuote = quote }
+                writing = true
+            }
+        }
+        .onDisappear { store.close(); v2.stop(); player.stop(); micLocked = false; _ = recorder.stop(send: false) }
         .onChange(of: picked) { item in Task { await sendPhoto(item) } }
         .onChange(of: chat?.joinNote) { note in if joinNote == nil, let note { Motion.animate(Motion.snappy) { joinNote = note } } }
+        .onChange(of: text) { value in if let chat, !value.isEmpty, editing == nil { v2.typed(in: chat) } }
+        .onChange(of: chat?.messages.last?.id) { _ in
+            if let last = chat?.messages.last, !last.mine { v2.messageArrived(from: last.author) }
+        }
+    }
+
+    // MARK: En-tête (photo, nom → mini-profil)
+
+    private var header: some View {
+        Button {
+            Haptics.tap()
+            if let chat, chat.isDirect, let user = chat.userID { person = PersonRef(id: user) } else { showInfo = true }
+        } label: {
+            HStack(spacing: 10) {
+                headerAvatar
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(title).font(.system(.headline, design: .rounded).weight(.heavy)).foregroundStyle(ConvNeon.t1).lineLimit(1)
+                    if let typingLine {
+                        Text(typingLine).font(.caption.weight(.semibold)).foregroundStyle(ConvNeon.mint).lineLimit(1)
+                            .transition(.opacity)
+                    } else if let subtitle {
+                        Text(subtitle).font(.caption).foregroundStyle(ConvNeon.t2).lineLimit(1).transition(.opacity)
+                    }
+                }
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .motion(Motion.snappy, value: typingLine)
+        .disabled(chat == nil)
+        .accessibilityLabel([title, typingLine ?? subtitle].compactMap { $0 }.joined(separator: ", "))
+        .accessibilityHint(chat?.isDirect == true ? "Ouvre son profil" : "Ouvre les infos")
+        .accessibilityIdentifier("chat-header")
+    }
+
+    @ViewBuilder private var headerAvatar: some View {
+        if let chat {
+            if chat.isDirect {
+                ConvFace(id: chat.userID ?? chat.id, name: title, photo: chat.photo, size: 34)
+            } else if chat.isEvent {
+                Image(systemName: "party.popper.fill").font(.system(size: 15, weight: .bold)).foregroundStyle(PronoTheme.fixed(0x2A1206))
+                    .frame(width: 34, height: 34)
+                    .background(ConvNeon.evening, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .accessibilityHidden(true)
+            } else {
+                let s = store.chats?.first { $0.id == chat.id }
+                GroupTile(emoji: s?.emoji ?? "👥", color: s?.color, photo: s?.photo, system: s?.system ?? false, size: 34)
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
+    private func footNote(_ text: String) -> some View {
+        Text(text).font(.footnote).foregroundStyle(ConvNeon.t2).multilineTextAlignment(.center)
+            .padding().frame(maxWidth: .infinity)
+            .background(ConvNeon.surface.ignoresSafeArea(edges: .bottom))
+            .overlay(alignment: .top) { ConvNeon.line.frame(height: 1) }
+    }
+
+    // MARK: Demande de message
+
+    private func requestBanner(_ request: MessageRequest, chat: Conversation) -> some View {
+        RequestBanner(request: request, name: title, sent: chat.messages.contains { $0.mine },
+                      onAccept: { Task { await v2.accept(chat) } },
+                      onDelete: { Task { if await v2.decline(chat) { dismiss() } } },
+                      onBlock: { confirmBlock = true },
+                      onReport: {
+                          if let first = chat.messages.first(where: { !$0.mine }) {
+                              reporting = ReportTarget(kind: .directMessage, id: first.id, label: "la demande de \(title)")
+                          } else if let user = chat.userID {
+                              reporting = ReportTarget(kind: .profile, id: user, label: title)
+                          }
+                      })
     }
 
     // MARK: Bandeau « Tu es dans le groupe » (entrée par une réponse à un événement, 17.11)
 
     private func joinBanner(_ note: Conversation.JoinNote) -> some View {
         HStack(alignment: .center, spacing: 10) {
-            Image(systemName: "person.2.fill").foregroundStyle(Color(red: 0.725, green: 0.655, blue: 1))
+            Image(systemName: "person.2.fill").foregroundStyle(ConvNeon.lav)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Tu es dans le groupe « \(note.groupName) »").font(.subheadline.weight(.semibold)).lineLimit(2)
-                Text(Self.joinLine(note)).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                Text(Self.joinLine(note)).font(.caption).foregroundStyle(ConvNeon.t2).lineLimit(2)
             }
             Spacer(minLength: 0)
             if note.creator != true {
@@ -144,13 +265,13 @@ struct ConversationView: View {
                     .accessibilityIdentifier("group-join-leave")
             }
             Button { Motion.animate(Motion.snappy) { joinNote = nil } } label: {
-                Image(systemName: "xmark").font(.caption.weight(.bold)).frame(width: 30, height: 30)
+                Image(systemName: "xmark").font(.caption.weight(.bold)).frame(width: 44, height: 44)
             }
-            .buttonStyle(.plain).foregroundStyle(.secondary).accessibilityLabel("Fermer")
+            .buttonStyle(.plain).foregroundStyle(ConvNeon.t2).accessibilityLabel("Fermer")
         }
-        .padding(.horizontal, 14).padding(.vertical, 10)
-        .background(.ultraThinMaterial)
-        .overlay(alignment: .bottom) { Color.white.opacity(0.08).frame(height: 1) }
+        .padding(.leading, 14).padding(.trailing, 4).padding(.vertical, 4)
+        .background(ConvNeon.glass)
+        .overlay(alignment: .bottom) { ConvNeon.line.frame(height: 1) }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("group-join-note")
         .confirmationDialog("Quitter « \(note.groupName) » ?", isPresented: $confirmLeave, titleVisibility: .visible) {
@@ -185,8 +306,35 @@ struct ConversationView: View {
 
     private func reply(to m: Conversation.Message) {
         Haptics.press()
-        Motion.animate { replyTo = m }
+        Motion.animate {
+            editing = nil
+            replyTo = m
+        }
         writing = true
+    }
+
+    /// « Modifier » : le texte revient dans le champ ; ✓ l'enregistre, ✕ annule.
+    private func startEdit(_ m: Conversation.Message) {
+        Haptics.press()
+        Motion.animate {
+            replyTo = nil
+            editing = m
+            text = m.body
+        }
+        writing = true
+    }
+
+    /// « Répondre en privé » : la conversation directe avec l'auteur s'ouvre dans Discussions, citation prête.
+    private func replyPrivately(to m: Conversation.Message, in chat: Conversation) {
+        guard let writeDirect else { return }
+        Haptics.press()
+        let quote = ConversationRules.quote(of: m, in: chat)
+        Task {
+            guard await v2.openPrivate(with: m.author) != nil else { return }
+            ConversationRules.pendingQuotes[m.author] = quote
+            if store.forEvents { dismiss() }  // discussion d'un événement : par-dessus la page, on la referme
+            if !(await writeDirect.open(m.author)) { ConversationRules.pendingQuotes[m.author] = nil }
+        }
     }
 
     // MARK: Bandeau des annonces et épinglés
@@ -196,27 +344,28 @@ struct ConversationView: View {
         let index = pinIndex % pins.count
         let h = pins[index]
         let canRemove = chat.admin || chat.isDirect || (chat.isStaff && h.announcement)
+        let tone = h.announcement ? ConvNeon.pink : accent
         return HStack(alignment: .center, spacing: 10) {
             if pins.count > 1 {
                 VStack(spacing: 2) {
                     ForEach(0..<min(pins.count, 5), id: \.self) { i in
-                        Capsule().fill(i == min(index, 4) ? accent : Color.secondary.opacity(0.35)).frame(width: 3)
+                        Capsule().fill(i == min(index, 4) ? tone : ConvNeon.t3.opacity(0.5)).frame(width: 3)
                     }
                 }
                 .frame(height: 34)
             }
-            Image(systemName: h.announcement ? "megaphone.fill" : "pin.fill").foregroundStyle(accent)
+            Image(systemName: h.announcement ? "megaphone.fill" : "pin.fill").foregroundStyle(tone)
             VStack(alignment: .leading, spacing: 2) {
-                Text(h.announcement ? "Annonce" : "Message épinglé").font(.caption.weight(.bold)).foregroundColor(accent)
-                    + Text(pins.count > 1 ? "  \(index + 1)/\(pins.count)" : "").font(.caption.monospacedDigit()).foregroundColor(.secondary)
+                Text(h.announcement ? "Annonce" : "Message épinglé").font(.caption.weight(.bold)).foregroundColor(tone)
+                    + Text(pins.count > 1 ? "  \(index + 1)/\(pins.count)" : "").font(.caption.monospacedDigit()).foregroundColor(ConvNeon.t2)
                 Text("\(h.authorName) : \(Self.clean(h.text))")
                     .font(h.announcement ? .subheadline.weight(.semibold) : .subheadline).lineLimit(h.announcement ? 2 : 1)
             }
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
-        .background(h.announcement ? AnyShapeStyle(accent.opacity(0.16)) : AnyShapeStyle(.ultraThinMaterial))
-        .overlay(alignment: .bottom) { (h.announcement ? accent.opacity(0.6) : Color.white.opacity(0.08)).frame(height: 1) }
+        .background(h.announcement ? AnyShapeStyle(ConvNeon.pink.opacity(0.14)) : AnyShapeStyle(ConvNeon.glass))
+        .overlay(alignment: .bottom) { (h.announcement ? ConvNeon.pink.opacity(0.6) : ConvNeon.line).frame(height: 1) }
         .contentShape(Rectangle())
         .onTapGesture {
             Haptics.selection()
@@ -250,19 +399,25 @@ struct ConversationView: View {
     private func messages(_ chat: Conversation) -> some View {
         let names = chat.members.map(\.name)
         let rows = ChatTimeline.rows(chat.messages)
+        let lastMine = chat.messages.last { $0.mine && !$0.pending }?.id
         return ScrollViewReader { proxy in
             // Liste native : glisser une bulle vers la droite = « Répondre » (glissement complet = réponse directe),
             // le geste d'iOS lui-même (Mail, Messages), qui ne se bat pas avec le défilement.
             List {
                 if chat.messages.isEmpty {
                     VStack(spacing: 12) {
-                        Image(systemName: "bubble.left.and.bubble.right").font(.largeTitle).foregroundStyle(.secondary)
+                        Image(systemName: "bubble.left.and.bubble.right.fill").font(.largeTitle).foregroundStyle(ConvNeon.lavender)
                         Text(chat.isEvent ? "Aucun message pour l'instant. Lance la discussion avec les invités !"
                                           : "Aucun message pour l'instant. Lance la discussion !")
-                            .foregroundStyle(.secondary).multilineTextAlignment(.center)
+                            .foregroundStyle(ConvNeon.t2).multilineTextAlignment(.center)
                         // Groupe tout neuf (créé depuis Discussions) : y ajouter du monde.
                         if chat.member && !chat.isDirect && !chat.isEvent && chat.members.count <= 1 {
-                            Button("Ajouter des membres") { showInfo = true }.buttonStyle(.borderedProminent)
+                            Button { showInfo = true } label: {
+                                Text("Ajouter des membres").font(.headline).foregroundStyle(PronoTheme.fixed(0x1F0618))
+                                    .padding(.horizontal, 22).frame(minHeight: 48)
+                                    .background(ConvNeon.pink, in: Capsule())
+                            }
+                            .buttonStyle(PressableStyle())
                         }
                     }
                     .padding(.top, 60)
@@ -276,8 +431,16 @@ struct ConversationView: View {
                             .listRowBackground(Color.clear).listRowSeparator(.hidden)
                             .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 6, trailing: 16))
                     case .message(let m, let first, let last):
-                        messageRow(m, first: first, last: last, chat: chat, names: names, proxy: proxy)
+                        messageRow(m, first: first, last: last, chat: chat, names: names, lastMine: lastMine, proxy: proxy)
                     }
+                }
+                if let typingLine, v2.request(in: chat) == nil {
+                    HStack { TypingBubble(); Spacer() }
+                        .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                        .listRowInsets(EdgeInsets(top: 4, leading: chat.isDirect ? 10 : 44, bottom: 4, trailing: 12))
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(chat.isDirect ? "\(title) écrit…" : typingLine)
+                        .motionTransition(.opacity.combined(with: .scale(scale: 0.8, anchor: .leading)))
                 }
                 // Bas du fil : visible = on suit les nouveaux messages ; caché = bouton ↓.
                 Color.clear.frame(height: 1).id(Self.end)
@@ -291,6 +454,7 @@ struct ConversationView: View {
             // Bulle qui arrive (envoyée, reçue en direct) ou supprimée : la liste s'écarte en douceur
             // au lieu de sauter. Les relectures régulières sans nouveauté ne changent pas les identifiants : rien ne bouge.
             .motion(Motion.snappy, value: chat.messages.map(\.id))
+            .motion(Motion.snappy, value: typingLine)
             .overlay(alignment: .bottomTrailing) { jumpButton(proxy) }
             .onAppear { bottom(proxy, animated: false) }
             // Nouveau message : on suit s'il est à moi ou si l'on était en bas ; sinon le bouton ↓ le compte.
@@ -300,6 +464,7 @@ struct ConversationView: View {
             }
             // Réaction, envoi confirmé sur le dernier message : on reste en bas si on y était.
             .onChange(of: chat.messages.last) { _ in if atBottom { bottom(proxy) } }
+            .onChange(of: typingLine) { _ in if atBottom { bottom(proxy) } }
             // Clavier qui s'ouvre : le dernier message reste visible au-dessus du champ.
             .onChange(of: writing) { on in if on { bottom(proxy, delay: 0.35) } }
             .onChange(of: jumpTo) { id in
@@ -312,28 +477,38 @@ struct ConversationView: View {
 
     @ViewBuilder
     private func messageRow(_ m: Conversation.Message, first: Bool, last: Bool, chat: Conversation, names: [String],
-                            proxy: ScrollViewProxy) -> some View {
+                            lastMine: String?, proxy: ScrollViewProxy) -> some View {
         let report = {
             reporting = ReportTarget(kind: chat.isEvent ? .eventMessage : chat.isDirect ? .directMessage : .groupMessage, id: m.id,
                                      label: "le message de \(m.authorName)")
         }
+        let extra = v2.extras[m.id]
+        let canEdit = chat.member && chat.blocked != true && ConversationRules.canEdit(m, isEvent: chat.isEvent)
+        let canPrivate = writeDirect != nil && !chat.isDirect && !m.mine && !m.deleted && !m.pending && v2.canRelay
         Group {
             if m.isAnnouncement {
                 AnnouncementCard(message: m, names: names, reactions: chat.reactions, canWrite: chat.member, isStaff: chat.isStaff,
                                  isAdmin: chat.admin, player: player,
                                  onReact: { emoji in Haptics.tap(); Task { await store.react(m, emoji) } },
                                  onReply: { reply(to: m) }, onPin: { Task { await store.pin(m) } },
-                                 onDelete: { Task { await store.delete(m) } }, onReport: report)
+                                 onDelete: { Task { await store.delete(m) } }, onReport: report,
+                                 onPrivateReply: canPrivate ? { replyPrivately(to: m, in: chat) } : nil)
             } else {
                 ChatBubble(message: m, first: first, last: last, showAuthor: !chat.isDirect, names: names,
-                           reactions: chat.reactions, canWrite: chat.member, isAdmin: chat.admin, isStaff: chat.isStaff,
-                           canPin: chat.admin || chat.isDirect, player: player,
+                           reactions: chat.reactions, canWrite: chat.member && v2.request(in: chat) == nil, isAdmin: chat.admin,
+                           isStaff: chat.isStaff, canPin: chat.admin || chat.isDirect, player: player,
+                           quote: extra?.quote, eventID: extra?.eventID, card: extra?.eventID.flatMap { v2.cards[$0] } ?? extra?.eventCard,
+                           seen: chat.isDirect && ConversationRules.seen(m, lastMine: lastMine, seenAt: v2.seenAt),
                            onReact: { emoji in Haptics.tap(); Task { await store.react(m, emoji) } },
                            onReply: { reply(to: m) },
                            onQuote: { if let id = m.reply?.id { jumpTo = id } },
                            onPin: { Task { await store.pin(m) } },
                            onDelete: { Task { await store.delete(m) } },
-                           onReport: report)
+                           onReport: report,
+                           onEdit: canEdit ? { startEdit(m) } : nil,
+                           onPrivateReply: canPrivate ? { replyPrivately(to: m, in: chat) } : nil,
+                           onAuthor: { person = PersonRef(id: m.author) },
+                           onOpenEvent: routes.openEvent)
             }
         }
         .background(RoundedRectangle(cornerRadius: 14).fill(accent.opacity(flashing == m.id ? 0.22 : 0)).padding(-4))
@@ -342,9 +517,9 @@ struct ConversationView: View {
         .listRowSeparator(.hidden)
         .listRowInsets(EdgeInsets(top: first ? 5 : 1, leading: 10, bottom: last ? 5 : 1, trailing: 12))
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
-            if chat.member && !m.deleted && !m.pending {
+            if chat.member && !m.deleted && !m.pending && v2.request(in: chat) == nil {
                 Button { reply(to: m) } label: { Label("Répondre", systemImage: "arrowshape.turn.up.left.fill") }
-                    .tint(accent)
+                    .tint(ConvNeon.lavDeep)
             }
         }
     }
@@ -357,15 +532,15 @@ struct ConversationView: View {
                 unseen = 0
                 bottom(proxy, delay: 0)
             } label: {
-                Image(systemName: "chevron.down").font(.body.weight(.semibold)).foregroundStyle(.white)
-                    .frame(width: 40, height: 40)
-                    .background(.regularMaterial, in: Circle())
-                    .overlay(Circle().stroke(Color.white.opacity(0.12)))
+                Image(systemName: "chevron.down").font(.body.weight(.semibold)).foregroundStyle(ConvNeon.lav)
+                    .frame(width: 44, height: 44)
+                    .background(ConvNeon.glass, in: Circle())
+                    .overlay(Circle().stroke(ConvNeon.line2))
                     .overlay(alignment: .topTrailing) {
                         if unseen > 0 {
-                            Text("\(min(unseen, 99))").font(.caption2.weight(.bold).monospacedDigit()).foregroundStyle(.black)
+                            Text("\(min(unseen, 99))").font(.caption2.weight(.bold).monospacedDigit()).foregroundStyle(PronoTheme.fixed(0x1F0618))
                                 .padding(.horizontal, 5).frame(minWidth: 18, minHeight: 18)
-                                .background(accent, in: Capsule()).offset(x: 4, y: -4)
+                                .background(ConvNeon.pink, in: Capsule()).offset(x: 4, y: -4)
                                 .contentTransition(.numericText())
                         }
                     }
@@ -380,77 +555,120 @@ struct ConversationView: View {
 
     // MARK: Saisie
 
-    private func composer(_ chat: Conversation) -> some View {
+    /// textOnly : demande de message pas encore envoyée (un seul message, texte seul : ni photo, ni vocal).
+    private func composer(_ chat: Conversation, textOnly: Bool) -> some View {
         VStack(spacing: 6) {
             mentionBar(chat)
             if announcing {
                 Label("Annonce : épinglée en haut et envoyée à tous les invités", systemImage: "megaphone.fill")
-                    .font(.caption.weight(.semibold)).foregroundStyle(accent)
+                    .font(.caption.weight(.semibold)).foregroundStyle(ConvNeon.pink)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .motionTransition(.opacity.combined(with: .move(edge: .bottom)))
             }
-            if let replyTo {
-                HStack(spacing: 8) {
-                    RoundedRectangle(cornerRadius: 2).fill(ChatTimeline.nameColor(for: replyTo.author)).frame(width: 3)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text("Réponse à \(replyTo.mine ? "toi" : replyTo.authorName)").font(.caption.weight(.semibold))
-                            .foregroundStyle(ChatTimeline.nameColor(for: replyTo.author))
-                        Text(replyTo.preview).font(.caption).foregroundStyle(.secondary).lineLimit(1)
-                    }
-                    Spacer()
-                    Button { Motion.animate { self.replyTo = nil } } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
-                        .accessibilityLabel("Annuler la réponse")
+            if let editing {
+                composerBanner(icon: "pencil", title: "Modifier le message", detail: editing.body, color: ConvNeon.lav,
+                               cancel: "Annuler la modification") {
+                    self.editing = nil
+                    text = ""
                 }
-                .padding(8)
-                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
-                .frame(maxHeight: 54)
+            } else if let replyTo {
+                composerBanner(icon: "arrowshape.turn.up.left", title: "Réponse à \(replyTo.mine ? "toi" : replyTo.authorName)",
+                               detail: replyTo.preview, color: ConvNeon.name(replyTo.author), cancel: "Annuler la réponse") {
+                    self.replyTo = nil
+                }
+            } else if let privateQuote {
+                HStack(spacing: 8) {
+                    PrivateQuoteBlock(quote: privateQuote, mine: false)
+                    Button { Motion.animate { self.privateQuote = nil } } label: {
+                        Image(systemName: "xmark.circle.fill").foregroundStyle(ConvNeon.t2).frame(width: 44, height: 44)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Retirer la citation")
+                }
                 .motionTransition(.opacity.combined(with: .move(edge: .bottom)))
+                .accessibilityIdentifier("chat-private-quote")
             }
             HStack(alignment: .bottom, spacing: 8) {
                 if recorder.recording {
                     recordingBar.motionTransition(.opacity.combined(with: .move(edge: .trailing)))
                 } else {
-                    if chat.isEvent && chat.isStaff {
+                    if chat.isEvent && chat.isStaff && editing == nil {
                         Button {
                             Haptics.selection()
                             Motion.animate(Motion.snappy) { announcing.toggle() }
                         } label: {
-                            Image(systemName: announcing ? "megaphone.fill" : "megaphone").font(.title3)
-                                .foregroundStyle(announcing ? accent : .secondary).frame(width: 36, height: 36)
+                            Image(systemName: announcing ? "megaphone.fill" : "megaphone").font(.body.weight(.semibold))
+                                .foregroundStyle(announcing ? ConvNeon.pink : ConvNeon.lav)
+                                .frame(width: 44, height: 44)
+                                .background(ConvNeon.glass, in: Circle())
+                                .overlay(Circle().strokeBorder(announcing ? ConvNeon.pink : ConvNeon.line2, lineWidth: 1))
                         }
                         .accessibilityLabel(announcing ? "Annonce activée" : "Faire une annonce")
                         .accessibilityHint("Épinglée en haut de la discussion et envoyée à tous les invités")
                         .accessibilityIdentifier("chat-announce")
                         .transition(.opacity)
                     }
-                    PhotosPicker(selection: $picked, matching: .images) {
-                        Image(systemName: "photo").font(.title3).frame(width: 36, height: 36)
+                    if !textOnly && editing == nil {
+                        PhotosPicker(selection: $picked, matching: .images) {
+                            Image(systemName: "photo").font(.body.weight(.semibold)).foregroundStyle(ConvNeon.lav)
+                                .frame(width: 44, height: 44)
+                                .background(ConvNeon.glass, in: Circle())
+                                .overlay(Circle().strokeBorder(ConvNeon.line2, lineWidth: 1))
+                        }
+                        .accessibilityLabel("Envoyer une photo")
+                        .disabled(store.sending)
+                        .transition(.opacity)
                     }
-                    .accessibilityLabel("Envoyer une photo")
-                    .disabled(store.sending)
-                    .transition(.opacity)
-                    field(chat).transition(.opacity)
+                    field(chat, textOnly: textOnly).transition(.opacity)
                 }
                 // Micro ↔ flèche d'envoi : l'un rétrécit pendant que l'autre grandit, comme dans Messages.
-                if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !store.sending {
+                if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !store.sending && !textOnly && editing == nil {
                     micButton.motionTransition(.scale(scale: 0.5).combined(with: .opacity))
                 } else {
-                    sendButton.motionTransition(.scale(scale: 0.5).combined(with: .opacity))
+                    sendButton(chat).motionTransition(.scale(scale: 0.5).combined(with: .opacity))
                 }
             }
             if let problem = recorder.problem {
-                Text(problem).font(.caption).foregroundStyle(.red).motionTransition(.unfold)
+                Text(problem).font(.caption).foregroundStyle(PronoTheme.pinkInk).motionTransition(.unfold)
             }
         }
         .motion(Motion.snappy, value: text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         .motion(Motion.snappy, value: store.sending)
         .motion(Motion.snappy, value: recorder.recording)
         .motion(Motion.snappy, value: replyTo?.id)
+        .motion(Motion.snappy, value: editing?.id)
+        .motion(Motion.snappy, value: privateQuote)
         .motion(Motion.snappy, value: Mentions.query(in: text) == nil)
         .motion(Motion.snappy, value: recorder.problem)
-        .padding(.horizontal, 10).padding(.vertical, 8)
-        .background(.bar)
+        .padding(.horizontal, 10).padding(.top, 10).padding(.bottom, 8)
+        .background(
+            LinearGradient(colors: [ConvNeon.bg.opacity(0), ConvNeon.bg.opacity(0.94), ConvNeon.bg],
+                           startPoint: .top, endPoint: .init(x: 0.5, y: 0.3))
+                .ignoresSafeArea(edges: .bottom)
+        )
         .task { recorder.warmUp() }  // micro prêt avant le premier appui
+    }
+
+    /// Au-dessus du champ : ce que le prochain envoi fera (répondre, modifier), avec ✕.
+    private func composerBanner(icon: String, title: String, detail: String, color: Color, cancel: String,
+                                onCancel: @escaping () -> Void) -> some View {
+        HStack(spacing: 8) {
+            RoundedRectangle(cornerRadius: 2).fill(color).frame(width: 4)
+            VStack(alignment: .leading, spacing: 1) {
+                Label(title, systemImage: icon).font(.caption.weight(.semibold)).foregroundStyle(color)
+                Text(detail).font(.caption).foregroundStyle(ConvNeon.t2).lineLimit(1)
+            }
+            Spacer()
+            Button { Motion.animate(Motion.snappy, onCancel) } label: {
+                Image(systemName: "xmark.circle.fill").foregroundStyle(ConvNeon.t2).frame(width: 44, height: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(cancel)
+        }
+        .padding(.leading, 8)
+        .background(ConvNeon.surface, in: RoundedRectangle(cornerRadius: 14))
+        .frame(maxHeight: 54)
+        .motionTransition(.opacity.combined(with: .move(edge: .bottom)))
     }
 
     /// Suggestions de l'@ en cours de frappe : membres filtrés en direct, puis les citations spéciales permises
@@ -461,7 +679,7 @@ struct ConversationView: View {
                                  contacts: ContactNames.shared.names, tags: chat.isEvent ? (chat.tags ?? []) : nil)
         } ?? []
         if let note = chat.tagNote(for: text) {
-            Label(note, systemImage: "info.circle").font(.caption).foregroundStyle(.secondary)
+            Label(note, systemImage: "info.circle").font(.caption).foregroundStyle(ConvNeon.t2)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .motionTransition(.opacity)
         }
@@ -475,28 +693,29 @@ struct ConversationView: View {
                     } label: {
                         HStack(spacing: 10) {
                             if let m = s.member {
-                                Initials(name: m.name, photo: m.photo, size: 30)
+                                ConvFace(id: m.id, name: m.name, photo: m.photo, size: 30)
                             } else {
                                 Image(systemName: Self.tagIcon(s.label)).font(.subheadline.weight(.semibold)).foregroundStyle(accent)
                                     .frame(width: 30, height: 30).background(accent.opacity(0.18), in: Circle())
                             }
                             VStack(alignment: .leading, spacing: 1) {
-                                Text("@" + s.label).font(.subheadline.weight(.semibold)).lineLimit(1)
+                                Text("@" + s.label).font(.subheadline.weight(.semibold)).foregroundStyle(ConvNeon.t1).lineLimit(1)
                                 if !s.hint.isEmpty {
-                                    Text(s.hint).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                                    Text(s.hint).font(.caption).foregroundStyle(ConvNeon.t2).lineLimit(1)
                                 }
                             }
                             Spacer(minLength: 0)
                         }
-                        .padding(.horizontal, 10).padding(.vertical, 6)
+                        .padding(.horizontal, 10).frame(minHeight: 44)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(s.member != nil ? "Citer \(s.label)" : "@\(s.label) : \(s.hint)")
-                    if s.id != found.last?.id { Divider().padding(.leading, 50) }
+                    if s.id != found.last?.id { ConvNeon.line.frame(height: 1).padding(.leading, 50) }
                 }
             }
-            .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14))
+            .background(ConvNeon.surface, in: RoundedRectangle(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(ConvNeon.line2, lineWidth: 1))
             .accessibilityIdentifier("chat-mentions")
             .motionTransition(.opacity.combined(with: .move(edge: .bottom)))
         }
@@ -510,46 +729,62 @@ struct ConversationView: View {
         }
     }
 
-    private func field(_ chat: Conversation) -> some View {
-        TextField(announcing ? "Écris ton annonce…" : chat.isDirect ? "Message" : "Message (@ pour citer)", text: $text, axis: .vertical)
+    private func field(_ chat: Conversation, textOnly: Bool) -> some View {
+        let prompt = announcing ? "Écris ton annonce…" : textOnly ? "Ta demande de message" : chat.isDirect ? "Message" : "Message (@ pour citer)"
+        return TextField("", text: $text, prompt: Text(prompt).foregroundColor(ConvNeon.t3), axis: .vertical)
             .lineLimit(1...6)
             .focused($writing)
-            .padding(.horizontal, 14).padding(.vertical, 9)
-            .background(announcing ? accent.opacity(0.14) : Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 20))
-            .overlay(RoundedRectangle(cornerRadius: 20).stroke(announcing ? accent.opacity(0.8) : Color.clear, lineWidth: 1))
-            .accessibilityLabel(announcing ? "Annonce" : "Message")
+            .foregroundStyle(ConvNeon.t1)
+            .padding(.horizontal, 16).padding(.vertical, 11)
+            .frame(minHeight: 44)
+            .background(announcing ? ConvNeon.pink.opacity(0.12) : ConvNeon.surface, in: RoundedRectangle(cornerRadius: 22))
+            .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(announcing ? ConvNeon.pink.opacity(0.8) : ConvNeon.line2, lineWidth: 1))
+            .accessibilityLabel(announcing ? "Annonce" : editing != nil ? "Message modifié" : "Message")
             .accessibilityIdentifier("chat-message")
     }
 
-    private var sendButton: some View {
+    private func sendButton(_ chat: Conversation) -> some View {
         Button {
             // Champ vidé tout de suite, message affiché aussitôt ; en cas d'échec, le texte revient.
             Haptics.tap()
-            let typed = text, quoted = replyTo, announce = announcing
+            let typed = text, quoted = replyTo, announce = announcing, edited = editing, privateQuoted = privateQuote
             text = ""
             replyTo = nil
             announcing = false
+            editing = nil
+            privateQuote = nil
             Task {
+                if let edited {
+                    if !(await v2.edit(edited, to: typed, in: chat)) { text = typed; editing = edited }
+                    return
+                }
                 if !(await termsAccepted()) {
                     text = typed
                     replyTo = quoted
                     announcing = announce
+                    privateQuote = privateQuoted
                     return
                 }
-                if !(await store.send(typed, replyTo: quoted?.id, announce: announce)) {
+                if let privateQuoted, chat.isDirect {
+                    if !(await v2.send(typed, quote: privateQuoted, in: chat)) { text = typed; privateQuote = privateQuoted }
+                } else if !(await store.send(typed, replyTo: quoted?.id, announce: announce)) {
                     text = typed
                     replyTo = quoted
                     announcing = announce
                 }
             }
         } label: {
-            if store.sending { ProgressView().frame(width: 36, height: 36) } else {
+            if store.sending { ProgressView().tint(ConvNeon.lav).frame(width: 44, height: 44) } else {
                 // Même flèche en annonce (le champ et la ligne 📣 au-dessus disent déjà que c'est une annonce).
-                Image(systemName: "arrow.up.circle.fill").font(.system(size: 34))
-                    .foregroundStyle(accent)
+                Image(systemName: editing != nil ? "checkmark" : "arrow.up").font(.body.weight(.heavy))
+                    .foregroundStyle(PronoTheme.fixed(0x120B26))
+                    .frame(width: 44, height: 44)
+                    .background(announcing ? AnyShapeStyle(ConvNeon.pink) : AnyShapeStyle(ConvNeon.lavender), in: Circle())
+                    .shadow(color: ConvNeon.lavDeep.opacity(0.6), radius: 9)
             }
         }
-        .accessibilityLabel(announcing ? "Publier l'annonce" : "Envoyer")
+        .buttonStyle(PressableStyle(scale: 0.9))
+        .accessibilityLabel(editing != nil ? "Enregistrer la modification" : announcing ? "Publier l'annonce" : "Envoyer")
         .accessibilityIdentifier("chat-send")
         .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || store.sending)
     }
@@ -557,12 +792,15 @@ struct ConversationView: View {
     /// Appui long : enregistre ; relâcher : envoie ; glisser vers la gauche : annule (comme WhatsApp).
     /// Simple toucher : l'enregistrement reste actif ; un second toucher l'envoie, sans jamais en relancer un autre.
     private var micButton: some View {
-        Image(systemName: recorder.recording ? "mic.circle.fill" : "mic.circle")
-            .font(.system(size: 32))
-            // Enregistrement : le micro grossit sous le doigt (échelle animée, plus un saut de taille de police).
-            .scaleEffect(recorder.recording ? 1.35 : 1)
-            .foregroundStyle(recorder.recording ? (cancelVoice ? Color.secondary : Color.red) : accent)
+        Image(systemName: "mic.fill")
+            .font(.body.weight(.bold))
+            .foregroundStyle(PronoTheme.fixed(0x120B26))
             .frame(width: 44, height: 44)
+            .background(recorder.recording ? (cancelVoice ? AnyShapeStyle(ConvNeon.t3) : AnyShapeStyle(ConvNeon.pink))
+                                           : AnyShapeStyle(ConvNeon.lavender), in: Circle())
+            .shadow(color: ConvNeon.lavDeep.opacity(0.6), radius: 9)
+            // Enregistrement : le micro grossit sous le doigt.
+            .scaleEffect(recorder.recording ? 1.3 : 1)
             .contentShape(Rectangle())
             .gesture(DragGesture(minimumDistance: 0)
                 .onChanged { value in
@@ -625,15 +863,16 @@ struct ConversationView: View {
                 .motion(Motion.snappy, value: Int(recorder.elapsed.rounded()))
             Spacer()
             if micLocked {
-                Button("Annuler") { micLocked = false; _ = recorder.stop(send: false) }.font(.subheadline)
-                Text("Touche le micro pour envoyer").font(.subheadline).foregroundStyle(.secondary)
+                Button("Annuler") { micLocked = false; _ = recorder.stop(send: false) }.font(.subheadline).foregroundStyle(ConvNeon.lav)
+                Text("Touche le micro pour envoyer").font(.subheadline).foregroundStyle(ConvNeon.t2)
             } else {
                 Text(cancelVoice ? "Relâche pour annuler" : "‹ Glisse pour annuler").font(.subheadline)
-                    .foregroundStyle(cancelVoice ? .red : .secondary)
+                    .foregroundStyle(cancelVoice ? PronoTheme.pinkInk : ConvNeon.t2)
             }
         }
-        .padding(.horizontal, 12).frame(height: 40)
-        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 20))
+        .padding(.horizontal, 14).frame(height: 44)
+        .background(ConvNeon.surface, in: RoundedRectangle(cornerRadius: 22))
+        .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(ConvNeon.line2, lineWidth: 1))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Enregistrement \(VoiceRecorder.clock(recorder.elapsed))")
     }
@@ -662,42 +901,56 @@ struct ConversationView: View {
     }
 }
 
-/// Séparateur de jour, centré : « Aujourd'hui », « Hier », « Lundi », « 12 novembre ».
+/// Séparateur de jour, centré, en capitales : « AUJOURD'HUI », « HIER », « LUNDI », « 12 NOVEMBRE ».
 private struct DayPill: View {
     let label: String
 
     var body: some View {
-        Text(label).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-            .padding(.horizontal, 12).padding(.vertical, 5)
-            .background(.ultraThinMaterial, in: Capsule())
+        Text(label).font(.caption.weight(.bold)).tracking(0.8).textCase(.uppercase).foregroundStyle(ConvNeon.t2)
+            .padding(.horizontal, 12).frame(minHeight: 26)
+            .background(ConvNeon.surface.opacity(0.8), in: Capsule())
+            .overlay(Capsule().strokeBorder(ConvNeon.line, lineWidth: 1))
+            .accessibilityLabel(label)
             .accessibilityAddTraits(.isHeader)
     }
 }
 
-/// Heure (et « modifié », horloge pendant l'envoi, coche une fois reçu) en bas à droite de la bulle.
+/// Heure (et « modifié », horloge pendant l'envoi, coche une fois reçu, « Vu ») en bas à droite de la bulle.
 private struct MessageMeta: View {
     let message: Conversation.Message
     var onPhoto = false
+    var seen = false
 
     var body: some View {
         HStack(spacing: 3) {
             if message.edited && !message.deleted { Text("modifié") }
             Text(message.date?.formatted(date: .omitted, time: .shortened) ?? "")
+            if seen { Text("· Vu") }
             if message.mine && !message.deleted {
-                Image(systemName: message.pending ? "clock" : "checkmark").font(.system(size: 9, weight: .bold))
+                if message.pending {
+                    Image(systemName: "clock").font(.system(size: 9, weight: .bold))
+                } else {
+                    // ✓ envoyé ; ✓✓ lavande clair une fois vu.
+                    HStack(spacing: -5) {
+                        Image(systemName: "checkmark")
+                        if seen { Image(systemName: "checkmark") }
+                    }
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(seen ? PronoTheme.fixed(0xDCD5FF) : Color.white.opacity(0.9))
+                }
             }
         }
         .font(.caption2.monospacedDigit())
-        .foregroundStyle(onPhoto ? Color.white : message.mine ? Color.black.opacity(0.55) : Color.secondary)
+        .foregroundStyle(onPhoto ? Color.white : message.mine ? Color.white.opacity(0.9) : ConvNeon.t3)
         .padding(.horizontal, onPhoto ? 6 : 0).padding(.vertical, onPhoto ? 2 : 0)
         .background(onPhoto ? AnyShapeStyle(Color.black.opacity(0.45)) : AnyShapeStyle(Color.clear), in: Capsule())
         .accessibilityHidden(true)
     }
 
     /// Texte invisible de même largeur : le texte du message s'arrête avant l'heure, qui se loge sur sa dernière ligne.
-    static func spacer(for m: Conversation.Message) -> String {
+    static func spacer(for m: Conversation.Message, seen: Bool = false) -> String {
         let time = m.date?.formatted(date: .omitted, time: .shortened) ?? ""
-        return "\u{2003}" + (m.edited ? "modifié " : "") + time + (m.mine ? " ✓" : "")
+        return "\u{2003}" + (m.edited ? "modifié " : "") + time + (seen ? " · Vu" : "") + (m.mine ? (seen ? " ✓✓" : " ✓") : "")
     }
 }
 
@@ -708,19 +961,19 @@ private struct QuoteBlock: View {
     let onTap: () -> Void
 
     var body: some View {
-        let color = mine ? Color.black.opacity(0.7) : ChatTimeline.nameColor(for: reply.author ?? reply.name)
+        let color = mine ? PronoTheme.fixed(0xE6DFFF) : ConvNeon.name(reply.author ?? reply.name)
         Button(action: onTap) {
             HStack(spacing: 8) {
-                RoundedRectangle(cornerRadius: 2).fill(color).frame(width: 3)
+                RoundedRectangle(cornerRadius: 2).fill(mine ? ConvNeon.lav : color).frame(width: 4)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(reply.name).font(.caption.weight(.semibold)).foregroundStyle(color).lineLimit(1)
-                    Text(reply.text).font(.caption).foregroundStyle(mine ? Color.black.opacity(0.65) : Color.secondary).lineLimit(2)
+                    Text(reply.name).font(.caption.weight(.bold)).foregroundStyle(color).lineLimit(1)
+                    Text(reply.text).font(.caption).foregroundStyle(mine ? Color.white.opacity(0.82) : ConvNeon.t2).lineLimit(2)
                 }
                 Spacer(minLength: 0)
             }
             .padding(6)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.black.opacity(mine ? 0.1 : 0.22), in: RoundedRectangle(cornerRadius: 8))
+            .background(mine ? ConvNeon.quoteOnMine : PronoTheme.fixed(0x0E0A1F, 0.35), in: RoundedRectangle(cornerRadius: 12))
         }
         .buttonStyle(.plain)
         .disabled(reply.id == nil)
@@ -729,8 +982,9 @@ private struct QuoteBlock: View {
     }
 }
 
-/// Une bulle façon WhatsApp : mes messages à droite (couleur de l'app), les autres à gauche ; dans un groupe, le nom en
-/// couleur en tête de la série et la photo en bas ; heure dans la bulle ; @citations en gras et en couleur.
+/// Une bulle Néon : mes messages à droite (dégradé violet, texte blanc), les autres à gauche (nuit, liseré lavande) ;
+/// dans un groupe, le nom en couleur en tête de la série et la photo en bas (un toucher : son mini-profil) ; heure dans
+/// la bulle ; @citations en gras et en couleur ; carte de soirée et citation privée (Discussions v2).
 private struct ChatBubble: View {
     let message: Conversation.Message
     let first: Bool
@@ -746,6 +1000,10 @@ private struct ChatBubble: View {
     /// Épingle : admins d'un groupe, organisation d'un événement, les deux personnes d'un message direct.
     let canPin: Bool
     @ObservedObject var player: VoicePlayer
+    var quote: PrivateQuote?
+    var eventID: String?
+    var card: ChatEventCard?
+    var seen = false
     let onReact: (String) -> Void
     let onReply: () -> Void
     let onQuote: () -> Void
@@ -753,107 +1011,154 @@ private struct ChatBubble: View {
     let onDelete: () -> Void
     /// « Signaler » (modération commune) : sur le message d'un autre, même sans pouvoir écrire.
     var onReport: (() -> Void)?
+    var onEdit: (() -> Void)?
+    var onPrivateReply: (() -> Void)?
+    var onAuthor: (() -> Void)?
+    var onOpenEvent: (@MainActor (String) -> Void)?
 
-    private var accent: Color { Color(uiColor: AppConfig.uiAccent) }
     private var actions: Bool { (canWrite || (!message.mine && onReport != nil)) && !message.deleted && !message.pending }
     private var avatar: CGFloat { 28 }
+    /// Une carte de soirée seule (sans texte) : pas de bulle autour, l'heure dessous.
+    private var cardOnly: Bool {
+        eventID != nil && message.body.isEmpty && message.photo == nil && message.audioSeconds == nil && quote == nil && !message.deleted
+    }
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 6) {
             if message.mine {
                 Spacer(minLength: 56)
             } else if showAuthor {
-                if last { Initials(name: message.authorName, photo: message.authorPhoto, size: avatar) } else { Color.clear.frame(width: avatar, height: 1) }
+                if last {
+                    Button { onAuthor?() } label: { ConvFace(id: message.author, name: message.authorName, photo: message.authorPhoto, size: avatar) }
+                        .buttonStyle(.borderless)
+                        .accessibilityLabel("Profil de \(message.authorName)")
+                } else { Color.clear.frame(width: avatar, height: 1) }
             }
-            VStack(alignment: message.mine ? .trailing : .leading, spacing: 0) {
-                bubble
-                    // En cours d'envoi : bulle légèrement estompée, qui s'affirme une fois le message reçu.
-                    .opacity(message.pending ? 0.7 : 1)
-                    .contextMenu { if actions { ChatMenu(message: message, reactions: reactions, canWrite: canWrite, isAdmin: isAdmin,
-                                                         isStaff: isStaff, canPin: canPin, onReact: onReact, onReply: onReply,
-                                                         onPin: onPin, onDelete: onDelete, onReport: onReport) } }
+            VStack(alignment: message.mine ? .trailing : .leading, spacing: 4) {
+                if let eventID, !message.deleted {
+                    if let card {
+                        EventCardBubble(card: card, onOpen: onOpenEvent.map { open in { open(eventID) } })
+                    } else {
+                        EventCardUnavailable()
+                    }
+                }
+                Group {
+                    if cardOnly {
+                        MessageMeta(message: message, seen: seen).padding(.horizontal, 6)
+                    } else {
+                        bubble
+                    }
+                }
+                // En cours d'envoi : bulle légèrement estompée, qui s'affirme une fois le message reçu.
+                .opacity(message.pending ? 0.7 : 1)
+                .contextMenu { if actions { ChatMenu(message: message, reactions: reactions, canWrite: canWrite, isAdmin: isAdmin,
+                                                     isStaff: isStaff, canPin: canPin, onReact: onReact, onReply: onReply,
+                                                     onPin: onPin, onDelete: onDelete, onReport: onReport, onEdit: onEdit,
+                                                     onPrivateReply: onPrivateReply) } }
                 if !message.reactions.isEmpty {
                     ReactionChips(message: message, canWrite: canWrite, onReact: onReact)
-                        .offset(y: -5).padding(.horizontal, 8).padding(.bottom, -5)
+                        .offset(y: -9).padding(.horizontal, 10).padding(.bottom, -9)
                         .motionTransition(.scale(scale: 0.6, anchor: message.mine ? .trailing : .leading).combined(with: .opacity))
                 }
             }
             if !message.mine { Spacer(minLength: 56) }
         }
         .motion(Motion.smooth, value: message.pending)
+        .motion(Motion.smooth, value: seen)
         .motion(Motion.bouncy, value: message.reactions.map { "\($0.emoji)\($0.count)\($0.mine)" })
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibility)
-        .accessibilityHint(actions ? "Glisse vers la droite pour répondre ; appui long pour réagir\(canPin ? ", épingler" : "") ou supprimer" : "")
+        .accessibilityHint(actions ? "Glisse vers la droite pour répondre ; appui long pour réagir\(onEdit != nil ? ", modifier" : "")\(canPin ? ", épingler" : "") ou supprimer" : "")
         .accessibilityAction(named: "Répondre") { if actions && canWrite { onReply() } }
     }
 
     private var accessibility: String {
         let who = message.mine ? "Toi" : ContactNames.shared.label(for: message.author, pseudo: message.authorName).text
         let time = message.pending ? "envoi en cours" : message.date?.formatted(date: .omitted, time: .shortened) ?? ""
-        return "\(who), \(time) : \(message.deleted ? message.body : message.preview)"
+        var parts = ["\(who), \(time)"]
+        if let card { parts.append("soirée \(card.title)") }
+        if let quote { parts.append("réponse privée à \(quote.author) : \(quote.excerpt)") }
+        parts.append(message.deleted ? message.body : cardOnly ? "" : message.preview)
+        if message.edited && !message.deleted { parts.append("modifié") }
+        if seen { parts.append("vu") }
+        return parts.filter { !$0.isEmpty }.joined(separator: ", ")
     }
 
-    /// Coin côté auteur plus serré en tête de série (la « queue » des messageries).
+    /// Coin côté auteur plus serré dans une série (la « queue » des messageries).
     private var shape: UnevenRoundedRectangle {
-        let tight: CGFloat = first ? 5 : 18
-        return UnevenRoundedRectangle(cornerRadii: .init(topLeading: message.mine ? 18 : tight, bottomLeading: 18,
-                                                         bottomTrailing: 18, topTrailing: message.mine ? tight : 18))
+        let r: CGFloat = 22, tight: CGFloat = 8
+        return message.mine
+            ? UnevenRoundedRectangle(cornerRadii: .init(topLeading: r, bottomLeading: r, bottomTrailing: last ? r : tight, topTrailing: first ? r : tight))
+            : UnevenRoundedRectangle(cornerRadii: .init(topLeading: first ? r : tight, bottomLeading: last ? r : tight, bottomTrailing: r, topTrailing: r))
     }
 
     private var bubble: some View {
         let photoOnly = message.photo != nil && message.body.isEmpty && !message.deleted
         return VStack(alignment: .leading, spacing: 5) {
             if showAuthor && first && !message.mine {
-                PersonName(id: message.author, pseudo: message.authorName, pseudoFont: .caption2)
-                    .font(.subheadline.weight(.semibold)).foregroundStyle(ChatTimeline.nameColor(for: message.author))
-                    .padding(.horizontal, message.photo == nil ? 0 : 6).padding(.top, message.photo == nil ? 0 : 4)
+                Button { onAuthor?() } label: {
+                    PersonName(id: message.author, pseudo: message.authorName, pseudoFont: .caption2)
+                        .font(.subheadline.weight(.bold)).foregroundStyle(ConvNeon.name(message.author))
+                }
+                .buttonStyle(.borderless)
+                .padding(.horizontal, message.photo == nil ? 0 : 6).padding(.top, message.photo == nil ? 0 : 4)
             }
             if message.pinned && !message.deleted {
                 (Text(Image(systemName: "pin.fill")) + Text(" Épinglé")).font(.caption2.weight(.bold))
-                    .foregroundStyle(message.mine ? Color.black.opacity(0.6) : accent)
+                    .foregroundStyle(message.mine ? PronoTheme.fixed(0xE6DFFF) : ConvNeon.lav)
                     .padding(.horizontal, message.photo == nil ? 0 : 6)
+            }
+            if let quote, !message.deleted {
+                PrivateQuoteBlock(quote: quote, mine: message.mine)
             }
             if let reply = message.reply, !message.deleted {
                 QuoteBlock(reply: reply, mine: message.mine, onTap: onQuote)
             }
             if let photo = message.photo.flatMap(URL.init(string:)), !message.deleted {
                 AsyncImage(url: photo) { image in image.resizable().scaledToFill() } placeholder: {
-                    ZStack { Color.white.opacity(0.06); ProgressView() }
+                    ZStack { ConvNeon.surface2; ProgressView().tint(ConvNeon.lav) }
                 }
-                .frame(width: 240, height: 240).clipShape(RoundedRectangle(cornerRadius: 14))
-                .overlay(alignment: .bottomTrailing) { if photoOnly { MessageMeta(message: message, onPhoto: true).padding(6) } }
+                .frame(width: 240, height: 240).clipShape(RoundedRectangle(cornerRadius: 18))
+                .overlay(alignment: .bottomTrailing) { if photoOnly { MessageMeta(message: message, onPhoto: true, seen: seen).padding(8) } }
                 .accessibilityLabel("Photo de \(message.authorName)")
             }
             if let seconds = message.audioSeconds, !message.deleted {
                 VoiceBubble(player: player, id: message.id, url: message.audio.flatMap(URL.init(string:)), seconds: seconds, mine: message.mine)
-                HStack { Spacer(); MessageMeta(message: message) }
+                HStack { Spacer(); MessageMeta(message: message, seen: seen) }
             }
             if message.deleted {
                 HStack(spacing: 6) {
                     Label(message.body, systemImage: "nosign").font(.subheadline.italic())
                     MessageMeta(message: message)
                 }
-                .foregroundStyle(.secondary)
+                .foregroundStyle(ConvNeon.t2)
             } else if !message.body.isEmpty {
                 // L'heure se loge sur la dernière ligne s'il y a la place (espace invisible de sa largeur), sinon dessous.
-                (Text(Mentions.highlighted(message.body, names: names, color: message.mine ? .black : accent))
-                    + Text(MessageMeta.spacer(for: message)).font(.caption2.monospacedDigit()).foregroundColor(.clear))
+                (Text(Mentions.highlighted(message.body, names: names, color: message.mine ? PronoTheme.fixed(0xE6DFFF) : ConvNeon.lav))
+                    + Text(MessageMeta.spacer(for: message, seen: seen)).font(.caption2.monospacedDigit()).foregroundColor(.clear))
                     .font(.body)
                     .padding(.horizontal, message.photo == nil ? 0 : 6)
-                    .overlay(alignment: .bottomTrailing) { MessageMeta(message: message).offset(y: 2) }
+                    .overlay(alignment: .bottomTrailing) { MessageMeta(message: message, seen: seen).offset(y: 2) }
                     .fixedSize(horizontal: false, vertical: true)
             } else if message.photo == nil && message.audioSeconds == nil {
-                MessageMeta(message: message)
+                MessageMeta(message: message, seen: seen)
             }
         }
-        .foregroundStyle(message.mine && !message.deleted ? Color.black : Color.white)
-        .padding(.horizontal, message.photo == nil ? 12 : 4).padding(.vertical, message.photo == nil ? 8 : 4)
-        .background(message.deleted ? Color.white.opacity(0.06) : message.mine ? accent : Color(red: 0.15, green: 0.12, blue: 0.27), in: shape)
+        .foregroundStyle(message.mine && !message.deleted ? Color.white : ConvNeon.t1)
+        .padding(.horizontal, message.photo == nil ? 13 : 4).padding(.top, message.photo == nil ? 9 : 4).padding(.bottom, message.photo == nil ? 8 : 4)
+        .background {
+            if message.deleted {
+                shape.fill(ConvNeon.surface.opacity(0.6))
+            } else if message.mine {
+                shape.fill(ConvNeon.mine).shadow(color: ConvNeon.mineA.opacity(0.45), radius: 12, y: 8)
+            } else {
+                shape.fill(ConvNeon.theirs).overlay(shape.strokeBorder(ConvNeon.theirsLine, lineWidth: 1))
+            }
+        }
     }
 }
 
-/// Annonce de l'organisation : une carte pleine largeur, distincte des bulles (en-tête 📣, bord de couleur).
+/// Annonce de l'organisation : une carte pleine largeur, distincte des bulles (en-tête 📣, bord rose).
 private struct AnnouncementCard: View {
     let message: Conversation.Message
     let names: [String]
@@ -867,8 +1172,9 @@ private struct AnnouncementCard: View {
     let onPin: () -> Void
     let onDelete: () -> Void
     let onReport: () -> Void
+    var onPrivateReply: (() -> Void)?
 
-    private var accent: Color { Color(uiColor: AppConfig.uiAccent) }
+    private var accent: Color { ConvNeon.pink }
     private var actions: Bool { (canWrite || !message.mine) && !message.pending }
 
     var body: some View {
@@ -877,37 +1183,39 @@ private struct AnnouncementCard: View {
                 HStack(spacing: 6) {
                     Image(systemName: "megaphone.fill")
                     Text("ANNONCE").font(.caption.weight(.heavy)).tracking(0.8)
-                    Text("· \(message.mine ? "toi" : message.authorName)").font(.caption.weight(.semibold)).foregroundStyle(.secondary).lineLimit(1)
+                    Text("· \(message.mine ? "toi" : message.authorName)").font(.caption.weight(.semibold)).foregroundStyle(ConvNeon.t2).lineLimit(1)
                     Spacer(minLength: 0)
                     if message.pending { Image(systemName: "clock") } else {
                         Text(message.date?.formatted(date: .omitted, time: .shortened) ?? "").font(.caption2.monospacedDigit())
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(ConvNeon.t2)
                     }
                 }
-                .font(.caption).foregroundStyle(accent)
+                .font(.caption).foregroundStyle(PronoTheme.pinkInk)
                 if let photo = message.photo.flatMap(URL.init(string:)) {
                     AsyncImage(url: photo) { image in image.resizable().scaledToFill() } placeholder: { ProgressView() }
-                        .frame(maxWidth: .infinity).frame(height: 200).clipShape(RoundedRectangle(cornerRadius: 12))
+                        .frame(maxWidth: .infinity).frame(height: 200).clipShape(RoundedRectangle(cornerRadius: 14))
                 }
                 if let seconds = message.audioSeconds {
                     VoiceBubble(player: player, id: message.id, url: message.audio.flatMap(URL.init(string:)), seconds: seconds, mine: false)
                 }
                 let text = ConversationView.clean(message.body)
                 if !text.isEmpty {
-                    Text(Mentions.highlighted(text, names: names, color: accent)).font(.body.weight(.medium))
+                    Text(Mentions.highlighted(text, names: names, color: ConvNeon.lav)).font(.body.weight(.medium))
+                        .foregroundStyle(ConvNeon.t1)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(accent.opacity(0.13), in: RoundedRectangle(cornerRadius: 18))
-            .overlay(RoundedRectangle(cornerRadius: 18).stroke(accent.opacity(0.85), lineWidth: 1.5))
+            .background(accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(accent.opacity(0.85), lineWidth: 1.5))
             .opacity(message.pending ? 0.7 : 1)
             .contextMenu { if actions { ChatMenu(message: message, reactions: reactions, canWrite: canWrite, isAdmin: isAdmin,
                                                  isStaff: isStaff, canPin: false, onReact: onReact, onReply: onReply,
-                                                 onPin: onPin, onDelete: onDelete, onReport: onReport) } }
+                                                 onPin: onPin, onDelete: onDelete, onReport: onReport,
+                                                 onPrivateReply: onPrivateReply) } }
             if !message.reactions.isEmpty {
-                ReactionChips(message: message, canWrite: canWrite, onReact: onReact).offset(y: -5).padding(.horizontal, 12).padding(.bottom, -5)
+                ReactionChips(message: message, canWrite: canWrite, onReact: onReact).offset(y: -9).padding(.horizontal, 12).padding(.bottom, -9)
             }
         }
         .padding(.vertical, 6)
@@ -918,7 +1226,8 @@ private struct AnnouncementCard: View {
     }
 }
 
-/// Appui long : réactions en tête, puis Répondre, Copier, Épingler / Retirer l'annonce, Supprimer, Signaler.
+/// Appui long : réactions en tête, puis Répondre, Répondre en privé, Copier, Modifier, Épingler / Retirer l'annonce,
+/// Supprimer, Signaler.
 private struct ChatMenu: View {
     let message: Conversation.Message
     let reactions: [String]
@@ -931,6 +1240,8 @@ private struct ChatMenu: View {
     let onPin: () -> Void
     let onDelete: () -> Void
     var onReport: (() -> Void)?
+    var onEdit: (() -> Void)?
+    var onPrivateReply: (() -> Void)?
 
     var body: some View {
         if canWrite {
@@ -939,8 +1250,14 @@ private struct ChatMenu: View {
             }
             Button { onReply() } label: { Label("Répondre", systemImage: "arrowshape.turn.up.left") }
         }
+        if let onPrivateReply {
+            Button { onPrivateReply() } label: { Label("Répondre en privé", systemImage: "bubble.left.and.text.bubble.right") }
+        }
         if !message.body.isEmpty {
             Button { UIPasteboard.general.string = ConversationView.clean(message.body) } label: { Label("Copier", systemImage: "doc.on.doc") }
+        }
+        if let onEdit {
+            Button { onEdit() } label: { Label("Modifier", systemImage: "pencil") }
         }
         if message.isAnnouncement {
             if isStaff { Button { onPin() } label: { Label("Retirer l'annonce", systemImage: "pin.slash") } }
@@ -964,22 +1281,21 @@ private struct ReactionChips: View {
     let canWrite: Bool
     let onReact: (String) -> Void
 
-    private var accent: Color { Color(uiColor: AppConfig.uiAccent) }
-
     var body: some View {
         HStack(spacing: 4) {
             ForEach(message.reactions, id: \.emoji) { r in
                 Button { onReact(r.emoji) } label: {
-                    HStack(spacing: 3) {
-                        Text(verbatim: r.emoji).font(.system(size: 14))
+                    HStack(spacing: 4) {
+                        Text(verbatim: r.emoji).font(.system(size: 15))
                         if r.count > 1 {
-                            Text("\(r.count)").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+                            Text("\(r.count)").font(.caption.weight(.bold)).foregroundStyle(r.mine ? ConvNeon.lav : ConvNeon.t2)
                                 .contentTransition(.numericText())
                         }
                     }
-                    .padding(.horizontal, 7).padding(.vertical, 3)
-                    .background(Color(red: 0.11, green: 0.09, blue: 0.2), in: Capsule())
-                    .overlay(Capsule().stroke(r.mine ? accent : Color.white.opacity(0.12), lineWidth: r.mine ? 1.5 : 1))
+                    .padding(.horizontal, 8).frame(minHeight: 28)
+                    .background(r.mine ? ConvNeon.reactMine : ConvNeon.surface2, in: Capsule())
+                    .overlay(Capsule().strokeBorder(ConvNeon.bg, lineWidth: 2))
+                    .overlay(Capsule().stroke(r.mine ? ConvNeon.lav.opacity(0.5) : ConvNeon.line2, lineWidth: 1).padding(-1))
                 }
                 .buttonStyle(PressableStyle(scale: 0.9))
                 .disabled(!canWrite)
@@ -990,13 +1306,13 @@ private struct ReactionChips: View {
     }
 }
 
-/// Point rouge de l'enregistrement : il bat doucement (immobile avec Réduire les animations).
+/// Point rose de l'enregistrement : il bat doucement (immobile avec Réduire les animations).
 private struct RecordingDot: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var dim = false
 
     var body: some View {
-        Circle().fill(.red).frame(width: 10, height: 10)
+        Circle().fill(ConvNeon.pink).frame(width: 10, height: 10)
             .opacity(dim ? 0.3 : 1)
             .onAppear {
                 guard !reduceMotion else { return }
