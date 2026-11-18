@@ -1,5 +1,4 @@
 import { useRef, useState } from 'react';
-import { router } from 'expo-router';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { formatAnswerTime, formatShort, parseLocalDateTime } from '@/lib/format';
@@ -10,6 +9,7 @@ import { useQuery } from '@/lib/data';
 import { friendlyError } from '@/lib/errors';
 import { waitlistQueue, waitlistRank } from '@/lib/eventChecks';
 import { useAuth } from '@/lib/auth';
+import { openMiniProfile } from '@/lib/miniProfile';
 import { dbMessage, type ReportTarget } from '@/lib/moderation';
 import { fetchRsvpNotes, guestsLine, onWaitlist, rsvpChoices, rsvpClosed, rsvpOptions, saveRsvp, totalPlusOnes, waitingPlusOnes } from '@/lib/rsvp';
 import { noteToSend, othersNotes } from '@/lib/rsvpNote';
@@ -324,7 +324,7 @@ function PersonChip({ id, name, face = name, extra, when, viaLink = false, fresh
   const [arrive] = useState(() => (fresh ? enter('pop') : undefined));
   return (
     <Pressable style={({ pressed }) => [st.person, arrive, pressTransition, viaLink && st.viaLink, pressed && { opacity: 0.7 }]} accessibilityRole="button"
-      accessibilityLabel={`${self ? 'Ton profil' : `Profil de ${name}`}${viaLink ? ', invité par lien' : ''}`} onPress={() => router.push(`/member/${id}`)}>
+      accessibilityLabel={`${self ? 'Ton profil' : `Profil de ${name}`}${viaLink ? ', invité par lien' : ''}`} onPress={() => openMiniProfile(id)}>
       <Avatar id={id} name={face} size={24} profile={false} />
       <T size={13} weight="semibold" numberOfLines={1} style={{ flexShrink: 1 }} color={viaLink ? colors.coral : undefined}>
         {name}{extra ? <T size={13} muted> {extra}</T> : null}{viaLink ? <T size={12} color={colors.coral}> · lien</T> : null}

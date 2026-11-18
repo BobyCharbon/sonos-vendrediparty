@@ -113,7 +113,7 @@ export function ServePanel({ eventId, person, onServed, onStale, onNext }: {
   return (
     <View style={[st.wrap, enter('pop')]}>
       <View style={st.who}>
-        <Avatar id={person.member} name={person.name} photo={person.avatar_url} size={56} profile={false} />
+        <Avatar id={person.member} name={person.name} photo={person.avatar_url} size={56} />
         <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
           <T weight="bold" size={20} numberOfLines={2}>{person.name}</T>
           {free ? <T size={13} weight="semibold" color={colors.mint}>Bar offert : rien à payer</T> : (

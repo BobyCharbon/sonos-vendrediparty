@@ -112,7 +112,7 @@ export function ContestVote({ p, c, result, onVote, busy }: {
     <GlassCard style={st.vote}>
       {c.reason ? (
         <View style={st.quote}>
-          {c.by ? <Avatar id={c.by.id} name={c.by.name} photo={c.by.avatar_url} size={36} profile={false} /> : null}
+          {c.by ? <Avatar id={c.by.id} name={c.by.name} photo={c.by.avatar_url} size={36} /> : null}
           <View style={{ flex: 1, gap: 2 }}>
             <Text style={{ color: C.t2, fontSize: 14, fontWeight: '700' }}>{c.by ? `${meName(c.by)} conteste` : 'Contestation'}</Text>
             <Text style={{ color: C.t1, fontSize: 16, lineHeight: 22 }}>« {c.reason} »</Text>

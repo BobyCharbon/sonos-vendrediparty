@@ -1,7 +1,7 @@
-import { router } from 'expo-router';
 import { Fragment } from 'react';
 import { StyleSheet, Text } from 'react-native';
 
+import { openMiniProfile } from '@/lib/miniProfile';
 import { colors } from '@/lib/theme';
 
 import { T } from './ui';
@@ -9,9 +9,9 @@ import { T } from './ui';
 /** Une personne citée : son identifiant (fiche profil) et ce qu'on écrit (« Léa ») ; `after` : « (Oui) »… */
 export type NamedPerson = { id: string; label: string; after?: string };
 
-/** Ouvre la fiche profil d'un membre (même écran que les pastilles des participants). */
+/** Ouvre le mini-profil d'un membre (même feuille que les pastilles des participants). */
 export function openProfile(id: string) {
-  router.push(`/member/${id}`);
+  openMiniProfile(id);
 }
 
 /**

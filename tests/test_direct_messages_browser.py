@@ -31,6 +31,10 @@ def direct_services(page):
             state['started'] = True
             state['dm_rpc'].append(('start', body))
             result = DM
+        elif path.endswith('/rpc/open_direct_chat'):  # Discussions v2 : « Envoyer un message » de la fiche
+            state['started'] = True
+            state['dm_rpc'].append(('open', body))
+            result = {'chat': DM, 'status': 'active', 'reason': None}
         elif path.endswith('/rpc/my_chats'):
             route.fallback()
             return
@@ -92,10 +96,10 @@ def test_write_from_a_member_card_opens_a_private_conversation_listed_with_the_g
     page, errors = phone
     state = direct_services(page)
     signed_in(page, events_origin, f'/member/{LEA}')
-    page.get_by_role('button', name='💬 Écrire').click(timeout=15000)
+    page.get_by_role('button', name='Envoyer un message').click(timeout=15000)
     field = page.get_by_label('Message', exact=True)
     pw.expect(field).to_be_visible(timeout=15000)
-    assert ('start', {'target': LEA}) in state['dm_rpc']
+    assert ('open', {'target': LEA}) in state['dm_rpc']
     pw.expect(field).to_have_attribute('placeholder', 'Message…')
     field.press_sequentially('Salut @')
     pw.expect(page.get_by_label('Suggestions de citation')).to_have_count(0)  # ni @surnom, ni @tout, ni @annonce à deux

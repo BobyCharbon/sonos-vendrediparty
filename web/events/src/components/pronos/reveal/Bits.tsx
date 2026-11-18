@@ -20,12 +20,12 @@ export function Shape({ shape, size = 32, on = false, dim = false, color }: {
   );
 }
 
-/** Visage avec son anneau (le mien : anneau blanc en plus). */
-export function FaceRing({ face, size = 32, ring = N.bg, glow }: { face: Face; size?: number; ring?: string; glow?: string }) {
+/** Visage avec son anneau (le mien : anneau blanc en plus) ; `tap` : le toucher ouvre son mini-profil. */
+export function FaceRing({ face, size = 32, ring = N.bg, glow, tap = false }: { face: Face; size?: number; ring?: string; glow?: string; tap?: boolean }) {
   return (
     <View style={[{ borderRadius: 999, borderWidth: 2, borderColor: ring },
       face.me && web({ boxShadow: `0 0 0 2px ${N.t1}` }), glow ? web({ boxShadow: `0 0 0 2px ${glow}, 0 0 18px ${glow}99` }) : null]}>
-      <Avatar id={face.id} name={face.name} photo={face.avatar_url} size={size} profile={false} />
+      <Avatar id={face.id} name={face.name} photo={face.avatar_url} size={size} profile={tap && !face.me} />
     </View>
   );
 }

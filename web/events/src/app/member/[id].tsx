@@ -4,6 +4,8 @@ import { Linking, View } from 'react-native';
 
 import { InvitedBySection } from '@/components/InvitedBy';
 import { ReportSheet } from '@/components/ReportSheet';
+import { useTermsGate } from '@/components/TermsSheet';
+import { nativeOpenDirect, openDirect, refusal } from '@/components/chats/people/people';
 import { ZicouOnProfile } from '@/components/ZicouOnProfile';
 import { Avatar, Button, Card, Cascade, ConfirmButton, Empty, ErrorText, Loading, Reveal, Screen, Section, T, Title } from '@/components/ui';
 import { personLabel, useContactNames } from '@/lib/contactNames';
@@ -55,6 +57,7 @@ export default function MemberScreen() {
   const [opening, setOpening] = useState(false);
   const [report, setReport] = useState<ReportTarget | null>(null);
   const [blockError, setBlockError] = useState<string | null>(null);
+  const terms = useTermsGate('Avant d’écrire');
 
   /** Blocage commun à toute l'app : plus de message direct, de citation, d'invitation ni de fiche détaillée. */
   async function toggleBlock(next: boolean) {
@@ -67,16 +70,25 @@ export default function MemberScreen() {
     }
   }
 
-  /** « Écrire » : la conversation privée à deux avec ce membre (créée au besoin, une seule par paire). */
+  /** « Envoyer un message » : la conversation à deux (créée au besoin ; demande de message si la base le dit). App iPhone :
+   * l'écran natif. */
   async function write() {
     setWriteError(null);
+    if (nativeOpenDirect(id)) return;
     setOpening(true);
-    const { data: chat, error } = await supabase.rpc('start_direct_chat', { target: id });
-    setOpening(false);
-    if (error || typeof chat !== 'string') {
-      return setWriteError('Tu ne peux pas écrire à cette personne (il faut un groupe ou un événement en commun).');
+    try {
+      let r = await openDirect(id);
+      if (r.reason === 'terms_required') {
+        if (!(await terms.ensure())) return;
+        r = await openDirect(id);
+      }
+      if (r.chat) router.push(`/chats/${r.chat}`);
+      else setWriteError(refusal(r.reason));
+    } catch (e) {
+      setWriteError(e instanceof Error ? e.message : 'La discussion n’a pas pu s’ouvrir. Réessaie.');
+    } finally {
+      setOpening(false);
     }
-    router.push(`/chats/${chat}`);
   }
 
   if (loading) return <Loading />;
@@ -107,7 +119,7 @@ export default function MemberScreen() {
         <T muted size={13}>{data.root ? '👑 Root' : (data.role_label ?? roleName(data.role))}{data.me ? ' · c’est toi' : ''}</T>
         {/* Message direct : seulement quand les Discussions existent (site de test ; absentes en production). */}
         {!data.me && discussionsOn && !data.blocked && !data.restricted ? (
-          <Button small label="💬 Écrire" loading={opening}
+          <Button label="Envoyer un message" loading={opening} style={{ alignSelf: 'stretch' }}
             onPress={() => void write()} />
         ) : null}
         <ErrorText error={writeError} />
@@ -156,6 +168,7 @@ export default function MemberScreen() {
         </Section>
       ) : null}
       <ReportSheet target={report} onClose={() => setReport(null)} />
+      {terms.sheet}
       {data.me ? (
         <T muted size={13}>Ton nom et ton numéro restent cachés tant que tu ne choisis pas de les montrer (Mon profil, Groupes).</T>
       ) : null}

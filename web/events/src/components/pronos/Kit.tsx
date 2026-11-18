@@ -3,6 +3,7 @@ import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View, type Style
 
 import { Avatar } from '@/components/ui';
 import { initials } from '@/lib/format';
+import { PersonTap } from '@/lib/miniProfile';
 import { useGroupImage } from '@/lib/groups';
 import { kindLabel, NO_VALUE, PATATE, type Face, type PronoKind } from '@/lib/pronos';
 
@@ -161,11 +162,11 @@ export function PronoBackground({ children, style }: { children?: ReactNode; sty
 
 // ───────── Avatars ─────────
 /** Visage : vraie photo quand elle existe, sinon initiales sur dégradé (couleur stable de la personne). */
-export function PronoAvatar({ face, size = 28, ring, me }: { face: Face; size?: number; ring?: string; me?: boolean }) {
+export function PronoAvatar({ face, size = 28, ring, me, tap = false }: { face: Face; size?: number; ring?: string; me?: boolean; tap?: boolean }) {
   const c = usePronoTheme();
   const look = faceLook(face.id);
   const showMe = me ?? false;
-  return (
+  const visual = (
     <View style={[{ width: size, height: size, borderRadius: size / 2 }, ring ? web({ boxShadow: `0 0 0 2px ${ring}` }) : null]}
       accessibilityLabel={face.me ? 'Toi' : face.name}>
       {face.avatar_url ? (
@@ -182,6 +183,7 @@ export function PronoAvatar({ face, size = 28, ring, me }: { face: Face; size?: 
       ) : null}
     </View>
   );
+  return tap && !face.me ? <PersonTap id={face.id} name={face.name} size={size}>{visual}</PersonTap> : visual;
 }
 
 /** Pile de visages qui se chevauchent (le premier au-dessus, anneau de la couleur de la surface), puis « +N ». */

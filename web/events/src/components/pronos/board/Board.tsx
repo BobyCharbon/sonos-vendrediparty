@@ -173,7 +173,7 @@ function SeasonRows({ rows, replay }: { rows: SeasonRow[]; replay: string }) {
                 clipPath: mv > 0 ? 'polygon(50% 5%, 95% 90%, 5% 90%)' : 'polygon(50% 95%, 5% 10%, 95% 10%)' })} /> : null}
               <Text style={text(12, '700', mv > 0 ? N.mint : N.t2)}>{mv ? Math.abs(mv) : '–'}</Text>
             </K>
-            <FaceRing face={r.user} size={36} ring={N.s1} />
+            <FaceRing face={r.user} size={36} ring={N.s1} tap />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={text(16, '600')} numberOfLines={1}>{nameOf(r.user)}</Text>
               <Text style={[text(12.5, '500', N.t2), { marginTop: 3 }]}>{r.right}/{r.played} justes · {pct(r)} %</Text>
@@ -213,7 +213,7 @@ function PointsBoard({ groupId }: { groupId: string }) {
                 style={[{ flexDirection: 'row', alignItems: 'center', gap: 12, height: 60, paddingHorizontal: 8 }, i > 0 && { borderTopWidth: 1, borderColor: N.line },
                   r.user.me && web({ borderRadius: 16, backgroundColor: '#251d45', boxShadow: 'inset 0 0 0 1.5px rgba(185,167,255,.45)', borderTopWidth: 0 })]}>
                 <Text style={[num(16, N.t2), { width: 22, textAlign: 'center' }]}>{i + 1}</Text>
-                <FaceRing face={r.user} size={36} ring={N.s1} />
+                <FaceRing face={r.user} size={36} ring={N.s1} tap />
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={text(16, '600')} numberOfLines={1}>{nameOf(r.user)}</Text>
                   <Text style={[text(12.5, '500', N.t2), { marginTop: 3 }]}>

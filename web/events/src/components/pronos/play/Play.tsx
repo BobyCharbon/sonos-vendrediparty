@@ -154,7 +154,7 @@ export function Answers({ p, onReport }: { p: PronoV2; onReport: (author: string
       <SectionLabel>Les réponses</SectionLabel>
       {(p.answers ?? []).map((a) => (
         <View key={a.user.id} style={st.answer}>
-          <Avatar id={a.user.id} name={a.user.name} photo={a.user.avatar_url} size={40} profile={false} />
+          <Avatar id={a.user.id} name={a.user.name} photo={a.user.avatar_url} size={40} />
           <View style={{ flex: 1 }}>
             <Text style={{ color: C.t1, fontSize: 16, fontWeight: '700' }}>
               {p.kind === 'when' ? whenText((a as unknown as { answer_at?: string | null }).answer_at) : answerLabel(p as unknown as Prono, a)}
