@@ -51,7 +51,7 @@ def party(tmp_path_factory):
         port = sock.getsockname()[1]
     env = {'PATH': os.environ['PATH'], 'HOME': os.environ.get('HOME', '/tmp'), 'LANG': 'C.UTF-8',
            'DATA_DIR': str(tmp_path_factory.mktemp('party-bar')), 'EVENTS_WEB_DIR': str(DIST), 'ADMIN_PIN': '8462',
-           'SPOTIFY_CLIENT_ID': '', 'SPOTIFY_CLIENT_SECRET': '', 'INVITES_V2_ENABLED': '1', 'BAR_ENABLED': '1',
+           'SPOTIFY_CLIENT_ID': '', 'SPOTIFY_CLIENT_SECRET': '', 'INVITES_V2_ENABLED': '1', 'BAR_ENABLED': '1', 'DISCUSSIONS_ENABLED': '1',
            'SUPABASE_URL': TEST_URL, 'SUPABASE_ANON_KEY': KEY_FILE.read_text().strip(), 'PYTHONDONTWRITEBYTECODE': '1'}
     process = subprocess.Popen([sys.executable, '-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', str(port),
                                 '--lifespan', 'off'], cwd=ROOT, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
