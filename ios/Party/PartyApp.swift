@@ -223,6 +223,10 @@ struct ContentView: View {
         // ci-dessus (discussion d'événement, pronos, personnes) les reçoivent aussi.
         .environment(\.writeDirect, model.canWriteDirect ? WriteDirectAction { user in await model.writeDirect(to: user) } : nil)
         .environment(\.people, model.canWriteDirect ? model.people : nil)
+        .environment(\.chatsRoutes, model.canWriteDirect
+            ? ChatsRoutes(newMessage: { AnyView(NewMessageView(eventID: $0)) },
+                          miniProfile: { AnyView(MiniProfileSheet(userID: $0)) })
+            : ChatsRoutes())
     }
 }
 
