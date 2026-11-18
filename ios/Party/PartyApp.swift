@@ -52,6 +52,29 @@ struct PartyApp: App {
 struct ContentView: View {
     @ObservedObject var model: WebModel
     @AppStorage(ZicouBubblePrefs.shownKey) private var zicouBubbleShown = true
+    /// iPhone Duo : côté de la barre verticale du système ; nil sur les autres iPhone (barre d'onglets en bas).
+    @State private var barEdge: HorizontalEdge?
+    /// Largeur que la barre verticale prend en plus de la zone sûre (souvent 0 : elle loge sous la barre d'état).
+    @State private var barExtraInset: CGFloat = 0
+
+    private var sideBarVisible: Bool {
+        barEdge != nil && model.visibleTabs.map { !$0.hidden } == true && !model.failed
+    }
+
+    /// Barre d'onglets verticale (Duo) : plus de barre en bas, les boutons flottants évitent la barre d'accueil.
+    private func homeInset(_ proxy: GeometryProxy) -> CGFloat {
+        sideBarVisible ? proxy.safeAreaInsets.bottom : 0
+    }
+
+    /// Bulle de Zicou : au-dessus de la barre d'accueil (Duo) et, posé comme un portable, au-dessus du pli.
+    private func zicouBottom(_ proxy: GeometryProxy) -> CGFloat {
+        guard model.fold?.posture == .laptop, let fold = model.fold?.fold else { return homeInset(proxy) }
+        // Hauteur de la zone sous la page (même cadre que la vue web) moins le haut du pli.
+        let full = proxy.size.height + proxy.safeAreaInsets.top + proxy.safeAreaInsets.bottom
+        let area = barEdge == nil && model.visibleTabs.map({ !$0.hidden }) == true
+            ? full - NativeTabBar.height - proxy.safeAreaInsets.bottom : full
+        return max(homeInset(proxy), area - fold.minY)
+    }
 
     /// « Gérer la soirée » (écran natif de l'hôte) / « Gérer les retours » (page) : réservé à l'hôte.
     private func hostTools(_ screen: String) -> (() -> Void)? {
@@ -108,6 +131,8 @@ struct ContentView: View {
                             .tint(.white)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                             .padding(16)
+                            .padding(.leading, proxy.safeAreaInsets.leading)
+                            .padding(.bottom, homeInset(proxy))
                             .accessibilityHint("Revient aux Réglages de l'app")
                             .motionTransition(.opacity.combined(with: .scale(scale: 0.9, anchor: .bottomLeading)))
                         }
@@ -123,13 +148,17 @@ struct ContentView: View {
                             .tint(.white)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                             .padding(16)
+                            .padding(.trailing, proxy.safeAreaInsets.trailing)
+                            .padding(.bottom, homeInset(proxy))
                             .accessibilityHint("Affiche l'écran Musique des invités ; le choix est retenu")
                             .motionTransition(.opacity.combined(with: .scale(scale: 0.9, anchor: .bottomTrailing)))
                         }
                         // Pyramide : les cartes à mémoriser, en bas de l'écran de jeu, protégées des captures.
                         if let secret = model.secretCards {
                             SecretCardsView(state: secret)
-                                .padding(.horizontal, 16)
+                                // iPhone Duo entrouvert en livre : les cartes à droite du pli, jamais dessus.
+                                .padding(.leading, 16 + max(proxy.safeAreaInsets.leading, model.fold?.posture == .book ? model.fold?.fold?.maxX ?? 0 : 0))
+                                .padding(.trailing, 16 + proxy.safeAreaInsets.trailing)
                                 .padding(.bottom, proxy.safeAreaInsets.bottom + 16)
                                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                                 .motionTransition(.move(edge: .bottom).combined(with: .opacity))
@@ -137,18 +166,19 @@ struct ContentView: View {
                         // Bulle de Zicou (BETA) : par-dessus la page et les écrans natifs, déplaçable, masquable.
                         if zicouBubbleShown, let zicou = model.zicouBubble, zicou.visible, model.tabs?.hidden != true {
                             ZicouBubble(state: zicou, insets: EdgeInsets(top: proxy.safeAreaInsets.top, leading: proxy.safeAreaInsets.leading,
-                                                                         bottom: 0, trailing: proxy.safeAreaInsets.trailing)) {
+                                                                         bottom: zicouBottom(proxy), trailing: proxy.safeAreaInsets.trailing)) {
                                 model.openZicouBubble()
                             }
                             .motionTransition(.opacity.combined(with: .scale(scale: 0.6)))
                         }
                     }
-                    if let tabs = model.visibleTabs, !tabs.hidden {
+                    if let tabs = model.visibleTabs, !tabs.hidden, barEdge == nil {
                         NativeTabBar(state: tabs, select: model.selectTab)
                             .frame(height: NativeTabBar.height + proxy.safeAreaInsets.bottom)
                             .motionTransition(.move(edge: .bottom))
                     }
                 }
+                .padding(barEdge == .leading ? .leading : .trailing, sideBarVisible ? barExtraInset : 0)
                 .ignoresSafeArea()
                 // Barre d'onglets native qui se cache (plein écran d'un jeu) ou revient : glissement court,
                 // fondu avec Réduire les animations.
@@ -157,12 +187,21 @@ struct ContentView: View {
                 .motion(Motion.smooth, value: model.notice)
                 .motion(Motion.smooth, value: model.secretCards)
 
+                // iPhone Duo : barre d'onglets verticale du système, sur le côté (voir SystemTabBar).
+                if #available(iOS 27.1, *), sideBarVisible, let tabs = model.visibleTabs {
+                    SystemTabBar(state: tabs, select: model.selectTab) { barExtraInset = $0 }
+                        .ignoresSafeArea()
+                        .motionTransition(.opacity)
+                }
+
                 // Maintenance, information, annonce (notice.js) : par-dessus la page, les écrans natifs et la barre.
                 if let notice = model.notice, !model.failed {
                     PartyNoticeView(notice: notice, topInset: proxy.safeAreaInsets.top,
                                     close: { Motion.animate(Motion.smooth) { model.hideNotice(notice.id) } },
                                     manage: { Motion.animate(Motion.smooth) { model.show(.tab("notice")) } })
-                        .ignoresSafeArea()
+                        // Bandeau : haut et bas seulement, il évite sur les côtés la colonne de la barre d'état du Duo ;
+                        // maintenance : tout l'écran, barre d'onglets verticale comprise.
+                        .ignoresSafeArea(.container, edges: notice.blocks ? .all : .vertical)
                         .motionTransition(.opacity)
                 }
 
@@ -171,6 +210,7 @@ struct ContentView: View {
                 }
             }
         }
+        .background(VerticalBarEdgeReader { edge in Motion.animate(Motion.snappy) { barEdge = edge } })
         .preferredColorScheme(.dark)
         // Fiche d'un membre › son Zicou : visite (ami) ou « Adopter le mien », dans l'onglet Zicou de la page.
         .environment(\.openZicou, OpenZicouAction { visit in model.openZicou(visit: visit) })

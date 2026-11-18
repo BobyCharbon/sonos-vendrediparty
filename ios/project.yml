@@ -66,6 +66,8 @@ targets:
         UIStatusBarStyle: UIStatusBarStyleLightContent
         UIViewControllerBasedStatusBarAppearance: false
         UIUserInterfaceStyle: Dark
+        # Portrait sur les iPhone classiques (gardé : rien ne change pour eux). L'écran intérieur de l'iPhone Duo
+        # ignore ce verrou (Apple) : l'app y suit toute taille et toute orientation (CLAUDE.md, « iPhone Duo »).
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         NSCameraUsageDescription: "Pour scanner un QR code (code de la soirée, billet d'un événement, carte du bar d'un invité) et prendre une photo de profil ou d'événement."
         NSPhotoLibraryUsageDescription: "Pour choisir une photo de profil, d'événement ou de discussion."

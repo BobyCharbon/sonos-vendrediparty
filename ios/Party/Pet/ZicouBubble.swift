@@ -43,7 +43,7 @@ enum ZicouSpot: String, CaseIterable {
         let half = side / 2
         let x = leading ? insets.leading + ZicouBubble.margin + half : size.width - insets.trailing - ZicouBubble.margin - half
         let top = insets.top + ZicouBubble.topClearance + half
-        let bottom = size.height - ZicouBubble.margin - half
+        let bottom = size.height - insets.bottom - ZicouBubble.margin - half
         switch self {
         case .topLeading, .topTrailing: return CGPoint(x: x, y: top)
         case .middleLeading, .middleTrailing: return CGPoint(x: x, y: (top + bottom) / 2)
