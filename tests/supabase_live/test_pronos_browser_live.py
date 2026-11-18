@@ -47,11 +47,14 @@ def test_create_play_hidden_result_reveal_and_board(browser, party, band):  # no
         page.get_by_test_id('group-pronos').click(timeout=30000)
         pw.expect(page.get_by_text('Aucun prono dans ce groupe')).to_be_visible(timeout=20000)
         page.get_by_test_id('prono-new').click()
+        page.get_by_test_id('prono-kind-choice').click(timeout=20000)   # v2 : « Partir de zéro › Choix »
         page.get_by_test_id('prono-question').fill(QUESTION, timeout=20000)
         page.get_by_label('Choix 1').fill('Léa')
         page.get_by_label('Choix 2').fill('Marc')
         shot(page, 'pronos-01-nouveau')
-        page.get_by_role('button', name='Publier et prévenir').click()
+        page.get_by_test_id('prono-next').click()
+        page.get_by_test_id('prono-launch').click(timeout=20000)
+        page.get_by_test_id('prono-play-now').click(timeout=20000)
         pw.expect(page.get_by_role('heading', name=QUESTION)).to_be_visible(timeout=20000)
         pid = sql(f"select id::text from private.pronos where group_id = '{gid}'")[0]['id']
         # Marc est prévenu ; il joue « Marc » par la base.
@@ -59,8 +62,9 @@ def test_create_play_hidden_result_reveal_and_board(browser, party, band):  # no
         opts = b.rpc('prono_get', id=pid).json()['options']
         assert b.rpc('prono_answer', id=pid, answer={'option_id': opts[1]['id']}).status_code == 200
 
-        page.get_by_test_id('prono-choice-0').click()  # Léa joue « Léa »
-        pw.expect(page.get_by_text('Ta réponse est enregistrée et cachée')).to_be_visible(timeout=15000)
+        page.get_by_test_id('prono-choice-0').click()  # Léa choisit « Léa »…
+        page.get_by_test_id('prono-seal').click()       # … et scelle sa réponse
+        pw.expect(page.get_by_text('Réponse scellée').first).to_be_visible(timeout=15000)
         pw.expect(page.get_by_text('2 personnes ont joué')).to_be_visible(timeout=15000)
         # La réponse de Marc n'est nulle part dans la page (ni texte, ni compte par choix).
         assert 'réponse' not in (page.get_by_test_id('prono-choice-1').inner_text() or '').lower()

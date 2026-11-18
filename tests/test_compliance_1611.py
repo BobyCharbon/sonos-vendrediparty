@@ -27,7 +27,7 @@ def test_terms_say_adults_only_and_that_party_never_touches_money_on_web_and_iph
     web = (ROOT / "web/events/src/lib/terms.ts").read_text()
     ios = (ROOT / "ios/Party/Settings/Moderation/TermsView.swift").read_text()
     for text in (web, ios):
-        assert "16 novembre 2026" in text and "Réservé aux adultes" in text and "Paiements, billets et bar" in text
+        assert "18 novembre 2026" in text and "Réservé aux adultes" in text and "Paiements, billets et bar" in text
         assert "18 ans ou plus" in text and "Tabac et drogues sont interdits" in text
     assert "tu confirmes avoir 18 ans ou plus" in (ROOT / "web/events/src/components/TermsSheet.tsx").read_text()
     assert "tu confirmes avoir 18 ans ou plus" in (ROOT / "ios/Party/Settings/Moderation/ModerationSheets.swift").read_text()
@@ -36,7 +36,7 @@ def test_terms_say_adults_only_and_that_party_never_touches_money_on_web_and_iph
 def test_privacy_policy_and_manifest_cover_the_bar_and_voice_messages():
     for p in ("web/events/src/app/privacy.tsx", "ios/Party/Settings/Account/SignInView.swift"):
         text = (ROOT / p).read_text()
-        assert "Bar de la soirée, seulement si l" in text and "6 mois après sa fermeture" in text and "16 novembre 2026" in text
+        assert "Bar de la soirée, seulement si l" in text and "6 mois après sa fermeture" in text and "18 novembre 2026" in text
     with open(ROOT / "ios/Party/PrivacyInfo.xcprivacy", "rb") as f:
         types = {e["NSPrivacyCollectedDataType"] for e in plistlib.load(f)["NSPrivacyCollectedDataTypes"]}
     assert {"NSPrivacyCollectedDataTypeAudioData", "NSPrivacyCollectedDataTypePurchaseHistory"} <= types

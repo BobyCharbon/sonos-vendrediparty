@@ -4,7 +4,7 @@ import { AvatarStack, ChoicePill, Countdown, CoverBand, KindIcon, kindLabel, Pat
 import { palette } from '@/lib/groups';
 import type { Face } from '@/lib/pronos';
 
-import { awardOf, DOWN, filledOptions, lineLabel, SHAPES, shownQuestion, UP, type Award, type Draft } from './model';
+import { awardOf, filledOptions, lineLabel, shownQuestion, type Award, type Draft } from './model';
 import { C, nb, rounded, Txt, web } from './ui';
 
 export type Place = {
@@ -14,8 +14,6 @@ export type Place = {
   label: string; emoji: string; faces: Face[]; members: number;
 };
 
-const YES = { glyph: '✓', color: '#3FD08F' };
-const NO = { glyph: '✕', color: '#FF8A5C' };
 
 /**
  * Aperçu en direct (maquettes 2-2 et 2-4) : la carte telle que la bande la verra dans sa liste, mise à jour à chaque
@@ -62,7 +60,7 @@ export function PreviewCard({ d, awards, place, closesAt, patates, launched }: {
         {launched ? (
           <View style={[st.foot, { justifyContent: 'space-between' }]}>
             {patates ? (
-              <View style={st.field}><PatateBadge n={0} tone="amber" /><Txt size={14} weight="700" color={C.amber}>dans le champ</Txt></View>
+              <View style={st.field}><PatateBadge n={0} tone="potato" /><Txt size={14} weight="700" color={C.amber}>dans le champ</Txt></View>
             ) : <View />}
             {closesAt ? <Countdown closesAt={closesAt} /> : null}
           </View>
@@ -78,23 +76,23 @@ function Answers({ d, place }: { d: Draft; place: Place }) {
     if (!opts.length) return <Txt size={14} color={C.t3}>Tes réponses s’afficheront ici.</Txt>;
     return (
       <View style={st.pills}>
-        {opts.map((o, i) => <ChoicePill key={`${i}-${o}`} label={o} shape={SHAPES[i].glyph} color={SHAPES[i].color} />)}
+        {opts.map((o, i) => <ChoicePill key={`${i}-${o}`} label={o} shape={i} />)}
       </View>
     );
   }
   if (d.kind === 'yesno') {
     return (
       <View style={st.pills}>
-        <ChoicePill label="Oui" shape={YES.glyph} color={YES.color} />
-        <ChoicePill label="Non" shape={NO.glyph} color={NO.color} />
+        <ChoicePill label="Oui" shape={0} />
+        <ChoicePill label="Non" shape={1} />
       </View>
     );
   }
   if (d.kind === 'overunder') {
     return (
       <View style={st.pills}>
-        <ChoicePill label={`Plus de ${lineLabel(d.line)}`} shape={UP.glyph} color={UP.color} />
-        <ChoicePill label={`Moins de ${lineLabel(d.line)}`} shape={DOWN.glyph} color={DOWN.color} />
+        <ChoicePill label={`Plus de ${lineLabel(d.line)}`} shape="triangle" />
+        <ChoicePill label={`Moins de ${lineLabel(d.line)}`} shape="down" />
       </View>
     );
   }
