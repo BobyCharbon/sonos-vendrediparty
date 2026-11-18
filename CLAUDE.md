@@ -334,6 +334,29 @@ l'admin. Toujours :
   par le droit `zicou.event_coins` (page des cadeaux Zicou de l'événement, 5 à 100 par présent, versées une fois par la
   base, journal `pet_event_coin_grants`, migration 20261105090000).
 
+## Discussions : vitesse (demande de l'admin du 18.11 : « fluide, rapide, le plus rapide possible ») — à garder
+- Envoi optimiste PARTOUT : la bulle s'affiche avant toute réponse (« Envoi… »), le champ se vide, on écrit la suite.
+  Réseau absent : 2 nouveaux essais (0,8 s, 2,5 s), puis « Pas envoyé · Toucher pour réessayer » ; renvoyé tout seul
+  au retour du réseau (web : événement `online` / lecture réussie ; iPhone : prochaine lecture de la conversation). Même
+  identifiant à chaque essai ; « déjà enregistré » (409 / 23505) = envoyé (`already_sent`, serveur ; web : `outbox.ts`).
+  Refus de la base (filtre, demande, CGU) : jamais renvoyé, le texte revient dans le champ s'il est vide. Un message en
+  attente n'est jamais perdu quand l'écran se ferme (web : file `components/chats/conversation/outbox.ts` ; iPhone :
+  `ChatsStore.outgoing` par conversation) ; jamais renvoyé avec le jeton d'un autre compte (`authors`).
+- Rien d'affiché n'attend une relecture complète : message reçu en temps réel = ligne montrée aussitôt (web : `onRow`
+  de `useRealtime`), puis relecture ; réactions LUES AVEC les messages (jointure PostgREST, web et `/chats/open`) ;
+  iPhone : champs v2 (carte, citation) lus dans la MÊME réponse que la conversation (`Conversation.extras`), plus de
+  deuxième `/chats/open` ; liste : l'adresse du temps réel vient avec `chat_list` ; CGU lues dès l'ouverture.
+- Cache : liste (web : localStorage par compte, effacé à la déconnexion ; iPhone : fichier + mémoire), conversations
+  (mémoire), 3 premières discussions préchargées (lecture seule : `prefetch` ne consomme pas le bandeau « Tu es dans le
+  groupe », rien n'est marqué lu, jamais une demande reçue), conversation ouverte au toucher depuis la liste sans
+  requête « est-ce un message direct ? » (`knownKinds`). La conversation s'ouvre EN BAS du fil (web : tout le fil rendu
+  d'un coup + `onContentSizeChange`) : avant, un long fil s'ouvrait en haut.
+- SQL (migration 20261118190000) : `met_events` part des soirées en commun ; `dm_link` une seule fois par personne dans
+  « Nouveau message » (`chat_person_linked`). Réponses identiques (vérifié sur TEST).
+- Mesures : `ios/PartyUITests/VitesseDiscussionsUITests.swift` (marques `ChatTiming`, E2E_HOOKS seulement),
+  `tests/supabase_live/test_discussions_vitesse_browser_live.py` ; tests `tests/test_chats_send_browser.py`,
+  `ChatsSendTests` (iOS), `test_group_chats_native.py` (jointure, préchargement, déjà enregistré).
+
 ## Tests
 `python -m pytest -q --ignore=tests/e2e` avant tout commit.
 
