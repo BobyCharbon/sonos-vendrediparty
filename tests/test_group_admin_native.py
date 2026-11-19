@@ -289,3 +289,19 @@ def test_role_routes_validate_and_relay(monkeypatch):
     client.post("/api/account/group-admin/roles/order", json={"token": "t", "keys": ["guest", "admin"]})
     assert f.calls[-1] == ("reorder_roles", ["guest", "admin"])
     assert client.post("/api/account/group-admin/permission", json={"token": "t", "role": "r_videurs", "perm": "tickets.scan", "on": True}).status_code == 200
+
+
+def test_zicou_rights_are_hidden_while_zicou_is_off(monkeypatch):
+    """Recette examinateur du 19.11 : Zicou éteint (prod), « Donner des pièces Zicou » ne s'affiche pas dans Rôles et droits."""
+    def with_zicou(request: httpx.Request):
+        if request.url.path == "/rest/v1/permissions":
+            return httpx.Response(200, json=[{"key": "events.approve", "grp": "Événements", "label": "Valider", "hint": None, "sort": 1},
+                                             {"key": "zicou.event_coins", "grp": "Zicou", "label": "Donner des pièces Zicou",
+                                              "hint": None, "sort": 2}])
+        return None
+
+    admin, _ = fake(perms=("roles.manage",), rank=4, extra=with_zicou)
+    monkeypatch.setenv("COMPAGNON_ENABLED", "0")
+    assert [p["key"] for p in admin.roles("tok")["catalog"]] == ["events.approve"]
+    monkeypatch.setenv("COMPAGNON_ENABLED", "1")
+    assert [p["key"] for p in admin.roles("tok")["catalog"]] == ["events.approve", "zicou.event_coins"]

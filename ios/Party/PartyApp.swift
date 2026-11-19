@@ -97,11 +97,13 @@ struct ContentView: View {
                                 HostMusicView(store: host, topInset: proxy.safeAreaInsets.top,
                                               guestView: { Motion.animate(Motion.smooth) { model.hostNativeMusic = false } },
                                               pageView: { Motion.animate(Motion.smooth) { model.manageMusicInPage() } })
+                                    .sideSafeArea(proxy)
                                     .transition(.opacity)
                             } else {
                                 // Vue invité ↔ Gérer la soirée : fondu enchaîné dans les deux sens (avant : seulement à l'aller).
                                 MusicView(store: music, topInset: proxy.safeAreaInsets.top, manage: hostTools("music"),
                                           signIn: model.settings?.session)
+                                    .sideSafeArea(proxy)
                                     .transition(.opacity)
                             }
                         }
@@ -109,15 +111,18 @@ struct ContentView: View {
                             // Page des Réglages depuis le 4.11 (l'onglet Zicou a pris sa place) : « ‹ Réglages ».
                             FeedbackView(store: feedback, topInset: proxy.safeAreaInsets.top, admin: model.isHost ? model.feedbackAdmin : nil,
                                          back: model.tabs?.isSubScreen == true ? { Motion.animate(Motion.smooth) { model.selectTab("account") } } : nil)
+                                .sideSafeArea(proxy)
                         }
                         if model.nativeScreen == "chats", let chats = model.chats {
                             ChatsView(store: chats, topInset: proxy.safeAreaInsets.top)
+                                .sideSafeArea(proxy, ChatNeon.bg)
                         }
                         if model.nativeScreen == "account", let settings = model.settings {
                             SettingsView(store: settings, topInset: proxy.safeAreaInsets.top, isHost: model.isHost, hostMusic: model.hostMusic,
                                          feedbackEntry: model.tabs?.feedback, zicouAvailable: model.zicouBubble != nil) { place in
                                 Motion.animate(Motion.smooth) { model.show(place) }
                             }
+                            .sideSafeArea(proxy)
                         }
                         if model.pageDetail != nil {
                             Button {
@@ -364,3 +369,14 @@ private struct AIEventDemo: View {
     }
 }
 #endif
+
+/// iPhone Duo, écran extérieur : la colonne de la barre d'état (heure, réseau) et la barre d'onglets verticale sont sur le
+/// côté. La page s'arrête avant (env(safe-area-inset-*)) ; les écrans natifs aussi, sur le même fond (recette du 19.11 :
+/// « Entrer » et la consigne de Musique passaient dessous). Ailleurs (iPhone en portrait), marges nulles : rien ne change.
+private extension View {
+    func sideSafeArea(_ proxy: GeometryProxy, _ fill: Color = AppConfig.background) -> some View {
+        padding(.leading, proxy.safeAreaInsets.leading)
+            .padding(.trailing, proxy.safeAreaInsets.trailing)
+            .background(fill)
+    }
+}

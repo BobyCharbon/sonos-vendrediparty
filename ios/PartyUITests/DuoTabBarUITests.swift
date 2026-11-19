@@ -74,6 +74,53 @@ final class DuoTabBarUITests: XCTestCase {
         snapshot(app, "duo-5-apres-retour")
     }
 
+    /// Écrans natifs (Musique, Discussions, Réglages) sur l'écran extérieur du Duo : rien sous la colonne de la barre d'état
+    /// ni sous la barre verticale (recette du 19.11 : « Entrer » et la fin de la consigne de Musique passaient dessous).
+    func testNativeScreensStayLeftOfTheStatusColumn() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["PARTY_DUO_VERTICAL"] == "1", "iPhone Duo seulement")
+        let app = XCUIApplication()
+        app.launchEnvironment["PARTY_DEBUG_JS"] = "localStorage.setItem('vp_tab','music');"
+        app.launch()
+        let music = app.buttons["Musique"]
+        XCTAssertTrue(music.waitForExistence(timeout: 40), app.debugDescription)
+        music.tap()
+        let scan = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Scanner le QR'")).firstMatch
+        XCTAssertTrue(scan.waitForExistence(timeout: 30), "Musique (écran natif) : « Scanner le QR de l'hôte »")
+        sleep(2)
+        snapshot(app, "duo-6-musique")
+        // La colonne de droite (heure, réseau, barre d'onglets) commence au bord gauche des boutons d'onglets.
+        let column = music.frame.minX
+        XCTAssertLessThanOrEqual(scan.frame.maxX, column, "« Scanner le QR » sous la colonne de droite : \(scan.frame) / \(column)")
+        let code = app.buttons.matching(NSPredicate(format: "label == 'Entrer'")).firstMatch
+        if code.exists { XCTAssertLessThanOrEqual(code.frame.maxX, column, "« Entrer » sous la colonne de droite : \(code.frame)") }
+    }
+
+    /// Onglet Événements (module web dans le cadre de la page), compte connecté : l'accueil prend toute la largeur jusqu'à
+    /// la colonne de droite (retour de l'admin du 19.11 sur son Duo plié : ~64 % de la largeur, « Événements » coupé en
+    /// trois lignes, filtres coupés, « + Proposer » sur la liste). Session de test : TEST_RUNNER_PARTY_DUO_SESSION.
+    func testTheEventsHomeUsesTheWholeWidthUpToTheColumn() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["PARTY_DUO_VERTICAL"] == "1", "iPhone Duo seulement")
+        let session = try XCTUnwrap(ProcessInfo.processInfo.environment["PARTY_DUO_SESSION"], "session de test (TEST_RUNNER_PARTY_DUO_SESSION)")
+        let app = XCUIApplication()
+        app.launchEnvironment["PARTY_DEBUG_JS"] = "localStorage.setItem('sb-ewromqfsmcqsthftyhzm-auth-token', \(session));"
+            + "localStorage.setItem('vp_tab','events');localStorage.setItem('vp_install_dismissed','1');"
+        app.launch()
+        let title = app.webViews.staticTexts["Événements"].firstMatch
+        let bell = app.webViews.buttons["home-bell"].exists ? app.webViews.buttons["home-bell"]
+            : app.webViews.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Activité' OR label BEGINSWITH 'Notifications'")).firstMatch
+        XCTAssertTrue(title.waitForExistence(timeout: 60), app.debugDescription)
+        let propose = app.webViews.buttons["Proposer un événement"]
+        XCTAssertTrue(propose.waitForExistence(timeout: 30), "« + Proposer »")
+        sleep(3)
+        snapshot(app, "duo-7-evenements")
+        let column = app.buttons["Musique"].frame.minX
+        // Une seule ligne pour « Événements » (coupé en trois avant : ~90 pt de haut).
+        XCTAssertLessThan(title.frame.height, 64, "titre « Événements » sur plusieurs lignes : \(title.frame)")
+        // Le contenu va jusqu'à la colonne (marge de la page comprise), « + Proposer » reste dans le contenu.
+        if bell.exists { XCTAssertGreaterThan(bell.frame.maxX, column - 60, "en-tête arrêté loin de la colonne : \(bell.frame) / \(column)") }
+        XCTAssertLessThanOrEqual(propose.frame.maxX, column, "« + Proposer » sous la colonne : \(propose.frame)")
+    }
+
     /// Pont du pli : la page reçoit la posture (événement « party-fold », `<html data-posture>`). Duo fermé : « closed ».
     func testThePageKnowsThePosture() throws {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["PARTY_DUO_VERTICAL"] == "1", "iPhone Duo seulement")

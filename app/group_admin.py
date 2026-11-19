@@ -6,6 +6,7 @@ import re
 import httpx
 
 from .accounts import SUPABASE_URL, AccountError, Accounts, TermsRequired
+from .features import compagnon_enabled
 
 ROOT_ID = "298ff6e0-07b2-4127-bb69-d254dd63a3d5"
 ROOT_RANK = 99
@@ -294,6 +295,8 @@ class GroupAdmin:
         book = self.role_book(token)
         me = self.access(token, book)
         catalog = self._rows("/rest/v1/permissions?select=key,grp,label,hint,sort&order=sort", token)
+        # Zicou éteint (prod) : ses droits ne s'affichent pas (jamais « Zicou » à l'écran tant qu'il est en bêta).
+        catalog = [p for p in catalog if compagnon_enabled() or not str(p.get("key", "")).startswith("zicou.")]
         grants = self._rows("/rest/v1/role_permissions?select=role,perm", token)
         r = self._call("POST", "/rest/v1/rpc/roles_overview", token, json={})
         counts = {x["key"]: x.get("members", 0) for x in r.json()} if r.status_code == 200 and isinstance(r.json(), list) else {}

@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Button, Card, Chip, ConfirmButton, ErrorText, Field, Screen, s, Section, T, ToggleRow } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
+import { compagnonOn } from '@/lib/features';
 import { useQuery } from '@/lib/data';
 import { moveRole, ROLE_COLORS, roleBook, roleError, type Role } from '@/lib/roles';
 import { must, supabase } from '@/lib/supabase';
@@ -39,7 +40,8 @@ export default function Roles() {
       ? rows.map((r) => ({ ...r, members: counts.get(r.key) ?? null }))
       : roleBook().map((r) => ({ ...r, members: null }));  // anciens rôles figés (lib/roles)
     return {
-      catalog: must(catalog) as Permission[],
+      // Zicou éteint (prod) : ses droits ne s'affichent pas (jamais « Zicou » à l'écran tant qu'il est en bêta).
+      catalog: (must(catalog) as Permission[]).filter((p) => compagnonOn || !p.key.startsWith('zicou.')),
       grants: must(grants) as { role: string; perm: string }[],
       book,
       manage: rows.length > 0,
