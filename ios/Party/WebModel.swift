@@ -382,7 +382,7 @@ final class WebModel: ObservableObject {
 
     /// Pronos (17.11) : liste, prono ou création, en écran natif par-dessus la page ; la base vérifie les droits.
     func openPronos(_ route: PronoRoute) {
-        guard settings != nil else { return }
+        guard settings?.pronosOn == true else { return }  // Pronos gardés en test (19.11)
         Motion.animate(Motion.smooth) { pronoRoute = route }
     }
 

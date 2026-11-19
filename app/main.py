@@ -36,7 +36,7 @@ from .pronos import pronos_router
 from .chat_rpc import chat_rpc_router, start_files_gc
 from . import pet_pot, tv_star
 # Adresse du déploiement et fonctions en bêta (Compagnon : allumé sur le site de test seulement).
-from .features import COMPAGNON_SOON, TEST_SITE_HOST, bar_enabled, compagnon_enabled, configured_public_url, discussions_enabled, invites_v2_enabled, patates_enabled
+from .features import COMPAGNON_SOON, TEST_SITE_HOST, agenda_enabled, bar_enabled, compagnon_enabled, configured_public_url, discussions_enabled, invites_v2_enabled, patates_enabled, pronos_enabled
 from .game_lock import LOCK as GAMES_LOCK
 from .accounts import AccountError, Accounts, ServiceUnavailable, TermsRequired
 from .account_auth import AccountAuth
@@ -4027,6 +4027,20 @@ async def discussions_off(request: Request, call_next):
     return await call_next(request)
 
 
+# Agenda et Pronos gardés en test (décision du 19.11) : leurs routes répondent 404 hors site de test.
+AGENDA_PATHS = ("/api/account/agenda/", "/d/", "/agenda/")
+PRONOS_PATHS = ("/api/account/pronos/", "/prono/")
+APPS_OFF = "Bientôt dans Party."
+
+
+@app.middleware("http")
+async def apps_off(request: Request, call_next):
+    path = request.url.path
+    if (path.startswith(AGENDA_PATHS) and not agenda_enabled()) or (path.startswith(PRONOS_PATHS) and not pronos_enabled()):
+        return JSONResponse({"detail": APPS_OFF}, status_code=404, headers=NO_CACHE)
+    return await call_next(request)
+
+
 @app.middleware("http")
 async def compagnon_off(request: Request, call_next):
     """Compagnon éteint : aucune de ses routes ne répond (404 « Le Compagnon arrive bientôt. »), rien ne se calcule."""
@@ -5213,14 +5227,23 @@ def bar_page(html: str) -> str:
     return html.replace("<html", '<html data-bar="off"', 1)
 
 
+def apps_page(html: str) -> str:
+    """Agenda et Pronos gardés en test (19.11) : <html data-agenda="off"> / data-pronos="off", lus par le module Événements
+    (ni entrée dans les Réglages ni l'en-tête, ni carte, ni page)."""
+    for name, on in (("pronos", pronos_enabled()), ("agenda", agenda_enabled())):
+        if not on:
+            html = html.replace("<html", f'<html data-{name}="off"', 1)
+    return html
+
+
 def features_page(html: str) -> str:
     # Le bar en premier : son attribut se place après les autres (« <html data-compagnon=… » reste en tête, tests Zicou).
-    return discussions_page(compagnon_page(invites_page(bar_page(html))))
+    return discussions_page(compagnon_page(invites_page(bar_page(apps_page(html)))))
 
 
 def page(name: str) -> Response:
     """Page HTML avec des adresses de scripts et de styles versionnées (mises en cache jusqu'au prochain déploiement)."""
-    key = (name, compagnon_enabled(), discussions_enabled(), invites_v2_enabled(), bar_enabled())
+    key = (name, compagnon_enabled(), discussions_enabled(), invites_v2_enabled(), bar_enabled(), agenda_enabled(), pronos_enabled())
     if key not in _pages:
         html = features_page((STATIC / name).read_text(encoding="utf-8"))
         _pages[key] = re.sub(r'(/static/[\w./-]+\.(?:js|css))(?=")', rf"\1?v={BUILD_ID}", html)
@@ -5497,7 +5520,9 @@ def features():
     """Fonctions en bêta pour les apps natives (la page web les lit sur <html data-compagnon> / data-discussions) :
     Compagnon (Zicou) et Discussions (groupes, messages directs)."""
     return JSONResponse({"compagnon": compagnon_enabled(), "discussions": discussions_enabled(),
-                         "invites_v2": invites_v2_enabled(), "bar": bar_enabled(), "patates": patates_enabled()},
+                         "invites_v2": invites_v2_enabled(), "bar": bar_enabled(),
+                         "patates": patates_enabled() and pronos_enabled(), "agenda": agenda_enabled(),
+                         "pronos": pronos_enabled()},
                         headers=NO_CACHE)
 
 

@@ -5,6 +5,7 @@ import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } fr
 import { Title } from '@/components/ui';
 import { BADGE_RED } from '@/lib/activityBadge';
 import { duration, enter, pressTransition, transition } from '@/lib/motion';
+import { agendaOn } from '@/lib/features';
 import { colors, font } from '@/lib/theme';
 
 /** Icônes au trait (même dessin que les maquettes), en SVG dans la page : le module ne tourne que sur le web. */
@@ -40,7 +41,7 @@ export function HomeHeader({ searchOpen, onToggleSearch, important, onBell, agen
   return (
     <View style={st.header}>
       <Title level={1} size={titleSize} style={st.title}>Événements</Title>
-      <Pressable accessibilityRole="button" testID="home-agenda"
+      {agendaOn ? <Pressable accessibilityRole="button" testID="home-agenda"
         accessibilityLabel={agendaPending ? `Agenda, ${agendaPending} demande${many2} de rendez-vous` : 'Agenda'}
         onPress={() => router.push('/agenda')} style={({ pressed }) => [st.agenda, pressTransition, pressed && st.pressed]}>
         {/* Très petit écran (320 px) : l’icône seule, VoiceOver lit toujours « Agenda ». */}
@@ -50,7 +51,7 @@ export function HomeHeader({ searchOpen, onToggleSearch, important, onBell, agen
             <Text style={st.badgeText}>{agendaPending > 99 ? '99+' : agendaPending}</Text>
           </View>
         ) : null}
-      </Pressable>
+      </Pressable> : null}
       <Pressable accessibilityRole="button" accessibilityLabel={searchOpen ? 'Fermer la recherche' : 'Rechercher'}
         accessibilityState={{ expanded: searchOpen }} testID="home-search" onPress={onToggleSearch}
         style={({ pressed }) => [st.round, searchOpen && st.roundOn, pressTransition, pressed && st.pressed]}>

@@ -62,14 +62,16 @@ struct SettingsView: View {
                     // réglages ; plus tard peut-être un lanceur dans la barre d'onglets.
                     Section {
                         // Agenda (17.11) : la page /events/agenda dans l'onglet Événements ; pastille = demandes en attente.
-                        AgendaRow(agenda: store.agenda) { open(.agenda) }
+                        if store.agendaOn { AgendaRow(agenda: store.agenda) { open(.agenda) } }
                         // Pronos (17.11) : pour l'honneur ; pastille = à jouer + résultats à donner.
-                        NavigationLink {
-                            PronosListView(store: store.pronos)
-                        } label: {
-                            PronosRow(pronos: store.pronos)
+                        if store.pronosOn {
+                            NavigationLink {
+                                PronosListView(store: store.pronos)
+                            } label: {
+                                PronosRow(pronos: store.pronos)
+                            }
+                            .accessibilityIdentifier("settings-pronos")
                         }
-                        .accessibilityIdentifier("settings-pronos")
                         NavigationLink {
                             TricountListView(store: store.tricount, myName: store.account?.name ?? "")
                         } label: {

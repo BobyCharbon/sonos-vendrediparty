@@ -4,7 +4,7 @@ import { Pressable, View } from 'react-native';
 import { useAgendaBadge } from '@/lib/agenda';
 import { openPronoList, usePronoBadge } from '@/lib/pronos';
 import { useAuth } from '@/lib/auth';
-import { discussionsOn } from '@/lib/features';
+import { agendaOn, discussionsOn, pronosOn } from '@/lib/features';
 import { useShellFeedback } from '@/lib/shellFeedback';
 import { hasCompleteIdentity } from '@/lib/profile';
 import { roleName, roleRank } from '@/lib/roles';
@@ -27,8 +27,8 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
   const { profile, signOut, can, rank, isAdmin, eventsOpen } = useAuth();
   const pause = usePause();
   const feedback = useShellFeedback();
-  const agendaPending = useAgendaBadge(profile && eventsOpen && hasCompleteIdentity(profile) ? profile.id : null);
-  const pronoTodo = usePronoBadge(profile && eventsOpen && hasCompleteIdentity(profile) ? profile.id : null);
+  const agendaPending = useAgendaBadge(agendaOn && profile && eventsOpen && hasCompleteIdentity(profile) ? profile.id : null);
+  const pronoTodo = usePronoBadge(pronosOn && profile && eventsOpen && hasCompleteIdentity(profile) ? profile.id : null);
   if (!profile) return null;
   const complete = hasCompleteIdentity(profile);
   const active = eventsOpen && complete;
@@ -78,15 +78,15 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
       {complete && can('members.invite') ? <AppInviteCard /> : null}
 
       {/* Autres apps (17.11) : ce ne sont pas des réglages mais des apps de Party, à part (iOS : SettingsView, même section). */}
-      {active ? (
+      {active && (agendaOn || pronosOn) ? (
         <View style={{ gap: 6 }} testID="settings-other-apps">
           <T size={12} weight="bold" color={colors.muted} style={{ letterSpacing: 1, paddingHorizontal: 4 }}>AUTRES APPS</T>
           <Card style={{ gap: 0, paddingVertical: 4 }}>
-            <LinkRow icon="📅" tint="#D92A73" label="Agenda" hint={agendaPending ? `${agendaPending} demande${agendaPending > 1 ? 's' : ''} de rendez-vous` : 'Ta semaine et qui est libre'}
-              badge={agendaPending ? String(agendaPending > 99 ? '99+' : agendaPending) : null} onPress={() => router.push('/agenda?from=settings')} />
-            <RowDivider />
-            <LinkRow icon="🔮" tint="#7B6CF6" label="Pronos" hint={pronoTodo ? `${pronoTodo} à jouer ou à dévoiler` : 'Devine, joue pour l’honneur, grimpe au classement'}
-              badge={pronoTodo ? String(pronoTodo > 99 ? '99+' : pronoTodo) : null} onPress={() => openPronoList(undefined, (path) => router.push(path as never))} />
+            {agendaOn ? <LinkRow icon="📅" tint="#D92A73" label="Agenda" hint={agendaPending ? `${agendaPending} demande${agendaPending > 1 ? 's' : ''} de rendez-vous` : 'Ta semaine et qui est libre'}
+              badge={agendaPending ? String(agendaPending > 99 ? '99+' : agendaPending) : null} onPress={() => router.push('/agenda?from=settings')} /> : null}
+            {agendaOn && pronosOn ? <RowDivider /> : null}
+            {pronosOn ? <LinkRow icon="🔮" tint="#7B6CF6" label="Pronos" hint={pronoTodo ? `${pronoTodo} à jouer ou à dévoiler` : 'Devine, joue pour l’honneur, grimpe au classement'}
+              badge={pronoTodo ? String(pronoTodo > 99 ? '99+' : pronoTodo) : null} onPress={() => openPronoList(undefined, (path) => router.push(path as never))} /> : null}
           </Card>
         </View>
       ) : null}

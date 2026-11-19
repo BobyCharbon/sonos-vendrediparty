@@ -18,6 +18,7 @@ import { plural } from '@/lib/format';
 import { fetchMyGroups, type GroupOverview } from '@/lib/groups';
 import { must, supabase } from '@/lib/supabase';
 import { duration, ease, enter, pressTransition, transition } from '@/lib/motion';
+import { agendaOn } from '@/lib/features';
 import { colors, font, radius } from '@/lib/theme';
 import { useLiveRefresh } from '@/lib/connectivity';
 
@@ -142,7 +143,7 @@ export default function Home() {
     : { only: null, title: `${openPolls.length} sondages attendent ton vote`, body: openPolls.map((e) => e.title).join(' · '),
       label: `${openPolls.length} sondages attendent ton vote. Voter` };
   const important = useImportantUnread(data?.loadedAt);
-  const agendaPending = useAgendaBadge(me.id);
+  const agendaPending = useAgendaBadge(agendaOn ? me.id : null);
   const filterName = filter.kind === 'subscribed' ? 'Mes abonnements'
     : filter.kind === 'category' ? data?.categories.find((c) => c.id === filter.id)?.name
     : filter.kind === 'tag' ? `#${data?.tags.find((t) => t.id === filter.id)?.name ?? ''}` : null;

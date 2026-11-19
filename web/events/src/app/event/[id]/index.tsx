@@ -13,7 +13,7 @@ import { TicketCard } from '@/components/TicketCard';
 import { TicketsManager } from '@/components/TicketsManager';
 import { CalendarButton } from '@/components/CalendarButton';
 import { EventGiftsLink } from '@/components/EventGifts';
-import { barOn, compagnonOn, discussionsOn, invitesV2On } from '@/lib/features';
+import { barOn, compagnonOn, discussionsOn, invitesV2On, pronosOn } from '@/lib/features';
 import { GuestListCard } from '@/components/GuestListCard';
 import { AnnounceStatusCard } from '@/components/AnnounceStatusCard';
 import { InviteLinkCard } from '@/components/InviteLinkCard';
@@ -513,7 +513,7 @@ export default function EventScreen() {
       <BringSection items={ev.bring_items} me={me.id} eventId={ev.id} names={data.names} canParticipate={published} onChange={reload} />
 
       {/* Pronos de la soirée (avis f071c5f46e3d, 17.11) : pour l'honneur, participants et organisation. */}
-      {published ? <EventPronos eventId={ev.id} /> : null}
+      {published && pronosOn ? <EventPronos eventId={ev.id} /> : null}
 
       <T muted size={13}>Proposé par {ev.author ? (
         <NameLinks people={[{ id: ev.author.id ?? ev.created_by, label: personLabel(contacts, ev.author.id ?? ev.created_by, ev.author.display_name).primary || '?' }]} size={13} />

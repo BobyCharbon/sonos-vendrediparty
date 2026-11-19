@@ -56,3 +56,15 @@ def patates_enabled() -> bool:
     """Patates des Pronos v2 (monnaie fictive, gratuite, sans valeur ; 18.11) : PATATES_ENABLED ("1" / "0") si elle est
     définie ; sinon allumées sur le site de test seulement. Éteintes : les pronos restent pour l'honneur (points)."""
     return _flag("PATATES_ENABLED")
+
+
+def agenda_enabled() -> bool:
+    """Agenda (rendez-vous, dispos partagées, liens de dispo publics ; 17.11) : AGENDA_ENABLED ("1" / "0") si elle est
+    définie ; sinon allumé sur le site de test seulement (décision du 19.11 : gardé en test, l'admin l'améliore)."""
+    return _flag("AGENDA_ENABLED")
+
+
+def pronos_enabled() -> bool:
+    """Pronos entre amis (17-18.11) : PRONOS_ENABLED ("1" / "0") si elle est définie ; sinon allumés sur le site de test
+    seulement (décision du 19.11 : gardés en test). Éteints, les confettis le sont aussi (patates_enabled)."""
+    return _flag("PRONOS_ENABLED")

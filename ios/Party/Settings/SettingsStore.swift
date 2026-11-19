@@ -38,6 +38,9 @@ final class SettingsStore: ObservableObject {
     @Published private(set) var discussions = false
     /// Bar de la soirée allumé sur ce site (/api/features.bar) : sinon ses réglages de notification sont cachés.
     @Published private(set) var bar = false
+    /// Agenda et Pronos allumés sur ce site (/api/features, 19.11 : site de test seulement) : sinon ni ligne ni réglage.
+    @Published private(set) var agendaOn = false
+    @Published private(set) var pronosOn = false
     @Published private(set) var events: EventsPhase = .signedOut
     @Published private(set) var liveActivities = LiveActivitySetting.isEnabled
     /// Mon profil ; nil tant qu'il n'est pas lu (ou pas connecté).
@@ -156,6 +159,8 @@ final class SettingsStore: ObservableObject {
         compagnon = features?.compagnon ?? false
         discussions = features?.discussions ?? false
         bar = features?.bar ?? false
+        agendaOn = features?.agenda ?? false
+        pronosOn = features?.pronos ?? false
         if let me = await web?.guestIdentity() {
             guest = try? await api.notifyPrefs(guestID: me.id)
             zicouReactions = compagnon && me.id.hasPrefix("acct-")

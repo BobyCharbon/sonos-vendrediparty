@@ -531,6 +531,16 @@ réglage de prod :
   `tests/test_agenda_browser.py` (base simulée), `tests/supabase_live/test_agenda_web_browser_live.py` (recette réelle).
 - Avant la prod : privacy.tsx (section publique des demandes), CGU, App Privacy (e-mail), phrase EventKit, notes de revue.
 
+## Agenda et Pronos gardés en test (décision de l'admin du 19.11)
+- `agenda_enabled()` / `pronos_enabled()` (app/features.py, AGENDA_ENABLED / PRONOS_ENABLED, sinon site de test seulement) :
+  éteints, `/api/account/agenda/*`, `/d/*`, `/agenda/*`, `/api/account/pronos/*`, `/prono/*` → 404 ; la page porte
+  `data-agenda="off"` / `data-pronos="off"` (module : `agendaOn` / `pronosOn`, lib/features.ts : ni ligne « Autres apps »,
+  ni « 📅 Agenda », ni carte Pronos de la fiche, ni bouton du groupe, ni interrupteur de notification ; leurs pages ramènent à
+  l'accueil) ; iPhone : `/api/features` `agenda` / `pronos` (SettingsStore.agendaOn / pronosOn). Confettis éteints avec les Pronos.
+- Leurs migrations (20261117140000-150000-160000-170000-180000-200000-210000, 20261118090000, 20261118095000 CGU) ne sont PAS
+  en prod : à appliquer dans l'ordre le jour où l'admin les ouvre (aucune n'est redéfinie par une migration passée en prod
+  le 19.11, sauf la contrainte content_reports_target_kind_check qu'elles complètent). Tests : `tests/test_apps_flag.py`.
+
 ## Pronos entre amis (avis f071c5f46e3d, 17.11, migration 20261117180000)
 - Revue de conformité : paris AVEC argent (même payé hors de Party, TWINT, Revolut, Pot commun) = NON (Apple 5.1.1(ix),
   5.3.4, LJAr, ANJ). Seule voie : « Pronos » POUR L'HONNEUR, des points au classement du groupe. Jamais les mots pari / mise

@@ -11,6 +11,7 @@ import { DESTINATION_KEY } from '@/lib/destination';
 import { useEdgeSwipeBack } from '@/lib/edgeSwipe';
 import { useShellBack } from '@/lib/shellBack';
 import { leaveIfAlone } from '@/lib/partyShell';
+import { agendaOn, pronosOn } from '@/lib/features';
 import { usePendingSync } from '@/lib/pending';
 import { hasCompleteIdentity } from '@/lib/profile';
 import { AuthProvider, useAuth } from '@/lib/auth';
@@ -96,6 +97,10 @@ function Gate() {
   // Lien ouvert seul (invitation, partage, groupe…) : juste après la connexion SMS, le routeur passe par « / » avant que
   // l'intention n'y ramène ; partir de là perdait le lien (invité sur la liste, sa réponse jamais envoyée).
   const toLink = useRef<string | null>(null);
+  // Agenda et Pronos gardés en test (19.11) : leurs pages ramènent à l'accueil hors site de test (lien, notification).
+  useEffect(() => {
+    if ((!agendaOn && /^\/agenda(\/|$)/.test(path)) || (!pronosOn && /^\/prono/.test(path))) router.replace('/');
+  }, [path]);
   useEffect(() => {
     if (path === toLink.current) toLink.current = null;  // le lien est atteint
     if (path === '/' && (toLink.current || (intent.current && LINK_INTENT.test(intent.current)))) return;

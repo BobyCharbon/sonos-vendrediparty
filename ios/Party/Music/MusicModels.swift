@@ -170,11 +170,16 @@ struct PartyFeatures: Decodable, Equatable {
     let discussions: Bool
     /// Bar de la soirée (BAR_ENABLED, site de test seulement pour l'instant) : ses réglages de notification n'apparaissent qu'allumé.
     let bar: Bool
+    /// Agenda et Pronos (AGENDA_ENABLED / PRONOS_ENABLED) : gardés en test le 19.11 ; éteints, ni entrée ni écran natif.
+    let agenda: Bool
+    let pronos: Bool
 
-    init(compagnon: Bool, discussions: Bool = false, bar: Bool = false) {
+    init(compagnon: Bool, discussions: Bool = false, bar: Bool = false, agenda: Bool = false, pronos: Bool = false) {
         self.compagnon = compagnon
         self.discussions = discussions
         self.bar = bar
+        self.agenda = agenda
+        self.pronos = pronos
     }
 
     init(from decoder: Decoder) throws {
@@ -182,9 +187,11 @@ struct PartyFeatures: Decodable, Equatable {
         compagnon = try values.decodeIfPresent(Bool.self, forKey: .compagnon) ?? false
         discussions = try values.decodeIfPresent(Bool.self, forKey: .discussions) ?? false
         bar = try values.decodeIfPresent(Bool.self, forKey: .bar) ?? false
+        agenda = try values.decodeIfPresent(Bool.self, forKey: .agenda) ?? false
+        pronos = try values.decodeIfPresent(Bool.self, forKey: .pronos) ?? false
     }
 
-    private enum CodingKeys: String, CodingKey { case compagnon, discussions, bar }
+    private enum CodingKeys: String, CodingKey { case compagnon, discussions, bar, agenda, pronos }
 }
 
 /// Réglages › Compagnon : « Réactions de Zicou » (bandeaux dans l'app, jamais une notification).

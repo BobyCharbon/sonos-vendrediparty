@@ -11,7 +11,7 @@ import { usePersonText } from '@/components/PersonName';
 import { ReportSheet } from '@/components/ReportSheet';
 import { useAuth, useMe } from '@/lib/auth';
 import { fetchEventList, fetchTaxonomy, useQuery, useRealtime, useSignal } from '@/lib/data';
-import { discussionsOn } from '@/lib/features';
+import { discussionsOn, pronosOn } from '@/lib/features';
 import { createdLine, plural } from '@/lib/format';
 import { coverGradient, fetchGroupEventIds, fetchMyGroups, groupName, palette, useGroupImage, type GroupColor } from '@/lib/groups';
 import type { ReportTarget } from '@/lib/moderation';
@@ -174,7 +174,7 @@ export default function GroupPage() {
             </Reveal>
           ) : null}
 
-          {member && !system ? (
+          {member && !system && pronosOn ? (
             <Reveal index={3}>
               <Pressable accessibilityRole="button" accessibilityLabel="Pronos du groupe" testID="group-pronos"
                 onPress={() => openPronoList(id, (path) => router.push(path as never))}

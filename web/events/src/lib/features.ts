@@ -21,3 +21,10 @@ export const invitesV2On = typeof document === 'undefined' || document.documentE
  * sert alors la page avec <html data-bar="off"> (app/features.py) : ni bouton, ni carte, ni scanner du bar.
  */
 export const barOn = typeof document === 'undefined' || document.documentElement.dataset.bar !== 'off';
+
+/**
+ * Agenda et Pronos : gardés en test (décision du 19.11) — Party sert la page avec <html data-agenda="off"> /
+ * data-pronos="off" hors site de test (app/features.py) : ni entrée (Réglages, en-tête, groupe, fiche), ni page.
+ */
+export const agendaOn = typeof document === 'undefined' || document.documentElement.dataset.agenda !== 'off';
+export const pronosOn = typeof document === 'undefined' || document.documentElement.dataset.pronos !== 'off';
