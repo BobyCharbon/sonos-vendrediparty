@@ -74,6 +74,27 @@ final class DuoTabBarUITests: XCTestCase {
         snapshot(app, "duo-5-apres-retour")
     }
 
+    /// Écrans natifs (Musique, Discussions, Réglages) sur l'écran extérieur du Duo : rien sous la colonne de la barre d'état
+    /// ni sous la barre verticale (recette du 19.11 : « Entrer » et la fin de la consigne de Musique passaient dessous).
+    func testNativeScreensStayLeftOfTheStatusColumn() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["PARTY_DUO_VERTICAL"] == "1", "iPhone Duo seulement")
+        let app = XCUIApplication()
+        app.launchEnvironment["PARTY_DEBUG_JS"] = "localStorage.setItem('vp_tab','music');"
+        app.launch()
+        let music = app.buttons["Musique"]
+        XCTAssertTrue(music.waitForExistence(timeout: 40), app.debugDescription)
+        music.tap()
+        let scan = app.buttons.matching(NSPredicate(format: "label CONTAINS 'Scanner le QR'")).firstMatch
+        XCTAssertTrue(scan.waitForExistence(timeout: 30), "Musique (écran natif) : « Scanner le QR de l'hôte »")
+        sleep(2)
+        snapshot(app, "duo-6-musique")
+        // La colonne de droite (heure, réseau, barre d'onglets) commence au bord gauche des boutons d'onglets.
+        let column = music.frame.minX
+        XCTAssertLessThanOrEqual(scan.frame.maxX, column, "« Scanner le QR » sous la colonne de droite : \(scan.frame) / \(column)")
+        let code = app.buttons.matching(NSPredicate(format: "label == 'Entrer'")).firstMatch
+        if code.exists { XCTAssertLessThanOrEqual(code.frame.maxX, column, "« Entrer » sous la colonne de droite : \(code.frame)") }
+    }
+
     /// Pont du pli : la page reçoit la posture (événement « party-fold », `<html data-posture>`). Duo fermé : « closed ».
     func testThePageKnowsThePosture() throws {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["PARTY_DUO_VERTICAL"] == "1", "iPhone Duo seulement")
