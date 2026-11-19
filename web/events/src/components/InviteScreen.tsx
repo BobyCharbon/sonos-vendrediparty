@@ -9,6 +9,7 @@ import { useQuery } from '@/lib/data';
 import { formatShort } from '@/lib/format';
 import { hasCompleteIdentity } from '@/lib/profile';
 import { supabase } from '@/lib/supabase';
+import { openInParty } from '@/lib/partyShell';
 
 const TOKEN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -68,6 +69,7 @@ function Unavailable({ kind, error }: { kind: 'event' | 'group'; error?: string 
         ? 'Ce lien n’est plus valable : un lien pour une personne ne marche qu’une fois, pendant 7 jours, et le lien du groupe change quand il est renouvelé. Demande un nouveau lien à la personne qui t’a invité.'
         : 'Ce lien n’est plus valable : un lien unique ne marche qu’une fois, pendant 7 jours, et l’organisateur peut l’annuler ou le remplacer. Demande ton propre lien à la personne qui t’a invité.'}</T>
       <ErrorText error={error ?? null} />
+      <Button label="Découvrir Party" variant="secondary" onPress={() => openInParty('/')} />
     </Screen>
   );
 }

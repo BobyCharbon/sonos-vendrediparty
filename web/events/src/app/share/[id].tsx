@@ -18,6 +18,7 @@ import { supabase } from '@/lib/supabase';
 import { chf } from '@/lib/tickets';
 import { colors } from '@/lib/theme';
 import type { EventRow, Profile, Rsvp } from '@/lib/types';
+import { openInParty } from '@/lib/partyShell';
 
 const EVENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -97,6 +98,7 @@ export default function PublicEventScreen() {
             <T muted>{validId ? 'Cet événement n’existe plus ou n’est plus partagé publiquement.' : 'Ce lien n’est pas complet. Copie-le en entier depuis le message reçu.'}</T>
           </>
         )}
+        <Button label="Découvrir Party" variant="secondary" onPress={() => openInParty('/')} />
       </Screen>
     );
   }

@@ -70,6 +70,9 @@ def test_unknown_link_says_it_is_no_longer_valid(browser, events_origin):  # noq
         mock_services(page)
         page.goto(f'{events_origin}/events/join/pas-un-lien', wait_until='domcontentloaded')
         pw.expect(page.get_by_text('Lien indisponible', exact=True)).to_be_visible(timeout=15000)
+        # Jamais une impasse (19.11) : « Découvrir Party » ouvre la vraie webapp, onglets compris.
+        page.get_by_role('button', name='Découvrir Party', exact=True).click()
+        page.wait_for_url('**/?tab=events*', timeout=15000)
     finally:
         context.close()
 
@@ -138,5 +141,19 @@ def test_member_card_shows_who_invited_only_with_the_right(browser, events_origi
             pw.expect(page.get_by_text('Invité par', exact=True)).to_be_visible()
             pw.expect(page.get_by_text('via le groupe Les amis', exact=False)).to_be_visible()
             pw.expect(page.get_by_text('avec son lien Party', exact=False)).to_be_visible()
+    finally:
+        context.close()
+
+
+def test_a_broken_event_invitation_still_lets_people_discover_party(browser, events_origin):  # noqa: F811
+    """Demande de l'admin (19.11) : même un lien d'invitation cassé propose « Découvrir Party »."""
+    context = browser.new_context(viewport={'width': 390, 'height': 844})
+    page = context.new_page()
+    try:
+        mock_services(page)
+        page.goto(f'{events_origin}/events/invite/0000', wait_until='domcontentloaded')
+        pw.expect(page.get_by_text('Lien indisponible', exact=True)).to_be_visible(timeout=15000)
+        page.get_by_role('button', name='Découvrir Party', exact=True).click()
+        page.wait_for_url('**/?tab=events*', timeout=15000)
     finally:
         context.close()

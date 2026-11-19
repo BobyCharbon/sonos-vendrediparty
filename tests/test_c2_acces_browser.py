@@ -260,6 +260,7 @@ def test_a_cancelled_public_event_offers_no_sign_in_and_a_broken_link_makes_no_r
         calls.clear()
         page.goto(f'{v2_origin}/events/share/pas-un-uuid', wait_until='domcontentloaded')
         pw.expect(page.get_by_text('Lien indisponible', exact=True)).to_be_visible(timeout=15000)
+        pw.expect(page.get_by_role('button', name='Découvrir Party', exact=True)).to_be_visible()  # jamais une impasse (19.11)
         page.wait_for_timeout(800)
         assert not [c for c in calls if c[0] == 'public_event'], calls
     finally:

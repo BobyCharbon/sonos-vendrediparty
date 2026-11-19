@@ -112,6 +112,8 @@ function Closed({ text, title = 'Lien indisponible', onRetry }: { text: string; 
       <Title>{title}</Title>
       <T muted>{text}</T>
       {onRetry ? <Button label="Réessayer" onPress={onRetry} /> : null}
+      {/* Jamais une impasse (demande de l'admin du 19.11) : on peut toujours découvrir Party. */}
+      <Button label="Découvrir Party" variant="secondary" onPress={() => openInParty('/')} />
     </Screen>
   );
 }

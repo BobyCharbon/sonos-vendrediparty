@@ -11,6 +11,7 @@ import { useQuery } from '@/lib/data';
 import { hasCompleteIdentity } from '@/lib/profile';
 import { discussionsOn } from '@/lib/features';
 import { colors } from '@/lib/theme';
+import { openInParty } from '@/lib/partyShell';
 
 /** Lien personnel d'invitation dans Party (/events/join/<lien>), avis 84fab3987f68 :
  * 1. avant connexion : « Ludo t'invite sur Party » (surnom et photo seulement), l'app à télécharger, ou « Continuer
@@ -112,6 +113,7 @@ function Unavailable({ error }: { error?: string | null }) {
       <Title>Lien indisponible</Title>
       <T muted>Ce lien d’invitation n’est plus valable : la personne qui l’a partagé l’a peut-être remplacé. Demande-lui son nouveau lien.</T>
       <ErrorText error={error ?? null} />
+      <Button label="Découvrir Party" variant="secondary" onPress={() => openInParty('/')} />
     </Screen>
   );
 }
