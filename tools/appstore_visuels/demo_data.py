@@ -283,7 +283,8 @@ def clean():
     lea = sql(f"select id from auth.users where phone = '{VIEWER_PHONE}'")
     if lea:
         _, jwt = login(VIEWER_PHONE)
-        names = [f"{lea[0]['id']}/visuels-lea.png"] + [f"{lea[0]['id']}/visuels-cover-{n}.jpg" for n in COVER_NAMES]
+        # Toutes les images de démonstration du dossier de Léa (y compris d'anciennes versions : une par personne).
+        names = [f"{lea[0]['id']}/visuels-{k}.png" for k in PEOPLE] + [f"{lea[0]['id']}/visuels-cover-{n}.jpg" for n in COVER_NAMES]
         httpx.request("DELETE", f"{URL}/storage/v1/object/profile-photos", json={"prefixes": names}, timeout=60,
                       headers={"apikey": KEY, "Authorization": f"Bearer {jwt}"})
         state = pathlib.Path(__file__).with_name(".demo-state.json")
@@ -295,6 +296,7 @@ def clean():
       delete from events where created_by in {demo};
       delete from member_groups where created_by in {demo};
       delete from direct_chats where user_a in {demo} or user_b in {demo};
+      delete from tc_expenses where group_id in (select id from tc_groups where created_by in {demo});
       delete from tc_groups where created_by in {demo};
       delete from auth.users where id in {demo};
       delete from notifications where created_at = now();
