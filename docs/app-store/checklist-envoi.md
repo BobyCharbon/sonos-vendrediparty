@@ -125,11 +125,8 @@ Pour chaque type : **lié à l'identité : oui · suivi : non · finalité : App
 - [ ] Gratuit ; 26 pays francophones (liste à contrôler dans Prix et disponibilité).
 - [ ] Statut **DSA** (Business › Digital Services Act) : déclarer **non-commerçant** (app gratuite, sans activité
       commerciale) ; sans déclaration, pas de distribution en France, Belgique et Luxembourg.
-- [ ] **Représentant légal dans l'UE — À DÉCIDER PAR L'ADMIN** (revue Discussions du 18.11, 🟠 11) : un service suisse
-      offert en France, en Belgique et au Luxembourg doit désigner un représentant dans l'UE (DSA art. 13, sans exception
-      pour les petits ; RGPD art. 27). Soit le désigner (et l'écrire dans la politique de confidentialité), soit retirer
-      ces 3 pays de la distribution. Questionnaire d'âge inchangé (Messaging and Chat : Oui) ; Google Data safety
-      seulement le jour d'une app Android publique (Messages, Contacts).
+- [x] **Représentant légal dans l'UE** (décision de l'admin du 19.11) : Ludovic Trombert, établi en France (01), nommé
+      dans la politique de confidentialité (web et iPhone, section UE) avec l'adresse et support@vendrediparty.ch.
 - [ ] Droits sur le contenu : « contient du contenu de tiers » = Oui, avec les droits (titres et pochettes lus par les API
       de musique, lieux par Google).
 - [ ] Contrats « Apps gratuites » acceptés (Business) par le titulaire du compte.

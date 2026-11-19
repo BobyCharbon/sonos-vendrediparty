@@ -166,7 +166,7 @@ struct DeleteAccountView: View {
 /// Confidentialité : le texte du module web, en natif, et l'accord pour l'IA (tous les comptes connectés).
 struct PrivacyView: View {
     /// Même texte que la politique du module web (web/events/src/app/privacy.tsx) : changer les deux ensemble.
-    static let updated = "18 novembre 2026"
+    static let updated = "19 novembre 2026"
     static let sections: [(String, [String])] = [
         ("Qui est responsable ?", [
             "Party (Vendredi Party : l'app iPhone, l'app Apple TV et le site) est édité par Ludovic Trombert, en Suisse, responsable du traitement de tes données au sens de la loi fédérale sur la protection des données (nLPD).",
@@ -256,6 +256,7 @@ struct PrivacyView: View {
             "Tes droits : accès, rectification, effacement, limitation, opposition et portabilité (une copie de tes données dans un format lisible), à demander à support@vendrediparty.ch. Tu peux aussi te plaindre auprès de l'autorité de ton pays : la CNIL (France), l'Autorité de protection des données (Belgique) ou la CNPD (Luxembourg).",
             "Transferts : l'Union européenne reconnaît que la Suisse protège les données de façon adéquate ; pour les sous-traitants hors de Suisse, voir « Qui reçoit tes données ».",
             "Règlement sur les services numériques (DSA) : point de contact unique pour les utilisateurs et les autorités : support@vendrediparty.ch, en français. Un contenu illicite se signale dans l'app (« Signaler ») ou à cette adresse.",
+            "Représentant dans l'Union européenne (RGPD art. 27, DSA art. 13) : Ludovic Trombert, 420 route des Rosellets, 01170 Segny, France ; support@vendrediparty.ch.",
         ]),
         ("Signalements et blocages", [
             "Quand tu signales un contenu, les modérateurs reçoivent ta raison, ton commentaire et une copie de ce contenu. Pour un message : ce seul message, avec sa photo ou son vocal copiés dans un espace réservé aux modérateurs, et les 10 messages précédents (texte, auteur, heure) seulement si tu coches « Joindre les 10 messages précédents ». La personne signalée ne sait pas qui l'a signalée. Si un modérateur masque ton contenu, une notification te dit pourquoi et où le contester. Les blocages restent jusqu'à ce que tu débloques.",

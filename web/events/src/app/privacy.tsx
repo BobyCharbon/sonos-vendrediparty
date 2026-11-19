@@ -7,7 +7,7 @@ import { RESPONSIBLE, SUPPORT_EMAIL } from '@/lib/contact';
 /** Politique de confidentialité (Apple 5.1.1(i), nLPD art. 19) : lisible par tous, sans compte. Chaque donnée, son but,
  * qui la reçoit (sous-traitants) et combien de temps elle est gardée. À tenir à jour avec App Privacy (App Store
  * Connect) et Data safety (Play Console) à chaque nouvelle donnée. */
-const UPDATED = '18 novembre 2026';
+const UPDATED = '19 novembre 2026';
 
 type Block = { title: string; paragraphs: string[] };
 
@@ -141,6 +141,7 @@ const BLOCKS: Block[] = [
       `Tes droits : accès, rectification, effacement, limitation, opposition et portabilité (une copie de tes données dans un format lisible), à demander à ${SUPPORT_EMAIL}. Tu peux aussi te plaindre auprès de l’autorité de ton pays : la CNIL (France), l’Autorité de protection des données (Belgique) ou la CNPD (Luxembourg).`,
       'Transferts : l’Union européenne reconnaît que la Suisse protège les données de façon adéquate ; pour les sous-traitants hors de Suisse, voir « Qui reçoit tes données ».',
       `Règlement sur les services numériques (DSA) : point de contact unique pour les utilisateurs et les autorités : ${SUPPORT_EMAIL}, en français. Un contenu illicite se signale dans l’app (« Signaler ») ou à cette adresse.`,
+      `Représentant dans l’Union européenne (RGPD art. 27, DSA art. 13) : Ludovic Trombert, 420 route des Rosellets, 01170 Segny, France ; ${SUPPORT_EMAIL}.`,
     ],
   },
   {

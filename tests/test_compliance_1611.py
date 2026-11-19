@@ -36,7 +36,9 @@ def test_terms_say_adults_only_and_that_party_never_touches_money_on_web_and_iph
 def test_privacy_policy_and_manifest_cover_the_bar_and_voice_messages():
     for p in ("web/events/src/app/privacy.tsx", "ios/Party/Settings/Account/SignInView.swift"):
         text = (ROOT / p).read_text()
-        assert "Bar de la soirée, seulement si l" in text and "6 mois après sa fermeture" in text and "18 novembre 2026" in text
+        assert "Bar de la soirée, seulement si l" in text and "6 mois après sa fermeture" in text and "19 novembre 2026" in text
+        # Représentant dans l'UE (RGPD art. 27, DSA art. 13), décision de l'admin du 19.11 : France, Belgique, Luxembourg.
+        assert "Représentant dans l" in text and "01170 Segny, France" in text
     with open(ROOT / "ios/Party/PrivacyInfo.xcprivacy", "rb") as f:
         types = {e["NSPrivacyCollectedDataType"] for e in plistlib.load(f)["NSPrivacyCollectedDataTypes"]}
     assert {"NSPrivacyCollectedDataTypeAudioData", "NSPrivacyCollectedDataTypePurchaseHistory"} <= types

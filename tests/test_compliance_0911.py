@@ -72,7 +72,7 @@ def test_withdrawing_points_to_confidentialite_everywhere():
 # ── 🟠 9 : politique de confidentialité ──
 def test_privacy_policy_tells_the_dev_ai_the_edit_history_and_the_device_id():
     page = read("web/events/src/app/privacy.tsx")
-    assert "18 novembre 2026" in page
+    assert "19 novembre 2026" in page
     assert "GitHub" in page and "que si tu as donné ton accord pour l’IA" in page and "sans ton prénom" in page
     assert feedback.MAX_EDITS == 20 and "au plus les 20 dernières" in page
     assert "Identifiant de l’appareil" in page and "jeton de notifications" in page and "Wallet" in page
@@ -81,7 +81,7 @@ def test_privacy_policy_tells_the_dev_ai_the_edit_history_and_the_device_id():
 def test_iphone_privacy_text_is_the_web_text():
     swift = read("ios/Party/Settings/Account/SignInView.swift")
     web = read("web/events/src/app/privacy.tsx")
-    assert 'static let updated = "18 novembre 2026"' in swift and "const UPDATED = '18 novembre 2026'" in web
+    assert 'static let updated = "19 novembre 2026"' in swift and "const UPDATED = '19 novembre 2026'" in web
     for title in re.findall(r"title: '([^']*)',", web):
         assert f'("{title.replace("’", chr(39))}", [' in swift, title
     assert "GitHub" in swift and "au plus les 20 dernières" in swift and "19 octobre" not in swift
