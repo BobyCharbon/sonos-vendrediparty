@@ -1,9 +1,11 @@
 import { router, Stack } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { FlatList, KeyboardAvoidingView, Platform, Pressable, Text, View, type TextInput } from 'react-native';
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View, type TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ChatBubble } from './ChatBubble';
+import { eventChatSubtitle, type EventChatCard } from './chat/EventChatTitle';
+import { NotifyBell, NotifyMenu } from './chat/NotifyMenu';
 import { ChatHeader, type HeaderLook } from './chats/conversation/ChatHeader';
 import { cannotWrite, excerpt, fetchEventCards, openDirectChat, putDraft, takeDraft, useTyping,
   type ChatEventCard, type DirectState, type PrivateQuote } from './chats/conversation/data';
@@ -21,12 +23,14 @@ import { MentionSuggestions } from './MentionSuggestions';
 import { ReportSheet } from './ReportSheet';
 import { useTermsGate } from './TermsSheet';
 import { usePersonText } from './PersonName';
-import { Button, Input, Loading, s } from './ui';
+import { Button, Input, Loading, s, Toast } from './ui';
 import { useMe } from '@/lib/auth';
 import { useContactNames } from '@/lib/contactNames';
-import { chatTimeline, directAsGroupMessage, EVENT_TAGS, eventTag, insertMention, isAnnouncement, mentionQuery, mentionsIn, mentionSuggestions, newMessageId,
-  pickPhoto, shrinkPhoto, signedPhotos, startVoice, uploadChatAudio, uploadChatPhoto, voiceClock, withoutAnnounceTag,
-  type ChatSummary, type DirectMessageRow, type EveryoneBy, type GroupMessage, type NotifyLevel, type Reaction, type TimelineRow, type VoiceRecording } from '@/lib/chats';
+import { chatTimeline, directAsGroupMessage, EVENT_TAGS, eventChatPrefs, eventTag, firstUnread, insertMention, isAnnouncement, markEventChatRead,
+  mentionQuery, mentionsIn, mentionSuggestions, muteEventChat, muteUntil, NOTIFY_LEVELS, newMessageId, pickPhoto, setEventChatLevel, shrinkPhoto,
+  signedPhotos, startVoice, uploadChatAudio, uploadChatPhoto, voiceClock, withoutAnnounceTag,
+  type ChatSummary, type ChatWriteMode, type DirectMessageRow, type EveryoneBy, type GroupMessage, type MuteChoice, type NotifyLevel, type Reaction,
+  type TimelineRow, type VoiceRecording } from '@/lib/chats';
 import { useLivePing, useQuery, useRealtime, type RealtimeRow } from '@/lib/data';
 import { discussionsOn } from '@/lib/features';
 import { groupName } from '@/lib/groups';
@@ -43,6 +47,10 @@ const PAGE = 150;
 const HIGHLIGHTS = 20;
 /** Distance au bas du fil sous laquelle on suit les nouveaux messages (sinon le bouton ↓ les compte). */
 const NEAR_BOTTOM = 120;
+/** Distance au haut du fil sous laquelle les messages précédents se chargent. */
+const NEAR_TOP = 80;
+/** Message cherché plus ancien que ceux affichés : on lit jusqu'à lui, dans cette limite. */
+const JUMP_LIMIT = 1000;
 /** Hauteur du champ : une ligne au repos, puis il suit le texte (bordure comprise) jusqu'à 7 lignes environ. */
 const COMPOSER_MIN = 44;
 const COMPOSER_MAX = 190;
@@ -54,6 +62,18 @@ export type ChatKind = 'group' | 'direct' | 'event';
 type Profile = { id: string; display_name: string; avatar_url: string | null; member?: boolean; rsvp?: string | null; organizer?: boolean; invited?: boolean };
 type ChatGroup = { id: string; name: string; created_by: string | null; everyone_tag?: EveryoneBy; member_group_members: { user_id: string }[];
   emoji?: string | null; color?: string | null; photo_path?: string | null; system_key?: string | null };
+/** Discussion d'un événement : en-tête, notifications, qui écrit (migration 20261117190000). */
+type EventExtras = {
+  card: EventChatCard; level: NotifyLevel; mutedUntil: string | null; lastReadAt: string | null;
+  writeMode: ChatWriteMode; mayWrite: boolean; canWrite: boolean; legacyMuted: boolean;
+};
+
+/** Tables de chaque sorte de discussion (messages, colonne de la discussion, réactions). */
+const TABLES: Record<ChatKind, { messages: string; column: string; reactions: string }> = {
+  direct: { messages: 'direct_messages', column: 'chat_id', reactions: 'direct_message_reactions' },
+  event: { messages: 'messages', column: 'event_id', reactions: 'message_reactions' },
+  group: { messages: 'group_messages', column: 'group_id', reactions: 'group_message_reactions' },
+};
 
 /** Message d'une personne bloquée : ni texte, ni photo, ni vocal (App Store 1.2). */
 const masked = (m: GroupMessage): GroupMessage => ({ ...m, body: 'Message masqué (personne bloquée)', photo_path: null, audio_path: null, event_id: null, event_card: null });
@@ -130,6 +150,7 @@ async function loadDirect(id: string, me: string) {
     highlights: ((pins.data as DirectMessageRow[] | null) ?? []).map(directAsGroupMessage).filter((m) => m.pinned && !m.deleted_at),
     people: profiles,
     admins: new Set<string>(), organizers: new Set<string>(), phones: new Map<string, string>(),
+    event: null as EventExtras | null,
   };
 }
 
@@ -138,20 +159,26 @@ type EventMessageRow = Omit<GroupMessage, 'group_id' | 'deleted_by_admin' | 'men
 const eventAsGroupMessage = (m: EventMessageRow): GroupMessage =>
   ({ ...m, group_id: m.event_id, event_id: null, mention_all: Boolean(m.mention_all), deleted_by_admin: false, photo_path: m.photo_path ?? null });
 
-/** Discussion d'un événement (16.11.2026, migration 20261116180000) : mêmes bulles, messages de la table messages.
- * Droits lus dans event_chat_state, personnes à citer dans event_chat_people ; base d'avant cette migration : la
- * fiche de l'événement et les membres actifs, comme l'ancienne page. */
+type EventState = { title: string; write: boolean; staff: boolean; muted: boolean; level?: NotifyLevel; muted_until?: string | null;
+  write_mode?: ChatWriteMode; description?: string | null; can_write?: boolean };
+type EventInfo = { title?: string; starts_at?: string | null; ends_at?: string | null; date_mode?: string; location_name?: string | null;
+  cover_url?: string | null; chat_write?: ChatWriteMode; chat_description?: string | null };
+
+/** Discussion d'un événement (16.11.2026, migration 20261116180000 ; réglages : 20261117190000) : mêmes bulles, messages de
+ * la table messages. Droits lus dans event_chat_state, personnes à citer dans event_chat_people, mes notifications dans
+ * event_chat_prefs_get ; base d'avant ces migrations : la fiche de l'événement et les membres actifs. */
 async function loadEvent(id: string, me: string) {
-  const [state, msgs, people, blocks, pins, when] = await Promise.all([
+  const [state, msgs, people, blocks, pins, prefs, info] = await Promise.all([
     supabase.rpc('event_chat_state', { e: id }),
     supabase.from('messages').select('*').eq('event_id', id).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(PAGE),
     supabase.rpc('event_chat_people', { e: id }),
     supabase.from('direct_blocks').select('blocked_id'),
     supabase.from('messages').select('*').eq('event_id', id).eq('pinned', true).is('deleted_at', null)
       .order('created_at', { ascending: false }).limit(HIGHLIGHTS),
-    supabase.from('events').select('starts_at').eq('id', id).maybeSingle(),
+    eventChatPrefs(id).catch(() => null),
+    supabase.from('events').select('*').eq('id', id).single(),
   ]);
-  let st = state.data as { title: string; write: boolean; staff: boolean; muted: boolean } | null;
+  let st = state.data as EventState | null;
   if (state.error || typeof st?.write !== 'boolean') {
     const ev = must(await supabase.from('events').select('title, created_by, event_organizers(user_id)').eq('id', id).single()) as
       { title: string; created_by: string; event_organizers: { user_id: string }[] };
@@ -169,17 +196,32 @@ async function loadEvent(id: string, me: string) {
   const reactions = messages.length
     ? ((await supabase.from('message_reactions').select('message_id, user_id, emoji').in('message_id', messages.map((m) => m.id))).data as Reaction[] | null) ?? []
     : [];
+  const ev = (info.error || !info.data || Array.isArray(info.data) ? {} : info.data) as EventInfo;
+  const writeMode: ChatWriteMode = (st.write_mode ?? ev.chat_write) === 'staff' ? 'staff' : 'all';
+  const canWrite = typeof st.can_write === 'boolean' ? st.can_write : st.write && (writeMode === 'all' || st.staff);
+  const extras: EventExtras = {
+    card: {
+      title: ev.title || st.title, starts_at: ev.date_mode === 'poll' ? null : ev.starts_at ?? null, ends_at: ev.ends_at ?? null,
+      place: ev.location_name ?? null, cover: ev.cover_url ?? null, description: (st.description ?? ev.chat_description) || null,
+      going: profiles.filter((p) => p.rsvp === 'yes').length, maybe: profiles.filter((p) => p.rsvp === 'maybe').length,
+    },
+    level: prefs?.level ?? st.level ?? (st.muted ? 'none' : 'mentions'),
+    mutedUntil: prefs ? prefs.muted_until : st.muted_until ?? null,
+    lastReadAt: prefs?.last_read_at ?? null,
+    writeMode, mayWrite: st.write, canWrite, legacyMuted: st.muted,
+  };
   return {
-    group: { id, name: st.title, created_by: null, everyone_tag: 'staff', member_group_members: [] } as ChatGroup,
+    group: { id, name: extras.card.title, created_by: null, everyone_tag: 'staff', member_group_members: [] } as ChatGroup,
     messages, reactions, other: null as string | null, blocked: false, hidden,
     cards: new Map<string, ChatEventCard>(), directState: null as DirectState | null, link: null as string | null, seenAt: null as string | null,
-    eventStart: ((when.data as { starts_at?: string | null } | null)?.starts_at) ?? null,
-    chat: { id, name: st.title, kind: 'event', member: st.write, admin: st.staff, notify: st.muted ? 'none' : 'all' } as unknown as ChatSummary,
+    eventStart: extras.card.starts_at,
+    chat: { id, name: extras.card.title, kind: 'event', member: canWrite, admin: st.staff, notify: extras.level } as unknown as ChatSummary,
     highlights: ((pins.data as EventMessageRow[] | null) ?? []).map(eventAsGroupMessage).filter((m) => m.pinned && !m.deleted_at && !hidden.has(m.user_id)),
     people: profiles.map((p) => ({ ...p, member: true })),
     admins: new Set<string>(),
     organizers: new Set(profiles.filter((p) => p.organizer).map((p) => p.id)),
     phones: new Map<string, string>(),
+    event: extras as EventExtras | null,
   };
 }
 
@@ -217,6 +259,7 @@ async function loadGroup(id: string) {
     admins: new Set((must(admins) as { user_id: string }[]).map((a) => a.user_id)),
     organizers: new Set(((organizers.data as { user_id: string }[] | null) ?? []).map((o) => o.user_id)),
     phones: new Map(((phones.data as { id: string; phone: string }[] | null) ?? []).map((p) => [p.id, p.phone])),
+    event: null as EventExtras | null,
   };
 }
 
@@ -242,13 +285,28 @@ export function preloadChat(kind: ChatKind, id: string, me: string, lastId?: str
 }
 
 
+/** Premier non-lu d'un groupe d'après son compteur (my_chats) : le N-ième dernier message des autres. */
+function unreadByCount(messages: GroupMessage[], unread: number, me: string): string | null {
+  if (unread <= 0) return null;
+  let left = unread;
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    if (messages[i].user_id === me) continue;
+    left -= 1;
+    if (!left) return messages[i].id;
+  }
+  return null;
+}
+
 /** Discussion façon WhatsApp, graphisme « Néon club » (Discussions v2, maquette 1-neon/4) : en-tête avec photo et nom
  * (toucher : mini-profil), séparateurs de jours, messages d'une même personne regroupés, heure dans la bulle, @citations
  * en couleur, citation qui remonte au message, menu à l'appui long / clic droit (réactions, répondre, répondre en privé,
- * copier, modifier 15 min, épingler, supprimer, signaler), carte de soirée, « Vu », « écrit… », bouton ↓ avec les
- * nouveaux messages, bandeau des annonces et épinglés, annonces en carte, demande de message.
- * Groupe : @tout (selon le groupe) et @annonce (admins et organisateurs). Événement : @toutlemonde, @present et
- * annonces (📣) pour l'organisation et les admins ; la base décide de toute façon.
+ * copier, modifier 15 min, épingler, supprimer, signaler), carte de soirée, « Vu », « écrit… », « Nouveaux messages »,
+ * bouton ↓ avec les nouveaux messages, messages précédents chargés en remontant, bandeau des annonces et épinglés,
+ * annonces en carte, demande de message.
+ * Groupe : @tout (selon le groupe) et @annonce (admins et organisateurs). Événement (17.11) : en-tête (date, titre,
+ * participants), cloche des notifications (Tout / Mentions seulement / Rien, sourdine), infos de la discussion,
+ * @toutlemonde, @present et annonces (📣) pour l'organisation ; « Seule l'organisation peut écrire » selon son réglage.
+ * La base décide de toute façon.
  * attachEvent : soirée à joindre au prochain message (« Envoyer à un ami », /chats/<id>?event=<id>). */
 export function GroupChat({ id, direct = false, event = false, attachEvent = null }: { id: string; direct?: boolean; event?: boolean; attachEvent?: string | null }) {
   const kind: ChatKind = event ? 'event' : direct ? 'direct' : 'group';
@@ -289,7 +347,11 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
   const [voice, setVoice] = useState<{ rec: VoiceRecording; started: number } | null>(null);
   const [voiceNow, setVoiceNow] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  // Choix de notifications fait ici (affiché aussitôt, avant la relecture).
+  const [prefs, setPrefs] = useState<{ level: NotifyLevel; mutedUntil: string | null } | null>(null);
   // Modération commune : « Signaler » un message, CGU acceptées avant le premier message.
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
   const terms = useTermsGate();
@@ -302,6 +364,17 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
   const [flashId, setFlashId] = useState<string | null>(null);
   const [unreadElsewhere, setUnreadElsewhere] = useState(0);
   const [polledSeen, setPolledSeen] = useState<string | null>(null);
+  // Messages précédents (chargés en remontant ou pour montrer un message ancien) ; la position reste la même.
+  const [older, setOlder] = useState<{ messages: GroupMessage[]; reactions: Reaction[] }>({ messages: [], reactions: [] });
+  const [hasMore, setHasMore] = useState<boolean | null>(null);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const loadingOlderRef = useRef(false);
+  const scrollY = useRef(0);
+  const contentH = useRef(0);
+  const anchor = useRef<{ y: number; h: number } | null>(null);
+  // Message à montrer dès qu'il est chargé (recherche, épinglé, média plus ancien que le fil).
+  const jump = useRef<string | null>(null);
+  const jumpTries = useRef(0);
 
   const key = cacheKey(kind, id, me.id);
   const [initial] = useState(() => chatCache.get(key) ?? null);
@@ -341,6 +414,9 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
   // Événement : réactions, messages retirés, épingles, réglages : signal de la base (migration 20261116140000).
   useLivePing(event ? id : null, reload);
 
+  const ev = data?.event ?? null;
+  const level: NotifyLevel = prefs?.level ?? ev?.level ?? 'mentions';
+  const mutedUntil = prefs ? prefs.mutedUntil : ev?.mutedUntil ?? null;
   const member = Boolean(data?.chat?.member);
   const isAdmin = Boolean(data?.chat?.admin);
   // Admins et organisateurs du groupe (organisation d'un événement) : annonces et leur retrait ; @tout selon le groupe.
@@ -387,21 +463,33 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
   }, [attached, extraCards]);
   const cards = useMemo(() => new Map([...(data?.cards ?? []), ...extraCards]), [data?.cards, extraCards]);
 
-  const paths = useMemo(() => (data?.messages ?? []).flatMap((m) => (m.deleted_at ? []
-    : [m.photo_path, m.audio_path].filter((p): p is string => Boolean(p)))), [data?.messages]);
   useEffect(() => {
     if (!voice) return;
     const timer = setInterval(() => setVoiceNow(Date.now()), 200);
     return () => clearInterval(timer);
   }, [voice]);
   // Messages déjà là à l'ouverture : ils s'affichent tels quels ; seuls les suivants (envoyés ou reçus) montent.
+  // Premier non-lu à l'ouverture : « Nouveaux messages » juste avant, et le fil s'y arrête.
   const [initialIds, setInitialIds] = useState<Set<string> | null>(null);
-  if (data && !initialIds) setInitialIds(new Set(data.messages.map((m) => m.id)));
+  const [unreadFrom, setUnreadFrom] = useState<string | null>(null);
+  if (data && !initialIds) {
+    setInitialIds(new Set(data.messages.map((m) => m.id)));
+    setUnreadFrom(data.event ? firstUnread(data.messages, data.event.lastReadAt, me.id)
+      : kind === 'group' ? unreadByCount(data.messages, data.chat?.unread ?? 0, me.id) : null);
+    setHasMore(data.messages.length >= PAGE);
+  }
+  const all = useMemo(() => {
+    const latest = data?.messages ?? [];
+    const known = new Set(latest.map((m) => m.id));
+    return [...older.messages.filter((m) => !known.has(m.id)), ...latest];
+  }, [data?.messages, older.messages]);
   const shown = useMemo(() => {
-    const known = new Set((data?.messages ?? []).map((m) => m.id));
-    return [...(data?.messages ?? []), ...pending.filter((m) => !known.has(m.id))];
-  }, [data?.messages, pending]);
-  const rows = useMemo(() => chatTimeline(shown), [shown]);
+    const known = new Set(all.map((m) => m.id));
+    return [...all, ...pending.filter((m) => !known.has(m.id))];
+  }, [all, pending]);
+  const rows = useMemo(() => chatTimeline(shown, undefined, unreadFrom), [shown, unreadFrom]);
+  const paths = useMemo(() => all.flatMap((m) => (m.deleted_at ? []
+    : [m.photo_path, m.audio_path].filter((p): p is string => Boolean(p)))), [all]);
   // Revenus de la base : ils quittent la file d'envoi ; ceux restés « pas envoyés » repartent (le réseau répond).
   useEffect(() => {
     if (!data) return;
@@ -418,17 +506,36 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
   }, [paths]);
 
   // Nouveau message : on descend s'il est à moi ou si l'on était en bas ; sinon le bouton ↓ le compte.
+  // À l'ouverture : le bas du fil, ou « Nouveaux messages » s'il y en a.
   const lastId = shown[shown.length - 1]?.id;
   const lastMine = shown[shown.length - 1]?.user_id === me.id;
   const seenLast = useRef<string | undefined>(undefined);
+  const rowsRef = useRef(rows);
+  useEffect(() => { rowsRef.current = rows; }, [rows]);
   useEffect(() => {
     if (!lastId || seenLast.current === lastId) return;
     const first = seenLast.current === undefined;
     seenLast.current = lastId;
     if (first || lastMine || nearBottom.current) {
       requestAnimationFrame(() => list.current?.scrollToEnd({ animated: !first }));
+      if (first && unreadFrom) {
+        setTimeout(() => {
+          const index = rowsRef.current.findIndex((r) => r.key === 'unread');
+          if (index < 0) return;
+          try { list.current?.scrollToIndex({ index, viewPosition: 0.05, animated: false }); } catch { /* le bas du fil suffit */ }
+        }, 180);
+      }
     } else setUnseen((n) => n + 1);
-  }, [lastId, lastMine]);
+  }, [lastId, lastMine, unreadFrom]);
+
+  // Événement : lu jusqu'au dernier message tant que le bas du fil est à l'écran (compteurs, pastilles).
+  const readUpTo = useRef<string | null>(null);
+  useEffect(() => {
+    if (!event || !data || !atBottom || !lastId || lastId === readUpTo.current) return;
+    if (shown[shown.length - 1]?.pending) return;
+    readUpTo.current = lastId;
+    void markEventChatRead(id).catch(() => {});
+  }, [event, data, atBottom, lastId, shown, id]);
 
   const people = useMemo(() => new Map((data?.people ?? []).map((p) => [p.id, p])), [data?.people]);
   const contacts = useContactNames();
@@ -439,17 +546,20 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
     return fromPeople.length ? fromPeople : (data?.group.member_group_members ?? []).map((m) => m.user_id);
   }, [data?.people, data?.group]);
   const names = useMemo(() => (data?.people ?? []).map((p) => p.display_name).filter(Boolean), [data?.people]);
-  const byId = useMemo(() => new Map((data?.messages ?? []).map((m) => [m.id, m])), [data?.messages]);
+  const byId = useMemo(() => new Map(all.map((m) => [m.id, m])), [all]);
   const reactionsOf = useMemo(() => {
     const out = new Map<string, Reaction[]>();
-    for (const r of data?.reactions ?? []) out.set(r.message_id, [...(out.get(r.message_id) ?? []), r]);
+    const fresh = new Set((data?.messages ?? []).map((m) => m.id));
+    for (const r of [...older.reactions.filter((x) => !fresh.has(x.message_id)), ...(data?.reactions ?? [])]) {
+      out.set(r.message_id, [...(out.get(r.message_id) ?? []), r]);
+    }
     return out;
-  }, [data?.reactions]);
+  }, [data?.reactions, data?.messages, older.reactions]);
   // Bandeau du haut, façon WhatsApp : annonces puis épinglés, les plus récents d'abord ; un toucher montre le message
   // et passe au suivant.
   const pins = useMemo(() => {
-    const all = data?.highlights ?? [];
-    return [...all.filter((m) => m.announcement), ...all.filter((m) => !m.announcement)];
+    const highlights = data?.highlights ?? [];
+    return [...highlights.filter((m) => m.announcement), ...highlights.filter((m) => !m.announcement)];
   }, [data?.highlights]);
   const banner = pins.length ? pins[pinIndex % pins.length] : null;
   const canUnpinBanner = Boolean(banner) && (isAdmin || direct || (isStaff && Boolean(banner?.announcement)));
@@ -493,14 +603,56 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
     input.current?.focus();
   }
 
-  /** Montre un message (citation, bandeau) au milieu de l'écran puis le fait clignoter. */
-  const showMessage = useCallback((messageId: string) => {
+  /** Messages d'avant le plus ancien affiché (une page ; ou jusqu'à `until` pour montrer un message ancien). */
+  async function loadOlder(until: string | null = null) {
+    const oldest = all[0];
+    if (!oldest || loadingOlderRef.current) return;
+    loadingOlderRef.current = true;
+    setLoadingOlder(true);
+    const t = TABLES[kind];
+    try {
+      let query = supabase.from(t.messages).select('*').eq(t.column, id).lt('created_at', oldest.created_at)
+        .order('created_at', { ascending: false }).limit(until ? JUMP_LIMIT : PAGE);
+      if (until) query = query.gte('created_at', until);
+      const rowsRead = ((await query).data as Record<string, unknown>[] | null) ?? [];
+      const known = new Set(all.map((m) => m.id));
+      const hidden = data?.hidden ?? new Set<string>();
+      const more = rowsRead.map((r) => (kind === 'event' ? eventAsGroupMessage(r as unknown as EventMessageRow)
+        : kind === 'direct' ? directAsGroupMessage(r as unknown as DirectMessageRow) : r as unknown as GroupMessage))
+        .filter((m) => !known.has(m.id)).reverse().map((m) => (hidden.has(m.user_id) ? masked(m) : m));
+      if (!until) setHasMore(rowsRead.length >= PAGE && more.length > 0);
+      if (!more.length) return;
+      const reactions = ((await supabase.from(t.reactions).select('message_id, user_id, emoji').in('message_id', more.map((m) => m.id))).data as Reaction[] | null) ?? [];
+      if (!until) anchor.current = { y: scrollY.current, h: contentH.current };
+      setOlder((prev) => ({ messages: [...more, ...prev.messages], reactions: [...reactions, ...prev.reactions] }));
+    } finally {
+      loadingOlderRef.current = false;
+      setLoadingOlder(false);
+    }
+  }
+
+  /** Montre un message (citation, bandeau, recherche, épinglé, média) au milieu de l'écran puis le fait clignoter ;
+   * plus ancien que ceux affichés : on lit jusqu'à lui d'abord (`at`). */
+  const showMessage = useCallback((messageId: string, at?: string) => {
     const index = rows.findIndex((r) => r.key === messageId);
-    if (index < 0) return setError('Ce message est plus ancien que ceux affichés.');
+    if (index < 0) {
+      if (!at) return setError('Ce message est plus ancien que ceux affichés.');
+      jump.current = messageId;
+      void loadOlder(at);
+      return;
+    }
+    jumpTries.current = 0;
     list.current?.scrollToIndex({ index, viewPosition: 0.4, animated: true });
     setFlashId(messageId);
     setTimeout(() => setFlashId((f) => (f === messageId ? null : f)), 1200);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadOlder lit l'état courant
   }, [rows]);
+  useEffect(() => {
+    const target = jump.current;
+    if (!target || !rows.some((r) => r.key === target)) return;
+    jump.current = null;
+    setTimeout(() => showMessage(target), 60);
+  }, [rows, showMessage]);
 
   /** Texte, photo ou vocal : la bulle apparaît tout de suite, le champ se vide, on peut écrire le suivant aussitôt.
    * Réseau absent : la bulle reste (« Pas envoyé · Toucher pour réessayer ») ; refus de la base : le texte revient. */
@@ -646,10 +798,10 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
     if (done) await send(null, done);
   }
 
-  async function sendPhoto() {
+  async function sendPhoto(camera = false) {
     setError(null);
     try {
-      const file = await pickPhoto();
+      const file = await pickPhoto(camera);
       if (!file) return;
       setSending(true);
       const path = await uploadChatPhoto(id, await shrinkPhoto(file));
@@ -663,7 +815,7 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
 
   async function react(m: GroupMessage, emoji: string) {
     const mineAlready = (reactionsOf.get(m.id) ?? []).some((r) => r.user_id === me.id && r.emoji === emoji);
-    const table = kind === 'direct' ? 'direct_message_reactions' : kind === 'event' ? 'message_reactions' : 'group_message_reactions';
+    const table = TABLES[kind].reactions;
     const { error } = mineAlready
       ? await supabase.from(table).delete().eq('message_id', m.id).eq('user_id', me.id).eq('emoji', emoji)
       : await supabase.from(table).insert(kind === 'event' ? { message_id: m.id, user_id: me.id, emoji } : { message_id: m.id, emoji });
@@ -713,6 +865,34 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
     return out;
   }
 
+  /** Cloche ou réglages : niveau de notifications de cette discussion (Mentions seulement par défaut). */
+  async function changeLevel(next: NotifyLevel) {
+    const before = { level, mutedUntil };
+    setPrefs({ level: next, mutedUntil });
+    try {
+      await setEventChatLevel(id, next);
+      // L'ancien « couper les notifications » de la fiche (event_mutes) ne doit plus tout bloquer après un nouveau choix.
+      if (next !== 'none' && ev?.legacyMuted) await supabase.from('event_mutes').delete().eq('event_id', id).eq('user_id', me.id);
+      setNotice(`Notifications : ${NOTIFY_LEVELS.find((l) => l.key === next)?.label ?? next}`);
+    } catch (e) {
+      setPrefs(before);
+      setError(e instanceof Error ? e.message : 'Le réglage n’a pas pu être enregistré.');
+    }
+  }
+
+  async function changeMute(choice: MuteChoice | null) {
+    const before = { level, mutedUntil };
+    const until = choice ? muteUntil(choice) : null;
+    setPrefs({ level, mutedUntil: until });
+    try {
+      await muteEventChat(id, until);
+      setNotice(choice ? 'Discussion en sourdine' : 'Notifications réactivées');
+    } catch (e) {
+      setPrefs(before);
+      setError(e instanceof Error ? e.message : 'La sourdine n’a pas pu être enregistrée.');
+    }
+  }
+
   if (loading && !data) return <Loading />;
   // Message direct : « Nom du contact · pseudo » (app iPhone), sinon le pseudo de l'autre personne.
   const title = direct && data?.other ? shownName(data.other) : data ? (event ? data.group.name : groupName(data.group)) : 'Discussion';
@@ -720,7 +900,7 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
   const subtitle = typers.length
     ? (direct ? 'écrit…' : typers.length === 1 ? `${typers[0]} écrit…` : `${typers.length} personnes écrivent…`)
     : direct ? (dstate?.status === 'request' ? 'Demande de message' : null)
-      : event ? `Discussion · ${data?.people.length ?? 0} personnes` : `${inside.length} membres`;
+      : event ? (ev ? eventChatSubtitle(ev.card) : `Discussion · ${data?.people.length ?? 0} personnes`) : `${inside.length} membres`;
   const look: HeaderLook = direct
     ? { kind: 'direct', userId: data?.other ?? id, photo: data?.other ? people.get(data.other)?.avatar_url ?? null : null }
     : event ? { kind: 'event', start: data?.eventStart ?? null }
@@ -730,9 +910,11 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
       <Stack.Screen options={{ title, headerShown: false }} />
       <ChatHeader title={title} subtitle={subtitle} typing={typers.length > 0} look={look} unread={unreadElsewhere}
         onBack={() => (router.canGoBack() ? router.back() : router.replace(event ? `/event/${id}` : '/chats'))}
-        whoLabel={direct ? `${title}. Ouvrir son profil` : event ? `Soirée ${title} : voir qui participe` : `Groupe ${title} : voir les membres`}
+        whoLabel={direct ? `${title}. Ouvrir son profil` : event ? `${title}, ${subtitle ?? ''}, infos de la discussion` : `Groupe ${title} : voir les membres`}
         onWho={() => (direct && data?.other ? mini.open(data.other) : setShowInfo((v) => !v))}
-        infoLabel={direct ? 'Infos de la conversation' : event ? 'Participants et notifications' : 'Infos du groupe'}
+        // Discussion d'un événement : la cloche des notifications (Tout / Mentions seulement / Rien, sourdine), à droite.
+        extra={event && ev && !showInfo ? <NotifyBell level={level} mutedUntil={mutedUntil} onPress={() => setMenuOpen(true)} /> : null}
+        infoLabel={direct ? 'Infos de la conversation' : event ? 'Infos de la discussion' : 'Infos du groupe'}
         infoOpen={showInfo} onInfo={() => setShowInfo((v) => !v)} />
     </>
   );
@@ -747,19 +929,7 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
     );
   }
 
-  if (showInfo && data && event) {
-    return (
-      <SafeAreaView style={[s.screen, { backgroundColor: C.bg }]} edges={['top', 'bottom']}>
-        {header}
-        <EventChatSettings eventId={id} me={me.id} muted={data.chat?.notify === 'none'} staff={isStaff}
-          people={(data.people as Profile[]).map((p): EventPerson => ({ id: p.id, name: shownName(p.id), photo: p.avatar_url,
-            rsvp: p.rsvp ?? null, organizer: Boolean(p.organizer), invited: Boolean(p.invited) }))}
-          onChanged={reload} />
-      </SafeAreaView>
-    );
-  }
-
-  if (showInfo && data) {
+  if (showInfo && data && !event) {
     return (
       <SafeAreaView style={[s.screen, { backgroundColor: C.bg }]} edges={['top', 'bottom']}>
         {header}
@@ -791,260 +961,315 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
     const kept = m.event_card && typeof m.event_card === 'object' && m.event_card.title ? m.event_card as ChatEventCard : null;
     return <EventCardBubble card={kept} gone />;
   };
+  const quoteText = (m: GroupMessage) => (m.deleted_at ? 'Message supprimé'
+    : withoutAnnounceTag(m.body) || (m.audio_seconds != null ? '🎤 Message vocal' : '📷 Photo'));
+  const staffOnly = Boolean(event && ev && ev.mayWrite && !ev.canWrite && ev.writeMode === 'staff');
 
   return (
     <SafeAreaView style={[s.screen, { backgroundColor: C.bg }]} edges={['top', 'bottom']}>
       {header}
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
-        {/* Entré par sa réponse à un événement (17.11) : d'où il vient et « Quitter », à la première ouverture. */}
-        {direct || event ? null : <GroupJoinNote groupId={id} me={me.id} onLeft={reload} />}
-        {requestIn && other ? (
-          <RequestBanner side="incoming" name={otherName} userId={other} photo={people.get(other)?.avatar_url ?? null}
-            onProfile={() => mini.open(other)}
-            onAccept={async () => {
-              const { error } = await supabase.rpc('accept_message_request', { chat: id });
-              if (error) throw new Error(dbMessage(error.message, 'La demande n’a pas pu être acceptée. Réessaie.'));
-              reload();
-            }}
-            onDelete={async () => {
-              const { error } = await supabase.rpc('decline_message_request', { chat: id });
-              if (error) throw new Error(dbMessage(error.message, 'La demande n’a pas pu être supprimée. Réessaie.'));
-              router.replace('/chats');
-            }}
-            onBlock={async () => {
-              const { error } = await supabase.rpc('set_direct_block', { target: other, blocked: true });
-              if (error) throw new Error('Le blocage n’a pas pu être enregistré.');
-              router.replace('/chats');
-            }}
-            onReport={() => (requestMessage ? report(requestMessage) : setReportTarget({ kind: 'profile', id: other, label: otherName }))} />
-        ) : requestOut ? <RequestBanner side="outgoing" name={otherName} sent={mySent} /> : null}
-        {banner ? (
-          <View style={enter('drop')}>
-            <Pressable accessibilityRole="button"
-              accessibilityLabel={`${banner.announcement ? 'Annonce' : 'Épinglé'}${pins.length > 1 ? ` ${(pinIndex % pins.length) + 1} sur ${pins.length}` : ''} : ${shownName(banner.user_id)}, ${withoutAnnounceTag(banner.body) || 'Photo'}`}
-              accessibilityHint={canUnpinBanner ? 'Touche pour voir le message ; appui long pour le retirer' : 'Touche pour voir le message'}
-              onPress={() => { showMessage(banner.id); if (pins.length > 1) setPinIndex((i) => i + 1); }}
-              onLongPress={() => canUnpinBanner && setBannerMenu((v) => !v)}
-              style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1,
-                borderBottomColor: banner.announcement ? 'rgba(255,79,154,0.5)' : C.line },
-                web({ backgroundColor: banner.announcement ? '#22102C' : C.s1,
-                  backgroundImage: banner.announcement ? 'linear-gradient(90deg, rgba(255,79,154,0.18), transparent 70%)' : 'none' }),
-                pressTransition, pressed && { opacity: 0.85 }]}>
-              {pins.length > 1 ? (
-                <View style={{ gap: 2, height: 32, justifyContent: 'center' }}>
-                  {pins.slice(0, 5).map((p, i) => (
-                    <View key={p.id} style={{ width: 3, flex: 1, borderRadius: 2, backgroundColor: i === Math.min(pinIndex % pins.length, 4) ? C.pink : C.line2 }} />
-                  ))}
+      <View style={{ flex: 1 }}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
+          {/* Entré par sa réponse à un événement (17.11) : d'où il vient et « Quitter », à la première ouverture. */}
+          {direct || event ? null : <GroupJoinNote groupId={id} me={me.id} onLeft={reload} />}
+          {requestIn && other ? (
+            <RequestBanner side="incoming" name={otherName} userId={other} photo={people.get(other)?.avatar_url ?? null}
+              onProfile={() => mini.open(other)}
+              onAccept={async () => {
+                const { error } = await supabase.rpc('accept_message_request', { chat: id });
+                if (error) throw new Error(dbMessage(error.message, 'La demande n’a pas pu être acceptée. Réessaie.'));
+                reload();
+              }}
+              onDelete={async () => {
+                const { error } = await supabase.rpc('decline_message_request', { chat: id });
+                if (error) throw new Error(dbMessage(error.message, 'La demande n’a pas pu être supprimée. Réessaie.'));
+                router.replace('/chats');
+              }}
+              onBlock={async () => {
+                const { error } = await supabase.rpc('set_direct_block', { target: other, blocked: true });
+                if (error) throw new Error('Le blocage n’a pas pu être enregistré.');
+                router.replace('/chats');
+              }}
+              onReport={() => (requestMessage ? report(requestMessage) : setReportTarget({ kind: 'profile', id: other, label: otherName }))} />
+          ) : requestOut ? <RequestBanner side="outgoing" name={otherName} sent={mySent} /> : null}
+          {banner ? (
+            <View style={[{ zIndex: 2 }, enter('drop')]}>
+              <Pressable accessibilityRole="button"
+                accessibilityLabel={`${banner.announcement ? 'Annonce' : 'Épinglé'}${pins.length > 1 ? ` ${(pinIndex % pins.length) + 1} sur ${pins.length}` : ''} : ${shownName(banner.user_id)}, ${withoutAnnounceTag(banner.body) || 'Photo'}`}
+                accessibilityHint={canUnpinBanner ? 'Touche pour voir le message ; appui long pour le retirer' : 'Touche pour voir le message'}
+                onPress={() => { showMessage(banner.id, banner.created_at); if (pins.length > 1) setPinIndex((i) => i + 1); }}
+                onLongPress={() => canUnpinBanner && setBannerMenu((v) => !v)}
+                style={({ pressed }) => [{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 10, borderBottomWidth: 1,
+                  borderBottomColor: banner.announcement ? 'rgba(255,79,154,0.5)' : C.line },
+                  web({ backgroundColor: banner.announcement ? '#22102C' : C.s1,
+                    backgroundImage: banner.announcement ? 'linear-gradient(90deg, rgba(255,79,154,0.18), transparent 70%)' : 'none' }),
+                  pressTransition, pressed && { opacity: 0.85 }]}>
+                {pins.length > 1 ? (
+                  <View style={{ gap: 2, height: 32, justifyContent: 'center' }}>
+                    {pins.slice(0, 5).map((p, i) => (
+                      <View key={p.id} style={{ width: 3, flex: 1, borderRadius: 2, backgroundColor: i === Math.min(pinIndex % pins.length, 4) ? C.pink : C.line2 }} />
+                    ))}
+                  </View>
+                ) : null}
+                <View style={{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: banner.announcement ? 'rgba(255,79,154,0.18)' : 'rgba(185,167,255,0.14)' }}>
+                  {banner.announcement ? <Text style={{ fontSize: 16 }}>📣</Text> : <Icon name="pin" size={16} color={C.lav} stroke={2.2} />}
+                </View>
+                <View style={{ flex: 1, gap: 1 }}>
+                  <Text style={[cf.label, { color: banner.announcement ? C.pinkInk : C.lav }]}>
+                    {banner.announcement ? 'Annonce' : 'Message épinglé'}
+                    {pins.length > 1 ? <Text style={{ color: C.t3 }}>{`  ${(pinIndex % pins.length) + 1}/${pins.length}`}</Text> : null}
+                  </Text>
+                  <Text numberOfLines={banner.announcement ? 2 : 1} style={[banner.announcement ? cf.semibold : cf.text, { color: C.t1, fontSize: 14, lineHeight: 19 }]}>
+                    {shownName(banner.user_id)} : {withoutAnnounceTag(banner.body) || '📷 Photo'}
+                  </Text>
+                </View>
+              </Pressable>
+              {bannerMenu && canUnpinBanner ? (
+                <View style={[s.row, { marginHorizontal: 12, marginTop: 6 }, enter('drop')]}>
+                  <Button small variant="secondary" label={banner.announcement ? 'Retirer l’annonce' : 'Désépingler'}
+                    onPress={() => { setBannerMenu(false); void pin(banner.id, false); }} />
+                  <Button small variant="ghost" label="Annuler" onPress={() => setBannerMenu(false)} />
                 </View>
               ) : null}
-              <View style={{ width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: banner.announcement ? 'rgba(255,79,154,0.18)' : 'rgba(185,167,255,0.14)' }}>
-                {banner.announcement ? <Text style={{ fontSize: 16 }}>📣</Text> : <Icon name="pin" size={16} color={C.lav} stroke={2.2} />}
-              </View>
-              <View style={{ flex: 1, gap: 1 }}>
-                <Text style={[cf.label, { color: banner.announcement ? C.pinkInk : C.lav }]}>
-                  {banner.announcement ? 'Annonce' : 'Message épinglé'}
-                  {pins.length > 1 ? <Text style={{ color: C.t3 }}>{`  ${(pinIndex % pins.length) + 1}/${pins.length}`}</Text> : null}
-                </Text>
-                <Text numberOfLines={banner.announcement ? 2 : 1} style={[banner.announcement ? cf.semibold : cf.text, { color: C.t1, fontSize: 14, lineHeight: 19 }]}>
-                  {shownName(banner.user_id)} : {withoutAnnounceTag(banner.body) || '📷 Photo'}
-                </Text>
-              </View>
-            </Pressable>
-            {bannerMenu && canUnpinBanner ? (
-              <View style={[s.row, { marginHorizontal: 12, marginTop: 6 }, enter('drop')]}>
-                <Button small variant="secondary" label={banner.announcement ? 'Retirer l’annonce' : 'Désépingler'}
-                  onPress={() => { setBannerMenu(false); void pin(banner.id, false); }} />
-                <Button small variant="ghost" label="Annuler" onPress={() => setBannerMenu(false)} />
-              </View>
-            ) : null}
-          </View>
-        ) : null}
-        <View style={{ flex: 1 }}>
-          <FlatList
-            ref={list}
-            data={rows}
-            keyExtractor={(r) => r.key}
-            // Tout le fil d'un coup (150 messages au plus) : la fin est là dès la première image, sans rendu par paquets
-            // qui faisait attendre le dernier message une demi-seconde à l'ouverture.
-            initialNumToRender={Math.max(20, rows.length)}
-            maxToRenderPerBatch={60}
-            windowSize={31}
-            contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 10, paddingBottom: 16, flexGrow: 1, justifyContent: rows.length ? 'flex-end' : 'center' }}
-            onScroll={(e) => {
-              const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
-              const near = contentSize.height - contentOffset.y - layoutMeasurement.height < NEAR_BOTTOM;
-              nearBottom.current = near;
-              if (near !== atBottom) setAtBottom(near);
-              if (near && unseen) setUnseen(0);
-            }}
-            scrollEventThrottle={100}
-            // Fil collé en bas (ouverture, nouveau message) tant qu'on n'est pas remonté lire plus haut.
-            onContentSizeChange={() => { if (nearBottom.current) list.current?.scrollToEnd({ animated: false }); }}
-            onScrollToIndexFailed={() => list.current?.scrollToEnd({ animated: true })}
-            renderItem={({ item: row }) => {
-              if ('day' in row) {
+            </View>
+          ) : null}
+          <View style={{ flex: 1 }}>
+            <FlatList
+              ref={list}
+              data={rows}
+              keyExtractor={(r) => r.key}
+              // Tout le fil d'un coup (150 messages au plus) : la fin est là dès la première image, sans rendu par paquets
+              // qui faisait attendre le dernier message une demi-seconde à l'ouverture.
+              initialNumToRender={Math.max(20, rows.length)}
+              maxToRenderPerBatch={60}
+              windowSize={31}
+              contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 10, paddingBottom: 16, flexGrow: 1, justifyContent: rows.length ? 'flex-end' : 'center' }}
+              onScroll={(e) => {
+                const { contentOffset, contentSize, layoutMeasurement } = e.nativeEvent;
+                scrollY.current = contentOffset.y;
+                contentH.current = contentSize.height;
+                const near = contentSize.height - contentOffset.y - layoutMeasurement.height < NEAR_BOTTOM;
+                nearBottom.current = near;
+                if (near !== atBottom) setAtBottom(near);
+                if (near && unseen) setUnseen(0);
+                if (contentOffset.y < NEAR_TOP && hasMore && !loadingOlderRef.current && seenLast.current) void loadOlder();
+              }}
+              onContentSizeChange={(_w, h) => {
+                const a = anchor.current;
+                contentH.current = h;
+                if (a) {
+                  // Messages précédents ajoutés au-dessus : la lecture reste sur le même message.
+                  anchor.current = null;
+                  list.current?.scrollToOffset({ offset: a.y + (h - a.h), animated: false });
+                  return;
+                }
+                // Fil collé en bas (ouverture, nouveau message) tant qu'on n'est pas remonté lire plus haut.
+                if (nearBottom.current) list.current?.scrollToEnd({ animated: false });
+              }}
+              scrollEventThrottle={100}
+              onScrollToIndexFailed={(info) => {
+                // Message pas encore dessiné (fil virtualisé) : on s'en approche, puis on réessaie.
+                if (jumpTries.current++ > 3) return;
+                list.current?.scrollToOffset({ offset: info.averageItemLength * info.index, animated: false });
+                setTimeout(() => list.current?.scrollToIndex({ index: info.index, viewPosition: 0.4, animated: true }), 120);
+              }}
+              ListHeaderComponent={loadingOlder ? (
+                <View accessibilityLabel="Chargement des messages précédents" style={{ alignItems: 'center', paddingVertical: 10 }}>
+                  <ActivityIndicator color={C.lav} />
+                </View>
+              ) : hasMore === false && all.length >= PAGE ? (
+                <Text style={[cf.text, { color: C.t3, fontSize: 12, textAlign: 'center', paddingVertical: 8 }]}>Début de la discussion</Text>
+              ) : null}
+              renderItem={({ item: row }) => {
+                if ('day' in row) {
+                  return (
+                    <View accessibilityRole="header" style={{ alignItems: 'center', marginTop: 14, marginBottom: 6 }}>
+                      <Text style={[cf.label, { fontSize: 12, color: C.t2, height: 26, lineHeight: 24, paddingHorizontal: 12, borderRadius: 13,
+                        overflow: 'hidden', backgroundColor: 'rgba(26,20,51,0.8)', borderWidth: 1, borderColor: C.line }]}>{row.day}</Text>
+                    </View>
+                  );
+                }
+                if ('unread' in row) {
+                  // « Nouveaux messages » : posée avant le premier non-lu, à l'ouverture.
+                  return (
+                    <View accessibilityRole="header" style={[{ alignItems: 'center', marginVertical: 10, marginHorizontal: -12, paddingVertical: 6,
+                      backgroundColor: C.glass, borderTopWidth: 1, borderBottomWidth: 1, borderColor: C.line }, enter('fade')]}>
+                      <Text style={[cf.bold, { fontSize: 12, color: C.lav }]}>{row.unread > 1 ? `${row.unread} nouveaux messages` : '1 nouveau message'}</Text>
+                    </View>
+                  );
+                }
+                const m = row.message;
+                const quoted = m.reply_to ? byId.get(m.reply_to) : null;
+                const mine = m.user_id === me.id;
+                const canMenu = !m.deleted_at && !m.pending && !m.failed && (member || !mine);
                 return (
-                  <View accessibilityRole="header" style={{ alignItems: 'center', marginTop: 14, marginBottom: 6 }}>
-                    <Text style={[cf.label, { fontSize: 12, color: C.t2, height: 26, lineHeight: 24, paddingHorizontal: 12, borderRadius: 13,
-                      overflow: 'hidden', backgroundColor: 'rgba(26,20,51,0.8)', borderWidth: 1, borderColor: C.line }]}>{row.day}</Text>
+                  <View style={{ marginTop: row.first ? 10 : 3 }}>
+                    <ChatBubble message={m} mine={mine} me={me.id}
+                      author={{ name: shownName(m.user_id), photo: people.get(m.user_id)?.avatar_url ?? null }}
+                      quoted={quoted ? { name: quoted.user_id === me.id ? 'Toi' : shownName(quoted.user_id), author: quoted.user_id, text: quoteText(quoted) } : null}
+                      photoUrl={m.photo_path ? photos.get(m.photo_path) ?? null : null}
+                      audioUrl={m.audio_path ? photos.get(m.audio_path) ?? null : null}
+                      reactions={reactionsOf.get(m.id) ?? []} canWrite={canCompose && !requestDraft}
+                      first={row.first} last={row.last} showAuthor={!direct} names={names} flash={flashId === m.id}
+                      onQuote={quoted ? () => showMessage(quoted.id) : undefined}
+                      onReply={() => { setEditing(null); setReplyTo(m); input.current?.focus(); }} onReact={(e) => void react(m, e)}
+                      onMenu={canMenu ? () => { const actions = actionsFor(m); if (actions.length) setMenu({ m, actions }); } : undefined}
+                      onAuthor={!mine && !direct ? () => mini.open(m.user_id) : undefined}
+                      seen={m.id === seenId}
+                      card={m.event_id || m.event_card ? cardFor(m) : undefined}
+                      privateQuote={direct ? m.quote ?? null : null}
+                      fresh={!!initialIds && !initialIds.has(m.id)}
+                      onRetry={m.failed ? () => retry(m.id) : undefined} />
                   </View>
                 );
-              }
-              const m = row.message;
-              const quoted = m.reply_to ? byId.get(m.reply_to) : null;
-              const mine = m.user_id === me.id;
-              const canMenu = !m.deleted_at && !m.pending && !m.failed && (member || !mine);
-              return (
-                <View style={{ marginTop: row.first ? 10 : 3 }}>
-                  <ChatBubble message={m} mine={mine} me={me.id}
-                    author={{ name: shownName(m.user_id), photo: people.get(m.user_id)?.avatar_url ?? null }}
-                    quoted={quoted ? { name: shownName(quoted.user_id), author: quoted.user_id,
-                      text: quoted.deleted_at ? 'Message supprimé' : quoted.body || (quoted.audio_seconds != null ? '🎤 Message vocal' : '📷 Photo') } : null}
-                    photoUrl={m.photo_path ? photos.get(m.photo_path) ?? null : null}
-                    audioUrl={m.audio_path ? photos.get(m.audio_path) ?? null : null}
-                    reactions={reactionsOf.get(m.id) ?? []} canWrite={canCompose && !requestDraft}
-                    first={row.first} last={row.last} showAuthor={!direct} names={names} flash={flashId === m.id}
-                    onQuote={quoted ? () => showMessage(quoted.id) : undefined}
-                    onReply={() => { setEditing(null); setReplyTo(m); input.current?.focus(); }} onReact={(e) => void react(m, e)}
-                    onMenu={canMenu ? () => { const actions = actionsFor(m); if (actions.length) setMenu({ m, actions }); } : undefined}
-                    onAuthor={!mine && !direct ? () => mini.open(m.user_id) : undefined}
-                    seen={m.id === seenId}
-                    card={m.event_id || m.event_card ? cardFor(m) : undefined}
-                    privateQuote={direct ? m.quote ?? null : null}
-                    fresh={!!initialIds && !initialIds.has(m.id)}
-                    onRetry={m.failed ? () => retry(m.id) : undefined} />
-                </View>
-              );
-            }}
-            ListFooterComponent={<TypingBubble names={typers} showName={!direct} />}
-            ListEmptyComponent={requestOut ? null : (
-              <View style={[{ alignItems: 'center', gap: 12, paddingHorizontal: 24 }, enter('fade')]}>
-                <View style={[{ width: 72, height: 72, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
-                  web({ backgroundImage: `linear-gradient(135deg, ${C.lavA}, ${C.lavB})`, boxShadow: `0 0 28px -6px ${C.lavB}` })]}>
-                  <Icon name="chat" size={34} color={C.onLav} stroke={2} />
-                </View>
-                <Text style={[cf.display, { color: C.t1, fontSize: 22, textAlign: 'center' }]}>
-                  {loadError ? 'La discussion n’a pas pu être chargée.' : 'Ta discussion commence ici'}
-                </Text>
-                {loadError ? null : (
-                  <Text style={[cf.text, { color: C.t2, fontSize: 15, lineHeight: 21, textAlign: 'center' }]}>
-                    {event ? 'Aucun message pour l’instant. Lance la discussion avec les invités !' : 'Aucun message pour l’instant. Lance la discussion !'}
+              }}
+              ListFooterComponent={<TypingBubble names={typers} showName={!direct} />}
+              ListEmptyComponent={requestOut ? null : (
+                <View style={[{ alignItems: 'center', gap: 12, paddingHorizontal: 24 }, enter('fade')]}>
+                  <View style={[{ width: 72, height: 72, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+                    web({ backgroundImage: `linear-gradient(135deg, ${C.lavA}, ${C.lavB})`, boxShadow: `0 0 28px -6px ${C.lavB}` })]}>
+                    <Icon name="chat" size={34} color={C.onLav} stroke={2} />
+                  </View>
+                  <Text style={[cf.display, { color: C.t1, fontSize: 22, textAlign: 'center' }]}>
+                    {loadError ? 'La discussion n’a pas pu être chargée.' : 'Ta discussion commence ici'}
                   </Text>
-                )}
-                {/* Groupe tout neuf (créé depuis Discussions) : y ajouter du monde, dans Réglages › Groupes. */}
-                {!loadError && kind === 'group' && member && inside.length <= 1 && data?.group.created_by === me.id ? (
-                  <Button small label="Ajouter des membres" onPress={() => router.push(`/group/${id}/invite`)} />
-                ) : null}
-              </View>
-            )}
-          />
-          {!atBottom && rows.length ? (
-            <Pressable accessibilityRole="button" accessibilityLabel={unseen ? `${unseen} nouveaux messages, descendre` : 'Descendre au dernier message'}
-              onPress={() => { setUnseen(0); list.current?.scrollToEnd({ animated: true }); }}
-              style={({ pressed }) => [{ position: 'absolute', right: 14, bottom: 12, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center',
-                backgroundColor: C.s1b, borderWidth: 1, borderColor: C.line2 }, web({ boxShadow: '0 18px 40px -18px rgba(0,0,0,0.7)' }),
-                enter('pop'), pressTransition, pressed && { transform: [{ scale: 0.92 }] }]}>
-              <Icon name="down" size={20} color={C.t1} />
-              {unseen ? (
-                <View style={{ position: 'absolute', top: -6, right: -6, minWidth: 20, height: 20, paddingHorizontal: 5, borderRadius: 10, backgroundColor: C.pink, alignItems: 'center', justifyContent: 'center' }}>
-                  <Text style={[cf.bold, { fontSize: 11, color: C.onPink }]}>{Math.min(unseen, 99)}</Text>
-                </View>
-              ) : null}
-            </Pressable>
-          ) : null}
-        </View>
-        {error ?? loadError ? (
-          <Text accessibilityRole="alert" style={[cf.semibold, { color: C.danger, fontSize: 14, paddingHorizontal: 16, paddingVertical: 6 }]}>{error ?? loadError}</Text>
-        ) : null}
-        {data?.blocked ? (
-          // Message direct : j'ai bloqué cette personne ; l'historique reste, l'écriture revient en la débloquant.
-          <Note text={`Tu as bloqué ${title}. Débloque-le dans Infos pour lui écrire.`} />
-        ) : requestIn ? (
-          <Note text={`Accepte la demande pour répondre à ${otherName}.`} />
-        ) : requestOut && mySent ? (
-          <Note icon text="Demande envoyée · tu pourras écrire à nouveau quand elle sera acceptée." />
-        ) : canCompose ? (
-          <View style={{ paddingTop: 4 }}>
-            {announcing ? <Text style={[cf.semibold, { color: C.pinkInk, fontSize: 12, paddingHorizontal: 14, paddingTop: 4 }]}>📣 Annonce : épinglée en haut et envoyée à tous les invités</Text> : null}
-            {requestDraft ? (
-              <Text style={[cf.text, { color: C.t2, fontSize: 13, paddingHorizontal: 14, paddingTop: 4 }]}>Ce sera une demande de message : un seul message texte, sans photo, vocal, lien ni numéro.</Text>
-            ) : null}
-            {editing ? (
-              <ComposerChip label="Modifier le message" text={editing.body} icon="pencil" onClose={() => { setEditing(null); setText(''); }} closeLabel="Annuler la modification" />
-            ) : null}
-            {replyTo ? (
-              <ComposerChip label={`Réponse à ${replyTo.user_id === me.id ? 'toi' : shownName(replyTo.user_id)}`}
-                text={replyTo.body || (replyTo.audio_seconds != null ? '🎤 Message vocal' : '📷 Photo')} icon="reply"
-                onClose={() => setReplyTo(null)} closeLabel="Ne plus répondre à ce message" />
-            ) : null}
-            {privateQuote ? (
-              <ComposerChip label={`Réponse privée · ${privateQuote.author} dans ${privateQuote.title}`} text={privateQuote.excerpt} icon="lock"
-                onClose={() => setPrivateQuote(null)} closeLabel="Retirer la citation" />
-            ) : null}
-            {attached ? (
-              <View style={[{ marginHorizontal: 12, marginTop: 6 }, enter('drop')]}>
-                <EventCardBubble compact card={attachedCard ?? { id: attached, title: 'Soirée', start: null, place: null, cover: null, going: 0, mine: null }}
-                  onOpen={() => router.push(`/event/${attached}`)} onRemove={() => setAttached(null)} />
-              </View>
-            ) : null}
-            <MentionSuggestions suggestions={suggestions} onPick={(sug) => pickMention(sug.label)} />
-            {tagNote ? <Text style={[cf.text, { color: C.t2, fontSize: 12, paddingHorizontal: 14, paddingTop: 6 }]}>ℹ️ {tagNote}</Text> : null}
-            {voice ? (
-              <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 10 }, enter('fade')]}>
-                <View style={[{ width: 10, height: 10, borderRadius: 5, backgroundColor: C.danger }, enter('recording')]} />
-                <Text style={[cf.semibold, cf.num, { flex: 1, color: C.t1, fontSize: 16 }]}>Enregistrement… {voiceClock((voiceNow - voice.started) / 1000)}</Text>
-                <Button small variant="ghost" label="Annuler" onPress={() => void stopRecording(false)} />
-                <Button small label="Envoyer" onPress={() => void stopRecording(true)} />
-              </View>
-            ) : (
-              <View style={[{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingHorizontal: 10, paddingTop: 8, paddingBottom: 10 },
-                web({ backgroundImage: 'linear-gradient(180deg, rgba(14,10,31,0), rgba(14,10,31,0.92) 28%)' })]}>
-                {event && isStaff && !editing ? (
-                  <RoundButton label={announcing ? 'Annonce activée' : 'Faire une annonce'} onPress={() => setAnnouncing((v) => !v)} active={announcing}>
-                    <Text style={{ fontSize: 18 }}>📣</Text>
-                  </RoundButton>
-                ) : null}
-                {Platform.OS === 'web' && !requestDraft && !editing ? (
-                  <RoundButton label="Envoyer une photo" onPress={() => void sendPhoto()} disabled={sending}>
-                    <Icon name="plus" color={C.lav} />
-                  </RoundButton>
-                ) : null}
-                <View style={{ flex: 1 }}>
-                  <Input inputRef={input} accessibilityLabel="Message"
-                    placeholder={announcing ? 'Ton annonce…' : requestDraft ? 'Écris ta demande…' : 'Message…'}
-                    placeholderTextColor={C.t3}
-                    value={text} onChangeText={(v) => { setText(v); setCursor(v.length); if (v && maySendTyping) typing.ping(); }}
-                    onSelectionChange={(e) => setCursor(e.nativeEvent.selection.end)} multiline editable={!sending} maxLength={event ? 4000 : 2000}
-                    // Le champ grandit avec le texte : à hauteur fixe, la 2e ligne rognait le haut du texte.
-                    onContentSizeChange={onComposerSize}
-                    style={[{ height: text ? composerHeight : COMPOSER_MIN, minHeight: COMPOSER_MIN, paddingTop: 11, paddingBottom: 11, paddingLeft: 16,
-                      paddingRight: Platform.OS === 'web' && !requestDraft && !editing ? 46 : 16, borderRadius: 22, backgroundColor: C.s1, borderColor: C.line2,
-                      color: C.t1, fontSize: 17 }, announcing && { borderColor: C.pink }, editing && { borderColor: C.lav }]} />
-                  {Platform.OS === 'web' && !requestDraft && !editing ? (
-                    <Pressable accessibilityRole="button" accessibilityLabel="Prendre une photo" onPress={() => void sendPhoto()} disabled={sending}
-                      style={({ pressed }) => [{ position: 'absolute', right: 4, bottom: 4, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-                        pressed && { backgroundColor: C.glass }]}>
-                      <Icon name="camera" size={21} color={C.t2} />
-                    </Pressable>
+                  {loadError ? null : (
+                    <Text style={[cf.text, { color: C.t2, fontSize: 15, lineHeight: 21, textAlign: 'center' }]}>
+                      {event ? 'Aucun message pour l’instant. Lance la discussion avec les invités !' : 'Aucun message pour l’instant. Lance la discussion !'}
+                    </Text>
+                  )}
+                  {/* Groupe tout neuf (créé depuis Discussions) : y ajouter du monde, dans Réglages › Groupes. */}
+                  {!loadError && kind === 'group' && member && inside.length <= 1 && data?.group.created_by === me.id ? (
+                    <Button small label="Ajouter des membres" onPress={() => router.push(`/group/${id}/invite`)} />
                   ) : null}
                 </View>
-                {text.trim() || attached || editing ? (
-                  // Bouton rond de la même largeur que le micro : le champ ne rétrécit pas en écrivant (sa hauteur reste juste).
-                  <RoundButton label={editing ? 'Enregistrer la modification' : announcing ? 'Publier l’annonce' : 'Envoyer'} onPress={() => void send()} primary busy={sending}>
-                    <Icon name={editing ? 'check' : 'send'} color={C.onLav} stroke={2.4} />
-                  </RoundButton>
-                ) : requestDraft ? null : (
-                  <RoundButton label="Enregistrer un message vocal" onPress={() => void startRecording()} disabled={sending} primary>
-                    <Icon name="mic" color={C.onLav} />
-                  </RoundButton>
-                )}
-              </View>
-            )}
+              )}
+            />
+            {!atBottom && rows.length ? (
+              <Pressable accessibilityRole="button" accessibilityLabel={unseen ? `${unseen} nouveaux messages, descendre` : 'Descendre au dernier message'}
+                onPress={() => { setUnseen(0); list.current?.scrollToEnd({ animated: true }); }}
+                style={({ pressed }) => [{ position: 'absolute', right: 14, bottom: 12, width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center',
+                  backgroundColor: C.s1b, borderWidth: 1, borderColor: C.line2 }, web({ boxShadow: '0 18px 40px -18px rgba(0,0,0,0.7)' }),
+                  enter('pop'), pressTransition, pressed && { transform: [{ scale: 0.92 }] }]}>
+                <Icon name="down" size={20} color={C.t1} />
+                {unseen ? (
+                  <View style={{ position: 'absolute', top: -6, right: -6, minWidth: 20, height: 20, paddingHorizontal: 5, borderRadius: 10, backgroundColor: C.pink, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={[cf.bold, { fontSize: 11, color: C.onPink }]}>{Math.min(unseen, 99)}</Text>
+                  </View>
+                ) : null}
+              </Pressable>
+            ) : null}
           </View>
-        ) : event ? (
-          <Note text="Tu peux lire la discussion ; tu pourras écrire une fois l’événement publié et ta place confirmée." />
+          {error ?? loadError ? (
+            <Text accessibilityRole="alert" style={[cf.semibold, { color: C.danger, fontSize: 14, paddingHorizontal: 16, paddingVertical: 6 }]}>{error ?? loadError}</Text>
+          ) : null}
+          {data?.blocked ? (
+            // Message direct : j'ai bloqué cette personne ; l'historique reste, l'écriture revient en la débloquant.
+            <Note text={`Tu as bloqué ${title}. Débloque-le dans Infos pour lui écrire.`} />
+          ) : requestIn ? (
+            <Note text={`Accepte la demande pour répondre à ${otherName}.`} />
+          ) : requestOut && mySent ? (
+            <Note icon text="Demande envoyée · tu pourras écrire à nouveau quand elle sera acceptée." />
+          ) : canCompose ? (
+            <View style={{ paddingTop: 4 }}>
+              {announcing ? <Text style={[cf.semibold, { color: C.pinkInk, fontSize: 12, paddingHorizontal: 14, paddingTop: 4 }]}>📣 Annonce : épinglée en haut et envoyée à tous les invités</Text> : null}
+              {requestDraft ? (
+                <Text style={[cf.text, { color: C.t2, fontSize: 13, paddingHorizontal: 14, paddingTop: 4 }]}>Ce sera une demande de message : un seul message texte, sans photo, vocal, lien ni numéro.</Text>
+              ) : null}
+              {editing ? (
+                <ComposerChip label="Modifier le message" text={editing.body} icon="pencil" onClose={() => { setEditing(null); setText(''); }} closeLabel="Annuler la modification" />
+              ) : null}
+              {replyTo ? (
+                <ComposerChip label={`Réponse à ${replyTo.user_id === me.id ? 'toi' : shownName(replyTo.user_id)}`}
+                  text={replyTo.body || (replyTo.audio_seconds != null ? '🎤 Message vocal' : '📷 Photo')} icon="reply"
+                  onClose={() => setReplyTo(null)} closeLabel="Ne plus répondre à ce message" />
+              ) : null}
+              {privateQuote ? (
+                <ComposerChip label={`Réponse privée · ${privateQuote.author} dans ${privateQuote.title}`} text={privateQuote.excerpt} icon="lock"
+                  onClose={() => setPrivateQuote(null)} closeLabel="Retirer la citation" />
+              ) : null}
+              {attached ? (
+                <View style={[{ marginHorizontal: 12, marginTop: 6 }, enter('drop')]}>
+                  <EventCardBubble compact card={attachedCard ?? { id: attached, title: 'Soirée', start: null, place: null, cover: null, going: 0, mine: null }}
+                    onOpen={() => router.push(`/event/${attached}`)} onRemove={() => setAttached(null)} />
+                </View>
+              ) : null}
+              <MentionSuggestions suggestions={suggestions} onPick={(sug) => pickMention(sug.label)} />
+              {tagNote ? <Text style={[cf.text, { color: C.t2, fontSize: 12, paddingHorizontal: 14, paddingTop: 6 }]}>ℹ️ {tagNote}</Text> : null}
+              {voice ? (
+                <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 10 }, enter('fade')]}>
+                  <View style={[{ width: 10, height: 10, borderRadius: 5, backgroundColor: C.danger }, enter('recording')]} />
+                  <Text style={[cf.semibold, cf.num, { flex: 1, color: C.t1, fontSize: 16 }]}>Enregistrement… {voiceClock((voiceNow - voice.started) / 1000)}</Text>
+                  <Button small variant="ghost" label="Annuler" onPress={() => void stopRecording(false)} />
+                  <Button small label="Envoyer" onPress={() => void stopRecording(true)} />
+                </View>
+              ) : (
+                <View style={[{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingHorizontal: 10, paddingTop: 8, paddingBottom: 10 },
+                  web({ backgroundImage: 'linear-gradient(180deg, rgba(14,10,31,0), rgba(14,10,31,0.92) 28%)' })]}>
+                  {event && isStaff && !editing ? (
+                    <RoundButton label={announcing ? 'Annonce activée' : 'Faire une annonce'} onPress={() => setAnnouncing((v) => !v)} active={announcing}>
+                      <Text style={{ fontSize: 18 }}>📣</Text>
+                    </RoundButton>
+                  ) : null}
+                  {Platform.OS === 'web' && !requestDraft && !editing ? (
+                    <RoundButton label="Envoyer une photo" onPress={() => void sendPhoto()} disabled={sending}>
+                      <Icon name="plus" color={C.lav} />
+                    </RoundButton>
+                  ) : null}
+                  <View style={{ flex: 1 }}>
+                    <Input inputRef={input} accessibilityLabel="Message"
+                      placeholder={announcing ? 'Ton annonce…' : requestDraft ? 'Écris ta demande…' : 'Message…'}
+                      placeholderTextColor={C.t3}
+                      value={text} onChangeText={(v) => { setText(v); setCursor(v.length); if (v && maySendTyping) typing.ping(); }}
+                      onSelectionChange={(e) => setCursor(e.nativeEvent.selection.end)} multiline editable={!sending} maxLength={event ? 4000 : 2000}
+                      // Le champ grandit avec le texte : à hauteur fixe, la 2e ligne rognait le haut du texte.
+                      onContentSizeChange={onComposerSize}
+                      style={[{ height: text ? composerHeight : COMPOSER_MIN, minHeight: COMPOSER_MIN, paddingTop: 11, paddingBottom: 11, paddingLeft: 16,
+                        paddingRight: Platform.OS === 'web' && !requestDraft && !editing ? 46 : 16, borderRadius: 22, backgroundColor: C.s1, borderColor: C.line2,
+                        color: C.t1, fontSize: 17 }, announcing && { borderColor: C.pink }, editing && { borderColor: C.lav }]} />
+                    {Platform.OS === 'web' && !requestDraft && !editing ? (
+                      <Pressable accessibilityRole="button" accessibilityLabel="Prendre une photo" onPress={() => void sendPhoto(true)} disabled={sending}
+                        style={({ pressed }) => [{ position: 'absolute', right: 4, bottom: 4, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+                          pressed && { backgroundColor: C.glass }]}>
+                        <Icon name="camera" size={21} color={C.t2} />
+                      </Pressable>
+                    ) : null}
+                  </View>
+                  {text.trim() || attached || editing ? (
+                    // Bouton rond de la même largeur que le micro : le champ ne rétrécit pas en écrivant (sa hauteur reste juste).
+                    <RoundButton label={editing ? 'Enregistrer la modification' : announcing ? 'Publier l’annonce' : 'Envoyer'} onPress={() => void send()} primary busy={sending}>
+                      <Icon name={editing ? 'check' : 'send'} color={C.onLav} stroke={2.4} />
+                    </RoundButton>
+                  ) : requestDraft ? null : (
+                    <RoundButton label="Enregistrer un message vocal" onPress={() => void startRecording()} disabled={sending} primary>
+                      <Icon name="mic" color={C.onLav} />
+                    </RoundButton>
+                  )}
+                </View>
+              )}
+            </View>
+          ) : staffOnly ? (
+            <Note icon text="Seule l’organisation peut écrire dans cette discussion." />
+          ) : event ? (
+            <Note text="Tu peux lire la discussion ; tu pourras écrire une fois l’événement publié et ta place confirmée." />
+          ) : null}
+        </KeyboardAvoidingView>
+        {event && ev && data && showInfo ? (
+          // Infos de la discussion : une page posée par-dessus le fil (sous l'en-tête), qui reste en place derrière
+          // (position, brouillon) ; ✕ de l'en-tête la referme.
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: C.bg }, enter('slideIn')]}>
+            <EventChatSettings eventId={id} me={me.id} staff={isStaff} card={ev.card}
+              people={(data.people as Profile[]).map((p): EventPerson => ({ id: p.id, name: shownName(p.id), photo: p.avatar_url,
+                rsvp: p.rsvp ?? null, organizer: Boolean(p.organizer), invited: Boolean(p.invited) }))}
+              level={level} mutedUntil={mutedUntil} writeMode={ev.writeMode} blocked={data.hidden}
+              pins={pins.map((p) => ({ id: p.id, author: shownName(p.user_id), text: quoteText(p), at: p.created_at, announcement: Boolean(p.announcement) }))}
+              nameOf={(uid) => people.get(uid)?.display_name ?? null}
+              onLevel={(l) => void changeLevel(l)} onMute={(c) => void changeMute(c)}
+              onJump={(messageId, at) => { setShowInfo(false); setTimeout(() => showMessage(messageId, at), 80); }}
+              onChanged={reload} />
+          </View>
         ) : null}
-      </KeyboardAvoidingView>
+      </View>
       <MessageMenu open={!!menu}
         preview={menuFor ? { author: shownName(menuFor.user_id), mine: menuFor.user_id === me.id,
           text: withoutAnnounceTag(menuFor.body) || (menuFor.audio_seconds != null ? '🎤 Message vocal' : menuFor.photo_path ? '📷 Photo' : menuFor.event_id ? '🎉 Soirée Party' : '') } : null}
@@ -1052,6 +1277,11 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
           ? REACTION_STATE(reactionsOf.get(menuFor.id) ?? [], me.id) : null}
         onReact={(e) => menuFor && void react(menuFor, e)}
         actions={menu?.actions ?? []} onClose={() => setMenu(null)} />
+      {event && ev ? (
+        <NotifyMenu open={menuOpen} level={level} mutedUntil={mutedUntil} onClose={() => setMenuOpen(false)}
+          onLevel={(l) => void changeLevel(l)} onMute={(c) => void changeMute(c)} onSettings={() => setShowInfo(true)} />
+      ) : null}
+      {notice ? <Toast message={notice} onHide={() => setNotice(null)} /> : null}
       <ReportSheet target={reportTarget} allowContext={Boolean(reportTarget && reportTarget.kind !== 'profile')} onClose={() => setReportTarget(null)} />
       {terms.sheet}
     </SafeAreaView>

@@ -145,11 +145,17 @@ enum EventChoices {
         Choice(key: "subscribed", label: "Si abonné", hint: "Seulement les événements d'une catégorie ou d'un tag que tu suis."),
         Choice(key: "none", label: "Jamais", hint: "Aucune alerte de nouvel événement. Les annonces admin restent actives."),
     ]
+    /// Discussions des événements : « Mentions seulement » d'abord (défaut de la base, recommandé), mêmes mots que la
+    /// cloche de chaque discussion.
     static let chat = [
-        Choice(key: "all", label: "Tous", hint: "Chaque message des discussions des événements auxquels tu participes."),
-        Choice(key: "mentions", label: "Si on me cite", hint: "Seulement quand quelqu'un écrit @ton prénom ou répond à ton message."),
-        Choice(key: "none", label: "Aucun", hint: "Aucune notification. Les messages restent lisibles dans l'app."),
+        Choice(key: "mentions", label: "Mentions seulement",
+               hint: "Tu es prévenu quand un message te concerne. Le reste se lit dans la discussion, sans bruit."),
+        Choice(key: "all", label: "Tout", hint: "Chaque message des discussions des événements auxquels tu participes."),
+        Choice(key: "none", label: "Rien", hint: "Aucune notification des discussions. Les messages restent lisibles dans l'app."),
     ]
+    static let chatRecommended = "mentions"
+    static let mentionsExplained = "Une mention, c'est : @ton prénom ou ton surnom, @toutlemonde, @present, une annonce de l'organisation, ou une réponse à ton message."
+    static let perChatHint = "Chaque discussion peut avoir son propre réglage : la cloche en haut de la discussion."
     /// Dans l'ordre du temps : le plus tôt d'abord.
     static let reminders = [
         Choice(key: "7d", label: "7 jours avant", hint: ""),

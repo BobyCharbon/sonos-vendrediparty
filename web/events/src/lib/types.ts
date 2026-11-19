@@ -178,6 +178,7 @@ export type NotificationPrefs = {
   waitlist: boolean;
   proposals: boolean;
   rsvp_mine: boolean;
+  /** Discussions des événements, réglage par défaut (« mentions » en base) ; chaque discussion peut le changer (cloche). */
   chat: ChatMode;
   reminders: Reminder[];
   /** Lune des Réglages : tout arrive sans son jusqu'à cette date ; null ou passée = pas de pause. */
@@ -238,6 +239,9 @@ export type NotificationPrefs = {
   /** Nouveau compte (migration 20261113100000 ; absent avant : reçu) : ceux qui valident les membres. */
   member_signups?: boolean;
 };
+
+/** Réglage d'une discussion d'événement (table event_chat_prefs, RLS : ses lignes), lu par Réglages › Notifications. */
+export type EventChatPref = { event_id: string; level: ChatMode; custom?: boolean; muted_until: string | null; events: { title: string } | null };
 
 /** Pause des notifications : 'all' = la lune, 'chats' = Discussions des groupes, 'event_chats' = discussions des événements. */
 export type PauseScope = 'all' | 'chats' | 'event_chats';

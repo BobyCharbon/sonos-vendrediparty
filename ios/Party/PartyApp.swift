@@ -186,6 +186,19 @@ struct ContentView: View {
                 .motion(Motion.snappy, value: zicouBubbleShown && model.zicouBubble?.visible == true)
                 .motion(Motion.smooth, value: model.notice)
                 .motion(Motion.smooth, value: model.secretCards)
+                // Discussion ouverte : la page derrière (fiche, barre d'onglets) sort de VoiceOver et des tests d'interface.
+                .accessibilityHidden(model.eventChatID != nil)
+
+                // Discussion d'un événement (17.11) : arrive de la droite par-dessus la fiche et la barre d'onglets, comme
+                // une page poussée ; « ‹ » ou un glissé depuis le bord gauche ramène à la fiche.
+                if let id = model.eventChatID, let store = model.eventChats {
+                    EventChatScreen(store: store, eventID: id,
+                                    onClose: { Motion.animate(Motion.smooth) { model.closeEventChat() } },
+                                    info: $model.eventChatInfo)
+                        .id(id)
+                        .zIndex(1)
+                        .motionTransition(.move(edge: .trailing))
+                }
 
                 // iPhone Duo : barre d'onglets verticale du système, sur le côté (voir SystemTabBar).
                 if #available(iOS 27.1, *), sideBarVisible, let tabs = model.visibleTabs {
@@ -221,22 +234,6 @@ struct ContentView: View {
                 AIEventView(store: settings.aiEvent, editing: model.aiEditEventId,
                             open: { id in model.openEvent(id) }, openInvite: { created in model.openInvite(created) })
                     .presentationDragIndicator(.visible)
-            }
-        }
-        // Discussion d'un événement (16.11) : écran natif façon WhatsApp, par-dessus la page ; « ‹ » ramène à la fiche.
-        .fullScreenCover(isPresented: Binding(get: { model.eventChatID != nil }, set: { if !$0 { model.eventChatID = nil } })) {
-            if let id = model.eventChatID, let store = model.eventChats {
-                NavigationStack {
-                    ConversationView(store: store, group: id)
-                        .toolbar {
-                            ToolbarItem(placement: .navigationBarLeading) {
-                                Button { model.eventChatID = nil } label: { Image(systemName: "chevron.backward").font(.body.weight(.semibold)) }
-                                    .accessibilityLabel("Retour à l'événement")
-                                    .accessibilityIdentifier("event-chat-close")
-                            }
-                        }
-                }
-                .preferredColorScheme(.dark)
             }
         }
         // Pronos (17.11) : écrans natifs par-dessus la page (bouton de la page, notification) ; « ✕ » ramène à la page.

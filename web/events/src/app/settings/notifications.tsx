@@ -1,19 +1,20 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useRef, useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ChatsPause } from '@/components/NotificationPause';
 import { PartyNotifications } from '@/components/PartyNotifications';
 import { ZicouReactionsRow } from '@/components/ZicouReactionsRow';
 import { compagnonOn, discussionsOn, barOn } from '@/lib/features';
 import { SubscriptionPicker } from '@/components/SubscriptionPicker';
-import { Button, Chip, ErrorText, Field, LinkRow, Screen, s, Section, Segmented, T, ToggleRow } from '@/components/ui';
+import { Badge, Button, Chip, ErrorText, Field, LinkRow, Screen, s, Section, Segmented, T, ToggleRow } from '@/components/ui';
 import { useAuth, useMe } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
 import { check, must, supabase } from '@/lib/supabase';
 import { normalizeTime, prefShown } from '@/lib/notificationPrefs';
+import { colors, radius } from '@/lib/theme';
 import { enableWebPush, testWebPush, webPushState, type WebPushState } from '@/lib/push';
-import type { ChatMode, NewEventScope, NotificationPrefs, Reminder } from '@/lib/types';
+import type { ChatMode, EventChatPref, NewEventScope, NotificationPrefs, Reminder } from '@/lib/types';
 
 const reminderLabels: Record<Reminder, string> = { '7d': '7 jours avant', '1d': 'La veille', '2h': '2 heures avant', '0h': 'Au début' };
 const newEventHints: Record<NewEventScope, string> = {
@@ -21,11 +22,15 @@ const newEventHints: Record<NewEventScope, string> = {
   subscribed: 'Seulement les événements qui ont au moins une catégorie OU un tag que tu suis ci-dessous.',
   none: 'Aucune alerte de nouvel événement. Les annonces admin restent actives.',
 };
-const chatHints: Record<ChatMode, string> = {
-  all: 'Chaque message des discussions des événements auxquels tu participes.',
-  mentions: 'Seulement quand quelqu’un écrit @ton prénom ou répond à ton message.',
-  none: 'Aucune notification. Les messages restent lisibles dans l’app.',
-};
+/** Discussions des événements : « Mentions seulement » par défaut (recommandé), même ordre et mêmes mots que la cloche
+ * de chaque discussion (web et iPhone). */
+const chatChoices: { key: ChatMode; label: string; hint: string; recommended?: boolean }[] = [
+  { key: 'mentions', label: 'Mentions seulement', recommended: true,
+    hint: 'Tu es prévenu quand un message te concerne. Le reste se lit dans la discussion, sans bruit.' },
+  { key: 'all', label: 'Tout', hint: 'Chaque message des discussions des événements auxquels tu participes.' },
+  { key: 'none', label: 'Rien', hint: 'Aucune notification des discussions. Les messages restent lisibles dans l’app.' },
+];
+const chatLabel = (k: ChatMode) => chatChoices.find((c) => c.key === k)?.label ?? k;
 
 export default function NotificationSettings() {
   const me = useMe();
@@ -152,6 +157,37 @@ export default function NotificationSettings() {
         {quiet ? <ErrorText error={timeError} /> : null}
       </Section>
 
+      {/* Discussions des événements : en haut, facile à trouver (demande du 17.11). Réglage global
+          notification_prefs.chat ; chaque discussion peut le changer (cloche, table event_chat_prefs). */}
+      {mayShow('chat') ? <Section title="💬 Discussions des événements">
+        <T muted size={13}>Par défaut, me prévenir :</T>
+        <View accessibilityRole="radiogroup" style={{ gap: 6 }}>
+          {chatChoices.map((c) => {
+            const on = prefs.chat === c.key;
+            return (
+              <Pressable key={c.key} accessibilityRole="radio" accessibilityState={{ checked: on, disabled: saving }} aria-checked={on}
+                accessibilityLabel={c.recommended ? `${c.label} (recommandé)` : c.label}
+                disabled={saving} onPress={() => { if (!on) void update({ chat: c.key }); }}
+                style={({ pressed }) => [styles.choice, on && styles.choiceOn, pressed && !on && { backgroundColor: colors.fillStrong }]}>
+                <View style={[styles.radio, on && styles.radioOn]}>{on ? <View style={styles.radioDot} /> : null}</View>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <View style={s.row}>
+                    <T weight="semibold">{c.label}</T>
+                    {c.recommended ? <Badge label="Recommandé" fg={colors.onMint} bg={colors.mint} /> : null}
+                  </View>
+                  <T muted size={12}>{c.hint}</T>
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+        <T muted size={13}>Une mention, c’est : @ton prénom ou ton surnom, @toutlemonde, @present, une annonce de l’organisation, ou une réponse à ton message.</T>
+        <T muted size={13}>Chaque discussion peut avoir son propre réglage : la cloche en haut de la discussion.</T>
+        <EventChatOverrides fallback={prefs.chat} />
+        {/* Deux pauses distinctes (avis de l'admin) : discussions des événements ici, groupes plus bas. */}
+        <ChatsPause scope="event_chats" />
+      </Section> : null}
+
       {mayShow('new_event') || fromFilter ? <Section title="Nouveaux événements et abonnements">
         {mayShow('new_event') ? <>
         <T muted size={13}>Quand un nouvel événement est publié, me prévenir :</T>
@@ -196,18 +232,6 @@ export default function NotificationSettings() {
           ))}
         </View>
       </Section>
-
-      {mayShow('chat') ? <Section title="Messages des discussions">
-        <Segmented<ChatMode>
-          disabled={saving}
-          value={prefs.chat}
-          onChange={(chat) => update({ chat })}
-          options={[{ key: 'all', label: 'Tous' }, { key: 'mentions', label: 'Si on me cite' }, { key: 'none', label: 'Aucun' }]}
-        />
-        <T muted size={13}>{chatHints[prefs.chat]}</T>
-        {/* Deux pauses distinctes (avis de l'admin) : discussions des événements ici, groupes plus bas. */}
-        <ChatsPause scope="event_chats" />
-      </Section> : null}
 
       {/* Discussions éteintes (production) : seuls les réglages des groupes restent (invitation, nouveau membre). */}
       <Section title={discussionsOn ? 'Discussions des groupes' : 'Groupes'}>
@@ -277,3 +301,71 @@ export default function NotificationSettings() {
     </Screen>
   );
 }
+
+/** Sourdine d'une discussion : null ou passée = aucune ; 'infinity' (Postgres) = toujours. */
+function muteText(until: string | null): string | null {
+  if (!until) return null;
+  if (until === 'infinity') return 'en sourdine';
+  const d = new Date(until);
+  if (Number.isNaN(d.getTime()) || d.getTime() <= Date.now()) return null;
+  return `en sourdine jusqu’au ${d.toLocaleString('fr-CH', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`;
+}
+
+/** « Discussions réglées autrement » : les lignes de event_chat_prefs (RLS : les siennes) dont le niveau diffère du
+ * réglage par défaut, ou en sourdine. « Par défaut » remet le niveau par défaut et retire la sourdine. Table absente ou
+ * illisible : rien n'est affiché (le reste des réglages marche sans). */
+function EventChatOverrides({ fallback }: { fallback: ChatMode }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const { data, reload } = useQuery(async () => {
+    const { data: rows, error: e } = await supabase.from('event_chat_prefs').select('event_id, level, custom, muted_until, events(title)');
+    return e ? [] : ((rows ?? []) as unknown as EventChatPref[]);
+  }, []);
+  // Une ligne créée par « lu » ou la sourdine (custom = false) suit le défaut : seul un niveau choisi exprès compte.
+  const rows = (data ?? []).filter((r) => (r.custom !== false && r.level !== fallback) || muteText(r.muted_until));
+  if (!rows.length) return null;
+
+  async function reset(r: EventChatPref) {
+    if (busy) return;
+    setBusy(r.event_id); setError(null);
+    try {
+      check(await supabase.rpc('event_chat_set_level', { e: r.event_id, level: fallback }));
+      if (r.muted_until) check(await supabase.rpc('event_chat_mute', { e: r.event_id, until: null }));
+      await reload();
+    } catch {
+      setError('Ce réglage n’a pas été changé. Vérifie ta connexion et réessaie.');
+    } finally { setBusy(null); }
+  }
+
+  return (
+    <View style={{ gap: 6 }}>
+      <T weight="semibold">Discussions réglées autrement</T>
+      {rows.map((r) => {
+        const title = r.events?.title ?? 'Événement';
+        const state = [chatLabel(r.level), muteText(r.muted_until)].filter(Boolean).join(' · ');
+        return (
+          <View key={r.event_id} style={[s.rowBetween, styles.override]}>
+            <Pressable accessibilityRole="link" accessibilityLabel={`Ouvrir la discussion : ${title}`} style={{ flex: 1, gap: 2 }}
+              onPress={() => router.push(`/event/${r.event_id}/chat`)}>
+              <T numberOfLines={1}>{title}</T>
+              <T muted size={12}>{state}</T>
+            </Pressable>
+            <Button small variant="secondary" label="Par défaut" loading={busy === r.event_id}
+              disabled={!!busy && busy !== r.event_id} onPress={() => reset(r)} />
+          </View>
+        );
+      })}
+      <ErrorText error={error} />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  choice: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingVertical: 10, paddingHorizontal: 12,
+    borderRadius: radius.md, borderWidth: 1.5, borderColor: 'transparent', backgroundColor: colors.fill },
+  choiceOn: { borderColor: colors.accent, backgroundColor: colors.accentDim },
+  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.muted, alignItems: 'center', justifyContent: 'center' },
+  radioOn: { borderColor: colors.accent },
+  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.accent },
+  override: { paddingVertical: 6 },
+});

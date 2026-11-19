@@ -121,7 +121,7 @@ def test_dangerous_place_link_falls_back_to_maps_search(browser, events_origin):
 def test_event_chat_message_link_is_clickable(browser, events_origin):
     context, page, frame, errors = open_event(browser, events_origin)
     try:
-        frame.get_by_text('Ouvrir ›', exact=True).click()
+        frame.get_by_role('link', name='Ouvrir la discussion').click()  # carte « Discussion » de la fiche (17.11)
         link = frame.locator('a[href="https://photos.example/album"]')
         pw.expect(link).to_have_count(1, timeout=15000)
         assert link.inner_text() == 'https://photos.example/album'  # la virgule reste du texte

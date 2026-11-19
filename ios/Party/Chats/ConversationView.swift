@@ -8,9 +8,14 @@ import SwiftUI
 /// répondre, copier, modifier, répondre en privé, épingler, supprimer, signaler.
 /// Discussions v2 (18.11) : graphisme Néon club (maquette 1-neon/4), en-tête photo + nom (→ mini-profil), carte de soirée,
 /// citation privée, « Vu », « écrit… », demandes de message (ConversationModel).
+/// Discussion d'un événement (17.11) : « Nouveaux messages » au premier non-lu, anciens messages chargés en remontant,
+/// message montré depuis la recherche ou les épinglés des infos (store.jumpTo), lue en arrivant en bas,
+/// « Seule l'organisation peut écrire », appareil photo à côté du champ.
+/// embedded : posée dans un écran qui a son propre en-tête (EventChatScreen) ; ni titre ni boutons de barre.
 struct ConversationView: View {
     @ObservedObject var store: ChatsStore
     let group: String
+    var embedded = false
 
     @StateObject private var v2 = ConversationModel()
     @Environment(\.conversationRoutes) private var routes
@@ -24,6 +29,7 @@ struct ConversationView: View {
     @State private var privateQuote: PrivateQuote?
     @State private var person: PersonRef?
     @State private var picked: PhotosPickerItem?
+    @State private var showCamera = false
     @State private var showInfo = false
     @FocusState private var writing: Bool
     @StateObject private var recorder = VoiceRecorder()
@@ -50,10 +56,21 @@ struct ConversationView: View {
     /// Entré avec sa réponse à un événement (17.11) : bandeau gardé tant que l'écran est ouvert (la base ne le rend qu'une fois).
     @State private var joinNote: Conversation.JoinNote?
     @State private var confirmLeave = false
+    /// « Nouveaux messages » : premier message non lu à l'ouverture, et leur nombre (discussion d'un événement).
+    @State private var newFrom: String?
+    @State private var newCount = 0
+    /// Premières secondes : la liste se place (bas du fil ou premier non-lu) avant que le doigt ne la prenne.
+    @State private var settling = true
+    /// Anciens messages : chargement en remontant, arrêté quand il n'y a plus rien.
+    @State private var loadingOlder = false
+    @State private var olderDone = false
+    /// Dernier message signalé comme lu (pas deux fois le même appel).
+    @State private var lastRead: String?
 
     private var chat: Conversation? { store.conversation?.id == group ? store.conversation : nil }
     private var accent: Color { ConvNeon.lav }
     private static let end = "chat-end"
+    private static let unreadID = "chat-unread-divider"
 
     /// Titre : message direct, « Nom du contact · pseudo » de l'autre personne ; groupe ou événement, son nom.
     private var title: String {
@@ -80,6 +97,61 @@ struct ConversationView: View {
     }
 
     var body: some View {
+        chrome(content)
+            .sheet(isPresented: $showInfo) {
+                if store.conversation?.isEvent == true { EventChatInfoView(store: store) }
+                else if store.conversation?.isDirect == true { DirectChatInfoView(store: store) } else { ChatInfoView(store: store) }
+            }
+            .sheet(item: $reporting) { target in
+                if v2.canRelay { MessageReportSheet(model: v2, target: target) } else { ReportSheet(store: store.moderation, target: target) }
+            }
+            .sheet(isPresented: $askTerms) { TermsAcceptSheet(store: store.moderation) }
+            .fullScreenCover(isPresented: $showCamera) {
+                BubbleCamera { image in Task { await sendImage(image) } }.ignoresSafeArea()
+            }
+            .personSheet($person, store: store, routes: routes, canWrite: chat?.isDirect != true)
+            .confirmationDialog("Bloquer \(title) ?", isPresented: $confirmBlock, titleVisibility: .visible) {
+                Button("Bloquer", role: .destructive) {
+                    Task {
+                        await store.setBlocked(true)
+                        dismiss()
+                    }
+                }
+            } message: {
+                Text("Sa demande disparaît et elle ne pourra plus t'écrire. Les modérateurs sont prévenus. Tu pourras débloquer dans Réglages › Confidentialité.")
+            }
+            .overlay(alignment: .bottom) { notice }
+            .task(id: group) {
+                v2.attach(store)
+                // Conditions d'utilisation lues dès l'ouverture : le premier message part sans attendre le serveur.
+                Task { _ = await store.moderation.termsAccepted() }
+                while !Task.isCancelled {
+                    await store.open(group)
+                    if let chat { await v2.refreshSeen(chat) }
+                    try? await Task.sleep(for: ChatsStore.conversationEvery)
+                }
+            }
+            .task(id: v2Key) {
+                v2.attach(store)
+                if let chat { await v2.update(chat) }
+            }
+            // « Répondre en privé » : la citation attend la conversation directe avec cette personne.
+            .task(id: chat?.userID) {
+                if let user = chat?.userID, chat?.isDirect == true, let quote = ConversationRules.pendingQuotes.removeValue(forKey: user) {
+                    Motion.animate { privateQuote = quote }
+                    writing = true
+                }
+            }
+            .onDisappear { store.close(); v2.stop(); player.stop(); micLocked = false; _ = recorder.stop(send: false) }
+            .onChange(of: picked) { item in Task { await sendPhoto(item) } }
+            .onChange(of: chat?.joinNote) { note in if joinNote == nil, let note { Motion.animate(Motion.snappy) { joinNote = note } } }
+            .onChange(of: text) { value in if let chat, !value.isEmpty, editing == nil { v2.typed(in: chat) } }
+            .onChange(of: chat?.messages.last?.id) { _ in
+                if let last = chat?.messages.last, !last.mine { v2.messageArrived(from: last.author) }
+            }
+    }
+
+    private var content: some View {
         VStack(spacing: 0) {
             if let note = joinNote {
                 joinBanner(note).motionTransition(.unfold)
@@ -100,6 +172,10 @@ struct ConversationView: View {
                 } else if request == .incoming || (request == .outgoing && chat.messages.contains { $0.mine }) {
                     // Demande : le destinataire répond après avoir accepté ; l'expéditeur a envoyé son seul message.
                     EmptyView()
+                } else if chat.member && chat.canWrite == false {
+                    // « Qui peut écrire : Organisation seulement » (réglage de l'organisation de l'événement) : on lit,
+                    // on réagit et on signale.
+                    footNote("Seule l'organisation peut écrire dans cette discussion").accessibilityIdentifier("chat-read-only")
                 } else if chat.member {
                     composer(chat, textOnly: request == .outgoing)
                 } else if chat.isEvent {
@@ -117,67 +193,28 @@ struct ConversationView: View {
         .motion(Motion.snappy, value: v2.status)
         .foregroundStyle(ConvNeon.t1)
         .background(ZStack { ConvNeon.bg; ConvNeon.halo }.ignoresSafeArea())
-        .navigationTitle(title)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(ConvNeon.bg, for: .navigationBar)
-        .toolbar {
-            ToolbarItem(placement: .principal) { header }
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button { showInfo = true } label: {
-                    Image(systemName: "ellipsis").font(.body.weight(.bold)).foregroundStyle(ConvNeon.lav)
-                        .frame(width: 44, height: 44)
+    }
+
+    /// Hors d'un écran qui a son propre en-tête (EventChatScreen) : en-tête photo + nom, bouton ….
+    @ViewBuilder private func chrome<V: View>(_ view: V) -> some View {
+        if embedded {
+            view
+        } else {
+            view
+                .navigationTitle(title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbarBackground(ConvNeon.bg, for: .navigationBar)
+                .toolbar {
+                    ToolbarItem(placement: .principal) { header }
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button { showInfo = true } label: {
+                            Image(systemName: "ellipsis").font(.body.weight(.bold)).foregroundStyle(ConvNeon.lav)
+                                .frame(width: 44, height: 44)
+                        }
+                        .accessibilityLabel(chat?.isDirect == true ? "Infos de la conversation" : chat?.isEvent == true ? "Participants et notifications" : "Infos du groupe")
+                        .disabled(chat == nil)
+                    }
                 }
-                .accessibilityLabel(chat?.isDirect == true ? "Infos de la conversation" : chat?.isEvent == true ? "Participants et notifications" : "Infos du groupe")
-                .disabled(chat == nil)
-            }
-        }
-        .sheet(isPresented: $showInfo) {
-            if store.conversation?.isEvent == true { EventChatInfoView(store: store) }
-            else if store.conversation?.isDirect == true { DirectChatInfoView(store: store) } else { ChatInfoView(store: store) }
-        }
-        .sheet(item: $reporting) { target in
-            if v2.canRelay { MessageReportSheet(model: v2, target: target) } else { ReportSheet(store: store.moderation, target: target) }
-        }
-        .sheet(isPresented: $askTerms) { TermsAcceptSheet(store: store.moderation) }
-        .personSheet($person, store: store, routes: routes, canWrite: chat?.isDirect != true)
-        .confirmationDialog("Bloquer \(title) ?", isPresented: $confirmBlock, titleVisibility: .visible) {
-            Button("Bloquer", role: .destructive) {
-                Task {
-                    await store.setBlocked(true)
-                    dismiss()
-                }
-            }
-        } message: {
-            Text("Sa demande disparaît et elle ne pourra plus t'écrire. Les modérateurs sont prévenus. Tu pourras débloquer dans Réglages › Confidentialité.")
-        }
-        .overlay(alignment: .bottom) { notice }
-        .task(id: group) {
-            v2.attach(store)
-            // Conditions d'utilisation lues dès l'ouverture : le premier message part sans attendre le serveur.
-            Task { _ = await store.moderation.termsAccepted() }
-            while !Task.isCancelled {
-                await store.open(group)
-                if let chat { await v2.refreshSeen(chat) }
-                try? await Task.sleep(for: ChatsStore.conversationEvery)
-            }
-        }
-        .task(id: v2Key) {
-            v2.attach(store)
-            if let chat { await v2.update(chat) }
-        }
-        // « Répondre en privé » : la citation attend la conversation directe avec cette personne.
-        .task(id: chat?.userID) {
-            if let user = chat?.userID, chat?.isDirect == true, let quote = ConversationRules.pendingQuotes.removeValue(forKey: user) {
-                Motion.animate { privateQuote = quote }
-                writing = true
-            }
-        }
-        .onDisappear { store.close(); v2.stop(); player.stop(); micLocked = false; _ = recorder.stop(send: false) }
-        .onChange(of: picked) { item in Task { await sendPhoto(item) } }
-        .onChange(of: chat?.joinNote) { note in if joinNote == nil, let note { Motion.animate(Motion.snappy) { joinNote = note } } }
-        .onChange(of: text) { value in if let chat, !value.isEmpty, editing == nil { v2.typed(in: chat) } }
-        .onChange(of: chat?.messages.last?.id) { _ in
-            if let last = chat?.messages.last, !last.mine { v2.messageArrived(from: last.author) }
         }
     }
 
@@ -306,6 +343,60 @@ struct ConversationView: View {
         }
     }
 
+    private func loaded(_ id: String) -> Bool { store.conversation?.messages.contains { $0.id == id } == true }
+
+    /// Message demandé (citation, bandeau, recherche) : s'il est plus ancien que ceux affichés, la discussion d'un
+    /// événement remonte page par page.
+    private func reveal(_ id: String, _ proxy: ScrollViewProxy) {
+        if loaded(id) { show(id, proxy); return }
+        guard store.forEvents else { store.notice = "Ce message est plus ancien que ceux affichés."; return }
+        Task {
+            for _ in 0..<10 where !loaded(id) {
+                let before = store.conversation?.messages.count ?? 0
+                await store.loadOlder()
+                if (store.conversation?.messages.count ?? 0) <= before { break }
+            }
+            if loaded(id) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { show(id, proxy) }
+            } else {
+                store.notice = "Ce message n'est plus dans la discussion."
+            }
+        }
+    }
+
+    /// Haut du fil atteint : la page précédente arrive au-dessus, et la lecture reste sur le même message.
+    private func loadOlder(_ proxy: ScrollViewProxy) {
+        guard !loadingOlder, !olderDone, !settling, let anchor = store.conversation?.messages.first?.id else { return }
+        let before = store.conversation?.messages.count ?? 0
+        loadingOlder = true
+        Task {
+            await store.loadOlder()
+            let now = store.conversation?.messages.count ?? 0
+            if now <= before { olderDone = true } else { DispatchQueue.main.async { proxy.scrollTo(anchor, anchor: .top) } }
+            loadingOlder = false
+        }
+    }
+
+    /// Discussion d'un événement lue (ouverture, arrivée en bas, nouveau message vu) ; une fois par dernier message.
+    private func markRead(_ chat: Conversation) {
+        guard store.forEvents, chat.member, let last = chat.messages.last(where: { !$0.pending })?.id, last != lastRead else { return }
+        lastRead = last
+        Task { await store.markRead() }
+    }
+
+    /// À l'ouverture : premier message non lu (d'après le serveur) ; la bande « Nouveaux messages » se pose avant lui.
+    private func placeUnread(_ chat: Conversation, _ proxy: ScrollViewProxy) {
+        guard newFrom == nil, settling, let unread = chat.unread, unread > 0 else { return }
+        let others = chat.messages.filter { !$0.pending }
+        guard unread <= others.count else { return }
+        let first = others[others.count - unread]
+        guard !first.mine else { return }
+        newFrom = first.id
+        newCount = unread
+        unseen = unread
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { proxy.scrollTo(Self.unreadID, anchor: .top) }
+    }
+
     private func reply(to m: Conversation.Message) {
         Haptics.press()
         Motion.animate {
@@ -424,6 +515,12 @@ struct ConversationView: View {
                     }
                     .padding(.top, 60)
                     .frame(maxWidth: .infinity).listRowBackground(Color.clear).listRowSeparator(.hidden)
+                } else if store.forEvents && !olderDone {
+                    // Discussion d'un événement : en haut du fil, la page précédente se charge en remontant.
+                    HStack { if loadingOlder { ProgressView().tint(ConvNeon.lav) } }
+                        .frame(maxWidth: .infinity, minHeight: loadingOlder ? 36 : 1)
+                        .listRowBackground(Color.clear).listRowSeparator(.hidden).listRowInsets(EdgeInsets())
+                        .onAppear { loadOlder(proxy) }
                 }
                 ForEach(rows) { row in
                     switch row.kind {
@@ -433,7 +530,13 @@ struct ConversationView: View {
                             .listRowBackground(Color.clear).listRowSeparator(.hidden)
                             .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 6, trailing: 16))
                     case .message(let m, let first, let last):
-                        messageRow(m, first: first, last: last, chat: chat, names: names, lastMine: lastMine, proxy: proxy)
+                        if m.id == newFrom {
+                            UnreadDivider(count: newCount)
+                                .id(Self.unreadID)
+                                .listRowBackground(Color.clear).listRowSeparator(.hidden)
+                                .listRowInsets(EdgeInsets(top: 8, leading: 0, bottom: 8, trailing: 0))
+                        }
+                        messageRow(m, first: first || m.id == newFrom, last: last, chat: chat, names: names, lastMine: lastMine, proxy: proxy)
                     }
                 }
                 if let typingLine, v2.request(in: chat) == nil {
@@ -458,12 +561,37 @@ struct ConversationView: View {
             .motion(Motion.snappy, value: chat.messages.map(\.id))
             .motion(Motion.snappy, value: typingLine)
             .overlay(alignment: .bottomTrailing) { jumpButton(proxy) }
-            .onAppear { bottom(proxy, animated: false) }
+            .onAppear {
+                if let id = store.jumpTo {
+                    // Recherche, épinglés, médias des infos : le message à montrer.
+                    store.jumpTo = nil
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { reveal(id, proxy) }
+                } else {
+                    bottom(proxy, animated: false)
+                    placeUnread(chat, proxy)
+                }
+                // Lue après la mise en place : la bande « Nouveaux messages » a eu le temps de lire le compte du serveur.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                    settling = false
+                    if let now = self.chat { markRead(now) }
+                }
+            }
+            // Le serveur dit combien de messages n'ont pas été lus (souvent juste après la version gardée sur le téléphone).
+            .onChange(of: chat.unread ?? 0) { _ in
+                placeUnread(chat, proxy)
+                markRead(chat)
+            }
             // Nouveau message : on suit s'il est à moi ou si l'on était en bas ; sinon le bouton ↓ le compte.
             .onChange(of: chat.messages.last?.id) { _ in
                 guard let last = chat.messages.last else { return }
-                if last.mine || atBottom { bottom(proxy) } else { Motion.animate(Motion.bouncy) { unseen += 1 } }
+                if last.mine || atBottom {
+                    bottom(proxy)
+                    if !last.mine { markRead(chat) }
+                } else {
+                    Motion.animate(Motion.bouncy) { unseen += 1 }
+                }
             }
+            .onChange(of: atBottom) { bottomNow in if bottomNow { markRead(chat) } }
             // Réaction, envoi confirmé sur le dernier message : on reste en bas si on y était.
             .onChange(of: chat.messages.last) { _ in if atBottom { bottom(proxy) } }
             .onChange(of: typingLine) { _ in if atBottom { bottom(proxy) } }
@@ -472,7 +600,13 @@ struct ConversationView: View {
             .onChange(of: jumpTo) { id in
                 guard let id else { return }
                 jumpTo = nil
-                if chat.messages.contains(where: { $0.id == id }) { show(id, proxy) } else { store.notice = "Ce message est plus ancien que ceux affichés." }
+                reveal(id, proxy)
+            }
+            // Recherche, épinglés, médias de l'écran d'infos : le message à montrer.
+            .onChange(of: store.jumpTo) { id in
+                guard let id else { return }
+                store.jumpTo = nil
+                reveal(id, proxy)
             }
         }
     }
@@ -485,17 +619,19 @@ struct ConversationView: View {
                                      label: "le message de \(m.authorName)")
         }
         let extra = v2.extras[m.id]
-        let canEdit = chat.member && chat.blocked != true && ConversationRules.canEdit(m, isEvent: chat.isEvent)
+        let canEdit = chat.member && chat.blocked != true && chat.canWrite != false && ConversationRules.canEdit(m, isEvent: chat.isEvent)
+        // « Seule l'organisation peut écrire » : on réagit et on signale, sans répondre.
+        let canReply = chat.canWrite != false
         let canPrivate = writeDirect != nil && !chat.isDirect && !m.mine && !m.deleted && !m.pending && v2.canRelay
         let seen = chat.isDirect && ConversationRules.seen(m, lastMine: lastMine, seenAt: v2.seenAt)
         let key = BubbleKey(message: m, first: first, last: last, names: names, reactions: chat.reactions, chatName: chat.name,
                             flags: [chat.member, chat.admin, chat.isStaff, chat.isDirect, chat.isEvent, v2.request(in: chat) == nil,
-                                    canEdit, canPrivate, seen],
+                                    canEdit, canPrivate, seen, canReply],
                             extra: extra, card: extra?.eventID.flatMap { v2.cards[$0] })
         SameBubble(key: key) { Group {
             if m.isAnnouncement {
                 AnnouncementCard(message: m, names: names, reactions: chat.reactions, canWrite: chat.member, isStaff: chat.isStaff,
-                                 isAdmin: chat.admin, player: player,
+                                 isAdmin: chat.admin, canReply: canReply, player: player,
                                  onReact: { emoji in Haptics.tap(); Task { await store.react(m, emoji) } },
                                  onReply: { reply(to: m) }, onPin: { Task { await store.pin(m) } },
                                  onDelete: { Task { await store.delete(m) } }, onReport: report,
@@ -503,7 +639,7 @@ struct ConversationView: View {
             } else {
                 ChatBubble(message: m, first: first, last: last, showAuthor: !chat.isDirect, names: names,
                            reactions: chat.reactions, canWrite: chat.member && v2.request(in: chat) == nil, isAdmin: chat.admin,
-                           isStaff: chat.isStaff, canPin: chat.admin || chat.isDirect, player: player,
+                           isStaff: chat.isStaff, canPin: chat.admin || chat.isDirect, canReply: canReply, player: player,
                            quote: extra?.quote, eventID: extra?.eventID, card: extra?.eventID.flatMap { v2.cards[$0] } ?? extra?.eventCard,
                            seen: seen,
                            onReact: { emoji in Haptics.tap(); Task { await store.react(m, emoji) } },
@@ -526,7 +662,7 @@ struct ConversationView: View {
         .listRowSeparator(.hidden)
         .listRowInsets(EdgeInsets(top: first ? 5 : 1, leading: 10, bottom: last ? 5 : 1, trailing: 12))
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
-            if chat.member && !m.deleted && !m.pending && v2.request(in: chat) == nil {
+            if chat.member && canReply && !m.deleted && !m.pending && v2.request(in: chat) == nil {
                 Button { reply(to: m) } label: { Label("Répondre", systemImage: "arrowshape.turn.up.left.fill") }
                     .tint(ConvNeon.lavDeep)
             }
@@ -627,6 +763,19 @@ struct ConversationView: View {
                         .accessibilityLabel("Envoyer une photo")
                         .disabled(store.sending)
                         .transition(.opacity)
+                        // Appareil photo tant qu'on n'écrit pas, comme WhatsApp (absent sans appareil photo : simulateur).
+                        if BubbleCamera.available && text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Button { Haptics.tap(); showCamera = true } label: {
+                                Image(systemName: "camera").font(.body.weight(.semibold)).foregroundStyle(ConvNeon.lav)
+                                    .frame(width: 44, height: 44)
+                                    .background(ConvNeon.glass, in: Circle())
+                                    .overlay(Circle().strokeBorder(ConvNeon.line2, lineWidth: 1))
+                            }
+                            .disabled(store.sending)
+                            .accessibilityLabel("Prendre une photo")
+                            .accessibilityIdentifier("chat-camera")
+                            .motionTransition(.scale(scale: 0.5).combined(with: .opacity))
+                        }
                     }
                     field(chat, textOnly: textOnly).transition(.opacity)
                 }
@@ -910,8 +1059,16 @@ struct ConversationView: View {
     private func sendPhoto(_ item: PhotosPickerItem?) async {
         guard let item else { return }
         picked = nil
-        guard let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data),
-              let jpeg = ChatPhoto.jpeg(from: image) else {
+        guard let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else {
+            store.notice = "Cette photo n'a pas pu être lue. Choisis-en une autre."
+            return
+        }
+        await sendImage(image)
+    }
+
+    /// Photo (photothèque ou appareil photo) : envoyée avec le texte en cours, la réponse et l'annonce éventuelles.
+    private func sendImage(_ image: UIImage) async {
+        guard let jpeg = ChatPhoto.jpeg(from: image) else {
             store.notice = "Cette photo n'a pas pu être lue. Choisis-en une autre."
             return
         }
@@ -962,6 +1119,23 @@ private struct DayPill: View {
 }
 
 /// Heure (et « modifié », horloge pendant l'envoi, coche une fois reçu, « Vu ») en bas à droite de la bulle.
+/// « 3 nouveaux messages » : bande posée avant le premier message non lu, à l'ouverture (discussion d'un événement).
+private struct UnreadDivider: View {
+    let count: Int
+
+    var body: some View {
+        Text(count > 1 ? "\(count) nouveaux messages" : "1 nouveau message")
+            .font(.caption.weight(.semibold)).foregroundStyle(ConvNeon.lav)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity)
+            .background(ConvNeon.glass)
+            .overlay(alignment: .top) { ConvNeon.line.frame(height: 1) }
+            .overlay(alignment: .bottom) { ConvNeon.line.frame(height: 1) }
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityIdentifier("chat-unread")
+    }
+}
+
 private struct MessageMeta: View {
     let message: Conversation.Message
     var onPhoto = false
@@ -1047,6 +1221,8 @@ private struct ChatBubble: View {
     let isStaff: Bool
     /// Épingle : admins d'un groupe, organisation d'un événement, les deux personnes d'un message direct.
     let canPin: Bool
+    /// false : « Seule l'organisation peut écrire » (réactions et signalement seulement).
+    var canReply = true
     @ObservedObject var player: VoicePlayer
     var quote: PrivateQuote?
     var eventID: String?
@@ -1102,7 +1278,7 @@ private struct ChatBubble: View {
                 // En cours d'envoi : bulle légèrement estompée, qui s'affirme une fois le message reçu.
                 .opacity(message.pending ? 0.7 : 1)
                 .contextMenu { if actions { ChatMenu(message: message, reactions: reactions, canWrite: canWrite, isAdmin: isAdmin,
-                                                     isStaff: isStaff, canPin: canPin, onReact: onReact, onReply: onReply,
+                                                     isStaff: isStaff, canPin: canPin, canReply: canReply, onReact: onReact, onReply: onReply,
                                                      onPin: onPin, onDelete: onDelete, onReport: onReport, onEdit: onEdit,
                                                      onPrivateReply: onPrivateReply) } }
                 if !message.reactions.isEmpty {
@@ -1131,7 +1307,7 @@ private struct ChatBubble: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibility)
         .accessibilityHint(actions ? "Glisse vers la droite pour répondre ; appui long pour réagir\(onEdit != nil ? ", modifier" : "")\(canPin ? ", épingler" : "") ou supprimer" : "")
-        .accessibilityAction(named: "Répondre") { if actions && canWrite { onReply() } }
+        .accessibilityAction(named: "Répondre") { if actions && canWrite && canReply { onReply() } }
         .accessibilityAction(named: "Réessayer") { onRetry?() }
     }
 
@@ -1230,6 +1406,7 @@ private struct AnnouncementCard: View {
     let canWrite: Bool
     let isStaff: Bool
     let isAdmin: Bool
+    var canReply = true
     @ObservedObject var player: VoicePlayer
     let onReact: (String) -> Void
     let onReply: () -> Void
@@ -1275,7 +1452,7 @@ private struct AnnouncementCard: View {
             .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(accent.opacity(0.85), lineWidth: 1.5))
             .opacity(message.pending ? 0.7 : 1)
             .contextMenu { if actions { ChatMenu(message: message, reactions: reactions, canWrite: canWrite, isAdmin: isAdmin,
-                                                 isStaff: isStaff, canPin: false, onReact: onReact, onReply: onReply,
+                                                 isStaff: isStaff, canPin: false, canReply: canReply, onReact: onReact, onReply: onReply,
                                                  onPin: onPin, onDelete: onDelete, onReport: onReport,
                                                  onPrivateReply: onPrivateReply) } }
             if !message.reactions.isEmpty {
@@ -1285,7 +1462,7 @@ private struct AnnouncementCard: View {
         .padding(.vertical, 6)
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Annonce de \(message.mine ? "toi" : message.authorName) : \(ConversationView.clean(message.preview))")
-        .accessibilityAction(named: "Répondre") { if canWrite && !message.pending { onReply() } }
+        .accessibilityAction(named: "Répondre") { if canWrite && canReply && !message.pending { onReply() } }
         .accessibilityIdentifier("chat-announcement")
     }
 }
@@ -1299,6 +1476,7 @@ private struct ChatMenu: View {
     let isAdmin: Bool
     let isStaff: Bool
     let canPin: Bool
+    var canReply = true
     let onReact: (String) -> Void
     let onReply: () -> Void
     let onPin: () -> Void
@@ -1312,7 +1490,9 @@ private struct ChatMenu: View {
             ControlGroup {
                 ForEach(reactions, id: \.self) { emoji in Button(emoji) { onReact(emoji) } }
             }
-            Button { onReply() } label: { Label("Répondre", systemImage: "arrowshape.turn.up.left") }
+            if canReply {
+                Button { onReply() } label: { Label("Répondre", systemImage: "arrowshape.turn.up.left") }
+            }
         }
         if let onPrivateReply {
             Button { onPrivateReply() } label: { Label("Répondre en privé", systemImage: "bubble.left.and.text.bubble.right") }

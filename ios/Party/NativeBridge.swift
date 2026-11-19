@@ -66,8 +66,10 @@ enum NativeBridge {
             try { window.webkit.messageHandlers.\(aiHandler).postMessage("edit:" + id); } catch (e) {}
           }
         },
-        // Discussion d'un événement (16.11) : écran natif façon WhatsApp, ouvert par-dessus la page.
+        // Discussion d'un événement : écran natif façon WhatsApp, poussé par-dessus la fiche (16.11). version 2 (17.11) :
+        // l'écran de la discussion DANS l'événement (en-tête, cloche des notifications), et ses réglages ouverts d'emblée.
         chat: {
+          version: 2,
           openEvent: function (id) {
             try { window.webkit.messageHandlers.\(chatHandler).postMessage("event:" + id); } catch (e) {}
           },
@@ -84,6 +86,10 @@ enum NativeBridge {
           newMessage: function (opts) {
             var o = opts || {}, e = o.event_id || o.event;
             try { window.webkit.messageHandlers.\(chatHandler).postMessage(e ? "new:" + e : "new"); } catch (e2) {}
+          },
+          // Fiche › Discussion › réglages (17.11) : la discussion de l'événement, ses infos et réglages ouverts d'emblée.
+          openEventSettings: function (id) {
+            try { window.webkit.messageHandlers.\(chatHandler).postMessage("settings:" + id); } catch (e) {}
           }
         },
         // Pronos (17.11) : écrans natifs (liste, prono, création, classement) par-dessus la page.
@@ -220,8 +226,17 @@ private final class ChatHandler: NSObject, WKScriptMessageHandler {
             model?.openGroupChat(id.uuidString)  // la base vérifie que la personne fait partie du groupe
             return
         }
-        guard body.hasPrefix("event:"), let id = UUID(uuidString: String(body.dropFirst(6))) else { return }
-        model?.openEventChat(id.uuidString)  // la base vérifie que la personne peut lire cette discussion
+        guard let request = Self.parse(body) else { return }
+        model?.openEventChat(request.id, info: request.settings)  // la base vérifie que la personne peut lire cette discussion
+    }
+
+    /// « event:<id> » : la discussion ; « settings:<id> » : la discussion, ses infos et réglages ouverts.
+    nonisolated static func parse(_ body: String) -> (id: String, settings: Bool)? {
+        for (prefix, settings) in [("event:", false), ("settings:", true)] where body.hasPrefix(prefix) {
+            guard let id = UUID(uuidString: String(body.dropFirst(prefix.count))) else { return nil }
+            return (id.uuidString.lowercased(), settings)
+        }
+        return nil
     }
 }
 

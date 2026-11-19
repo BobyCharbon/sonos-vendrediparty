@@ -22,6 +22,7 @@ import { LinkedText } from '@/components/LinkedText';
 import { NameLinks } from '@/components/NameLinks';
 import { CarpoolCard } from '@/components/CarpoolCard';
 import { EventPronos } from '@/components/pronos/EventPronos';
+import { EventChatButton, EventChatEntry, useEventChatPrefs } from '@/components/EventChatEntry';
 import { NotifyBanner } from '@/components/NotifyBanner';
 import { BringSection, DatePollSection, ParticipantsSection, PollSection, RsvpCard } from '@/components/EventSections';
 import { Badge, Button, Card, Cascade, ConfirmButton, ErrorText, HeaderAction, HeaderBack, Screen, s, Section, Skeleton, T, Title, Toast } from '@/components/ui';
@@ -34,10 +35,9 @@ import { GONE_TEXT, isGoneError, isNetworkError } from '@/lib/errors';
 import { eventPeopleIds, undecidedNames } from '@/lib/eventPeople';
 import { useLiveRefresh, useOnline, usePaymentsTick, useSlowLoad } from '@/lib/connectivity';
 import { safeHref } from '@/lib/links';
-import { createdLine, formatLongDay, formatMessageTime, formatShort, formatTime, plural, relativeDay } from '@/lib/format';
+import { createdLine, formatLongDay, formatShort, formatTime, plural, relativeDay } from '@/lib/format';
 import type { ReportTarget } from '@/lib/moderation';
 import { must, supabase } from '@/lib/supabase';
-import { nameColor, withoutAnnounceTag } from '@/lib/chats';
 import { openEventChat, sendEventToFriend } from '@/lib/nativeChat';
 import { repeatLabel, type Series } from '@/lib/recurrence';
 import { colors, radius } from '@/lib/theme';
@@ -212,6 +212,9 @@ export default function EventScreen() {
     return out;
   }, [data]);
 
+  // Discussion (17.11) : mes non-lus et ma cloche, relus à chaque relecture de la fiche (temps réel, signal event:<id>).
+  const chat = useEventChatPrefs(id, !!ev?.forum_enabled && ev?.status === 'published', data?.loadedAt);
+
   if (!data || !ev) {
     if (!loadError && online && !slow) return <EventSkeleton />;
     return <LoadProblem error={loadError} online={online} onRetry={reload} />;
@@ -223,6 +226,13 @@ export default function EventScreen() {
   const native = (globalThis as { PartyNative?: { ai?: { editEvent?: (id: string) => void } } }).PartyNative;
   const aiEdit = can('ai.use') && native?.ai?.editEvent ? (id: string) => native.ai!.editEvent!(id) : null;
   const narrow = width < (aiEdit && canEdit ? NARROW_HEADER_WIDTH_WITH_AI : NARROW_HEADER_WIDTH) || fontScale > 1.15;
+
+  const chatOn = !!ev.forum_enabled && published;
+  // Dans l'app iPhone : la discussion native (façon WhatsApp) ; ailleurs, sa page. L'ouvrir la lit : pastille à zéro.
+  const openChat = () => {
+    if (chat.prefs) chat.setPrefs({ ...chat.prefs, unread: 0 });
+    openEventChat(ev.id, (path) => router.push(path));
+  };
 
   async function run(p: PromiseLike<{ error: { message: string } | null }>) {
     const { error } = await p;
@@ -311,6 +321,8 @@ export default function EventScreen() {
           {published && ev.date_mode === 'fixed' ? <AttendeesBadge attendance={people} large past={past} /> : null}
         </View>
         <Title level={1} size={32} style={{ lineHeight: 36 }}>{ev.title}</Title>
+        {/* La discussion est un onglet de l'événement : atteinte d'ici sans faire défiler. */}
+        {chatOn ? <EventChatButton chat={chat} onOpen={openChat} /> : null}
         {ev.visibility === 'invited' ? (
           <T muted size={13}>
             🔒 Sur invitation{data?.groupNames ? ` · ${data.groupNames}` : ''}
@@ -446,6 +458,11 @@ export default function EventScreen() {
             onChange={reload}
           />
         ))}
+      {/* Discussion façon WhatsApp (17.11) : dernier message, non-lus, cloche des notifications ; haut placée. */}
+      {chatOn ? (
+        <EventChatEntry eventId={ev.id} chat={chat} me={me.id} last={data.messages[0] ?? null}
+          authorName={data.messages[0] ? data.names.get(data.messages[0].user_id) ?? '?' : ''} onOpen={openChat} />
+      ) : null}
       {/* Ordre de la fiche (demande de l'admin, 12.11) : description, ta réponse, puis la carte Invités (repliée).
           Invités (avis 83ebee37aa0f, 11.11) : le même menu ; un invité y voit les chiffres seulement (aucun nom) et ses liens. */}
       {invitesV2On && canManage && published ? (
@@ -497,30 +514,6 @@ export default function EventScreen() {
 
       {/* Pronos de la soirée (avis f071c5f46e3d, 17.11) : pour l'honneur, participants et organisation. */}
       {published ? <EventPronos eventId={ev.id} /> : null}
-
-      {ev.forum_enabled && published ? (
-        // Dans l'app iPhone : la discussion native (façon WhatsApp) ; ailleurs, sa page.
-        <Pressable onPress={() => openEventChat(ev.id, (path) => router.push(path))} accessibilityRole="link" accessibilityLabel="Ouvrir la discussion"
-          style={({ pressed }) => pressed && { opacity: 0.85 }}>
-          <Section title="💬 Discussion" right={<T size={13} weight="semibold" color={colors.accent}>Ouvrir ›</T>}>
-            {data.messages.length === 0 ? <T muted size={14}>Aucun message. Lance la discussion !</T> : null}
-            {/* Nom et heure sur une ligne, le message dessous : rien ne se chevauche, même sur un petit écran. */}
-            {[...data.messages].reverse().map((m) => (
-              <View key={m.id} style={{ gap: 2 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
-                  <T size={13} weight="bold" color={nameColor(m.user_id)} numberOfLines={1} style={{ flexShrink: 1 }}>
-                    {m.announcement && m.pinned ? '📣 ' : ''}{data.names.get(m.user_id) ?? '?'}
-                  </T>
-                  <T muted size={11} style={{ marginLeft: 'auto' }}>{formatMessageTime(m.created_at)}</T>
-                </View>
-                <T size={14} color={colors.textSoft} numberOfLines={2}>
-                  {withoutAnnounceTag(m.body) || (m.audio_seconds != null ? '🎤 Message vocal' : '📷 Photo')}
-                </T>
-              </View>
-            ))}
-          </Section>
-        </Pressable>
-      ) : null}
 
       <T muted size={13}>Proposé par {ev.author ? (
         <NameLinks people={[{ id: ev.author.id ?? ev.created_by, label: personLabel(contacts, ev.author.id ?? ev.created_by, ev.author.display_name).primary || '?' }]} size={13} />

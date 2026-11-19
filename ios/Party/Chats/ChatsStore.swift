@@ -16,6 +16,15 @@ final class ChatsStore: ObservableObject {
     @Published var notice: String?
     /// Conversation à ouvrir (toucher d'une notification) : la liste la pousse dès qu'elle s'affiche.
     @Published var requested: String?
+    /// Message à montrer (recherche, bandeau des épinglés) : le fil y défile puis le remet à nil.
+    @Published var jumpTo: String?
+    /// Discussion d'un événement : page plus ancienne en cours ; false quand le début de la discussion est atteint.
+    @Published private(set) var loadingOlder = false
+    @Published private(set) var hasOlder = true
+    /// Messages plus anciens chargés (loadOlder) : gardés au-dessus du fil à chaque relecture.
+    private var older: [Conversation.Message] = []
+    /// Réglage changé à l'écran, pas encore confirmé : appliqué par-dessus une relecture arrivée entre-temps.
+    private var prefsOverride: ((Conversation) -> Conversation)?
 
     private let api: PartyAPI
     private weak var web: WebStorage?
@@ -343,7 +352,7 @@ final class ChatsStore: ObservableObject {
         listLive = nil
     }
 
-    #if DEBUG
+    #if DEBUG || E2E_HOOKS
     /// Simulateur : PARTY_DEBUG_MOTION=chat rejoue une conversation figée (MotionDemo) pour regarder les animations.
     private(set) var demo = false
 
@@ -395,6 +404,9 @@ final class ChatsStore: ObservableObject {
         if demo { return }
         #endif
         if conversation?.id != group {
+            older = []
+            hasOlder = true
+            jumpTo = nil
             // Dernière version gardée sur le téléphone : la conversation s'affiche sans attendre le serveur (avec les
             // messages pas encore partis de cette conversation).
             var kept = memory[group]
@@ -417,7 +429,10 @@ final class ChatsStore: ObservableObject {
             for m in fresh.messages where !m.mine && conversation?.messages.contains(where: { $0.id == m.id }) == false {
                 ChatTiming.mark("recv." + m.id)
             }
-            let shown = waiting.isEmpty ? fresh : fresh.with(messages: fresh.messages + waiting)
+            // Pages plus anciennes déjà chargées (discussion d'un événement) : gardées au-dessus du fil.
+            var shown = waiting.isEmpty && older.isEmpty ? fresh
+                : fresh.with(messages: Conversation.merge(older: older, into: fresh.messages) + waiting)
+            if let prefsOverride { shown = prefsOverride(shown) }
             if shown != conversation { conversation = shown }
             if changed && fresh.member && !forEvents { try? await api.readChat(token: token, group: group, direct: fresh.isDirect) }
             // Le serveur répond : les messages restés « pas envoyés » repartent.
@@ -450,6 +465,9 @@ final class ChatsStore: ObservableObject {
         chatLive?.stop()
         chatLive = nil
         conversation = nil
+        older = []
+        hasOlder = true
+        jumpTo = nil
     }
 
     /// Texte : affiché tout de suite, envoyé en un seul appel (citations calculées ici). Photo : envoyée d'abord.
@@ -662,6 +680,7 @@ final class ChatsStore: ObservableObject {
     }
 
     func setNotify(_ level: ChatNotify) async {
+        if forEvents { return await setLevel(ChatNotifyLevel(rawValue: level.rawValue) ?? .mentions) }
         guard let group = conversation?.id else { return }
         let direct = conversation?.isDirect == true
         await act { token in
@@ -694,6 +713,123 @@ final class ChatsStore: ObservableObject {
     func setAdmin(_ member: Conversation.Member, _ on: Bool) async {
         guard let group = conversation?.id else { return }
         await act { token in try await api.setChatAdmin(token: token, group: group, member: member.id, on: on) }
+    }
+
+    // MARK: Discussion d'un événement : réglages, lecture, médias, recherche (17.11). Rien pour une discussion de groupe.
+
+    /// Sourdine en cours (date à venir ou « toujours »).
+    var isMuted: Bool { conversation?.isMuted() ?? false }
+    /// Ce qui me prévient vraiment : rien en sourdine, sinon mon niveau (Mentions seulement par défaut).
+    var effectiveLevel: ChatNotifyLevel { conversation?.effectiveLevel() ?? .mentions }
+
+    /// Serveur à jour (17.11) : il donne le niveau ou les non-lus. Sinon ses routes read / older n'existent pas.
+    private var modern: Bool { conversation.map { $0.level != nil || $0.unread != nil } ?? false }
+
+    /// Tout / Mentions seulement / Rien : changé tout de suite à l'écran, remis comme avant si le serveur refuse.
+    func setLevel(_ level: ChatNotifyLevel) async {
+        await changePrefs({ $0.level = level }) { token, event in
+            try await self.api.setEventChatLevel(token: token, event: event, level: level)
+        }
+    }
+
+    /// Sourdine jusqu'à `until` ; nil = réactiver ; `.distantFuture` (ou plus de 50 ans) = toujours.
+    func mute(until: Date?) async {
+        let always = until.map { $0.timeIntervalSinceNow > 50 * 365 * 86_400 } ?? false
+        let iso = until.map { ISO8601DateFormatter().string(from: $0) }
+        await changePrefs({ $0.mutedUntil = always ? "infinity" : iso }) { token, event in
+            try await self.api.muteEventChat(token: token, event: event, until: always ? "always" : iso)
+        }
+    }
+
+    private func changePrefs(_ change: @escaping (inout Conversation) -> Void,
+                             _ work: (String, String) async throws -> Void) async {
+        guard forEvents, let chat = conversation else { return }
+        let apply: (Conversation) -> Conversation = { var c = $0; change(&c); return c }
+        prefsOverride = apply
+        conversation = apply(chat)
+        var done = false
+        await run { token in
+            try await work(token, chat.id)
+            done = true
+        }
+        prefsOverride = nil
+        guard conversation?.id == chat.id, var now = conversation else { return }
+        if done {
+            memory[chat.id] = now
+            if let account = await account() { ChatsCache.save(now, account: account, name: "chat-" + chat.id) }
+        } else {
+            now.level = chat.level
+            now.mutedUntil = chat.mutedUntil
+            conversation = now
+        }
+    }
+
+    /// Discussion lue : les non-lus passent à 0 tout de suite ; l'écran l'appelle quand le fil est affiché.
+    func markRead() async {
+        guard forEvents, modern, let chat = conversation, (chat.unread ?? 0) > 0,
+              let token = await web?.accountToken() else { return }
+        conversation?.unread = 0
+        try? await api.readEventChat(token: token, event: chat.id)
+    }
+
+    /// Organisation de l'événement : qui peut écrire ("all" | "staff") et description ; nil = inchangé.
+    func saveSettings(write: String?, description: String?) async -> Bool {
+        guard forEvents, let chat = conversation else { return false }
+        var saved = false
+        await run { token in
+            try await api.eventChatSettings(token: token, event: chat.id, write: write, description: description)
+            saved = true
+        }
+        guard saved else { return false }
+        if conversation?.id == chat.id {
+            if let write { conversation?.writeMode = write }
+            if let description { conversation?.description = description }
+        }
+        await open(chat.id)
+        return true
+    }
+
+    /// Photos, vocaux et liens, les plus récents d'abord ; `before` : page suivante (date du dernier élément reçu).
+    func media(before: String? = nil) async -> [ChatMediaItem] {
+        guard forEvents, let event = conversation?.id else { return [] }
+        var items: [ChatMediaItem] = []
+        await run { token in items = try await api.eventChatMedia(token: token, event: event, before: before) }
+        return items
+    }
+
+    func search(_ q: String) async -> [ChatSearchResult] {
+        let query = q.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard forEvents, !query.isEmpty, let event = conversation?.id else { return [] }
+        var results: [ChatSearchResult] = []
+        await run { token in results = try await api.searchEventChat(token: token, event: event, query: query) }
+        return results
+    }
+
+    /// Page précédente, ajoutée au-dessus sans doublon (l'écran garde son message de référence à l'écran).
+    func loadOlder() async {
+        guard forEvents, modern, hasOlder, !loadingOlder, let chat = conversation,
+              let first = chat.messages.first(where: { !$0.pending }) else { return }
+        loadingOlder = true
+        defer { loadingOlder = false }
+        var page: [Conversation.Message]?
+        await run { token in page = try await api.olderEventChat(token: token, event: chat.id, before: first.id) }
+        guard let page, conversation?.id == chat.id, let current = conversation else { return }
+        let added = Conversation.merge(older: page, into: current.messages)
+        if added.count == current.messages.count { hasOlder = false; return }
+        older = Conversation.merge(older: page, into: older)
+        conversation = current.with(messages: added)
+    }
+
+    /// Montre un message (résultat de recherche, épinglé) : charge les pages plus anciennes s'il le faut, puis jumpTo.
+    func reveal(_ id: String) async {
+        for _ in 0..<20 {
+            if conversation?.messages.contains(where: { $0.id == id }) == true { break }
+            let count = conversation?.messages.count
+            await loadOlder()
+            if !hasOlder || conversation?.messages.count == count { break }
+        }
+        if conversation?.messages.contains(where: { $0.id == id }) == true { jumpTo = id }
+        else { notice = "Ce message n'est plus dans la discussion." }
     }
 
     private func act(_ work: (String) async throws -> Void) async {

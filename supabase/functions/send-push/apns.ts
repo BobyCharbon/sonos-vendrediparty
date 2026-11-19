@@ -55,6 +55,27 @@ export function tapPath(data: Record<string, unknown>): string {
   return event ? `/?tab=events&event=${event}` : '/?tab=events&activity=1';
 }
 
+/** Message de la discussion d'un événement (kind « message ») : son événement, sinon null. */
+function eventChat(data: Record<string, unknown>): string | null {
+  return data.kind === 'message' && typeof data.event_id === 'string' && UUID.test(data.event_id) ? data.event_id : null;
+}
+
+/** Regroupement sur l'iPhone (thread-id) : façon WhatsApp, une pile par discussion. `data.thread` (« event-chat:<id> »,
+ * migration 20261117190000) sinon déduit du message ; les autres notifications : une pile par adresse ouverte. */
+export function threadFor(data: Record<string, unknown>): string {
+  if (typeof data.thread === 'string' && /^[a-z-]{1,20}:[0-9a-f-]{36}$/.test(data.thread)) return data.thread;
+  const event = eventChat(data);
+  return event ? `event-chat:${event}` : tapPath(data);
+}
+
+/** Catégorie iOS des actions de la notification (ChatNotificationActions.swift) : « Répondre » et « Marquer comme lu »
+ * sur un message de discussion d'événement ; « Marquer comme lu » seul quand la personne ne peut pas écrire
+ * (discussion « Organisation seulement » : data.can_reply = false ; absent = peut répondre). */
+export function categoryFor(data: Record<string, unknown>): string | null {
+  if (!eventChat(data)) return null;
+  return data.can_reply === false ? 'EVENT_CHAT_READONLY' : 'EVENT_CHAT';
+}
+
 /** Pendant une pause (lune, Discussions), data.silent : la notification arrive sans son ni vibration, rangée
  * dans le centre de notifications sans allumer l'écran (interruption-level « passive »). */
 export function apsFor(title: string, body: string, silent: boolean): Record<string, unknown> {
@@ -67,8 +88,13 @@ export async function sendApns(config: Config, token: string, notificationId: st
   const device = APNS_TOKEN.exec(token)?.[1];
   if (!device) return { ok: false, code: 'BadDeviceToken', permanent: true };
   const url = tapPath(data);
-  // thread-id : les notifications d'un même événement (ou d'une même discussion) se regroupent sur l'iPhone.
-  const payload = { aps: { ...apsFor(title, body, data.silent === true), 'thread-id': url }, url };
+  // thread-id : les notifications d'une même discussion (ou d'un même événement) se regroupent sur l'iPhone ;
+  // category : actions « Répondre » / « Marquer comme lu », qui ont besoin de l'événement (event_id).
+  const category = categoryFor(data);
+  const payload = {
+    aps: { ...apsFor(title, body, data.silent === true), 'thread-id': threadFor(data), ...(category ? { category } : {}) },
+    url, ...(category ? { event_id: data.event_id } : {}),
+  };
   const post = async (host: string) => {
     const response = await fetch(`https://${host}/3/device/${device}`, {
       method: 'POST',

@@ -15,6 +15,59 @@ enum ChatNotify: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// Notifications de la discussion d'un événement (event_chat_prefs, 17.11) : Tout, Mentions seulement (défaut), Rien.
+/// Valeur inconnue d'un serveur plus récent : Mentions seulement.
+enum ChatNotifyLevel: String, Codable, CaseIterable, Identifiable {
+    case all, mentions, none
+    var id: String { rawValue }
+    var label: String { self == .all ? "Tout" : self == .mentions ? "Mentions seulement" : "Rien" }
+
+    init(from decoder: Decoder) throws {
+        self = ChatNotifyLevel(rawValue: try decoder.singleValueContainer().decode(String.self)) ?? .mentions
+    }
+}
+
+/// Média, vocal ou lien de la discussion d'un événement (POST /api/account/event-chat/media).
+struct ChatMediaItem: Codable, Equatable, Identifiable {
+    let messageId: String
+    /// "photo", "audio" ou "link".
+    let kind: String
+    /// Lien signé (photo, vocal) ou lien écrit dans le message.
+    let url: String
+    let at: String
+    let authorName: String
+    var text: String? = nil
+
+    /// Un message peut donner plusieurs éléments (photo et lien) : l'identifiant les distingue.
+    var id: String { "\(messageId)|\(kind)|\(url)" }
+
+    enum CodingKeys: String, CodingKey { case kind, url, at, text, messageId = "message_id", authorName = "author_name" }
+}
+
+extension ChatMediaItem {
+    /// Lien absent (fichier non signé) : vide, l'écran le saute ; le reste de la grille s'affiche quand même.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        messageId = try c.decode(String.self, forKey: .messageId)
+        kind = try c.decode(String.self, forKey: .kind)
+        url = try c.decodeIfPresent(String.self, forKey: .url) ?? ""
+        at = try c.decodeIfPresent(String.self, forKey: .at) ?? ""
+        authorName = try c.decodeIfPresent(String.self, forKey: .authorName) ?? ""
+        text = try c.decodeIfPresent(String.self, forKey: .text)
+    }
+}
+
+/// Résultat de « Rechercher » dans la discussion d'un événement (POST /api/account/event-chat/search).
+struct ChatSearchResult: Codable, Equatable, Identifiable {
+    let messageId: String
+    let at: String
+    let authorName: String
+    let snippet: String
+    var id: String { messageId }
+
+    enum CodingKeys: String, CodingKey { case at, snippet, messageId = "message_id", authorName = "author_name" }
+}
+
 /// Sorte de discussion de la liste : rond = une personne, carré emoji = un groupe, petit calendrier = une soirée.
 enum ChatKind: String, Codable {
     case direct, group, event
@@ -289,7 +342,7 @@ struct Conversation: Codable, Equatable {
     var me: String? = nil
     let reactions: [String]
     let members: [Member]
-    let messages: [Message]
+    var messages: [Message]
     /// Annonces et messages épinglés, du plus ancien au plus récent (absent d'un ancien serveur).
     var highlights: [Highlight]? = nil
     /// Je suis organisateur (ou admin) du groupe : annonces.
@@ -317,10 +370,53 @@ struct Conversation: Codable, Equatable {
     /// (vitesse, 18.11 : plus de deuxième lecture complète à chaque nouveau message). nil : serveur d'avant.
     var extras: [MessageExtra]? = nil
 
+    /// Discussion d'un événement, réglages personnels (17.11 ; absents d'un ancien serveur) : niveau de notification,
+    /// sourdine jusqu'à (ISO, "infinity" = toujours), messages non lus.
+    var level: ChatNotifyLevel? = nil
+    var mutedUntil: String? = nil
+    var unread: Int? = nil
+    /// Qui peut écrire : "all" ou "staff" (organisation seulement) ; description ; puis-je écrire.
+    var writeMode: String? = nil
+    var description: String? = nil
+    var canWrite: Bool? = nil
+    /// En-tête et infos de la discussion : l'événement lui-même.
+    var eventCard: EventCard? = nil
+
+    struct EventCard: Codable, Equatable {
+        var title: String? = nil
+        var startsAt: String? = nil
+        var endsAt: String? = nil
+        var place: String? = nil
+        /// Couverture : lien signé (ou absent).
+        var cover: String? = nil
+        var going: Int? = nil
+        var maybe: Int? = nil
+        var organizerName: String? = nil
+
+        enum CodingKeys: String, CodingKey {
+            case title, place, cover, going, maybe
+            case startsAt = "starts_at", endsAt = "ends_at", organizerName = "organizer_name"
+        }
+    }
+
     enum CodingKeys: String, CodingKey {
         case id, name, member, admin, notify, reactions, members, messages, me, highlights, organizer, everyone, direct, photo, blocked
-        case event, tags, realtime, extras, joinNote = "join_note"
-        case canNameAdmins = "can_name_admins", userID = "user_id"
+        case event, tags, realtime, extras, level, unread, description, joinNote = "join_note"
+        case canNameAdmins = "can_name_admins", userID = "user_id", mutedUntil = "muted_until", writeMode = "write_mode"
+        case canWrite = "can_write", eventCard = "event_card"
+    }
+
+    /// Sourdine en cours (date à venir ou "infinity").
+    func isMuted(now: Date = Date()) -> Bool {
+        guard let mutedUntil else { return false }
+        if mutedUntil.lowercased() == "infinity" { return true }
+        return ChatDates.parse(mutedUntil).map { $0 > now } ?? false
+    }
+
+    /// Ce qui me prévient vraiment : rien en sourdine ; sinon mon niveau (ancien serveur : d'après `notify`).
+    func effectiveLevel(now: Date = Date()) -> ChatNotifyLevel {
+        if isMuted(now: now) { return .none }
+        return level ?? ChatNotifyLevel(rawValue: notify.rawValue) ?? .mentions
     }
 
     var isDirect: Bool { direct == true }
@@ -378,10 +474,17 @@ struct Conversation: Codable, Equatable {
 
     /// Même conversation avec d'autres messages (message affiché tout de suite à l'envoi).
     func with(messages: [Message]) -> Conversation {
-        Conversation(id: id, name: name, member: member, admin: admin, notify: notify, canNameAdmins: canNameAdmins,
-                     me: me, reactions: reactions, members: members, messages: messages, highlights: highlights,
-                     organizer: organizer, everyone: everyone, direct: direct, userID: userID, photo: photo, blocked: blocked,
-                     event: event, tags: tags, realtime: realtime, joinNote: joinNote, extras: extras)
+        var copy = self
+        copy.messages = messages
+        return copy
+    }
+
+    /// Page plus ancienne (« older ») ajoutée au-dessus des messages déjà là, sans doublon, dans l'ordre du fil.
+    static func merge(older: [Message], into messages: [Message]) -> [Message] {
+        let known = Set(messages.map(\.id))
+        var seen = Set<String>()
+        let fresh = older.filter { !known.contains($0.id) && seen.insert($0.id).inserted }
+        return fresh + messages
     }
 
     /// Membres cités par « @surnom » (sans accents ni casse) dans le texte (sauf moi) : envoyés avec le message,
@@ -758,5 +861,51 @@ extension PartyAPI {
 
     func readChat(token: String, group: String, direct: Bool = false) async throws {
         try await post("/api/account/chats/read", body: ["token": token, "group_id": group, "direct": direct])
+    }
+}
+
+// Discussion d'un événement, réglages et lecture (17.11, routes /api/account/event-chat/*, app/event_chats.py).
+private struct EventChatMediaPage: Decodable { let items: [ChatMediaItem] }
+private struct EventChatSearchPage: Decodable { let results: [ChatSearchResult] }
+private struct EventChatOlderPage: Decodable { let messages: [Conversation.Message] }
+
+extension PartyAPI {
+    func setEventChatLevel(token: String, event: String, level: ChatNotifyLevel) async throws {
+        try await post("/api/account/event-chat/notify", body: ["token": token, "event_id": event, "level": level.rawValue])
+    }
+
+    /// until : nil = réactiver, "always" = toujours, sinon date ISO.
+    func muteEventChat(token: String, event: String, until: String?) async throws {
+        try await post("/api/account/event-chat/mute", body: ["token": token, "event_id": event, "until": until ?? NSNull()])
+    }
+
+    func readEventChat(token: String, event: String) async throws {
+        try await post("/api/account/event-chat/read", body: ["token": token, "event_id": event])
+    }
+
+    func eventChatSettings(token: String, event: String, write: String?, description: String?) async throws {
+        var body: [String: Any] = ["token": token, "event_id": event]
+        if let write { body["write"] = write }
+        if let description { body["description"] = description }
+        try await post("/api/account/event-chat/settings", body: body)
+    }
+
+    func eventChatMedia(token: String, event: String, before: String?) async throws -> [ChatMediaItem] {
+        var body: [String: Any] = ["token": token, "event_id": event]
+        if let before { body["before"] = before }
+        let page: EventChatMediaPage = try await postDecoding("/api/account/event-chat/media", body: body)
+        return page.items
+    }
+
+    func searchEventChat(token: String, event: String, query: String) async throws -> [ChatSearchResult] {
+        let page: EventChatSearchPage = try await postDecoding("/api/account/event-chat/search",
+                                                               body: ["token": token, "event_id": event, "q": query])
+        return page.results
+    }
+
+    func olderEventChat(token: String, event: String, before: String) async throws -> [Conversation.Message] {
+        let page: EventChatOlderPage = try await postDecoding("/api/account/event-chat/older",
+                                                              body: ["token": token, "event_id": event, "before_id": before])
+        return page.messages
     }
 }

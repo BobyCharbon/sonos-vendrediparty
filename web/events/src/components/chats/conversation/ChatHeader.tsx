@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import { C, cf, dateTileFill, Icon, web } from './kit';
@@ -26,11 +27,13 @@ type Props = {
   onInfo: () => void;
   infoLabel: string;
   infoOpen: boolean;
+  /** Avant … : la cloche des notifications de la discussion d'un événement. */
+  extra?: ReactNode;
 };
 
 /** En-tête de la conversation (maquette 4) : ‹ + non lus, photo / tuile du groupe / tuile date, nom en Bricolage,
  * « écrit… » ou le nombre de membres, … pour les infos. Flou et dégradé sombre, liseré en bas. */
-export function ChatHeader({ title, subtitle, typing, look, unread, onBack, onWho, whoLabel, onInfo, infoLabel, infoOpen }: Props) {
+export function ChatHeader({ title, subtitle, typing, look, unread, onBack, onWho, whoLabel, onInfo, infoLabel, infoOpen, extra }: Props) {
   return (
     <View style={[{ zIndex: 3, borderBottomWidth: 1, borderBottomColor: C.line },
       web({ backgroundImage: 'linear-gradient(180deg, rgba(14,10,31,0.96), rgba(14,10,31,0.82))', backdropFilter: 'blur(20px) saturate(1.5)' })]}>
@@ -61,6 +64,7 @@ export function ChatHeader({ title, subtitle, typing, look, unread, onBack, onWh
             ) : null}
           </View>
         </Pressable>
+        {extra}
         <Pressable accessibilityRole="button" accessibilityLabel={infoLabel} accessibilityState={{ expanded: infoOpen }} onPress={onInfo}
           style={({ pressed }) => [{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
             infoOpen && { backgroundColor: 'rgba(185,167,255,0.16)' }, pressTransition, pressed && { opacity: 0.5 }]}>

@@ -2757,7 +2757,28 @@ class EventChatFile(EventChatRef):
 
 
 class EventChatNotify(EventChatRef):
-    level: Literal["all", "none"]
+    level: Literal["all", "mentions", "none"]  # anciennes apps (16.11) : « all » ou « none »
+
+
+class EventChatMute(EventChatRef):
+    until: str | None = Field(default=None, max_length=40)  # date ISO, « always », ou null = réactiver
+
+
+class EventChatSettings(EventChatRef):
+    write: Literal["all", "staff"] | None = None
+    description: str | None = Field(default=None, max_length=500)
+
+
+class EventChatMedia(EventChatRef):
+    before: str | None = Field(default=None, max_length=40)
+
+
+class EventChatSearch(EventChatRef):
+    q: str = Field(min_length=1, max_length=100)
+
+
+class EventChatOlder(EventChatRef):
+    before_id: str = Field(pattern=UUID)
 
 
 def event_chat_file(body: EventChatFile, upload):
@@ -2807,6 +2828,37 @@ def account_event_chat_delete(body: ChatMessage):
 @app.post("/api/account/event-chat/notify")
 def account_event_chat_notify(body: EventChatNotify):
     return account_call(lambda: event_chats.notify(body.token, body.event_id, body.level))
+
+
+@app.post("/api/account/event-chat/mute")
+def account_event_chat_mute(body: EventChatMute):
+    return account_call(lambda: event_chats.mute(body.token, body.event_id, body.until))
+
+
+@app.post("/api/account/event-chat/read")
+def account_event_chat_read(body: EventChatRef):
+    return account_call(lambda: event_chats.read(body.token, body.event_id))
+
+
+@app.post("/api/account/event-chat/settings")
+def account_event_chat_settings(body: EventChatSettings):
+    """« Qui peut écrire » et description : l'organisation de l'événement seulement (la base décide)."""
+    return account_call(lambda: event_chats.settings(body.token, body.event_id, body.write, body.description))
+
+
+@app.post("/api/account/event-chat/media")
+def account_event_chat_media(body: EventChatMedia):
+    return account_call(lambda: event_chats.media(body.token, body.event_id, body.before))
+
+
+@app.post("/api/account/event-chat/search")
+def account_event_chat_search(body: EventChatSearch):
+    return account_call(lambda: event_chats.search(body.token, body.event_id, body.q))
+
+
+@app.post("/api/account/event-chat/older")
+def account_event_chat_older(body: EventChatOlder):
+    return account_call(lambda: event_chats.older(body.token, body.event_id, body.before_id))
 
 
 @app.post("/api/account/chats/read")

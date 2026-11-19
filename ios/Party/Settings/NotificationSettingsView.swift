@@ -135,6 +135,8 @@ struct NotificationSettingsView: View {
             Text("📅 Événements · général")
         }
 
+        if state.shows("chat") { eventChatsSection(p) }
+
         if state.shows("new_event") { newEventSection(p) }
 
         Section("Événements où je suis inscrit") {
@@ -173,8 +175,6 @@ struct NotificationSettingsView: View {
         }
 
         remindersSection(p)
-
-        if state.shows("chat") { eventChatsSection(p) }
 
         // Discussions des groupes fermées sur ce site (production, hors revue Apple) : pas de réglages pour elles.
         if store.discussions {
@@ -339,19 +339,40 @@ struct NotificationSettingsView: View {
         }
     }
 
+    /// En haut des réglages d'événements, facile à trouver (demande du 17.11) : réglage par défaut des discussions
+    /// (notification_prefs.chat, « Mentions seulement » en base), chaque discussion pouvant le changer (cloche).
     private func eventChatsSection(_ p: EventNotificationPrefs) -> some View {
         Section {
-            Picker("Messages", selection: choice("chat", p.chat)) {
-                ForEach(EventChoices.chat, id: \.key) { Text($0.label).tag($0.key) }
+            Picker(selection: choice("chat", p.chat)) {
+                ForEach(EventChoices.chat, id: \.key) { c in
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text(c.label)
+                            if c.key == EventChoices.chatRecommended {
+                                Text("Recommandé")
+                                    .font(.caption2.weight(.semibold))
+                                    .padding(.horizontal, 6).padding(.vertical, 2)
+                                    .foregroundStyle(.white)
+                                    .background(Color.green, in: Capsule())
+                            }
+                        }
+                        Text(c.hint).font(.footnote).foregroundStyle(.secondary)
+                    }
+                    .padding(.vertical, 2)
+                    .accessibilityElement(children: .combine)
+                    .tag(c.key)
+                }
+            } label: {
+                Text("Par défaut, me prévenir")
             }
-            .pickerStyle(.segmented)
+            .pickerStyle(.inline)
             .disabled(store.saving.contains("events.chat"))
             // Deux sourdines distinctes (avis de l'admin) : discussions des événements ici, groupes plus bas.
             ChatsPauseRow(store: store.pause, scope: .eventChats)
         } header: {
-            Text("Discussions des événements")
+            Text("💬 Discussions des événements")
         } footer: {
-            Text(EventChoices.hint(EventChoices.chat, for: p.chat))
+            Text(EventChoices.mentionsExplained + "\n\n" + EventChoices.perChatHint)
         }
     }
 

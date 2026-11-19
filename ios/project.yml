@@ -69,7 +69,7 @@ targets:
         # Portrait sur les iPhone classiques (gardé : rien ne change pour eux). L'écran intérieur de l'iPhone Duo
         # ignore ce verrou (Apple) : l'app y suit toute taille et toute orientation (CLAUDE.md, « iPhone Duo »).
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
-        NSCameraUsageDescription: "Pour scanner un QR code (code de la soirée, billet d'un événement, carte du bar d'un invité) et prendre une photo de profil ou d'événement."
+        NSCameraUsageDescription: "Pour scanner un QR code (code de la soirée, billet d'un événement, carte du bar d'un invité) et prendre une photo de profil, d’événement ou à envoyer dans une discussion."
         NSPhotoLibraryUsageDescription: "Pour choisir une photo de profil, d'événement ou de discussion."
         # Appui long sur une image de la page (photo d'événement, billet QR) › « Ajouter à Photos » : sans ce texte, iOS
         # ferme l'app (WKWebView garde son menu d'image).
