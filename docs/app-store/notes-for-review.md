@@ -38,7 +38,7 @@
 
 ---
 
-## PART A — Text for the "Notes" field (3,985 characters, limit 4,000)
+## PART A — Text for the "Notes" field (3,763 characters, limit 4,000)
 
 ```text
 ABOUT
@@ -54,10 +54,10 @@ TRY IT
 4. Games > "Créer une salle" > Quiz, or Méninges.
 
 NATIVE (4.2)
-Native tab bar; SwiftUI: Music, Settings, Discussions, Groups, Pronos, "Ton avis", AI assistant, "Pot commun". Push (one switch per type), Live Activity, Wallet, QR scanner, Calendar, optional Contacts (hashed), dictation. Pyramide: cards hidden from screenshots.
+Native tab bar; SwiftUI: Music, Settings, Discussions, Groups, event chat, "Ton avis", AI assistant, "Pot commun". Push (one switch per type), Live Activity, Wallet, QR scanner, Calendar, optional Contacts (hashed), dictation. Pyramide: cards hidden from screenshots.
 
 WEB CONTENT (2.5.2)
-Events and Games tabs are our own site in a WKWebView, same for all users, using only the native features above. Other sites open in Safari. All is on in production, except Confetti (see PRONOS).
+Events and Games tabs are our own site in a WKWebView, same for all users, using only the native features above. Other sites open in Safari. Everything described here is on in production. Not in this version (switched off on our server, not reachable in the app): Pronos, Agenda, companion. Each will be described in a reviewed version before it opens.
 
 EVENTS
 "Qui est invité": public, invitation or groups. Links for one person or "Plusieurs"; guests create, copy and stop own links, see counts only. Not public: someone coming through a guest's link waits ("À accepter"). Date poll. Personal calendar feed. Carpool (no money). QR ticket + Wallet. Groups: "Inviter avec un lien". Everyone signs in (name, nickname of 12 characters max). The page updates live; tap a name to open the profile; each answer shows its time. Admins: "Nouveau compte" alert, announcement or maintenance message.
@@ -69,16 +69,13 @@ PARTY BAR
 Organiser's option; paid bar only on private events. Age checked by the barman; tobacco/drugs refused; no prompt to drink. Repaid outside the app.
 
 DISCUSSIONS (1.2)
-Event chats (event > "Discussion"): mentions-only alerts by default, mute, reply from notification. DMs only with a real link (shared group or event); anyone else sends a message request: one text, no photo/link/number; "Accepter / Supprimer / Bloquer / Signaler", sender never told. Settings > Confidentialité > "Demandes de message" (everyone / no one). "Nouveau message": real links only, search by name, never by number; 2+ people make a private group, not read by admins. Tap a name: mini-profile (message, Bloquer, Signaler). Terms first, word filter, "Signaler" on each message (photo/voice kept for moderators, last 10 messages if ticked); "Bloquer" hides messages at once and alerts moderators. Reports within 24 h. Demo account "Apple-test 2" (number in the guide) shows a request from the other side. Contact: support@vendrediparty.ch.
+Event chats (event > "Discussion", native screen): only for guests who answered "Présent" / "Peut-être" and the organisers; mentions-only alerts by default, mute, reply from notification. Group photo optional, with "Signaler". DMs only with a real link (shared group or event); anyone else sends a message request: one text, no photo/link/number; "Accepter / Supprimer / Bloquer / Signaler", sender never told. Settings > Confidentialité > "Demandes de message" (everyone / no one). "Nouveau message": real links only, search by name, never by number; 2+ people make a private group, not read by admins. Tap a name: mini-profile (message, Bloquer, Signaler). Terms first, word filter, "Signaler" on each message (photo/voice kept for moderators, last 10 messages if ticked); "Bloquer" hides messages at once and alerts moderators. Reports within 24 h. Demo account "Apple-test 2" (number in the guide) shows a request from the other side (same fixed code). Contact: support@vendrediparty.ch.
 
 AI (5.1.2(i))
 "Avec l'IA", "Ton avis" and receipts go to Anthropic (Claude) only after "J'accepte". Withdraw: Settings > Confidentialité.
 
 GAMES (18+)
 Drinking modes optional, water counts, never ranked by drinks. No real-money gambling, purchases or prizes; no Casino.
-
-PRONOS (Simulated Gambling declared)
-Settings > Autres apps > Pronos, or a group / event: guess an outcome for fun; points on the group ranking. Confetti (free, valueless play tokens): 100 per group or event each week (refilled, never above), 1 to 20 per prono, shared among right answers (no odds). They cannot be bought, sold, given, transferred, converted or exchanged for anything; no prizes. Money words and alcohol refused. Confetti are switched on in production only after this version is approved. Demo: group "Démo Apple" > Pronos.
 
 MUSIC
 Needs a live party (host's QR or 4-digit code).
@@ -299,7 +296,7 @@ Tab **Discussions** (signed-in accounts):
    last 60 days, your phone contacts already on Party if you allow Contacts); search by first name, last name or nickname,
    never by phone number. Choosing 2 or more people creates a **private group** (name, emoji, colour, invitations to
    accept), which our administrators never read; it is moderated through reports, like direct messages.
-7. **Mini-profile**: tap any name or photo (chats, guest lists, groups, pronos…) › **Envoyer un message** (disabled with
+7. **Mini-profile**: tap any name or photo (chats, guest lists, groups…) › **Envoyer un message** (disabled with
    the reason when not allowed), "Déjà vu N fois" (past parties attended together), upcoming events in common,
    **Bloquer** · **Signaler**.
 8. Blocking hides that person's messages at once (groups, direct messages, event discussions), removes their requests,

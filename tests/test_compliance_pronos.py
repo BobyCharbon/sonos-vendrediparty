@@ -164,20 +164,20 @@ def test_the_patates_flag_exists_and_is_served():
     assert '"patates"' in read("app/main.py")
 
 
-def test_review_notes_announce_the_patates_within_4000_characters_and_without_any_code():
+def test_review_notes_say_pronos_are_not_in_this_version_and_carry_no_code():
+    """19.11 : Pronos et confettis gardés en test (PRONOS_ENABLED / PATATES_ENABLED éteints en prod) : les notes pour Apple
+    ne les décrivent pas comme une fonction à tester, elles disent qu'ils ne sont pas dans cette version."""
     notes = read("ios/appstore/review-notes.txt").strip()
     assert len(notes) <= 4000
-    for words in ("PRONOS", "Simulated Gambling declared", "cannot be bought, sold, given, transferred, converted or "
-                  "exchanged", "no odds", "no prizes", "switched on in production only after this version is approved",
-                  "Démo Apple"):
-        assert words in notes, words
+    assert "Not in this version" in notes and "Pronos" in notes.split("Not in this version")[1].split("\n")[0]
+    assert "PRONOS (" not in notes and "Simulated Gambling" not in notes and "Confetti" not in notes
     assert not re.search(r"\b\d{6}\b", notes)  # jamais le code du compte de démo
 
 
-def test_age_rating_declares_simulated_gambling_frequent_and_no_gambling():
+def test_age_rating_declares_no_simulated_gambling_while_pronos_are_off():
     asc = read("ios/appstore/app-store-connect.md")
-    assert "| Simulated Gambling | **Fréquent** (18.11) |" in asc and "| Gambling (argent réel) | Non |" in asc
+    assert "| Simulated Gambling | **Aucun** (19.11) |" in asc and "| Gambling (argent réel) | Non |" in asc
     checklist = read("docs/app-store/checklist-envoi.md")
-    assert "Simulated Gambling : **Frequent/Intense**" in checklist and "Gambling : **Non**" in checklist
+    assert "Simulated Gambling : **None**" in checklist and "Gambling : **Non**" in checklist
     for text in (asc, checklist):
-        assert "PATATES_ENABLED" in text and "Gameplay Content" in text
+        assert "PATATES_ENABLED" in text  # la version qui les ouvrira repassera par là

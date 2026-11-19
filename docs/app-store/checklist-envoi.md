@@ -6,7 +6,7 @@
 
 ## 1. Avant tout : la production
 
-- [ ] `https://party.bobycharbon.ch/api/features` = `compagnon: false`, `discussions: true`, `invites_v2: true`, `bar: true`
+- [ ] `https://party.bobycharbon.ch/api/features` = `compagnon: false`, `discussions: true`, `invites_v2: true`, `bar: true`, `agenda: false`, `pronos: false`, `patates: false`
       (contrôlé le 16.11.2026). Rien ne doit changer pendant la revue.
 - [ ] Corrections annoncées en place et visibles en prod (les notes les décrivent) : « Bloquer » masque aussitôt les
       messages (groupes, privés, événements) et prévient les modérateurs ; bar payant seulement sur un événement non public,
@@ -54,12 +54,12 @@
 - [ ] **User name** : `+41 79 000 09 99` (compte « Apple-test »).
 - [ ] **Password** : le code fixe à 6 chiffres (Supabase prod › Authentication › Phone › Test OTP ; le fichier
       `~/sb-work/apple/demo.txt` n'existe pas sur ce Mac : le reprendre là où il est). **Jamais dans le dépôt.**
-- [ ] **Notes** : la partie A de `notes-for-review.md` (3 985 caractères, limite 4 000 ; = `ios/appstore/review-notes.txt`). La recopier aussi dans
+- [ ] **Notes** : la partie A de `notes-for-review.md` (3763 caractères, limite 4 000 ; = `ios/appstore/review-notes.txt`). La recopier aussi dans
       `ios/appstore/review-notes.txt` avant d'utiliser `tools/appstore_submit.py` (il envoie ce fichier), puis lancer
       `.venv/bin/python -m pytest -q tests/test_ios_app.py -p no:cacheprovider` (la partie A contient les mots exigés).
-- [ ] **Pronos et confettis (ex-patates, 18.11)** : la section PRONOS de `ios/appstore/review-notes.txt` (Simulated Gambling déclaré,
-      confettis gratuits sans valeur (« Confetti (free, valueless play tokens) », jamais « coins »), ni achat ni vente ni transfert, partage de la piste, plafonds 100 / semaine et 20 par
-      prono, drapeau `patates` éteint en prod jusqu'à l'acceptation) ; un prono de démo dans le groupe « Démo Apple ».
+- [ ] **Pronos, Agenda, compagnon : PAS dans cette version** (éteints sur le serveur) : les notes le disent (« Not in this version »),
+      aucune section PRONOS, aucun prono de démo à préparer.
+      Questionnaire : Simulated Gambling **None** tant qu'ils restent éteints.
       Aucun code de compte dans le dépôt.
 - [ ] **Attachment** : la partie B de `notes-for-review.md` en PDF, sans l'encadré « À FAIRE » (le champ pièce jointe
       d'App Review Information : À VÉRIFIER qu'il est proposé ; sinon, mettre le guide sur une page et donner son lien
@@ -88,9 +88,9 @@
 - [ ] Sexual Content or Nudity : Infrequent/Mild · Graphic Sexual Content and Nudity : None
 - [ ] Cartoon or Fantasy Violence : Infrequent/Mild · Realistic Violence : None · Prolonged Graphic or Sadistic Realistic
       Violence : None · Guns or Other Weapons : None
-- [ ] Simulated Gambling : **Frequent/Intense** (18.11 : confettis des Pronos, jetons de jeu gratuits sans valeur, partage de la piste ;
-      Casino et Blackjack toujours absents de l'app App Store) · Gambling : **Non** (confettis jamais échangeables contre
-      de l'argent) · Loot Boxes : Non
+- [ ] Simulated Gambling : **None** (19.11 : Pronos et confettis éteints dans cette version ; Casino et Blackjack absents de
+      l'app App Store) · Gambling : **Non** (aucun argent réel ni lot)
+      · Loot Boxes : Non
 - [ ] Contests : **Frequent/Intense** (choix du coordinateur du 16.11 : parties en compétition, classements et tableau de la
       soirée ; l'ancien `app-store-connect.md` disait « None ». Aucun lot ni tirage. La note reste 18+ dans les deux cas.)
 - [ ] Résultat affiché : 18+. Si Apple calcule moins, choisir 18+.
@@ -105,7 +105,7 @@ Pour chaque type : **lié à l'identité : oui · suivi : non · finalité : App
 - [ ] Contacts : **Contacts** (empreintes chiffrées, non gardées ; déclaré par prudence ; 18.11 : aussi les suggestions
       de « Nouveau message », même type, même finalité App Functionality : **rien de neuf à cocher**, relire la description)
 - [ ] User Content : **Photos or Videos**, **Audio Data** (messages vocaux des Discussions — nouveau), **Emails or Text
-      Messages**, **Gameplay Content** (description : + Pronos, soldes et confettis lancés — 18.11), **Customer Support** (« Ton avis » — nouveau), **Other User Content**
+      Messages**, **Gameplay Content** (scores et stats de jeu), **Customer Support** (« Ton avis »), **Other User Content**
 - [ ] Purchases : **Purchase History** (commandes du bar, « J'ai payé » d'un événement — nouveau)
 - [ ] Identifiers : **User ID**, **Device ID**
 - [ ] Usage Data : **Product Interaction**
@@ -134,15 +134,11 @@ Pour chaque type : **lié à l'identité : oui · suivi : non · finalité : App
       de musique, lieux par Google).
 - [ ] Contrats « Apps gratuites » acceptés (Business) par le titulaire du compte.
 
-## 7 bis. Pronos et confettis (ex-patates) : ordre obligatoire (revue `conformite-patates` du 18.11.2026)
+## 7 bis. Pronos et confettis : plus tard, dans une version revue
 
-- [ ] 1. Questionnaire d'âge : Simulated Gambling **Frequent**, Gambling Non, Loot Boxes Non, Contests Frequent, 18+.
-- [ ] 2. Notes for Review avec la section PRONOS + compte de démo (ci-dessus).
-- [ ] 3. App Privacy : Gameplay Content décrit avec les Pronos (aucun nouveau type).
-- [ ] 4. CGU 2026-11-18 « Pronos et confettis » et politique de confidentialité du 18.11 en prod
-      (`supabase/prod/2026-11-18-cgu-pronos-patates-apply.sql`, après le « Ok prod »).
-- [ ] 5. Version **acceptée** par Apple, PUIS seulement `PATATES_ENABLED=1` en production (jamais avant ; éteint, les
-      Pronos restent pour l'honneur, sans confettis).
+- [ ] Pas dans cette version (19.11). Le jour où ils ouvrent : questionnaire Simulated Gambling **Frequent**, section
+      PRONOS dans les notes, App Privacy (Gameplay Content avec les Pronos), CGU 2026-11-18 en prod, version **acceptée**,
+      PUIS seulement PRONOS_ENABLED / PATATES_ENABLED en production (jamais avant).
 
 ## 8. Envoi
 
