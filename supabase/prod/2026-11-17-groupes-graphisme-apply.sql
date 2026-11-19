@@ -1,6 +1,10 @@
 -- PROD, groupes_graphisme (20261117100000) : migration supabase/migrations/20261117100000_groupes_graphisme.sql telle quelle (mise en prod du 19.11).
 -- Additive et rejouable. Tout ou rien.
 begin;
+-- Date d'entrée dans un groupe (tri des visages) : colonne créée sur TEST par 20261104170000 (Zicou, jamais en prod) ;
+-- seule la colonne est reprise ici, additive et rejouable (prod du 19.11).
+alter table public.member_group_members add column if not exists added_at timestamptz;
+alter table public.member_group_members alter column added_at set default now();
 -- Groupes : nouveau graphisme (17.11.2026, maquette A « Néon & couvertures » + bulles de B).
 -- • member_groups.emoji (liste fermée) et color (une des 6 couleurs de Party) : la couverture d'un groupe = dégradé de sa
 --   couleur + son emoji (pas de photo de couverture : contenu à modérer). « Membres Vendredi Party » : 🎉 lavande, fixe.
