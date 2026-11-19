@@ -458,6 +458,7 @@ export default function EventScreen() {
             me={me.id}
             canManage={canManage}
             canParticipate={published}
+            canVote={ev.date_mode !== 'fixed' || chatMember}
             onChange={reload}
           />
         ))}
@@ -510,8 +511,8 @@ export default function EventScreen() {
         <TicketsManager eventId={ev.id} enabled={!!ev.tickets_enabled} canToggle onToggled={reload}
           refreshKey={`${paymentsSeen}|${ev.rsvps.map((r) => `${r.user_id}:${r.status}:${r.waitlisted}`).join(',')}`} />
       ) : null}
-      {ev.date_mode === 'fixed' && published && canManage && (ev.price_chf ?? 0) > 0 && (ev.payment_mode ?? 'organizer') === 'organizer' ? (
-        <PendingPayments eventId={ev.id} price={ev.price_chf!} refreshKey={`${paymentsTick}|${ev.rsvps.map((r) => `${r.user_id}:${r.status}`).join(',')}`}
+      {ev.date_mode === 'fixed' && published && canManage && (ev.price_chf ?? 0) > 0 && (ev.payment_mode ?? 'organizer') !== 'on_site' ? (
+        <PendingPayments eventId={ev.id} price={ev.price_chf!} online={ev.payment_mode === 'online'} refreshKey={`${paymentsTick}|${ev.rsvps.map((r) => `${r.user_id}:${r.status}`).join(',')}`}
           onConfirmed={() => setPaymentsSeen((n) => n + 1)} />
       ) : null}
 

@@ -44,17 +44,17 @@ def test_by_default_the_organizer_is_paid_and_confirms(party):
     admin.rpc('confirm_ticket_payment', e=eid, member=a.uid, received=False)
 
 
-def test_online_needs_a_link_and_has_nothing_to_note_in_party(party):
+def test_online_needs_a_link_and_i_paid_is_noted_without_confirmation(party):
     admin, a, eid = party
     refused = patch(admin, eid, payment_mode='online', payment_url=None)
     assert refused.status_code == 400 and 'events_payment_online_url_check' in refused.text
     assert patch(admin, eid, payment_url='http://pas-sur.ch').status_code == 400
     assert patch(admin, eid, payment_mode='online', payment_url='https://billetterie.example.ch/paintball').status_code in (200, 204)
     assert a.rpc('event_pay_info', e=eid).json()['mode'] == 'online'
-    # Le site n'est pas à l'organisateur (avis du 16.11) : pas de « J'ai payé », donc rien à confirmer.
-    refused = a.rpc('declare_ticket_payment', e=eid, declared=True)
-    assert refused.status_code == 400 and 'en ligne' in refused.text, refused.text
-    assert a.rpc('declare_ticket_payment', e=eid, declared=False).status_code == 200  # annuler une déclaration d'avant
+    # 19.11 : en ligne, « J'ai payé » se note et compte sans « Reçu ✓ » ; jamais « payé » (pas de billet sur sa parole).
+    noted = a.rpc('declare_ticket_payment', e=eid, declared=True).json()
+    assert noted['pay_pending'] is True and noted['paid'] is False, noted
+    assert a.rpc('declare_ticket_payment', e=eid, declared=False).status_code == 200  # annuler reste possible
 
 
 def test_switching_to_on_site_lets_a_pending_payment_be_cancelled(party):

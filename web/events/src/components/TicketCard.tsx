@@ -101,7 +101,7 @@ export function TicketCard({ event, me, answerKey }: Props) {
   const link = ticketLink(location.origin, event.id, ticket.token);
   const arrived = ticket.checked_in_at ? formatTime(ticket.checked_in_at) : null;
   const priced = ticket.price_chf != null && ticket.price_chf > 0;
-  const payLine = ticket.paid ? '✓ Payé' : ticket.pay_pending ? 'Payé · en attente de confirmation' : `À payer : ${chf(ticket.price_chf ?? 0)}`;
+  const payLine = ticket.paid ? '✓ Payé' : ticket.pay_pending ? (pay.mode === 'online' ? '✓ Payé en ligne' : 'Payé · en attente de confirmation') : `À payer : ${chf(ticket.price_chf ?? 0)}`;
   const payColor = ticket.paid ? colors.mint : ticket.pay_pending ? colors.coral : colors.coralSoft;
 
   return (
@@ -154,7 +154,7 @@ export function TicketCard({ event, me, answerKey }: Props) {
             </View>
             {priced ? (
               <T size={14} weight="semibold" color={payColor} style={{ textAlign: 'center' }}>
-                {ticket.paid ? '✓ Place payée' : ticket.pay_pending ? 'Payé · en attente de confirmation' : `${chf(ticket.price_chf ?? 0)} à payer ${pay.mode === 'on_site' ? 'sur place' : pay.mode === 'online' ? 'en ligne' : 'à l’organisateur'}`}
+                {ticket.paid ? '✓ Place payée' : ticket.pay_pending ? (pay.mode === 'online' ? '✓ Payé en ligne' : 'Payé · en attente de confirmation') : `${chf(ticket.price_chf ?? 0)} à payer ${pay.mode === 'on_site' ? 'sur place' : pay.mode === 'online' ? 'en ligne' : 'à l’organisateur'}`}
               </T>
             ) : null}
             <Button label="Fermer" onPress={() => setOpen(false)} />

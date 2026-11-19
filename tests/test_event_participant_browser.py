@@ -229,3 +229,34 @@ def test_a_place_to_be_defined_says_so_without_a_route(browser, events_origin): 
         pw.expect(page.get_by_text('Itinéraire ›')).to_have_count(0)
     finally:
         context.close()
+
+
+POLL_ID = '7c0ffee0-0000-4000-8000-0000000000b1'
+
+
+def _poll_event(status: str | None):
+    poll = {'id': POLL_ID, 'event_id': EVENT, 'question': 'On mange quoi ?', 'multiple_choice': False, 'anonymous': False,
+            'members_can_add_options': False, 'results_after_vote': True, 'closes_at': None, 'created_by': LEA, 'sort': 0,
+            'created_at': '2026-11-01T08:00:00Z',
+            'poll_options': [{'id': '7c0ffee0-0000-4000-8000-0000000000c1', 'poll_id': POLL_ID, 'label': 'Pizza', 'created_by': LEA, 'sort': 0}]}
+    return event_row(polls=[poll], rsvps=[rsvp(USER, status)] if status else [])
+
+
+@pytest.mark.parametrize('status', [None, 'no'])
+def test_a_poll_asks_to_answer_present_or_maybe_before_voting(browser, events_origin, status):
+    """Demande de l'admin (19.11) : sans réponse ou Absent, on voit le sondage mais on ne vote pas, et on sait pourquoi."""
+    context, page = open_event(browser, events_origin, _poll_event(status), perms=GUEST_PERMS)  # pas l'organisation
+    try:
+        pw.expect(page.get_by_text('Réponds Présent ou Peut-être pour voter.', exact=True)).to_be_visible(timeout=15000)
+        pw.expect(page.get_by_role('button', name='Pizza', exact=True)).to_be_disabled()
+    finally:
+        context.close()
+
+
+def test_present_votes_in_the_poll(browser, events_origin):
+    context, page = open_event(browser, events_origin, _poll_event('yes'))
+    try:
+        pw.expect(page.get_by_role('button', name='Pizza', exact=True)).to_be_enabled(timeout=15000)
+        assert page.get_by_text('Réponds Présent ou Peut-être pour voter.', exact=True).count() == 0
+    finally:
+        context.close()

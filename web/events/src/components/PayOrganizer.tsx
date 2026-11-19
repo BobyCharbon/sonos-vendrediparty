@@ -125,11 +125,13 @@ export function PayOrganizer({ eventId, ticket, onTicket, pay }: { eventId: stri
     return <View style={[st.status, st.paid]}><T size={14} weight="bold" color={colors.mint}>✓ Place payée · {chf(price)}</T></View>;
   }
   if (ticket.pay_pending) {
+    // En ligne (19.11) : rien à confirmer par l'organisateur, c'est noté.
+    const done = pay.mode === 'online';
     return (
-      <View style={[st.status, st.pending]}>
+      <View style={[st.status, done ? st.paid : st.pending]}>
         <View style={{ flex: 1 }}>
-          <T size={14} weight="bold" color={colors.coral}>Payé · en attente de confirmation</T>
-          <T size={12} muted>{`L’organisateur confirme dès qu’il a reçu tes ${chf(price)}.`}</T>
+          <T size={14} weight="bold" color={done ? colors.mint : colors.coral}>{done ? `✓ Payé en ligne · ${chf(price)}` : 'Payé · en attente de confirmation'}</T>
+          <T size={12} muted>{done ? 'C’est noté : l’organisateur le voit.' : `L’organisateur confirme dès qu’il a reçu tes ${chf(price)}.`}</T>
         </View>
         <Button small variant="ghost" label="Annuler" loading={busy} onPress={() => declare(false)} />
         <ErrorText error={error} />
@@ -158,13 +160,15 @@ export function PayOrganizer({ eventId, ticket, onTicket, pay }: { eventId: stri
       </View>
     );
   }
-  // En ligne : le bouton ouvre la billetterie (ou le lien) ; rien à noter dans Party (avis du 16.11) : le site n'est pas
-  // à l'organisateur, il ne peut rien confirmer. La base refuse « J'ai payé » (declare_ticket_payment).
+  // En ligne : le bouton ouvre la billetterie (ou le lien), puis « J'ai payé » le note ; l'organisateur n'a rien à accepter
+  // (demande de l'admin du 19.11) : il voit qui a payé. Pas de billet QR sur cette seule déclaration.
   if (pay.mode === 'online') {
     return (
       <View style={{ gap: 6 }}>
         {online ? <Button label={`Payer en ligne · ${chf(price)} ↗`} href={online} /> : null}
         <T size={12} muted>{online ? (() => { try { return new URL(online).hostname.replace(/^www\./, ''); } catch { return ''; } })() : `${chf(price)} · à payer en ligne`}{pay.info ? ` · ${pay.info}` : ''}</T>
+        <Button variant="secondary" label="J’ai payé" loading={busy} onPress={() => declare(true)} />
+        <ErrorText error={error} />
       </View>
     );
   }

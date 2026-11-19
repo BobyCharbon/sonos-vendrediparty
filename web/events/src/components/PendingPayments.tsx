@@ -11,10 +11,11 @@ import { Avatar, Button, ErrorText, Section, T } from './ui';
 
 /**
  * Organisateur d'un événement payant : qui dit avoir payé (« en attente »), à confirmer « Reçu ✓ » ou « Pas reçu ».
+ * Paiement en ligne (19.11) : rien à confirmer, « J'ai payé » compte ; la liste dit qui a payé et quand.
  * `refreshKey` : relu quand les réponses changent (temps réel de la page).
  */
-export function PendingPayments({ eventId, price, refreshKey, onConfirmed }: {
-  eventId: string; price: number; refreshKey: string;
+export function PendingPayments({ eventId, price, refreshKey, onConfirmed, online = false }: {
+  eventId: string; price: number; refreshKey: string; online?: boolean;
   /** Après « Reçu » / « Pas reçu » : la place payée remet aussi le billet, la liste des billets se relit. */
   onConfirmed?: () => void;
 }) {
@@ -45,12 +46,15 @@ export function PendingPayments({ eventId, price, refreshKey, onConfirmed }: {
 
   if (!people) return error ? <ErrorText error={error} /> : null;
   const present = people.filter((p) => !p.waitlisted);
-  const pending = present.filter((p) => p.pay_pending);
-  const paid = present.filter((p) => p.paid).length;
+  const pending = online ? [] : present.filter((p) => p.pay_pending);
+  const payers = present.filter((p) => p.paid || (online && p.pay_pending));
+  const paid = payers.length;
 
   return (
     <Section title="Paiements" right={<T size={13} weight="bold" color={colors.mint}>{paid} / {present.length} payé{paid > 1 ? 's' : ''}</T>}>
-      {pending.length ? (
+      {online ? (
+        <T muted size={13}>{paid ? 'Paiement en ligne : rien à confirmer.' : 'Paiement en ligne : quand quelqu’un touche « J’ai payé », il apparaît ici. Rien à confirmer.'}</T>
+      ) : pending.length ? (
         <T size={13} weight="semibold" color={colors.coral}>{pending.length} à confirmer · {chf(price)} chacun</T>
       ) : (
         <T muted size={13}>Aucun paiement à confirmer. Quand quelqu’un touche « J’ai payé », il apparaît ici.</T>
@@ -66,6 +70,18 @@ export function PendingPayments({ eventId, price, refreshKey, onConfirmed }: {
           <Button small variant="ghost" label="Pas reçu" loading={busy === `${p.user_id}:false`} onPress={() => confirm(p, false)} />
         </View>
       ))}
+      {payers.length ? (
+        <View style={{ gap: 4 }}>
+          <T size={12} weight="bold" color={colors.mint}>{'Ont payé'.toUpperCase()} · {payers.length}</T>
+          {payers.map((p) => (
+            <View key={p.user_id} style={[st.paidRow]}>
+              <Avatar id={p.user_id} name={p.display_name} photo={p.avatar_url} size={24} />
+              <PersonName id={p.user_id} pseudo={p.display_name} weight="semibold" />
+              <T size={12} muted>{p.paid ? (p.pay_declared_at ? `payé · ${formatShort(p.pay_declared_at)}` : 'payé') : `en ligne · ${formatShort(p.pay_declared_at!)}`}</T>
+            </View>
+          ))}
+        </View>
+      ) : null}
       <ErrorText error={error} />
       {notice ? <T size={13} weight="semibold" color={colors.coral}>{notice}</T> : null}
     </Section>
@@ -73,5 +89,6 @@ export function PendingPayments({ eventId, price, refreshKey, onConfirmed }: {
 }
 
 const st = StyleSheet.create({
+  paidRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 8, borderRadius: radius.md, backgroundColor: 'rgba(255,179,71,0.08)', flexWrap: 'wrap' },
 });

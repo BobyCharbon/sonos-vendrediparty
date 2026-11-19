@@ -375,8 +375,8 @@ def test_the_event_payment_link_comes_first_in_the_pay_sheet(browser, origin):
         context.close()
 
 
-def test_online_payment_opens_the_link_and_has_nothing_to_note(browser, origin):
-    # Avis du 16.11 : le site de paiement n'appartient pas à l'organisateur, il ne peut rien confirmer : ni « J'ai payé » ni « Reçu ✓ ».
+def test_online_payment_opens_the_link_then_i_paid_is_noted_without_confirmation(browser, origin):
+    # Demande de l'admin du 19.11 (revient sur l'avis du 16.11) : en ligne, « J'ai payé » se note, sans « Reçu ✓ ».
     link = 'https://billetterie.example.ch/paintball'
     context, page, frame, state, errors, _ = launch(browser, origin, [MINE_YES], extra={
         'payment_mode': 'online', 'payment_url': link, 'payment_info': 'Choisis « Paintball 2 h »'})
@@ -393,8 +393,11 @@ def test_online_payment_opens_the_link_and_has_nothing_to_note(browser, origin):
         assert popup.value.url.startswith(link)
         popup.value.close()
         shot(page, 'payer-en-ligne')
-        pw.expect(frame.get_by_role('button', name='J’ai payé', exact=True)).to_have_count(0)
-        assert not state.get('declared')
+        # 19.11 : « J'ai payé » se note ; c'est fait, sans attendre l'organisateur.
+        frame.get_by_role('button', name='J’ai payé', exact=True).click()
+        pw.expect(frame.get_by_text('✓ Payé en ligne · 20 CHF', exact=True)).to_be_visible(timeout=10000)
+        pw.expect(frame.get_by_text('en attente de confirmation', exact=False)).to_have_count(0)
+        assert state['declared'] == [True]
         assert not errors
     finally:
         context.close()
@@ -448,6 +451,21 @@ def test_the_organizer_confirms_a_declared_payment_on_the_event_and_at_the_entry
         frame.get_by_role('button', name='Pas reçu', exact=True).click()
         pw.expect(frame.get_by_text('✗ Pas payé · 20 CHF', exact=True)).to_be_visible(timeout=10000)
         assert state['confirmed'] == [True, False]
+        assert not errors
+    finally:
+        context.close()
+
+
+def test_online_the_organizer_sees_who_paid_and_has_nothing_to_confirm(browser, origin):
+    """Demande de l'admin du 19.11 (paintball) : en ligne, la liste dit qui a payé ; aucun « Reçu ✓ »."""
+    context, page, frame, state, errors, _ = launch(browser, origin, [LEA_YES], extra={
+        'payment_mode': 'online', 'payment_url': 'https://billetterie.example.ch/paintball'})
+    state['pending'] = True
+    try:
+        frame.get_by_text('Sortie de démonstration (test local)', exact=True).click()
+        pw.expect(frame.get_by_text('ONT PAYÉ · 1', exact=True)).to_be_visible(timeout=15000)
+        pw.expect(frame.get_by_text('Paiement en ligne : rien à confirmer.', exact=True)).to_be_visible()
+        assert frame.get_by_role('button', name='Reçu ✓', exact=True).count() == 0
         assert not errors
     finally:
         context.close()

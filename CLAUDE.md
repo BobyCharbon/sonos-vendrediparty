@@ -144,9 +144,10 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
 - Paiement (maquette validée le 15.11, migration 20261115120000) : l'organisateur choisit « On me paie » (défaut, lien
   facultatif : Revolut…), « Paiement en ligne » (lien https obligatoire : billetterie) ou « Sur place » (`events.payment_mode`,
   `payment_url`). « On me paie » : la personne note « J'ai payé », l'organisateur confirme « Reçu ✓ » (jamais payé sur sa
-  seule parole : une place payée remet le billet QR). En ligne et sur place : aucun « J'ai payé » ni « Reçu ✓ » (le site de
-  paiement n'est pas à l'organisateur, avis du 16.11, migration 20261116190000), `declare_ticket_payment` refuse (annuler une
-  déclaration d'avant reste possible) ; l'entrée peut cocher « payé ». Un organisateur qui encaisse sur son site : « On me paie » + son lien. L'IA ne
+  seule parole : une place payée remet le billet QR). En ligne (demande du 19.11, migration 20261119180000) : « J'ai payé »
+  se note et compte sans « Reçu ✓ » (« ✓ Payé en ligne », liste « Ont payé » chez l'organisateur), mais ne passe jamais la
+  place en `paid` (pas de billet QR sur sa parole). Sur place : aucun « J'ai payé » ni « Reçu ✓ » (`declare_ticket_payment`
+  refuse) ; l'entrée peut cocher « payé ». Un organisateur qui encaisse sur son site : « On me paie » + son lien. L'IA ne
   choisit jamais le mode. Le lien de l'événement remplace celui du même service dans le profil (un seul « Payer avec Revolut »).
   Tests : `tests/supabase_live/test_paiement_mode_live.py`, `test_paiement_mode_browser_live.py` (recette réelle),
   `test_event_tickets_browser.py`.
@@ -224,6 +225,10 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   et les annonces ne touchent donc plus les invités sans réponse. Recherche des Discussions : « Événements »
   (`chat_event_search`, mes événements même sans message) et « Messages » (`chat_search`). Tests :
   `tests/supabase_live/test_discussion_evenement_presents_live.py`, `test_discussions_recherche_evenements_live.py`.
+- Sondages de la fiche (19.11, migration 20261119170000) : juste sous « Tu viens ? » ; sur un événement à date fixe, on ne
+  vote qu'après Présent ou Peut-être (organisation et admins toujours : `private.event_chat_member`, déclencheur
+  `poll_votes_presence`, refus `present_required`) ; sinon « Réponds Présent ou Peut-être pour voter. ». Sondage de dates :
+  inchangé. Tests : `tests/supabase_live/test_sondage_presents_live.py`, `test_a_poll_asks_to_answer_present_or_maybe_before_voting`.
 - Public par défaut (formulaire et IA) ; un événement public ne prévient JAMAIS personne à sa publication (base : `events_public_silent`, 20261106200000).
 
 ## Avis du 13.11.2026 (à garder)

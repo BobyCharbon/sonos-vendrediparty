@@ -585,6 +585,7 @@ export function PollSection({
   me,
   canManage,
   canParticipate,
+  canVote = true,
   onChange,
 }: {
   poll: Poll;
@@ -595,6 +596,8 @@ export function PollSection({
   me: string;
   canManage: boolean;
   canParticipate: boolean;
+  /** Présent / Peut-être ou organisation (demande de l'admin, 19.11) : sinon, on voit le sondage sans voter. */
+  canVote?: boolean;
   onChange: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
@@ -638,7 +641,7 @@ export function PollSection({
             key={o.id}
             accessibilityRole="button"
             accessibilityState={{ selected: on }}
-            disabled={closed || !canParticipate}
+            disabled={closed || !canParticipate || !canVote}
             onPress={() => toggle(o.id)}
             style={({ pressed }) => [{ minHeight: 48, paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: on ? colors.accent : colors.lineStrong, backgroundColor: colors.bg, overflow: 'hidden', justifyContent: 'center' }, pressTransition, pressed && st.pressed]}
           >
@@ -665,7 +668,9 @@ export function PollSection({
           ))}
         </View>
       ) : null}
-      {!results ? <T muted size={12}>Les résultats s’affichent après ton vote.</T> : null}
+      {canParticipate && !closed && !canVote ? (
+        <T size={13} weight="semibold" color={colors.accentSoft}>Réponds Présent ou Peut-être pour voter.</T>
+      ) : !results ? <T muted size={12}>Les résultats s’affichent après ton vote.</T> : null}
       {!poll.anonymous && results
         ? options.filter((o) => voters.get(o.id)?.length).map((o) => (
             <NameLinks key={o.id} prefix={`${o.label} : `} people={voters.get(o.id)!} testID="poll-voter" />
