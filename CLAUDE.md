@@ -206,6 +206,13 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   l'organisation (`event_chat_people`). Temps réel natif : signal `event:<id>`. Tests : `test_discussion_evenement_live.py`,
   `test_discussion_evenement_browser_live.py`, `tests/test_event_chats_native.py`, `tests/test_event_chat_browser.py`,
   `EventChatTests`, recette `RecetteDiscussionUITests` (Release + serveur local + base de TEST).
+- Discussion d'un événement RÉSERVÉE à ceux qui viennent (décision de l'admin du 19.11, migration 20261119120000) : Présent /
+  Peut-être et l'organisation (créateur, co-organisateurs, admins : `private.event_chat_member`, `event_chat_open`) la voient
+  dans Discussions, la lisent (RLS « lire messages »), y écrivent, la trouvent et en reçoivent les notifications ; pas répondu
+  ou Absent : rien (fiche : « réponds Présent ou Peut-être pour la rejoindre », `CHAT_FOR_GUESTS` web et serveur). @toutlemonde
+  et les annonces ne touchent donc plus les invités sans réponse. Recherche des Discussions : « Événements »
+  (`chat_event_search`, mes événements même sans message) et « Messages » (`chat_search`). Tests :
+  `tests/supabase_live/test_discussion_evenement_presents_live.py`, `test_discussions_recherche_evenements_live.py`.
 - Public par défaut (formulaire et IA) ; un événement public ne prévient JAMAIS personne à sa publication (base : `events_public_silent`, 20261106200000).
 
 ## Avis du 13.11.2026 (à garder)

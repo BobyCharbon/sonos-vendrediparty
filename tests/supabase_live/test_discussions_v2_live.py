@@ -248,6 +248,8 @@ def test_chat_list_groups_directs_events_pins_archives_and_seen():
     pin = "perform public.set_chat_state('group', {0}, pinned => true);"
     out = run(as_postgres() + GROUP_VICTOR_VERA + INVITED_EVENT + """
       insert into public.event_invites (event_id, user_id) values (e2, vera);
+      -- Discussion d'un événement réservée à Présent / Peut-être (19.11).
+      insert into public.rsvps (event_id, user_id, status) values (e2, vera, 'maybe');
       insert into public.member_groups (name, created_by) values ('[DV2] Pas à Vera', olga) returning id into e;
       for i in 1..5 loop
         insert into public.member_groups (name, created_by) values ('[DV2] Groupe ' || i, victor) returning id into g2;

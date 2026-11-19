@@ -428,3 +428,6 @@ export function authorOf(item: { author?: string | null; author_name?: string | 
   if (item.author && /^[0-9a-f-]{36}$/i.test(item.author)) return nameOf(item.author) ?? '';
   return item.author ?? '';
 }
+
+/** Discussion réservée à ceux qui viennent (décision de l'admin du 19.11) : Présent / Peut-être et l'organisation. */
+export const CHAT_FOR_GUESTS = 'La discussion est réservée à ceux qui viennent : réponds Présent ou Peut-être pour la rejoindre.';

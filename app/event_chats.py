@@ -41,6 +41,9 @@ def muted_now(until) -> bool:
         return False
 
 
+# Discussion d'un événement réservée à ceux qui viennent (décision de l'admin du 19.11).
+CHAT_FOR_GUESTS = "La discussion est réservée à ceux qui viennent : réponds Présent ou Peut-être pour la rejoindre."
+
 class EventChats:
     def __init__(self, chats: GroupChats):
         self.chats = chats
@@ -119,6 +122,8 @@ class EventChats:
         state = got["state"] or {}
         if not state.get("forum", True):
             raise AccountError("La discussion de cet événement est fermée.")
+        if state.get("open") is False:  # réservée à Présent / Peut-être et à l'organisation (19.11)
+            raise AccountError(CHAT_FOR_GUESTS)
         hidden = got["blocks"]
         people = {p["id"]: p for p in got["people"] or []}
         out = self._page(token, event_id, me, list(reversed(got["messages"] or [])), people, hidden)

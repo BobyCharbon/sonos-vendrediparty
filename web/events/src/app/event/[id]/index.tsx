@@ -40,6 +40,7 @@ import type { ReportTarget } from '@/lib/moderation';
 import { must, supabase } from '@/lib/supabase';
 import { openEventChat, sendEventToFriend } from '@/lib/nativeChat';
 import { repeatLabel, type Series } from '@/lib/recurrence';
+import { CHAT_FOR_GUESTS } from '@/lib/chats';
 import { colors, radius } from '@/lib/theme';
 import { ticketRelevant, chf } from '@/lib/tickets';
 import type { BringItem, Category, DateOption, DateVoteRow, EventRow, Message, Poll, PollOption, Rsvp, Tag } from '@/lib/types';
@@ -197,6 +198,8 @@ export default function EventScreen() {
   const paymentsTick = usePaymentsTick(!!ev && ev.status === 'published' && (ev.price_chf ?? 0) > 0 && (mineYes || isAdmin || ev.created_by === me.id || ev.event_organizers.some((o) => o.user_id === me.id)));
   const isOrganizer = !!ev && (ev.created_by === me.id || ev.event_organizers.some((o) => o.user_id === me.id));
   const canManage = isAdmin || isOrganizer;
+  // Discussion réservée à ceux qui viennent (19.11) : Présent / Peut-être et l'organisation ; la base le garantit (RLS).
+  const chatMember = !!ev && (canManage || ev.rsvps.some((r) => r.user_id === me.id && (r.status === 'yes' || r.status === 'maybe')));
 
   const pollData = useMemo(() => {
     if (!data) return new Map<string, { results: Map<string, number> | null; voters: Map<string, NamedPerson[]> }>();
@@ -213,7 +216,7 @@ export default function EventScreen() {
   }, [data]);
 
   // Discussion (17.11) : mes non-lus et ma cloche, relus à chaque relecture de la fiche (temps réel, signal event:<id>).
-  const chat = useEventChatPrefs(id, !!ev?.forum_enabled && ev?.status === 'published', data?.loadedAt);
+  const chat = useEventChatPrefs(id, !!ev?.forum_enabled && ev?.status === 'published' && chatMember, data?.loadedAt);
 
   if (!data || !ev) {
     if (!loadError && online && !slow) return <EventSkeleton />;
@@ -322,7 +325,7 @@ export default function EventScreen() {
         </View>
         <Title level={1} size={32} style={{ lineHeight: 36 }}>{ev.title}</Title>
         {/* La discussion est un onglet de l'événement : atteinte d'ici sans faire défiler. */}
-        {chatOn ? <EventChatButton chat={chat} onOpen={openChat} /> : null}
+        {chatOn && chatMember ? <EventChatButton chat={chat} onOpen={openChat} /> : null}
         {ev.visibility === 'invited' ? (
           <T muted size={13}>
             🔒 Sur invitation{data?.groupNames ? ` · ${data.groupNames}` : ''}
@@ -459,9 +462,11 @@ export default function EventScreen() {
           />
         ))}
       {/* Discussion façon WhatsApp (17.11) : dernier message, non-lus, cloche des notifications ; haut placée. */}
-      {chatOn ? (
+      {chatOn && chatMember ? (
         <EventChatEntry eventId={ev.id} chat={chat} me={me.id} last={data.messages[0] ?? null}
           authorName={data.messages[0] ? data.names.get(data.messages[0].user_id) ?? '?' : ''} onOpen={openChat} />
+      ) : chatOn ? (
+        <T size={14} color={colors.muted} style={{ paddingHorizontal: 4 }}>💬 {CHAT_FOR_GUESTS}</T>
       ) : null}
       {/* Ordre de la fiche (demande de l'admin, 12.11) : description, ta réponse, puis la carte Invités (repliée).
           Invités (avis 83ebee37aa0f, 11.11) : le même menu ; un invité y voit les chiffres seulement (aucun nom) et ses liens. */}

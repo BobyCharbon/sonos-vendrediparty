@@ -23,6 +23,9 @@ CHAT = as_postgres() + """
       update public.notification_prefs set chat = 'all' where user_id = olga;
       delete from public.notifications where event_id = e;"""
 
+# Discussion réservée à Présent / Peut-être (19.11) : pour qu'un invité ordinaire écrive, Victor répond Peut-être.
+VICTOR_MAYBE = as_postgres() + "update public.rsvps set status = 'maybe' where event_id = e and user_id = victor;"
+
 LAST = "srv"  # dernier message écrit (même instant pour toute la transaction : on garde son id)
 
 
@@ -42,7 +45,7 @@ def say(body: str, extra: str = "") -> str:
 
 
 def test_only_the_organisation_tags_everyone_and_the_present():
-    out = run(CHAT + as_bot("victor") + say("@toutlemonde ce soir ?") + flags("victor_all")
+    out = run(CHAT + VICTOR_MAYBE + as_bot("victor") + say("@toutlemonde ce soir ?") + flags("victor_all")
               + say("@present vous venez ?") + flags("victor_present")
               + as_bot("come") + say("@toutlemonde ça commence à 20 h") + flags("coorga_all")
               + say("Rappel @présents : apportez un plat") + flags("coorga_present"))
@@ -50,7 +53,7 @@ def test_only_the_organisation_tags_everyone_and_the_present():
     assert "coorga_all=true,false,false,false" in out and "coorga_present=false,true,false,false" in out, out
 
 
-def test_present_tags_yes_and_maybe_only_and_everyone_reaches_invited_people_without_answer():
+def test_present_tags_yes_and_maybe_only_and_nobody_without_access_is_notified():
     out = run(CHAT + as_bot("olga") + say("@present on se retrouve à la gare")
               + as_postgres() + notified("present_ada", "ada") + notified("present_victor", "victor")
               + notified("present_valentin", "valentin")
@@ -58,14 +61,15 @@ def test_present_tags_yes_and_maybe_only_and_everyone_reaches_invited_people_wit
               + as_bot("olga") + say("@toutlemonde le lieu a changé")
               + as_postgres() + notified("all_valentin", "valentin") + notified("all_victor", "victor"))
     assert "present_ada=true" in out and "present_victor=null" in out and "present_valentin=null" in out, out
-    assert "all_valentin=true" in out and "all_victor=true" in out, out
+    # @toutlemonde ne touche plus les invités sans réponse ni les absents : la discussion leur est fermée (19.11).
+    assert "all_valentin=null" in out and "all_victor=null" in out, out
 
 
 def test_an_announcement_is_pinned_and_titled_and_a_guest_cannot_announce():
-    out = run(CHAT + as_bot("victor") + say("Mon annonce", "announcement=true") + flags("guest")
+    out = run(CHAT + VICTOR_MAYBE + as_bot("victor") + say("Mon annonce", "announcement=true") + flags("guest")
               + say("@annonce moi aussi") + flags("guest_tag")
               + as_bot("olga") + say("Parking derrière la salle", "announcement=true") + flags("staff")
-              + as_postgres() + keep("title", "(select title from public.notifications where event_id = e and user_id = valentin "
+              + as_postgres() + keep("title", "(select title from public.notifications where event_id = e and user_id = ada "
                                               "and kind = 'message' order by created_at desc limit 1)")
               + as_bot("olga") + say("@annonce Dress code blanc") + flags("staff_tag")
               + as_postgres() + keep("text", "(select string_agg(body, ' / ') from public.notifications where event_id = e and user_id = ada "
@@ -92,12 +96,12 @@ def test_a_photo_alone_lives_in_its_own_event_folder_and_leaves_with_the_message
 
 def test_people_to_cite_hide_unanswered_guests_from_guests_but_not_from_the_organisation():
     who = "(select string_agg(display_name || ':' || coalesce(rsvp, '-'), ',' order by display_name) from public.event_chat_people(e))"
-    out = run(CHAT + as_bot("victor") + keep("guest", who) + as_bot("olga") + keep("staff", who)
+    out = run(CHAT + VICTOR_MAYBE + as_bot("victor") + keep("guest", who) + as_bot("olga") + keep("staff", who)
               + as_bot("olga") + keep("state", "public.event_chat_state(e)->>'staff'")
               + as_bot("victor") + keep("ada_state", "(public.event_chat_state(e)->>'staff') || '/' || (public.event_chat_state(e)->>'write')"))
 
     guest = out.split("guest=")[1].split(" |")[0]
     staff = out.split("staff=")[1].split(" |")[0]
-    assert "Valentin" not in guest and "Ada:yes" in guest and "Victor:no" in guest, out
+    assert "Valentin" not in guest and "Ada:yes" in guest and "Victor:maybe" in guest, out
     assert "Valentin:-" in staff, out
     assert "state=true" in out and "ada_state=false/true" in out, out

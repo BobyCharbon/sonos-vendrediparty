@@ -30,7 +30,7 @@ import { chatTimeline, directAsGroupMessage, EVENT_TAGS, eventChatPrefs, eventTa
   mentionQuery, mentionsIn, mentionSuggestions, muteEventChat, muteUntil, NOTIFY_LEVELS, newMessageId, pickPhoto, setEventChatLevel, shrinkPhoto,
   signedPhotos, startVoice, uploadChatAudio, uploadChatPhoto, voiceClock, withoutAnnounceTag,
   type ChatSummary, type ChatWriteMode, type DirectMessageRow, type EveryoneBy, type GroupMessage, type MuteChoice, type NotifyLevel, type Reaction,
-  type TimelineRow, type VoiceRecording } from '@/lib/chats';
+  type TimelineRow, type VoiceRecording, CHAT_FOR_GUESTS } from '@/lib/chats';
 import { useLivePing, useQuery, useRealtime, type RealtimeRow } from '@/lib/data';
 import { discussionsOn } from '@/lib/features';
 import { groupName } from '@/lib/groups';
@@ -179,6 +179,8 @@ async function loadEvent(id: string, me: string) {
     supabase.from('events').select('*').eq('id', id).single(),
   ]);
   let st = state.data as EventState | null;
+  // Réservée à Présent / Peut-être et à l'organisation (19.11) : la base ne rend aucun message aux autres.
+  if (st && (st as { open?: boolean }).open === false) throw new Error(CHAT_FOR_GUESTS);
   if (state.error || typeof st?.write !== 'boolean') {
     const ev = must(await supabase.from('events').select('title, created_by, event_organizers(user_id)').eq('id', id).single()) as
       { title: string; created_by: string; event_organizers: { user_id: string }[] };

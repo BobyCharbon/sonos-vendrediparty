@@ -7,8 +7,11 @@ bots seulement, transactions ANNULÉES :
 - non-lus et « marquer comme lu », médias (photos, vocaux, liens), recherche, droits.
 Lancement : SUPABASE_LIVE_TESTS=1 python -m pytest tests/supabase_live/test_discussion_native_live.py -q"""
 from tests.supabase_live.test_bar_options_live import as_bot, as_postgres, keep, note, run
-from tests.supabase_live.test_discussion_evenement_live import CHAT, say
+from tests.supabase_live.test_discussion_evenement_live import CHAT as BASE, VICTOR_MAYBE, say
 from tests.supabase_live.test_member_admin_live import pytestmark  # noqa: F401
+
+# Discussion réservée à Présent / Peut-être (19.11) : Victor, l'invité ordinaire de ces tests, répond Peut-être.
+CHAT = BASE + VICTOR_MAYBE
 
 
 def count(label: str, who: str) -> str:
