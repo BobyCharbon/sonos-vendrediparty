@@ -128,7 +128,7 @@ def test_review_notes_describe_discussions_v2_within_4000_characters():
 def test_app_store_checklist_keeps_the_admin_decisions_in_view():
     checklist = read("docs/app-store/checklist-envoi.md")
     for words in ("Discussions v2 (18.11)", "Deux comptes de démo", "Apple-test 2", "rien de neuf à cocher",
-                  "Représentant légal dans l'UE — À DÉCIDER PAR L'ADMIN"):
+                  "Représentant légal dans l'UE** (décision de l'admin du 19.11)"):
         assert words in checklist, words
     guide = read("docs/app-store/notes-for-review.md")
     assert read("ios/appstore/review-notes.txt").strip() in guide  # partie A = fichier envoyé
