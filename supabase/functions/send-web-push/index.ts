@@ -10,7 +10,12 @@ type Delivery = {
   silent?: boolean;  // pendant une pause (lune, Discussions) : ni son ni vibration
 };
 function checked<T>({ data, error }: { data: T; error: unknown }): T {
-  if (error) throw new Error('Database operation failed');
+  if (error) {
+    // Code et message de la base (PostgREST) seulement : jamais un jeton, une adresse d'appareil ni une clé.
+    const e = error as { code?: unknown; message?: unknown };
+    console.error('Database operation failed', String(e.code ?? ''), String(e.message ?? '').slice(0, 200));
+    throw new Error('Database operation failed');
+  }
   return data;
 }
 
@@ -74,8 +79,8 @@ Deno.serve(async (req: Request) => {
     }
     // « accepted » signifie accepté par le service push, pas affiché sur le téléphone.
     return Response.json({ accepted, postponed });
-  } catch {
-    console.error('Web push job interrupted; pending leases will expire');
+  } catch (e) {
+    console.error('Web push job interrupted; pending leases will expire', String((e as Error)?.message ?? e).slice(0, 200));
     return Response.json({ error: 'Web push job unavailable' }, { status: 500 });
   }
 });

@@ -12,7 +12,12 @@ type Ticket = { status?: string; id?: string; details?: { error?: string } };
 type ReceiptRow = { id: string; token: string; ticket_id: string; requested_at: string };
 
 function checked<T>({ data, error }: { data: T; error: { message: string } | null }): T {
-  if (error) throw new Error('Database operation failed');
+  if (error) {
+    // Code et message de la base (PostgREST) seulement : jamais un jeton, une adresse d'appareil ni une clé.
+    const e = error as { code?: unknown; message?: unknown };
+    console.error('Database operation failed', String(e.code ?? ''), String(e.message ?? '').slice(0, 200));
+    throw new Error('Database operation failed');
+  }
   return data;
 }
 
@@ -139,8 +144,8 @@ Deno.serve(async (req: Request) => {
     }
     checked(await db.rpc('finalize_push_notifications'));
     return Response.json(totals);
-  } catch {
-    console.error('Push delivery job interrupted; queued leases will expire');
+  } catch (e) {
+    console.error('Push delivery job interrupted; queued leases will expire', String((e as Error)?.message ?? e).slice(0, 200));
     return Response.json({ error: 'Push job unavailable' }, { status: 500 });
   }
 });
