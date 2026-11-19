@@ -47,7 +47,7 @@ export function ChatMenu({ chat, onClose, onChoose }: { chat: ChatItem | null; o
             <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
               <Text numberOfLines={1} style={[chatFont.display, { color: c.t1, fontSize: 20, lineHeight: 24 }]}>{name}</Text>
               <Text style={[chatFont.text, { color: c.t2, fontSize: 13 }]}>
-                {direct ? 'Message direct' : chat.kind === 'event' ? 'Discussion de la soirée' : chat.is_vp ? 'Toute la communauté' : `Groupe · ${chat.members} membres`}
+                {direct ? 'Message direct' : chat.kind === 'event' ? 'Discussion de l’événement' : chat.is_vp ? 'Toute la communauté' : `Groupe · ${chat.members} membres`}
               </Text>
             </View>
           </View>

@@ -312,6 +312,12 @@ final class ChatsStore: ObservableObject {
         return (try? await api.chatsRPC(token: token, fn: "chat_people_search", args: ["q": q])) ?? []
     }
 
+    /// Mes événements par leur titre, même sans message (chat_event_search, 19.11) : y lancer la discussion.
+    func searchEvents(_ q: String) async -> [ChatSummary] {
+        guard q.count >= 2, let token = await web?.accountToken() else { return [] }
+        return (try? await api.chatsRPC(token: token, fn: "chat_event_search", args: ["q": q])) ?? []
+    }
+
     func searchMessages(_ q: String) async -> [ChatMessageHit] {
         guard q.count >= 2, let token = await web?.accountToken() else { return [] }
         return (try? await api.chatsRPC(token: token, fn: "chat_search", args: ["q": q])) ?? []

@@ -42,7 +42,7 @@ struct ChatListRow: View {
                         .foregroundStyle(ChatNeon.t1)
                         .lineLimit(1)
                     if chat.isEvent {
-                        Text(chat.eventPast ? "Passée" : "Soirée")
+                        Text(chat.eventPast ? "Passé" : "Événement")
                             .font(.caption2.weight(.bold)).kerning(0.6).textCase(.uppercase)
                             .foregroundStyle(chat.eventPast ? ChatNeon.t3 : ChatNeon.coral)
                     }

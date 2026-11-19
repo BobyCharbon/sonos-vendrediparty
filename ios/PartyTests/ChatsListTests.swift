@@ -79,7 +79,7 @@ struct ChatsListTests {
         #expect(ChatListLogic.archived(list).map(\.id) == ["arch"])
     }
 
-    @Test("Filtres : Non lus (non lus ou marquée), Personnes, Groupes, Soirées")
+    @Test("Filtres : Non lus (non lus ou marquée), Personnes, Groupes, Événements")
     func filters() throws {
         let list = [try row("g", unread: 2), try row("d", kind: "direct"), try row("m", kind: "direct", marked: true),
                     try row("e", kind: "event")]
@@ -88,7 +88,7 @@ struct ChatsListTests {
         #expect(ChatListLogic.rows(list, filter: .groups).map(\.id) == ["g"])
         #expect(ChatListLogic.rows(list, filter: .events).map(\.id) == ["e"])
         #expect(ChatListLogic.unreadChats(list) == 2)
-        #expect(ChatFilter.allCases.map(\.label) == ["Tout", "Non lus", "Personnes", "Groupes", "Soirées"])
+        #expect(ChatFilter.allCases.map(\.label) == ["Tout", "Non lus", "Personnes", "Groupes", "Événements"])
     }
 
     @Test("Pastille : non lus hors archivées et hors sourdine, + 1 par demande reçue")
@@ -185,5 +185,17 @@ struct ChatsListTests {
         let g = try row("g", at: "2026-11-18T11:00:00Z", unread: 3, pinned: "2026-11-18T00:00:00Z", notify: "none")
         let text = ChatListText.accessibility(g, now: now)
         #expect(text.hasPrefix("Groupe, Discussion g, épinglée, 3 non lus, en sourdine, Léa : Salut"))
+    }
+
+    @Test("Recherche « Événements » (19.11) : un de mes événements sans message se lit comme une ligne de la liste")
+    func eventSearchHitWithoutMessage() throws {
+        let found: [ChatSummary] = try decode("""
+        [{"kind":"event","id":"e9","title":"Paintball","photo":null,"emoji":null,"color":null,"user_id":null,
+          "event_start":"2026-11-29T13:00:00Z","event_past":false,"last":null,"unread":0,"mention":false,"marked_unread":false,
+          "pinned_at":null,"archived":false,"notify":"all","muted_until":null,"request":null,"seen_by_other":null,
+          "members":7,"is_vp":false,"blocked":false}]
+        """)
+        #expect(found.count == 1 && found[0].kind == .event && found[0].last == nil)
+        #expect(ChatListText.subtitle(found[0]) == "Pas encore de message : écris le premier")
     }
 }

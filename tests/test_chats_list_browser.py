@@ -129,6 +129,12 @@ def list_services(page, chats=None):
             result = None
         elif name == 'chat_people_search':
             result = [p for p in PEOPLE if body['q'].lower()[:2] in p['name'].lower()]
+        elif name == 'chat_event_search':  # mes événements encore sans message (19.11)
+            result = [{'kind': 'event', 'id': uid(888), 'title': 'Lézard Party', 'photo': None, 'emoji': None, 'color': None,
+                       'user_id': None, 'event_start': ago(days=-5), 'event_past': False, 'last': None, 'unread': 0,
+                       'mention': False, 'marked_unread': False, 'pinned_at': None, 'archived': False, 'notify': 'all',
+                       'muted_until': None, 'request': None, 'seen_by_other': None, 'members': 4, 'is_vp': False,
+                       'blocked': False}]
         elif name == 'chat_search':
             result = [{'kind': 'group', 'id': G_JURA, 'title': 'Les Copains du Jura', 'message_id': uid(777),
                        'excerpt': 'On passe prendre Léa à 18 h', 'at': ago(200)}]
@@ -215,7 +221,7 @@ def test_the_list_looks_like_the_neon_mockup(phone, events_origin):
     pins = page.get_by_role('list', name='Épinglées').get_by_role('button')
     pw.expect(pins).to_have_count(4)
     assert pins.nth(0).get_attribute('aria-label').startswith('Message direct Léa, 2 non lus')
-    assert pins.nth(1).get_attribute('aria-label').startswith('Soirée Raclette chez Léa, 12 non lus')
+    assert pins.nth(1).get_attribute('aria-label').startswith('Événement Raclette chez Léa, 12 non lus')
     pw.expect(page.get_by_role('link', name='Demandes de message, 2 nouvelles')).to_be_visible()
     pw.expect(page.get_by_role('link', name='Archivées, 3')).to_be_visible()
     rows = page.get_by_role('list', name='Toutes les discussions').get_by_role('button', name='Message direct', exact=False)
@@ -227,7 +233,7 @@ def test_the_list_looks_like_the_neon_mockup(phone, events_origin):
     pw.expect(listing.get_by_role('button', name='Message direct Léa,', exact=False)).to_have_count(0)
     # @ (on te cite), sourdine (pastille grise), Vu, aperçu « Toi : », groupe « Noé : », logo officiel de Membres Vendredi Party.
     pw.expect(listing.get_by_role('button', name='Discussion Les Copains du Jura, 3 non lus, on te cite')).to_be_visible()
-    pw.expect(listing.get_by_role('button', name='Soirée Paintball à Bulle, 6 non lus, en sourdine')).to_be_visible()
+    pw.expect(listing.get_by_role('button', name='Événement Paintball à Bulle, 6 non lus, en sourdine')).to_be_visible()
     pw.expect(listing.get_by_text('Toi : Merci pour hier soir, c’était top 🙏')).to_be_visible()
     pw.expect(listing.get_by_label('Vu').first).to_be_attached()
     pw.expect(listing.get_by_text('Noé : @Sam tu prends la voiture samedi ?')).to_be_visible()
@@ -276,8 +282,8 @@ def test_filters_and_search_people_chats_and_messages(phone, events_origin):
     page.get_by_role('tab', name='Non lus, 6').click()
     pw.expect(listing.get_by_role('button', name='Basket du mardi', exact=False)).to_have_count(0)
     pw.expect(listing.get_by_role('button', name='Message direct Léa, 2 non lus', exact=False)).to_be_visible()  # épinglée : ligne ici
-    page.get_by_role('tab', name='Soirées').click()
-    pw.expect(listing.get_by_role('button', name='Soirée', exact=False)).to_have_count(2)
+    page.get_by_role('tab', name='Événements').click()
+    pw.expect(listing.get_by_role('button', name='Événement', exact=False)).to_have_count(2)
     page.get_by_role('tab', name='Groupes').click()
     pw.expect(listing.get_by_role('button', name='Discussion Membres Vendredi Party', exact=False)).to_be_visible()
     pw.expect(listing.get_by_role('button', name='Message direct', exact=False)).to_have_count(0)
@@ -291,6 +297,8 @@ def test_filters_and_search_people_chats_and_messages(phone, events_origin):
     pw.expect(page.get_by_role('button', name='Ouvrir Léa')).to_be_visible()
     pw.expect(page.get_by_role('button', name='Message dans Les Copains du Jura : On passe prendre Léa à 18 h')).to_be_visible()
     assert ('chat_people_search', {'q': 'Lé'}) in state['rpc'] and ('chat_search', {'q': 'Lé'}) in state['rpc']
+    pw.expect(page.get_by_role('heading', name='Événements')).to_be_visible()
+    pw.expect(page.get_by_role('button', name='Discussion de l’événement Lézard Party')).to_be_visible()
     shot(page, '6-recherche.png')
     page.get_by_role('button', name='Message dans Les Copains du Jura', exact=False).click()
     pw.expect(page).to_have_url(f'{events_origin}/events/chats/{G_JURA}?message={uid(777)}', timeout=10000)

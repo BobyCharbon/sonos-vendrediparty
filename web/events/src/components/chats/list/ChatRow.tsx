@@ -28,7 +28,7 @@ type Props = {
 
 /** Ce que la ligne dit aux lecteurs d'écran (la couleur n'est jamais seule). */
 export function rowLabel(c: ChatItem, name: string, typing?: string): string {
-  const what = c.kind === 'direct' ? 'Message direct' : c.kind === 'event' ? 'Soirée' : 'Discussion';
+  const what = c.kind === 'direct' ? 'Message direct' : c.kind === 'event' ? 'Événement' : 'Discussion';
   const bits = [`${what} ${name}`];
   if (c.unread) bits.push(`${c.unread} non lu${c.unread > 1 ? 's' : ''}`);
   else if (c.marked_unread) bits.push('marquée non lue');
@@ -171,7 +171,7 @@ function Preview({ chat, typing, unread, c }: { chat: ChatItem; typing?: string;
   }
   if (chat.kind === 'direct' && chat.blocked) return <Text numberOfLines={1} style={[...base, { color: c.t3 }]}>Personne bloquée</Text>;
   const last = chat.last;
-  if (!last) return <Text numberOfLines={1} style={[...base, { color: c.t3 }]}>{chat.kind === 'event' ? 'Discussion de la soirée' : 'Aucun message pour l’instant'}</Text>;
+  if (!last) return <Text numberOfLines={1} style={[...base, { color: c.t3 }]}>{chat.kind === 'event' ? 'Discussion de l’événement' : 'Aucun message pour l’instant'}</Text>;
   const text = previewText(last);
   const who = last.from_me ? 'Toi' : chat.kind !== 'direct' ? last.author : null;
   const deleted = last.type === 'deleted';

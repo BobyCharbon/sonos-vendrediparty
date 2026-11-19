@@ -5,12 +5,14 @@ import { chatFont, useNeon } from '../neon';
 import { ChatFace, PersonFace } from './Faces';
 import { listTime } from './format';
 import { usePersonText } from '@/components/PersonName';
-import { fold, searchMessages, searchPeople, type ChatItem, type ChatPerson, type MessageHit } from '@/lib/chatList';
+import { fold, searchEvents, searchMessages, searchPeople, type ChatItem, type ChatPerson, type MessageHit } from '@/lib/chatList';
+import { relativeDay } from '@/lib/format';
 import { enter } from '@/lib/motion';
 
 /**
  * Recherche (contrat §8) : Personnes (prénom, nom, surnom ; jamais par numéro ; seulement celles à qui je peux écrire),
- * Discussions (mes titres, sans accents), Messages (dans mes conversations seulement). Dès 2 caractères pour la base.
+ * Discussions (mes titres, sans accents), Événements (les miens, même sans message : y lancer la discussion ; 19.11),
+ * Messages (dans mes conversations seulement). Dès 2 caractères pour la base.
  */
 export function SearchResults({ q, chats, onPerson, onChat, onMessage }: {
   q: string; chats: ChatItem[];
@@ -19,14 +21,14 @@ export function SearchResults({ q, chats, onPerson, onChat, onMessage }: {
   const c = useNeon();
   const personText = usePersonText();
   const query = q.trim();
-  const [res, setRes] = useState<{ q: string; people: ChatPerson[]; messages: MessageHit[] } | null>(null);
+  const [res, setRes] = useState<{ q: string; people: ChatPerson[]; events: ChatItem[]; messages: MessageHit[] } | null>(null);
 
   useEffect(() => {
     if (query.length < 2) return undefined;
     let live = true;
     const timer = setTimeout(() => {
-      void Promise.all([searchPeople(query), searchMessages(query)]).then(([p, m]) => {
-        if (live) setRes({ q: query, people: p, messages: m });
+      void Promise.all([searchPeople(query), searchEvents(query), searchMessages(query)]).then(([p, e, m]) => {
+        if (live) setRes({ q: query, people: p, events: e, messages: m });
       });
     }, 250);
     return () => { live = false; clearTimeout(timer); };
@@ -39,12 +41,13 @@ export function SearchResults({ q, chats, onPerson, onChat, onMessage }: {
 
   const f = fold(query);
   const found = f ? chats.filter((ch) => fold(ch.kind === 'direct' && ch.user_id ? personText(ch.user_id, ch.title) : ch.title).includes(f)).slice(0, 8) : [];
-  const nothing = query.length >= 2 && !busy && !people.length && !messages.length && !found.length;
+  const events = (fresh?.events ?? []).filter((e) => !found.some((ch) => ch.kind === 'event' && ch.id === e.id));
+  const nothing = query.length >= 2 && !busy && !people.length && !messages.length && !found.length && !events.length;
 
   return (
     <View style={{ paddingBottom: 24 }} aria-live="polite">
       {query.length < 2 ? (
-        <Text style={[chatFont.text, st.hint, { color: c.t2 }]}>Cherche une personne par son prénom, son nom ou son surnom, une discussion ou un message.</Text>
+        <Text style={[chatFont.text, st.hint, { color: c.t2 }]}>Cherche une personne par son prénom, son nom ou son surnom, un événement, une discussion ou un message.</Text>
       ) : null}
       {people.length ? (
         <Section title="Personnes">
@@ -73,6 +76,22 @@ export function SearchResults({ q, chats, onPerson, onChat, onMessage }: {
               <Text numberOfLines={1} style={[chatFont.semibold, { flex: 1, color: c.t1, fontSize: 17 }]}>
                 {ch.kind === 'direct' && ch.user_id ? personText(ch.user_id, ch.title) : ch.title}
               </Text>
+            </Pressable>
+          ))}
+        </Section>
+      ) : null}
+      {events.length ? (
+        <Section title="Événements">
+          {events.map((ev, i) => (
+            <Pressable key={ev.id} accessibilityRole="button" accessibilityLabel={`Discussion de l’événement ${ev.title}`} testID="chat-search-event"
+              onPress={() => onChat(ev)} style={({ pressed }) => [st.row, enter('rise', i), pressed && { backgroundColor: c.glass }]}>
+              <ChatFace chat={ev} size={44} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text numberOfLines={1} style={[chatFont.semibold, { color: c.t1, fontSize: 17 }]}>{ev.title}</Text>
+                <Text numberOfLines={1} style={[chatFont.text, { color: c.t2, fontSize: 14 }]}>
+                  {ev.event_start ? `${relativeDay(ev.event_start)} · ` : ''}Pas encore de message : écris le premier
+                </Text>
+              </View>
             </Pressable>
           ))}
         </Section>

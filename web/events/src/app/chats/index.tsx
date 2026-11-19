@@ -172,7 +172,7 @@ function ChatsHome() {
             </View>
             {!rows.length && filter !== 'all' ? (
               <Text style={[chatFont.text, st.none, { color: c.t2 }]}>
-                {filter === 'unread' ? 'Tout est lu 🎉' : filter === 'direct' ? 'Aucun message direct.' : filter === 'group' ? 'Aucun groupe.' : 'Aucune discussion de soirée en cours.'}
+                {filter === 'unread' ? 'Tout est lu 🎉' : filter === 'direct' ? 'Aucun message direct.' : filter === 'group' ? 'Aucun groupe.' : 'Aucune discussion d’événement en cours. Cherche un événement pour lancer sa discussion.'}
               </Text>
             ) : null}
           </>

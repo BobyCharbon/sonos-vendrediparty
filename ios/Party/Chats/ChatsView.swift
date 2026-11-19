@@ -62,7 +62,7 @@ struct ChatsView: View {
                 .background(NeonNavigationBar())
                 .navigationTitle("Discussions")
                 .navigationBarTitleDisplayMode(.large)
-                .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Personnes, groupes, messages")
+                .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Personnes, groupes, événements, messages")
                 .toolbar {
                     ToolbarItemGroup(placement: .navigationBarTrailing) {
                         ChatsMoonMenu(store: store.pause)

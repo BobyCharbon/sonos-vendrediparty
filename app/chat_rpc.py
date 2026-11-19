@@ -31,7 +31,7 @@ RELAY = {
     "chat_people_suggestions", "chat_people_search", "member_mini", "contacts_match",       # §4
     "create_chat_group", "chat_group_with",                                                 # §5
     "direct_seen", "chat_event_cards", "edit_direct_message", "edit_group_message",         # §6
-    "chat_search",                                                                          # §8
+    "chat_search", "chat_event_search",                                                     # §8 (+ événements, 19.11)
     "report_content",                                                                       # §7 (messages, profils)
     # Groupes en natif (18.11, « tout en natif ») : inviter, numéro montré, règles des événements, invitations reçues.
     "group_invite_suggestions", "invite_to_group", "revoke_invite_link", "set_group_phone_share",

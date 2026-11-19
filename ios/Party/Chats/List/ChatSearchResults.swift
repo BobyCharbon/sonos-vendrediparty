@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// Recherche de la liste (« Personnes, groupes, messages ») : Personnes (chat_people_search, jamais par numéro),
-/// Discussions (mes discussions, par leur nom), Messages (chat_search, seulement mes conversations).
+/// Discussions (mes discussions, par leur nom), Événements (les miens, même sans message : y lancer la discussion,
+/// chat_event_search), Messages (chat_search, seulement mes conversations).
 struct ChatSearchResults: View {
     let query: String
     @ObservedObject var store: ChatsStore
@@ -10,12 +11,14 @@ struct ChatSearchResults: View {
 
     @State private var people: [ChatPerson] = []
     @State private var messages: [ChatMessageHit] = []
+    @State private var events: [ChatSummary] = []
     @State private var searched = ""
 
     private var trimmed: String { query.trimmingCharacters(in: .whitespaces) }
 
     var body: some View {
         let chats = ChatListLogic.matching(store.chats ?? [], query: trimmed)
+        let newEvents = events.filter { event in !chats.contains { $0.id == event.id } }
         List {
             if !people.isEmpty {
                 Section {
@@ -35,6 +38,16 @@ struct ChatSearchResults: View {
                     }
                 } header: { ChatSectionHeader(title: "Discussions") }
             }
+            if !newEvents.isEmpty {
+                Section {
+                    ForEach(newEvents) { event in
+                        Button { open(event) } label: { ChatListRow(chat: event).padding(.horizontal, 16) }
+                            .buttonStyle(ChatRowPressStyle())
+                            .neonRow()
+                            .accessibilityIdentifier("chat-search-event")
+                    }
+                } header: { ChatSectionHeader(title: "Événements") }
+            }
             if !messages.isEmpty {
                 Section {
                     ForEach(messages) { hit in
@@ -44,7 +57,7 @@ struct ChatSearchResults: View {
                     }
                 } header: { ChatSectionHeader(title: "Messages") }
             }
-            if people.isEmpty && chats.isEmpty && messages.isEmpty {
+            if people.isEmpty && chats.isEmpty && newEvents.isEmpty && messages.isEmpty {
                 Text(searched == trimmed && trimmed.count >= 2 ? "Rien trouvé pour « \(trimmed) »." : trimmed.count < 2 ? "Tape au moins 2 lettres." : "Recherche…")
                     .font(.subheadline).foregroundStyle(ChatNeon.t2)
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -58,16 +71,18 @@ struct ChatSearchResults: View {
         .scrollDismissesKeyboard(.immediately)
         .task(id: trimmed) {
             let q = trimmed
-            guard q.count >= 2 else { people = []; messages = []; searched = q; return }
+            guard q.count >= 2 else { people = []; messages = []; events = []; searched = q; return }
             try? await Task.sleep(for: .milliseconds(280))  // on tape encore : une seule recherche
             guard !Task.isCancelled else { return }
             async let p = store.searchPeople(q)
             async let m = store.searchMessages(q)
-            let (foundPeople, foundMessages) = await (p, m)
+            async let e = store.searchEvents(q)
+            let (foundPeople, foundMessages, foundEvents) = await (p, m, e)
             guard !Task.isCancelled else { return }
             Motion.animate(Motion.smooth) {
                 people = foundPeople
                 messages = foundMessages
+                events = foundEvents
                 searched = q
             }
         }

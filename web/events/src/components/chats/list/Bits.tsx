@@ -69,10 +69,10 @@ export function SearchField({ value, onChange, active, onFocus, onCancel }: {
 export type Filter = 'all' | 'unread' | 'direct' | 'group' | 'event';
 export const FILTERS: { key: Filter; label: string }[] = [
   { key: 'all', label: 'Tout' }, { key: 'unread', label: 'Non lus' }, { key: 'direct', label: 'Personnes' },
-  { key: 'group', label: 'Groupes' }, { key: 'event', label: 'Soirées' },
+  { key: 'group', label: 'Groupes' }, { key: 'event', label: 'Événements' },
 ];
 
-/** Filtres en puces qui défilent (Tout / Non lus n / Personnes / Groupes / Soirées). */
+/** Filtres en puces qui défilent (Tout / Non lus n / Personnes / Groupes / Événements). */
 export function FilterChips({ value, onChange, unread }: { value: Filter; onChange: (f: Filter) => void; unread: number }) {
   const c = useNeon();
   return (
@@ -178,7 +178,7 @@ export function Dropdown({ items, title, children, onClose }: { items: MenuItem[
 const SPANS: { key: PauseSpan; label: string }[] = [
   { key: '30m', label: '30 min' }, { key: '1h', label: '1 h' }, { key: '2h', label: '2 h' }, { key: 'morning', label: 'Jusqu’à 8 h' },
 ];
-const SUBJECT: Record<Exclude<PauseScope, 'all'>, string> = { chats: 'Groupes et messages', event_chats: 'Discussions des soirées' };
+const SUBJECT: Record<Exclude<PauseScope, 'all'>, string> = { chats: 'Groupes et messages', event_chats: 'Discussions des événements' };
 
 /** Pause des Discussions (existante : notification_prefs, set_notification_pause) : messages sans son ni vibration. */
 export function PausePanel({ pause }: { pause: ReturnType<typeof usePause> }) {

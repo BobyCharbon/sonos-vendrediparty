@@ -14,7 +14,7 @@ enum ChatFilter: String, CaseIterable, Identifiable {
         case .unread: return "Non lus"
         case .people: return "Personnes"
         case .groups: return "Groupes"
-        case .events: return "Soirées"
+        case .events: return "Événements"
         }
     }
 
@@ -144,7 +144,7 @@ enum ChatListText {
         case "deleted": return "Message supprimé"
         case "photo": body = text.isEmpty ? "📷 Photo" : "📷 " + text
         case "audio": body = "🎤 Message vocal"
-        case "event": body = "📅 " + (text.isEmpty ? "Une soirée" : text)
+        case "event": body = "📅 " + (text.isEmpty ? "Un événement" : text)
         default: body = text
         }
         if last.fromMe { return "Toi : " + body }
@@ -158,7 +158,7 @@ enum ChatListText {
     static func subtitle(_ chat: ChatSummary) -> String {
         if chat.outgoingRequest { return "Demande envoyée" }
         if chat.blocked { return "Tu as bloqué cette personne" }
-        return chat.last ?? "Aucun message pour l'instant"
+        return chat.last ?? (chat.kind == .event ? "Pas encore de message : écris le premier" : "Aucun message pour l'instant")
     }
 
     /// « 21:48 » aujourd'hui, « Hier », le jour de la semaine (« Lun. ») cette semaine, sinon « 28.10 » (« 28.10.25 »
@@ -188,7 +188,7 @@ enum ChatListText {
         switch chat.kind {
         case .direct: parts.append("Message direct, \(chat.name)")
         case .group: parts.append("Groupe, \(chat.name)")
-        case .event: parts.append("Soirée, \(chat.name)")
+        case .event: parts.append("Événement, \(chat.name)")
         }
         if chat.pinned { parts.append("épinglée") }
         if chat.unread > 0 { parts.append(chat.unread == 1 ? "1 non lu" : "\(chat.unread) non lus") }

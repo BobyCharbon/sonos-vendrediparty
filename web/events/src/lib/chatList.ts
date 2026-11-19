@@ -207,6 +207,14 @@ export async function searchPeople(q: string): Promise<ChatPerson[]> {
   return (data as ChatPerson[] | null) ?? [];
 }
 
+/** Mes événements dont le titre contient ce texte, même sans message (10 au plus) : pour y lancer la discussion. */
+export async function searchEvents(q: string): Promise<ChatItem[]> {
+  if (q.trim().length < 2) return [];
+  const { data, error } = await supabase.rpc('chat_event_search', { q: q.trim() });
+  if (error) return [];
+  return (data as ChatItem[] | null) ?? [];
+}
+
 /** Messages de mes conversations qui contiennent ce texte (30 au plus). */
 export async function searchMessages(q: string): Promise<MessageHit[]> {
   if (q.trim().length < 2) return [];
