@@ -8,7 +8,7 @@ a. lien d'invitation → « Je viens ! » → connexion SMS → « Faisons conna
    page Party (barre d'onglets), la fiche dans le cadre ; l'onglet Événements montre la liste (un autre événement public) ;
 b. même chose avec « Peut-être » puis « Je ne peux pas », sur deux autres événements ;
 c. /events/event/<id>, /events/, /events/groups, /events/pronos ouverts en page principale : renvoyés dans Party, même
-   page, dans le cadre ; recharger la page la garde ;
+   page, dans le cadre (Pronos, gardés en test : la liste) ; recharger la page la garde ;
 d. lien d'invitation de groupe (/events/group-invite/<jeton>) : il rejoint le groupe et arrive dans Party (cadre) ;
 e. « Demande envoyée » (événement sans lien public, lien d'un invité) → « Découvrir Party » → Party, la liste.
 
@@ -183,8 +183,9 @@ def test_b_maybe_and_cannot_come_also_land_in_party(browser, party, world, key, 
 def test_c_module_pages_opened_alone_go_back_into_party_and_survive_a_reload(browser, party, world):  # noqa: F811
     page = world['a']
     e = world['yes'][0]
+    # Pronos gardés en test (19.11, PRONOS_ENABLED) : avec les drapeaux de la prod, leur page ramène à la liste, dans Party.
     cases = [(f'/events/event/{e}', f'/events/event/{e}', party_event(e)), ('/events/', '/events/', None),
-             ('/events/groups', '/events/groups', party_path('/groups')), ('/events/pronos', '/events/pronos', party_path('/pronos'))]
+             ('/events/groups', '/events/groups', party_path('/groups')), ('/events/pronos', '/events/', None)]
     for n, (opened, framed, address) in enumerate(cases):
         page.goto(f'{party}{opened}', wait_until='domcontentloaded')
         in_party(page, framed)

@@ -1,4 +1,4 @@
-import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { router, Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,7 +18,7 @@ import { preloadChat } from '@/components/GroupChat';
 import { Loading } from '@/components/ui';
 import { useMe } from '@/lib/auth';
 import {
-  cachedChatList, chatKey, fetchChatBadge, fetchChatList, fetchCrossed, isUnread, keepChatList, newMessage, openChat, tellBadge, writeTo,
+  afterReads, cachedChatList, chatKey, fetchChatBadge, fetchChatList, fetchCrossed, isUnread, keepChatList, newMessage, openChat, tellBadge, writeTo,
   type ChatItem, type ChatPerson,
 } from '@/lib/chatList';
 import { useQuery, useRealtime, useSignal } from '@/lib/data';
@@ -47,6 +47,8 @@ function ChatsHome() {
   // Temps réel des messages ; demande acceptée / refusée : signal user:<id> (direct_chat_changed), direct_chats n’est pas publiée.
   useRealtime('chats-list', [{ table: 'group_messages' }, { table: 'direct_messages' }, { table: 'messages' }], reload);
   useSignal([`user:${me.id}`, 'events'], reload);
+  // Retour d'une conversation dont le « lu » n'est pas encore enregistré : relue une fois qu'il l'est (19.11).
+  useFocusEffect(useCallback(() => { void afterReads()?.then(reload); }, [reload]));
 
   const all = useMemo(() => data ?? [], [data]);
   const setChats = useCallback((next: ChatItem[]) => setData(next), [setData]);

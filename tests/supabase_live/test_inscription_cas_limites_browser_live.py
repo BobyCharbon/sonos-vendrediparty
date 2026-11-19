@@ -74,7 +74,8 @@ def party(tmp_path_factory):
             time.sleep(.1)
         else:
             raise AssertionError('Le serveur Party de recette ne démarre pas')
-        assert httpx.get(f'{origin}/api/features').json() == {'compagnon': False, 'discussions': False, 'invites_v2': True, 'bar': False}
+        assert httpx.get(f'{origin}/api/features').json() == {'compagnon': False, 'discussions': False, 'invites_v2': True, 'bar': False,
+                                                               'patates': False, 'agenda': False, 'pronos': False}
         yield origin
     finally:
         process.terminate()

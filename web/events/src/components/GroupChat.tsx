@@ -31,6 +31,7 @@ import { chatTimeline, directAsGroupMessage, EVENT_TAGS, eventChatPrefs, eventTa
   signedPhotos, startVoice, uploadChatAudio, uploadChatPhoto, voiceClock, withoutAnnounceTag,
   type ChatSummary, type ChatWriteMode, type DirectMessageRow, type EveryoneBy, type GroupMessage, type MuteChoice, type NotifyLevel, type Reaction,
   type TimelineRow, type VoiceRecording, CHAT_FOR_GUESTS } from '@/lib/chats';
+import { trackRead } from '@/lib/chatList';
 import { useLivePing, useQuery, useRealtime, type RealtimeRow } from '@/lib/data';
 import { discussionsOn } from '@/lib/features';
 import { groupName } from '@/lib/groups';
@@ -434,9 +435,9 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
     if (!data?.messages.length || requestIn) return;
     // Discussion d'une soirée : lue même sans droit d'écrire (son état « lu » vit dans chat_list_state, Discussions v2).
     // .then : une requête Supabase ne part qu'une fois attendue (« void supabase.rpc(…) » seul n'envoyait rien).
-    const done = () => {};
-    if (event) void supabase.rpc('mark_event_chat_read', { e: id }).then(done, done);
-    else if (member) void (direct ? supabase.rpc('mark_direct_read', { chat: id }) : supabase.rpc('mark_group_read', { grp: id })).then(done, done);
+    // trackRead : la liste, si l'on y revient avant la réponse, se relit une fois ce « lu » enregistré.
+    if (event) trackRead(supabase.rpc('mark_event_chat_read', { e: id }));
+    else if (member) trackRead(direct ? supabase.rpc('mark_direct_read', { chat: id }) : supabase.rpc('mark_group_read', { grp: id }));
   }, [member, id, direct, event, data?.messages, requestIn]);
 
   // Non lus des autres discussions, à côté de ‹ (une fois, à l'ouverture).
@@ -536,7 +537,7 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
     if (!event || !data || !atBottom || !lastId || lastId === readUpTo.current) return;
     if (shown[shown.length - 1]?.pending) return;
     readUpTo.current = lastId;
-    void markEventChatRead(id).catch(() => {});
+    trackRead(markEventChatRead(id));
   }, [event, data, atBottom, lastId, shown, id]);
 
   const people = useMemo(() => new Map((data?.people ?? []).map((p) => [p.id, p])), [data?.people]);

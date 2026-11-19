@@ -100,7 +100,8 @@ def test_a_group_is_joined_by_link_and_invitations_are_answered(people, newcomer
         assert ga.get("notifications?select=body&kind=eq.group_join&order=created_at.desc&limit=1").json()[0]['body'] == 'Testeur 2 a rejoint ton groupe'
 
         # Invitation par numéro (celui d'Admin test) : elle l'attend dans ses Réglages, il refuse puis on le réinvite et il accepte.
-        assert ga.rpc('invite_to_group', grp=group, phone='+41 79 000 00 04').json() == {'invited': 'member'}
+        # La réponse est toujours « phone » : on ne révèle jamais qu'un numéro est inscrit (migration 20261118121000).
+        assert ga.rpc('invite_to_group', grp=group, phone='+41 79 000 00 04').json() == {'invited': 'phone'}
         pending = admin.rpc('my_group_invitations').json()
         mine = [i for i in pending if i['group_id'] == group]
         assert mine and mine[0]['invited_by'] == 'Testeur 1'
