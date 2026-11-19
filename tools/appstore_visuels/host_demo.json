@@ -1,0 +1,234 @@
+{
+ "feedback_new": 0,
+ "guest_pin": "0537",
+ "guest_url": "https://party.bobycharbon.ch/",
+ "active": true,
+ "room_uid": "RINCON_X",
+ "room_name": "Salon",
+ "mode": "next",
+ "started_at": 1793204286.588437,
+ "spotify_configured": false,
+ "requests": [
+  {
+   "id": "rq1",
+   "track_id": "bbbbbbbbbbbbbbbbbbbbbb",
+   "title": "Paillettes",
+   "artist": "Mademoiselle Lune",
+   "image": "",
+   "guest_id": "guest-1234567",
+   "guest_name": "Léa",
+   "added_at": 1800000000,
+   "status": "queued",
+   "ip": "",
+   "duration_ms": 0
+  }
+ ],
+ "guests": [
+  {
+   "guest_id": "guest-léa0000",
+   "name": "Léa",
+   "joined_at": 1793200760.3173099,
+   "total": 2,
+   "queued": 1,
+   "via": [
+    "music",
+    "games"
+   ],
+   "active_at": 1793204360.3173099,
+   "ban": null,
+   "last_seen": 1793204360.3173099
+  },
+  {
+   "guest_id": "guest-tom0000",
+   "name": "Tom",
+   "joined_at": 1793200760.3173099,
+   "total": 2,
+   "queued": 1,
+   "via": [
+    "music",
+    "games"
+   ],
+   "active_at": 1793204360.3173099,
+   "ban": null,
+   "last_seen": 1793204360.3173099
+  },
+  {
+   "guest_id": "guest-zoé0000",
+   "name": "Zoé",
+   "joined_at": 1793200760.3173099,
+   "total": 2,
+   "queued": 1,
+   "via": [
+    "music",
+    "games"
+   ],
+   "active_at": 1793204360.3173099,
+   "ban": null,
+   "last_seen": 1793204360.3173099
+  },
+  {
+   "guest_id": "guest-hugo0000",
+   "name": "Hugo",
+   "joined_at": 1793200760.3173099,
+   "total": 2,
+   "queued": 1,
+   "via": [
+    "music",
+    "games"
+   ],
+   "active_at": 1793204360.3173099,
+   "ban": null,
+   "last_seen": 1793204360.3173099
+  },
+  {
+   "guest_id": "guest-inès0000",
+   "name": "Inès",
+   "joined_at": 1793200760.3173099,
+   "total": 2,
+   "queued": 1,
+   "via": [
+    "music",
+    "games"
+   ],
+   "active_at": 1793204360.3173099,
+   "ban": null,
+   "last_seen": 1793204360.3173099
+  },
+  {
+   "guest_id": "guest-nathan0000",
+   "name": "Nathan",
+   "joined_at": 1793200760.3173099,
+   "total": 2,
+   "queued": 1,
+   "via": [
+    "music",
+    "games"
+   ],
+   "active_at": 1793204360.3173099,
+   "ban": null,
+   "last_seen": 1793204360.3173099
+  }
+ ],
+ "bans": [],
+ "messages": [],
+ "top_playlists": [
+  {
+   "id": "demo:playlist:soiree",
+   "title": "Soirée disco"
+  }
+ ],
+ "source": "sonos",
+ "spotify_transfer_issues": [],
+ "spotify_legacy_pending": 0,
+ "spotify_account": null,
+ "admin_notify": {
+  "messages": true,
+  "games": false,
+  "feedback": true
+ },
+ "games": [],
+ "event": {
+  "id": "e1",
+  "title": "Anniversaire de Zoé"
+ },
+ "sonos": {
+  "queue_editable": true,
+  "device": "",
+  "state": "PLAYING",
+  "from_queue": true,
+  "now": {
+   "title": "Minuit pile",
+   "artist": "Capitaine Disco",
+   "art": "",
+   "position": "",
+   "duration": "",
+   "by": "Tom",
+   "track_id": "cccccccccccccccccccccc"
+  },
+  "upcoming": [],
+  "upcoming_total": 0,
+  "volume": 34
+ },
+ "queue": [
+  {
+   "pos": 5,
+   "key": "k0",
+   "title": "Paillettes",
+   "artist": "Mademoiselle Lune",
+   "art": "",
+   "by": "Léa",
+   "eta": 120,
+   "service": null
+  },
+  {
+   "pos": 6,
+   "key": "k1",
+   "title": "Danse avec le soleil",
+   "artist": "Les Vagues",
+   "art": "",
+   "by": null,
+   "eta": 320,
+   "service": null
+  },
+  {
+   "pos": 7,
+   "key": "k2",
+   "title": "Vendredi soir",
+   "artist": "Nova Club",
+   "art": "",
+   "by": "Zoé",
+   "eta": 520,
+   "service": null
+  },
+  {
+   "pos": 8,
+   "key": "k3",
+   "title": "Tout le monde debout",
+   "artist": "Les Ritournelles",
+   "art": "",
+   "by": null,
+   "eta": 720,
+   "service": null
+  },
+  {
+   "pos": 9,
+   "key": "k4",
+   "title": "Lumières de la nuit",
+   "artist": "Électro Chic",
+   "art": "",
+   "by": "Hugo",
+   "eta": 920,
+   "service": null
+  },
+  {
+   "pos": 10,
+   "key": "k5",
+   "title": "Comme en été",
+   "artist": "Lila Rose",
+   "art": "",
+   "by": null,
+   "eta": 1120,
+   "service": null
+  },
+  {
+   "pos": 11,
+   "key": "k6",
+   "title": "Néon sur la ville",
+   "artist": "Les Satellites",
+   "art": "",
+   "by": "Inès",
+   "eta": 1320,
+   "service": null
+  },
+  {
+   "pos": 12,
+   "key": "k7",
+   "title": "Dernier métro",
+   "artist": "Capitaine Disco",
+   "art": "",
+   "by": null,
+   "eta": 1520,
+   "service": null
+  }
+ ]
+}
