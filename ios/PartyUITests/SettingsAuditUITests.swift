@@ -34,10 +34,10 @@ final class SettingsAuditUITests: XCTestCase {
         let tab = app.tabBars.buttons.matching(NSPredicate(format: "label IN {'Réglages', 'Se connecter'}")).firstMatch
         XCTAssertTrue(tab.waitForExistence(timeout: 20), "onglet Réglages")
         tab.tap()
-        // Retour à la racine des Réglages (écran précédent resté ouvert).
-        for _ in 0..<4 where app.navigationBars.buttons.firstMatch.exists && !app.staticTexts["Notifications"].isHittable {
-            app.navigationBars.buttons.firstMatch.tap()
-        }
+        // Retour à la racine des Réglages (écran précédent resté ouvert) : le bouton retour seulement, jamais la lune de la
+        // racine (pause des notifications), puis en haut de la liste.
+        for _ in 0..<4 where app.navigationBars.buttons["BackButton"].exists { app.navigationBars.buttons["BackButton"].tap() }
+        for _ in 0..<3 { app.swipeDown(velocity: .fast) }
         sleep(1)
     }
 
@@ -115,7 +115,7 @@ final class SettingsAuditUITests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 10), "champ du numéro natif")
         record("connexion")
         type(phone, into: field)
-        app.buttons["login-send"].tap()
+        app.sendLoginCode()
         let code = app.textFields["login-code"]
         XCTAssertTrue(code.waitForExistence(timeout: 15), "champ du code")
         record("code")
@@ -178,7 +178,8 @@ final class SettingsAuditUITests: XCTestCase {
         }
         settingsTab()
         if open("Confidentialité") {
-            XCTAssertTrue(app.staticTexts["Qui peut voir quoi ?"].waitForExistence(timeout: 5) || app.staticTexts["QUI PEUT VOIR QUOI ?"].exists)
+            // Page refaite (18.11) : « Mes choix » (contacts, personnes bloquées, CGU), puis Discussions.
+            XCTAssertTrue(app.staticTexts["Mes choix"].waitForExistence(timeout: 5) || app.staticTexts["MES CHOIX"].exists, "Confidentialité › Mes choix")
             record("confidentialite")
             back()
         }
@@ -261,10 +262,14 @@ final class SettingsAuditUITests: XCTestCase {
         if open("Journal des membres") { expectLoaded("journal-membres"); back() }
         if open("Utilisateurs") {
             expectLoaded("utilisateurs")
-            app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Trier par'")).firstMatch.tap()
-            sleep(1)
-            app.buttons["Nom"].firstMatch.tap()
-            sleep(1)
+            // Liste par connexions récentes (AUJOURD'HUI, HIER…) ; le tri « par nom », s'il revient, reste essayé.
+            let sort = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Trier par'")).firstMatch
+            if sort.exists {
+                sort.tap()
+                sleep(1)
+                app.buttons["Nom"].firstMatch.tap()
+                sleep(1)
+            }
             record("utilisateurs-par-nom")
             back()
         }

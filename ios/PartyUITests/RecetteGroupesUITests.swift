@@ -53,7 +53,7 @@ final class RecetteGroupesUITests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 10), "champ du numéro")
         field.tap()
         app.typeText("0790000004")
-        app.buttons["login-send"].tap()
+        app.sendLoginCode()
         let code = app.textFields["login-code"]
         XCTAssertTrue(code.waitForExistence(timeout: 20), "champ du code")
         code.tap()
@@ -105,12 +105,14 @@ final class RecetteGroupesUITests: XCTestCase {
         app.navigationBars.buttons.firstMatch.tap()
         sleep(1)
 
-        // 3. Réglages › Groupes : la nouvelle liste (page web) avec la grande carte et le groupe.
+        // 3. Réglages › Groupes : la liste native (18.11, « tout en natif » ; la grande carte « Crée le groupe de ta bande »
+        // ne s'affiche plus que sans groupe) avec le groupe.
         app.tabBars.buttons["Réglages"].tap()
-        let groups = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Groupes'")).firstMatch
+        let groups = app.buttons["settings-groups"]
         XCTAssertTrue(groups.waitForExistence(timeout: 10), "ligne Groupes")
         groups.tap()
-        XCTAssertTrue(any("label CONTAINS 'Crée le groupe de ta bande'").waitForExistence(timeout: 30), "nouvelle liste des groupes")
+        XCTAssertTrue(app.navigationBars["Groupes"].waitForExistence(timeout: 30) || app.staticTexts["Groupes"].waitForExistence(timeout: 5),
+                      "liste native des groupes")
         XCTAssertTrue(any("label CONTAINS %@", group).exists, "le groupe dans la liste")
         sleep(2)
         shot("liste-des-groupes")

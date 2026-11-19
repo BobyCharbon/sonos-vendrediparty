@@ -6,8 +6,9 @@ import XCTest
 ///   2e téléphone (navigateur WebKit piloté par fichiers dans R15_DIR : r1.txt, go_likely, change, r2.txt, lea_in, stop),
 ///   puis « 🎮 Changer de jeu » de l'animateur (alerte d'iOS).
 /// - Paiement (invité Guest A) : « Paiement en ligne » et « Payer avec Revolut » ouvrent Safari (jamais une page coincée
-///   dans l'app), retour dans Party, fenêtre de paiement (✕, glisser vers le bas, sous la barre d'état), « J'ai payé ».
-/// - Organisateur (Admin test) : « Reçu ✓ » ; sondage de dates : fixer la date, modifier, repasser en « Date à définir »
+///   dans l'app), retour dans Party, fenêtre de paiement (✕, glisser vers le bas, sous la barre d'état), « J'ai payé »
+///   pour « On me paie » seulement (en ligne : jamais, avis du 16.11).
+/// - Organisateur (Admin test) : « Reçu ✓ » (Revolut) ; sondage de dates : fixer la date, modifier, repasser en « Date à définir »
 ///   retrouve les dates et leurs votes.
 /// Lancé à la demande (données préparées avant, comptes de test à code fixe, aucun SMS) :
 ///   TEST_RUNNER_R15_DIR=… TEST_RUNNER_R15_ONLINE=… TEST_RUNNER_R15_REVOLUT=… TEST_RUNNER_R15_ONSITE=… TEST_RUNNER_R15_POLL=…
@@ -117,7 +118,10 @@ final class Recette1511UITests: XCTestCase {
                 for _ in 0..<3 { app.swipeDown(velocity: .fast) }
             }
         }
+        // Déconnexion lente (base de TEST chargée) : on attend la ligne en haut de la liste avant de faire défiler.
         let row = app.staticTexts["Se connecter"].firstMatch
+        for _ in 0..<3 { app.swipeDown(velocity: .fast) }
+        _ = row.waitForExistence(timeout: 20)
         for _ in 0..<6 where !(row.exists && row.isHittable) { app.swipeUp(velocity: .slow) }
         guard row.exists else { return XCTFail("Ligne « Se connecter » absente") }
         row.tap()
@@ -125,7 +129,7 @@ final class Recette1511UITests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 10), "champ du numéro")
         field.tap()
         app.typeText(phone)
-        app.buttons["login-send"].tap()
+        app.sendLoginCode()
         let code = app.textFields["login-code"]
         XCTAssertTrue(code.waitForExistence(timeout: 20), "champ du code")
         code.tap()
@@ -258,9 +262,8 @@ final class Recette1511UITests: XCTestCase {
         expectSafariThenBack("billetterie")
         XCTAssertTrue(web("Recette paiement en ligne").exists, "Party garde la fiche au retour")
         shot("paiement-retour")
-        tapWeb(webButton("J’ai payé"), "« J’ai payé »")
-        XCTAssertTrue(web("Payé · en attente de confirmation").waitForExistence(timeout: 15), "en attente de confirmation")
-        shot("paiement-en-ligne-note")
+        // Paiement en ligne (avis du 16.11) : le site de paiement n'est pas à l'organisateur, jamais de « J’ai payé ».
+        XCTAssertFalse(webButton("J’ai payé").exists, "en ligne : pas de « J’ai payé »")
         app.terminate()
 
         // « On me paie » avec un lien Revolut : la fenêtre de paiement (✕, glisser, barre d'état) puis Revolut dans Safari.
@@ -311,12 +314,13 @@ final class Recette1511UITests: XCTestCase {
     // MARK: 3. Organisateur (Admin test) : « Reçu ✓ », puis le sondage de dates garde ses votes
 
     func test3OrganizerConfirmsAndPollKeepsVotes() throws {
-        let online = try XCTUnwrap(env["R15_ONLINE"]), poll = try XCTUnwrap(env["R15_POLL"])
+        let revolut = try XCTUnwrap(env["R15_REVOLUT"]), poll = try XCTUnwrap(env["R15_POLL"])
         launch("localStorage.setItem('vp_tab','events');")
         signIn("0790000004", as: "Admin test")
         app.terminate()
 
-        launchEvent(online, "Recette paiement en ligne")
+        // « On me paie » (Revolut) : Guest A a noté « J’ai payé » (test 2) ; en ligne, plus de « Reçu ✓ » (avis du 16.11).
+        launchEvent(revolut, "Recette paiement Revolut")
         let received = webButton("Reçu ✓")
         // Relancé après un premier passage : déjà confirmé (« ✓ … payé »).
         if reveal(received, timeout: 30) {
