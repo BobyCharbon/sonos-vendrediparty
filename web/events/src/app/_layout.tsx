@@ -101,6 +101,11 @@ function Gate() {
   useEffect(() => {
     if ((!agendaOn && /^\/agenda(\/|$)/.test(path)) || (!pronosOn && /^\/prono/.test(path))) router.replace('/');
   }, [path]);
+  // Discussions (webapp iPhone, avis du 19.11) : jamais de sélection de texte d'iOS au toucher ni à l'appui long, menus et
+  // feuilles compris (le menu ouvert sous le doigt se faisait sélectionner) ; règle « html.chats-touch » de postbuild.mjs.
+  useEffect(() => {
+    if (typeof document !== 'undefined') document.documentElement.classList.toggle('chats-touch', /^\/(chats|event\/[^/]+\/chat)(\/|$)/.test(path));
+  }, [path]);
   useEffect(() => {
     if (path === toLink.current) toLink.current = null;  // le lien est atteint
     if (path === '/' && (toLink.current || (intent.current && LINK_INTENT.test(intent.current)))) return;

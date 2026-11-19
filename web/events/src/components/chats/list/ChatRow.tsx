@@ -89,7 +89,10 @@ export function ChatRow({ chat, typing, first, index = 0, open, onOpenSide: setS
   ];
 
   return (
-    <View style={[st.wrap, animate ? enter('rise', index) : null]} onPointerEnter={() => { setHover(true); onWarm?.(); }} onPointerLeave={() => setHover(false)}>
+    <View style={[st.wrap, animate ? enter('rise', index) : null]} onPointerLeave={() => setHover(false)}
+      // « … » à la souris seulement : sous le doigt, iOS prenait son apparition pour un survol et n'envoyait pas le clic
+      // (toucher sans effet, puis appui long ; avis du 19.11).
+      onPointerEnter={(e) => { if (e.nativeEvent.pointerType === 'mouse') setHover(true); onWarm?.(); }}>
       {x > 0 ? <SwipeSide acts={left} side="left" width={x} onAct={act} /> : null}
       {x < 0 ? <SwipeSide acts={right} side="right" width={-x} onAct={act} /> : null}
       <View {...pan.panHandlers}
