@@ -87,7 +87,7 @@ final class ParcoursExaminateurUITests: XCTestCase {
     }
 
     private func signIn(_ phone: String) {
-        let settings = tab("Réglages").exists ? tab("Réglages") : tab("Se connecter")
+        let settings = app.buttons.matching(NSPredicate(format: "label IN {'Réglages', 'Se connecter'}")).firstMatch
         XCTAssertTrue(settings.waitForExistence(timeout: 30), "onglet Réglages / Se connecter")
         settings.tap()
         sleep(2)
@@ -98,7 +98,7 @@ final class ParcoursExaminateurUITests: XCTestCase {
         field.tap()
         app.typeText(phone)
         record("connexion-numero")
-        app.buttons["login-send"].tap()
+        app.sendLoginCode()
         let code = app.textFields["login-code"]
         XCTAssertTrue(code.waitForExistence(timeout: 30), "champ du code")
         code.tap()
@@ -120,7 +120,7 @@ final class ParcoursExaminateurUITests: XCTestCase {
     private func openSettingsRow(_ title: String) {
         tab("Réglages").tap()
         for _ in 0..<4 where app.navigationBars.buttons["Réglages"].exists { app.navigationBars.buttons["Réglages"].tap() }
-        if app.buttons["Réglages"].exists && app.buttons["Réglages"].isHittable { app.buttons["Réglages"].tap() }
+        for _ in 0..<4 where app.navigationBars.buttons["BackButton"].exists { app.navigationBars.buttons["BackButton"].tap() }
         for _ in 0..<3 { app.swipeDown(velocity: .fast) }
         let cell = app.staticTexts[title].firstMatch
         let barTop = app.tabBars.firstMatch.exists ? app.tabBars.firstMatch.frame.minY : app.frame.maxY
@@ -145,24 +145,31 @@ final class ParcoursExaminateurUITests: XCTestCase {
             visitTab(label, name)
         }
         signIn(phone)
-        // Compte neuf : « Faisons connaissance » (prénom, nom, surnom ; CGU au premier surnom).
-        let first = app.textFields.matching(NSPredicate(format: "label CONTAINS[c] 'Prénom' OR placeholderValue CONTAINS[c] 'Prénom'")).firstMatch
-        if first.waitForExistence(timeout: 20) {
+        // Compte neuf : Réglages › « Profil à compléter » (prénom, nom, surnom ; CGU au premier surnom).
+        let row = app.staticTexts["Profil à compléter"].firstMatch
+        if row.waitForExistence(timeout: 20) {
+            row.tap()
+            let first = app.collectionViews.textFields["Prénom"].firstMatch
+            XCTAssertTrue(first.waitForExistence(timeout: 15), "fiche du profil")
             record("profil-a-remplir")
-            first.tap()
-            app.typeText("Examen")
-            let last = app.textFields.matching(NSPredicate(format: "label CONTAINS[c] 'Nom' OR placeholderValue CONTAINS[c] 'Nom'")).element(boundBy: 0)
-            if last.exists && last != first { last.tap(); app.typeText("Apple") }
-            let nick = app.textFields.matching(NSPredicate(format: "label CONTAINS[c] 'Surnom' OR placeholderValue CONTAINS[c] 'Surnom'")).firstMatch
-            if nick.exists { nick.tap(); app.typeText("Examen QA") }
+            first.tap(); app.typeText("Examen")
+            app.collectionViews.textFields["Nom"].firstMatch.tap(); app.typeText("Apple")
+            app.collectionViews.textFields["Surnom"].firstMatch.tap(); app.typeText("Examen QA")
+            // Simulateur neuf : la bulle d'iOS sur la saisie glissée (« Continue ») couvre le clavier ; on la ferme.
+            let tip = app.buttons.matching(NSPredicate(format: "label IN {'Continue', 'Continuer'}")).firstMatch
+            if tip.exists { tip.tap() }
             record("profil-rempli")
-            let save = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Enregistrer' OR label BEGINSWITH 'Continuer' OR label BEGINSWITH 'C’est parti' OR label BEGINSWITH 'C\\'est parti'")).firstMatch
-            if save.exists { save.tap(); sleep(4) }
-            let accept = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'J’accepte' OR label BEGINSWITH 'J\\'accepte' OR identifier == 'terms-accept'")).firstMatch
-            if accept.waitForExistence(timeout: 8) { record("cgu"); accept.tap(); sleep(4) }
+            app.buttons["Enregistrer"].firstMatch.tap()
+            let accept = app.buttons["terms-accept"]
+            if accept.waitForExistence(timeout: 10) { record("cgu"); accept.tap() }
+            sleep(4)
             record("profil-enregistre")
+            if tip.exists { tip.tap() }
+            if app.navigationBars.buttons["BackButton"].exists { app.navigationBars.buttons["BackButton"].tap() }
+            sleep(1)
         } else {
             record("profil-introuvable")
+            XCTFail("« Profil à compléter » absent après la connexion d'un compte neuf")
         }
         for (label, name) in [("Musique", "membre-musique"), ("Jeux", "membre-jeux"), ("Événements", "membre-evenements"),
                               ("Discussions", "membre-discussions"), ("Réglages", "membre-reglages")] {
@@ -197,7 +204,7 @@ final class ParcoursExaminateurUITests: XCTestCase {
 
     func testAWrongCodeSaysSoAboveTheKeypad() {
         launch(fresh: true)
-        let settings = tab("Se connecter").exists ? tab("Se connecter") : tab("Réglages")
+        let settings = app.buttons.matching(NSPredicate(format: "label IN {'Réglages', 'Se connecter'}")).firstMatch
         XCTAssertTrue(settings.waitForExistence(timeout: 30), "onglet Se connecter")
         settings.tap()
         sleep(2)
@@ -207,7 +214,7 @@ final class ParcoursExaminateurUITests: XCTestCase {
         guard field.waitForExistence(timeout: 15) else { return XCTFail("champ du numéro (déjà connecté ?)") }
         field.tap()
         app.typeText("0790000003")  // VIP de test : jamais le compte Admin des recettes (un code par minute et par numéro)
-        app.buttons["login-send"].tap()
+        app.sendLoginCode()
         let code = app.textFields["login-code"]
         XCTAssertTrue(code.waitForExistence(timeout: 30), "champ du code")
         code.tap()

@@ -34,4 +34,12 @@ final class PartyNoticeTests: XCTestCase {
     func testAServerRestartingIsAnUpdateNotAnError() {
         XCTAssertEqual(OfflineView.busyStatuses, [502, 503, 504])
     }
+
+    /// Recette examinateur du 19.11 : une connexion SMS trop lente affichait « Party ! est injoignable ». Jamais ce mot :
+    /// l'erreur réseau des écrans natifs dit quoi faire.
+    func testANetworkErrorNeverSaysUnreachable() {
+        let text = PartyAPIError.offline.errorDescription ?? ""
+        XCTAssertFalse(text.localizedCaseInsensitiveContains("injoignable"), text)
+        XCTAssertTrue(text.contains("réessaie"), text)
+    }
 }

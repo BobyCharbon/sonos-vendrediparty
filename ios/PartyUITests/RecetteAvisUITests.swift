@@ -82,6 +82,8 @@ final class RecetteAvisUITests: XCTestCase {
         tab.tap()
         // Écran précédent resté ouvert : son bouton retour « Réglages » (jamais la lune, qui met en pause).
         for _ in 0..<4 where app.navigationBars.buttons["Réglages"].exists { app.navigationBars.buttons["Réglages"].tap() }
+        // Écrans natifs (Connexions récentes, Utilisateurs…) : bouton retour rond sans titre (« BackButton »).
+        for _ in 0..<4 where app.navigationBars.buttons["BackButton"].exists { app.navigationBars.buttons["BackButton"].tap() }
         for _ in 0..<3 { app.swipeDown(velocity: .fast) }
         sleep(1)
     }
@@ -90,7 +92,8 @@ final class RecetteAvisUITests: XCTestCase {
     private func openRow(_ title: String) -> Bool {
         let cell = app.staticTexts[title].firstMatch
         let barTop = app.tabBars.firstMatch.exists ? app.tabBars.firstMatch.frame.minY : app.frame.maxY
-        for _ in 0..<8 where !(cell.exists && cell.isHittable && cell.frame.maxY < barTop - 8) {
+        // Visible à l'écran (isHittable reste parfois faux sur les lignes des Réglages natifs, iOS 27).
+        for _ in 0..<8 where !(cell.exists && cell.frame.minY > 90 && cell.frame.maxY < barTop - 8) {
             app.swipeUp(velocity: .slow)
             sleep(1)
         }
@@ -143,7 +146,7 @@ final class RecetteAvisUITests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 10), "champ du numéro")
         field.tap()
         app.typeText("0790000004")
-        app.buttons["login-send"].tap()
+        app.sendLoginCode()
         let code = app.textFields["login-code"]
         XCTAssertTrue(code.waitForExistence(timeout: 20), "champ du code")
         code.tap()
@@ -160,7 +163,7 @@ final class RecetteAvisUITests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 10), "champ du numéro")
         field.tap()
         app.typeText("0790000004")
-        app.buttons["login-send"].tap()
+        app.sendLoginCode()
         let code = app.textFields["login-code"]
         XCTAssertTrue(code.waitForExistence(timeout: 20), "champ du code")
         code.tap()
@@ -203,33 +206,48 @@ final class RecetteAvisUITests: XCTestCase {
             app.navigationBars.buttons.firstMatch.tap()
         }
 
-        // Groupes : créer, la page s'ouvre avec « Inviter avec un lien » (avis e39b166040ea)
+        // Groupes : créer, le lien du groupe tout de suite (avis e39b166040ea). Depuis le 18.11, Réglages › Groupes est natif
+        // (liste, « + », étape « Inviter » avec lien et code QR) : voir aussi RecetteGroupesNatifsUITests.
         settingsTab()
-        if openRow("Groupes") {
-            let name = app.textFields["new-group-name"]
-            XCTAssertTrue(name.waitForExistence(timeout: 15), "champ « Nom du nouveau groupe »")
-            name.tap()
-            app.typeText("Recette 13.11")
-            app.buttons["new-group-create"].tap()
-            let invite = app.buttons["group-quick-invite"]
-            XCTAssertTrue(invite.waitForExistence(timeout: 25), "le groupe s'ouvre avec « Inviter avec un lien » en haut")
-            XCTAssertTrue(app.navigationBars["Recette 13.11"].exists, "page du nouveau groupe")
-            shot("groupe/cree-inviter-avec-un-lien")
-            invite.tap()
-            sleep(3)
-            shot("groupe/feuille-de-partage")
-            let close = app.buttons.matching(NSPredicate(format: "label IN {'Fermer', 'Close'}")).firstMatch
-            if close.exists { close.tap() } else { app.swipeDown() }
-            sleep(2)
-            let delete = app.buttons["Supprimer le groupe"]
-            for _ in 0..<8 where !(delete.exists && delete.isHittable) { app.swipeUp(velocity: .slow) }
-            if delete.exists {
-                delete.tap()
-                let confirm = app.buttons.matching(NSPredicate(format: "label == 'Supprimer'")).firstMatch
-                if confirm.waitForExistence(timeout: 5) { confirm.tap() }
-                sleep(2)
-            }
-        }
+        XCTAssertTrue(createNativeGroup("Recette 13.11"), "groupe créé")
+        shot("groupe/cree-inviter-avec-un-lien")
+        XCTAssertTrue(app.buttons["group-invite-share"].exists || app.buttons["group-invite-copy"].exists, "lien du groupe prêt")
+        app.buttons["new-group-later"].tap()
+        deleteNativeGroup()
+    }
+
+    /// Réglages › Groupes (natif) › « + » : nom, puis l'étape « Inviter » (lien et code QR du groupe).
+    private func createNativeGroup(_ name: String) -> Bool {
+        // Comme RecetteGroupesNatifsUITests : la ligne en haut des Réglages (isHittable reste faux sur cette ligne).
+        for _ in 0..<3 { app.swipeDown(velocity: .fast) }
+        let groups = app.buttons["settings-groups"]
+        guard groups.waitForExistence(timeout: 15) else { return false }
+        groups.tap()
+        let plus = app.buttons["groups-new"]
+        guard plus.waitForExistence(timeout: 20) else { return false }
+        plus.tap()
+        let field = app.textFields["group-new-name"]
+        guard field.waitForExistence(timeout: 10) else { return false }
+        field.tap()
+        app.typeText(name)
+        app.buttons["group-new-continue"].tap()
+        return app.images["group-invite-qr"].waitForExistence(timeout: 30)
+    }
+
+    /// Page du groupe › réglages › « Supprimer le groupe » (confirmé), puis « ✕ » de la liste.
+    private func deleteNativeGroup() {
+        let settings = app.buttons["group-settings"]
+        guard settings.waitForExistence(timeout: 20) else { return XCTFail("page du groupe") }
+        settings.tap()
+        let delete = app.buttons["group-settings-delete"]
+        for _ in 0..<6 where !(delete.exists && delete.isHittable) { app.swipeUp() }
+        delete.tap()
+        let confirm = app.sheets.buttons["Supprimer le groupe"].exists ? app.sheets.buttons["Supprimer le groupe"]
+            : app.buttons.matching(NSPredicate(format: "label == 'Supprimer le groupe'")).element(boundBy: 1)
+        if confirm.waitForExistence(timeout: 5) { confirm.tap() }
+        sleep(3)
+        let close = app.buttons.matching(NSPredicate(format: "label IN {'Fermer', 'Close'}")).firstMatch
+        if close.exists { close.tap() }
     }
 
     // MARK: 4. Fiche : bandeau des notifications, carte Invités repliée, covoiturage
@@ -325,7 +343,7 @@ final class RecetteAvisUITests: XCTestCase {
         XCTAssertTrue(games.waitForExistence(timeout: 30), "onglet Jeux")
         games.tap()
         sleep(2)
-        tapWeb(webButton("Ouvrir une salle"), "« Ouvrir une salle »")
+        tapWeb(webButton("Créer une salle"), "« Créer une salle » (accueil des Jeux du 15.11)")
         let help = app.webViews.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Règles : '")).firstMatch
         XCTAssertTrue(reveal(help, timeout: 30), "« ? » sur les jeux de la salle")
         shot("salle/tuiles")
@@ -376,63 +394,35 @@ final class RecetteAvisUITests: XCTestCase {
         shot("lieu/cree-le-en-bas")
     }
 
-    // MARK: 10. « + Ajouter » dans un groupe (demande de l'admin du 14.11) : chercher, inviter, lien, QR
+    // MARK: 10. Inviter dans un groupe (demande de l'admin du 14.11) : chercher, inviter, lien, QR — écran natif du 18.11
 
     func test10GroupAddSheet() {
         launch("localStorage.setItem('vp_tab','events');")  // une salle de jeux restée ouverte (test 7) ne prend pas l'écran
         signInAdminIfNeeded()
         settingsTab()
-        guard openRow("Groupes") else { return }
-        let name = app.textFields["new-group-name"]
-        XCTAssertTrue(name.waitForExistence(timeout: 15), "champ « Nom du nouveau groupe »")
-        name.tap()
-        app.typeText("Recette 14.11")
-        app.buttons["new-group-create"].tap()
-        let add = app.buttons["group-add"]
-        XCTAssertTrue(add.waitForExistence(timeout: 25), "« + Ajouter » en haut du groupe")
-        shot("ajouter/groupe")
-        add.tap()
-        XCTAssertTrue(app.navigationBars["Ajouter au groupe"].waitForExistence(timeout: 10), "feuille « Ajouter au groupe »")
-        XCTAssertTrue(app.buttons["group-add-share"].waitForExistence(timeout: 20), "lien du groupe prêt (Partager)")
+        guard createNativeGroup("Recette 14.11") else { return XCTFail("groupe créé, étape « Inviter »") }
+        XCTAssertTrue(app.images["Code QR du lien du groupe"].exists || app.images["group-invite-qr"].exists, "QR code affiché")
+        XCTAssertTrue(app.buttons["group-invite-copy"].exists, "« Copier le lien »")
         shot("ajouter/feuille")
 
-        let search = app.searchFields.firstMatch
+        let search = app.textFields["group-invite-search"]
+        for _ in 0..<4 where !(search.exists && search.isHittable) { app.swipeUp(velocity: .slow) }
         XCTAssertTrue(search.waitForExistence(timeout: 5), "recherche")
         search.tap()
-        app.typeText("Bot")
-        let found = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Bot'"))
-        XCTAssertTrue(found.firstMatch.waitForExistence(timeout: 10), "une personne trouvée (« Bot … »)")
+        // La recherche native ne propose que les personnes croisées à un événement (jamais tout le site, 17.11) :
+        // Guest B, invitée de « [QA] Recette discussion » (données de la recette).
+        app.typeText("Guest")
+        let found = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Ajouter Guest'"))
+        XCTAssertTrue(found.firstMatch.waitForExistence(timeout: 15), "une personne croisée trouvée (« Guest … »)")
         shot("ajouter/recherche")
-        // La page du groupe, sous la feuille, a aussi des « Bot … » : on touche une ligne de la feuille, visible.
-        guard let person = found.allElementsBoundByIndex.first(where: { $0.isHittable }) else {
-            return XCTFail("aucune ligne « Bot … » touchable dans la feuille")
-        }
-        person.tap()
-        let sent = app.staticTexts.matching(NSPredicate(format: "label ENDSWITH 'a reçu ton invitation'")).firstMatch
-        XCTAssertTrue(sent.waitForExistence(timeout: 15), "« … a reçu ton invitation »")
-        XCTAssertTrue(app.staticTexts["Invité"].waitForExistence(timeout: 5), "la ligne passe à « Invité »")
+        found.firstMatch.tap()
+        let send = app.buttons["group-invite-send"]
+        XCTAssertTrue(send.waitForExistence(timeout: 5), "« Inviter … »")
+        send.tap()
+        let done = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Déjà invité : Guest'")).firstMatch
+        XCTAssertTrue(done.waitForExistence(timeout: 15), "la ligne passe à « Déjà invité »")
         shot("ajouter/invite")
-
-        let qr = app.buttons["Montrer le QR code"]
-        for _ in 0..<4 where !(qr.exists && qr.isHittable) { app.swipeUp(velocity: .slow) }
-        XCTAssertTrue(qr.exists, "« Montrer le QR code »")
-        qr.tap()
-        XCTAssertTrue(app.images["QR code du lien du groupe"].waitForExistence(timeout: 5), "QR code affiché")
-        XCTAssertTrue(app.buttons["Copier le lien"].exists, "« Copier le lien »")
-        shot("ajouter/qr")
-
-        // Recherche encore ouverte : son ✕ d'iOS (« Close ») la referme, puis le ✕ « Fermer » de la feuille.
-        if !app.buttons["Fermer"].exists, app.buttons["Close"].exists { app.buttons["Close"].firstMatch.tap() }
-        XCTAssertTrue(app.buttons["Fermer"].waitForExistence(timeout: 5), "✕ « Fermer » de la feuille")
-        app.buttons["Fermer"].firstMatch.tap()
-        sleep(2)
-        let delete = app.buttons["Supprimer le groupe"]
-        for _ in 0..<8 where !(delete.exists && delete.isHittable) { app.swipeUp(velocity: .slow) }
-        if delete.exists {
-            delete.tap()
-            let confirm = app.buttons.matching(NSPredicate(format: "label == 'Supprimer'")).firstMatch
-            if confirm.waitForExistence(timeout: 5) { confirm.tap() }
-            sleep(2)
-        }
+        app.buttons["new-group-later"].tap()
+        deleteNativeGroup()
     }
 }

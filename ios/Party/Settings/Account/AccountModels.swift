@@ -195,7 +195,9 @@ extension PartyAPI {
     func sendLoginCode(phone: String) async throws { try await post("/api/account/otp", body: ["phone": phone]) }
 
     func verifyLoginCode(phone: String, code: String) async throws -> AccountSignIn {
-        try await postDecoding("/api/account/verify", body: ["phone": phone, "code": code])
+        // 30 s : la base des comptes peut être lente à créer la session ; à 15 s, l'app abandonnait alors que le serveur
+        // finissait la connexion (recette du 19.11).
+        try await postDecoding("/api/account/verify", body: ["phone": phone, "code": code], timeout: 30)
     }
 
     func signOut(token: String) async throws { try await post("/api/account/logout", body: ["token": token]) }

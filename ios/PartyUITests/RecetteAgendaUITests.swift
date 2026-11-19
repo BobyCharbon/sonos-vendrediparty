@@ -50,7 +50,7 @@ final class RecetteAgendaUITests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 10), "champ du numéro")
         field.tap()
         app.typeText("0790000004")
-        app.buttons["login-send"].tap()
+        app.sendLoginCode()
         let code = app.textFields["login-code"]
         XCTAssertTrue(code.waitForExistence(timeout: 20), "champ du code")
         code.tap()
