@@ -41,7 +41,7 @@ def event():
 
 
 def open_signed_in(browser, party, e, number):  # noqa: F811
-    context, page, errors = phone_page(browser)
+    context, page, errors = phone_page(browser, alone=True)
     page.goto(f'{party}/events/sign-in', wait_until='domcontentloaded')  # la connexion normale de l'app
     sign_in(page, number)
     pw.expect(page.get_by_text('Ton compte Party', exact=True)).to_have_count(0, timeout=30000)

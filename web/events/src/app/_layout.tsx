@@ -8,7 +8,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { PendingInviteClaim } from '@/components/AppJoinScreen';
 import { Button, ErrorText, HeaderBack, Loading, Screen, T, Title } from '@/components/ui';
 import { DESTINATION_KEY } from '@/lib/destination';
-import { canGoBackHere, useEdgeSwipeBack } from '@/lib/edgeSwipe';
+import { useEdgeSwipeBack } from '@/lib/edgeSwipe';
+import { useShellBack } from '@/lib/shellBack';
+import { leaveIfAlone } from '@/lib/partyShell';
 import { usePendingSync } from '@/lib/pending';
 import { hasCompleteIdentity } from '@/lib/profile';
 import { AuthProvider, useAuth } from '@/lib/auth';
@@ -54,6 +56,7 @@ function inPartyShell(): boolean {
 }
 
 const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit|\/invite|\/gifts|\/scan(?:\/[a-f0-9]{64})?|\/bar(?:\/scan|\/manage|\/person\/[a-f0-9-]{36})?)?|share\/[a-f0-9-]{36}|invite\/[a-f0-9-]{36}|group-invite\/[a-f0-9-]{36}|prono-invite\/[A-Za-z0-9_-]{20,40}|pronos|prono\/(?:new|[a-f0-9-]{36})|join\/[a-f0-9-]{36}|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|group\/(?:new|[a-f0-9-]{36}(?:\/settings|\/invite|\/pronos)?)|chats(?:\/(?:new|[a-f0-9-]{36}|requests|archived))?|agenda(?:\/(?:calendars|share|free|links(?:\/(?:new|[a-f0-9-]{36}))?|requests(?:\/[a-f0-9-]{36})?))?|activity|announcements|account|admin\/reports|terms|settings\/(?:notifications|subscriptions|profile|privacy))$/i;
+const LINK_INTENT = /^\/(?:(?:group-|prono-)?invite|join|share)\//;
 /** Pages de passage (accueil du module, connexion, « Faisons connaissance ») : seules à reprendre l'intention gardée. */
 const transitPath = /^\/?(?:sign-in|welcome)?$/i;
 
@@ -87,10 +90,16 @@ function Gate() {
   const [asked, setAsked] = useState(0);
   const shared = useRef<string | null>(null);
   useEdgeSwipeBack();
-  // Party sait s'il y a un écran derrière (bouton Retour de la barre verticale de l'iPhone Duo).
+  useShellBack();  // Retour de la barre verticale de l'iPhone Duo = le bouton retour de l'écran
+  // Module ouvert seul (lien, notification, agenda…) : toute page « de l'app » s'ouvre dans Party, barre d'onglets
+  // comprise ; jamais d'impasse sans moyen de voir les autres événements (retour de l'admin du 19.11).
+  // Lien ouvert seul (invitation, partage, groupe…) : juste après la connexion SMS, le routeur passe par « / » avant que
+  // l'intention n'y ramène ; partir de là perdait le lien (invité sur la liste, sa réponse jamais envoyée).
+  const toLink = useRef<string | null>(null);
   useEffect(() => {
-    if (typeof window === 'undefined' || window.parent === window) return;
-    window.parent.postMessage({ type: 'party-events:back', can: canGoBackHere() }, location.origin);
+    if (path === toLink.current) toLink.current = null;  // le lien est atteint
+    if (path === '/' && (toLink.current || (intent.current && LINK_INTENT.test(intent.current)))) return;
+    leaveIfAlone(path);
   }, [path]);
   // App iPhone : dates de sondage « À confirmer » dans le calendrier ; une fois par connexion, le ménage des sondages
   // tranchés ou annulés depuis (avis 9ddbdea7fe8f).
@@ -122,8 +131,6 @@ function Gate() {
       if (e.origin === location.origin && e.data?.type === 'party-shell:refresh') void refreshProfile();
       // Accueil de Zicou (pet/zicou-home.js) : la page a déjà obtenu l’autorisation, on abonne cet appareil au compte.
       if (e.origin === location.origin && e.data?.type === 'party-shell:enable-push') void enableWebPush().catch(() => undefined);
-      // Retour de la barre verticale (iPhone Duo) : l'écran d'avant, comme le glisser depuis le bord.
-      if (e.origin === location.origin && e.data?.type === 'party-shell:back' && canGoBackHere()) router.back();
     };
     window.addEventListener('message', onRefresh);
     return () => window.removeEventListener('message', onRefresh);
@@ -139,7 +146,10 @@ function Gate() {
       const target = intent.current;
       intent.current = null;
       forgetStoredIntent();
-      if (path !== target) requestAnimationFrame(() => router.replace(target as Href));
+      if (path !== target) {
+        if (LINK_INTENT.test(target)) toLink.current = target;
+        requestAnimationFrame(() => router.replace(target as Href));
+      }
     }
   }, [loading, session, active, profileError, path, asked]);
 

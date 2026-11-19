@@ -87,7 +87,7 @@ def pages(browser, party, people):  # noqa: F811
 
     def page_of(who: str):
         if who not in opened:
-            context, page, errors = phone_page(browser)
+            context, page, errors = phone_page(browser, alone=True)
             page.set_default_navigation_timeout(90000)  # machine chargée (recettes en parallèle)
             page.on('dialog', lambda d: (errors.append(f'dialogue {d.type} : {d.message}'), d.accept()))
             context.route('https://revolut.me/**', lambda r: r.fulfill(status=200, body='Revolut (simulé)'))  # jamais le vrai site

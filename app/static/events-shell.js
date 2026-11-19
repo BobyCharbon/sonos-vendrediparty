@@ -17,7 +17,14 @@ window.PartyEvents = {
     const prono = params.get('prono') || '';
     if (/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(prono)) return '/events/prono/' + prono.toLowerCase();
     if (params.get('activity') === '1') return '/events/activity';
+    // Page du module ouverte seule (invitation de groupe, prono…) qui rejoint Party : web/events/src/lib/partyShell.ts.
+    const path = params.get('path') || '';
+    if (window.PartyEvents.validPath(path)) return '/events' + path;
     return admin ? '/events/admin' : '/events/';
+  },
+  /** Chemin du module venu de l'adresse (`?path=`) : lettres, chiffres, / _ - et une requête simple. */
+  validPath(path) {
+    return /^\/[a-z0-9/_-]{0,160}(\?[a-z0-9=&_%.,:-]{0,300})?$/i.test(path) && !path.startsWith('//');
   },
   open(target) {
     const frame = document.getElementById('eventsFrame');

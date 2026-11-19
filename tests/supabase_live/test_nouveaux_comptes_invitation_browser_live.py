@@ -24,6 +24,7 @@ from pathlib import Path
 import httpx
 import pytest
 
+from tests.supabase_live.party_shell import in_party, where_visible
 from tests.supabase_live.test_inscription_complete_browser_live import browser, complete_profile, party, sign_in  # noqa: F401
 from tests.supabase_live.test_member_admin_live import ADMIN_PHONE, KEY_FILE, OTP, TEST_URL, Session, pytestmark as live
 from tests.supabase_live.test_audiences_live import create_event
@@ -46,6 +47,7 @@ PEOPLE = {  # surnoms de 12 caractères au plus
 
 def shot(page, name: str):
     if SHOTS:
+        page = getattr(page, 'page', page)  # cadre du module dans Party : capture de toute la page
         page.wait_for_timeout(800)
         SHOTS.mkdir(parents=True, exist_ok=True)
         page.screenshot(path=str(SHOTS / f'{name}.png'), full_page=True)
@@ -147,11 +149,13 @@ def new_person(state: dict, browser, who: str):  # noqa: F811
 
 
 def open_event_as_organizer(state: dict, party: str, event: str):  # noqa: F811
+    """La fiche ouverte par son adresse du module : renvoyée dans Party (cadre, barre d'onglets). Rend le cadre."""
     page = state['org_page']
     page.goto(f'{party}/events/event/{event}', wait_until='domcontentloaded')
-    card = page.get_by_label('Invités', exact=True)
+    frame = in_party(page, f'/events/event/{event}')
+    card = frame.get_by_label('Invités', exact=True)
     pw.expect(card.get_by_text(re.compile(r'^Invités · \d+$'))).to_be_visible(timeout=60000)
-    return page, card
+    return frame, card
 
 
 def open_card(page, url: str):
@@ -181,17 +185,19 @@ def copy_new_link(page, title: str, name: str):
     sheet.get_by_role('tab', name='Plusieurs').click()
     sheet.get_by_label('Nom du lien (facultatif)').fill(name)
     pw.expect(sheet.get_by_label('Sans limite', exact=True).first).to_be_visible()  # ∞ par défaut (11.11)
-    page.evaluate('navigator.clipboard.writeText("")')
+    top = getattr(page, 'page', page)  # presse-papiers lu par la page (le cadre du module est de la même origine)
+    top.evaluate('navigator.clipboard.writeText("")')
     sheet.get_by_role('button', name='Copier').click()
     pw.expect(sheet.get_by_text('✓ Lien prêt', exact=False)).to_be_visible(timeout=15000)
-    url = page.evaluate('navigator.clipboard.readText()')
+    url = top.evaluate('navigator.clipboard.readText()')
     m = re.search(r'/events/invite/([0-9a-f-]{36})$', url)
     assert m, url
     return m.group(1), sheet
 
 
 def answer_as_new_account(state: dict, who: str, page, party: str, token: str, shots: str):
-    """Compte neuf : la carte (sans compte) → « Je viens ! » → connexion normale → « Faisons connaissance » → CGU."""
+    """Compte neuf : la carte (sans compte) → « Je viens ! » → connexion normale → « Faisons connaissance » → CGU.
+    Rend l'endroit où le module continue (la page, ou le cadre de Party : voir party_shell.where_visible)."""
     open_card(page, f'{party}/events/invite/{token}')
     pw.expect(page.get_by_role('button', name='Je viens !')).to_be_visible(timeout=30000)
     assert page.get_by_text(ADDRESS, exact=False).count() == 0  # l'adresse exacte seulement après la réponse
@@ -200,10 +206,11 @@ def answer_as_new_account(state: dict, who: str, page, party: str, token: str, s
     page.wait_for_url('**/sign-in', timeout=20000)
     shot(page, f'{shots}-2-connexion')
     sign_in(page, national(state['phones'][who]))
-    pw.expect(page.get_by_text('Faisons connaissance', exact=True)).to_be_visible(timeout=30000)
+    here = where_visible(page, 'Faisons connaissance')
     state['tokens'][who] = browser_token(page)  # compte créé : supprimé à la fin, même si la suite échoue
     shot(page, f'{shots}-3-faisons-connaissance')
-    complete_profile(page, *PEOPLE[who])
+    complete_profile(here, *PEOPLE[who])
+    return here
 
 
 def test_0_the_organizer_creates_a_named_several_link(party, world):  # noqa: F811
@@ -221,17 +228,17 @@ def test_1_a_new_account_answers_the_organizers_several_link_and_sees_the_addres
     token = world['org_link']
     context, guest, errors = new_person(world, browser, 'a')
     context.grant_permissions(['clipboard-read', 'clipboard-write'], origin=party)
-    world['a_page'] = guest
-    answer_as_new_account(world, 'a', guest, party, token, '1')
-    pw.expect(guest.get_by_text('C’est noté, Anouk !', exact=True)).to_be_visible(timeout=30000)
-    pw.expect(guest.get_by_text(ADDRESS, exact=True)).to_be_visible()
+    here = answer_as_new_account(world, 'a', guest, party, token, '1')
+    pw.expect(here.get_by_text('C’est noté, Anouk !', exact=True)).to_be_visible(timeout=30000)
+    pw.expect(here.get_by_text(ADDRESS, exact=True)).to_be_visible()
     shot(guest, '1-4-c-est-note-adresse')
-    guest.get_by_role('button', name='Voir l’événement', exact=True).click()
-    guest.wait_for_url(f"**/events/event/{world['private']}", timeout=20000)
-    pw.expect(guest.get_by_text('Soirée nouveaux comptes', exact=True).first).to_be_visible(timeout=30000)
-    pw.expect(guest.get_by_text(ADDRESS, exact=False).first).to_be_visible()
+    here.get_by_role('button', name='Voir l’événement', exact=True).click()
+    fiche = in_party(guest, f"/events/event/{world['private']}")  # la fiche DANS Party, barre d'onglets
+    world['a_page'] = fiche
+    pw.expect(fiche.get_by_text('Soirée nouveaux comptes', exact=True).first).to_be_visible(timeout=30000)
+    pw.expect(fiche.get_by_text(ADDRESS, exact=False).first).to_be_visible()
     # Sans accompagnant ni groupe : jamais « réservé aux membres du groupe » (texte faux vu le 14.11 sur cette fiche).
-    pw.expect(guest.get_by_text('Pas d’accompagnant pour cet événement.', exact=True)).to_be_visible()
+    pw.expect(fiche.get_by_text('Pas d’accompagnant pour cet événement.', exact=True)).to_be_visible()
     shot(guest, '1-5-fiche')
     assert not errors, errors
 
@@ -250,13 +257,14 @@ def test_2_a_new_account_from_a_guests_link_waits_then_is_accepted(browser, part
 
     _context, page, errors = new_person(world, browser, 'b')
     world['b_page'] = page
-    answer_as_new_account(world, 'b', page, party, token, '2b')
-    pw.expect(page.get_by_text('Demande envoyée', exact=True)).to_be_visible(timeout=30000)
-    assert page.get_by_text(ADDRESS, exact=False).count() == 0
+    here = answer_as_new_account(world, 'b', page, party, token, '2b')
+    pw.expect(here.get_by_text('Demande envoyée', exact=True)).to_be_visible(timeout=30000)
+    assert here.get_by_text(ADDRESS, exact=False).count() == 0
     shot(page, '2b-4-demande-envoyee')
     page.goto(f"{party}/events/event/{world['private']}", wait_until='domcontentloaded')
-    pw.expect(page.get_by_text(CLOSED, exact=True)).to_be_visible(timeout=30000)
-    assert page.get_by_text(ADDRESS, exact=False).count() == 0  # ni fiche ni adresse avant l'accord
+    fiche = in_party(page, f"/events/event/{world['private']}")
+    pw.expect(fiche.get_by_text(CLOSED, exact=True)).to_be_visible(timeout=30000)
+    assert fiche.get_by_text(ADDRESS, exact=False).count() == 0  # ni fiche ni adresse avant l'accord
     shot(page, '2b-5-fiche-fermee-avant-accord')
 
     org, card = open_event_as_organizer(world, party, world['private'])
@@ -266,16 +274,17 @@ def test_2_a_new_account_from_a_guests_link_waits_then_is_accepted(browser, part
     pw.expect(org.get_by_text('Bastien N. est invité : il voit l’événement', exact=True)).to_be_visible(timeout=15000)
     shot(org, '2b-7-organisateur-accepte')
 
-    page.reload(wait_until='domcontentloaded')
-    pw.expect(page.get_by_text(ADDRESS, exact=False).first).to_be_visible(timeout=30000)
+    page.reload(wait_until='domcontentloaded')  # Party garde la fiche au rechargement
+    fiche = in_party(page, f"/events/event/{world['private']}")
+    pw.expect(fiche.get_by_text(ADDRESS, exact=False).first).to_be_visible(timeout=30000)
     shot(page, '2b-8-fiche-apres-accord')
     assert not errors, errors
 
 
 def test_2_a_new_account_refused_never_sees_the_event(browser, party, world):  # noqa: F811
     _context, page, errors = new_person(world, browser, 'c')
-    answer_as_new_account(world, 'c', page, party, world['guest_link'], '2c')
-    pw.expect(page.get_by_text('Demande envoyée', exact=True)).to_be_visible(timeout=30000)
+    here = answer_as_new_account(world, 'c', page, party, world['guest_link'], '2c')
+    pw.expect(here.get_by_text('Demande envoyée', exact=True)).to_be_visible(timeout=30000)
 
     org, card = open_event_as_organizer(world, party, world['private'])
     pw.expect(card.get_by_text('Chloé N. attend ton accord', exact=True)).to_be_visible(timeout=30000)
@@ -289,8 +298,9 @@ def test_2_a_new_account_refused_never_sees_the_event(browser, party, world):  #
     pw.expect(page.get_by_role('button', name='Je viens !')).to_have_count(0)
     shot(page, '2c-6-carte-refusee')
     page.goto(f"{party}/events/event/{world['private']}", wait_until='domcontentloaded')
-    pw.expect(page.get_by_text(CLOSED, exact=True)).to_be_visible(timeout=30000)
-    assert page.get_by_text(ADDRESS, exact=False).count() == 0
+    fiche = in_party(page, f"/events/event/{world['private']}")
+    pw.expect(fiche.get_by_text(CLOSED, exact=True)).to_be_visible(timeout=30000)
+    assert fiche.get_by_text(ADDRESS, exact=False).count() == 0
     shot(page, '2c-7-fiche-fermee')
     assert not errors, errors
 
@@ -307,12 +317,12 @@ def test_3_a_guests_link_to_a_public_event_lets_a_new_account_in_directly(browse
     open_card(page, f"{party}/events/invite/{made.json()['token']}")
     pw.expect(page.get_by_role('button', name='Je viens !')).to_be_visible(timeout=30000)
     pw.expect(page.get_by_text('accepte chaque invité', exact=False)).to_have_count(0)  # public : aucun accord
-    answer_as_new_account(world, 'd', page, party, made.json()['token'], '3')
-    pw.expect(page.get_by_text('C’est noté, Dario !', exact=True)).to_be_visible(timeout=30000)
-    pw.expect(page.get_by_text(ADDRESS, exact=True)).to_be_visible()
-    page.get_by_role('button', name='Voir l’événement', exact=True).click()
-    page.wait_for_url(f'**/events/event/{public}', timeout=20000)
-    pw.expect(page.get_by_text(ADDRESS, exact=False).first).to_be_visible(timeout=30000)
+    here = answer_as_new_account(world, 'd', page, party, made.json()['token'], '3')
+    pw.expect(here.get_by_text('C’est noté, Dario !', exact=True)).to_be_visible(timeout=30000)
+    pw.expect(here.get_by_text(ADDRESS, exact=True)).to_be_visible()
+    here.get_by_role('button', name='Voir l’événement', exact=True).click()
+    fiche = in_party(page, f'/events/event/{public}')
+    pw.expect(fiche.get_by_text(ADDRESS, exact=False).first).to_be_visible(timeout=30000)
     shot(page, '3-5-fiche-publique')
     assert not errors, errors
 

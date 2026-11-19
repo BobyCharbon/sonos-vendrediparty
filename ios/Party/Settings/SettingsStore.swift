@@ -26,6 +26,10 @@ final class SettingsStore: ObservableObject {
     @Published private(set) var guest: GuestNotifyState?
     /// nil : pas l'hôte.
     @Published private(set) var host: AdminNotifyState?
+    /// Cet iPhone reçoit les notifications du COMPTE (événements, discussions…), même sans code de soirée (retour de
+    /// l'admin du 19.11 : l'interrupteur du haut restait grisé en prod). Coupé seulement par l'interrupteur ; allumé sinon.
+    @Published private(set) var accountOnDevice = UserDefaults.standard.object(forKey: SettingsStore.accountOnDeviceKey) as? Bool ?? true
+    static let accountOnDeviceKey = "party.accountPushOnDevice"
     /// Réglages › Compagnon : bandeaux « +5 🪙 pour Zicou » ; nil : pas de compte relié aux jeux (ou hors ligne).
     @Published private(set) var zicouReactions: Bool?
     /// Compagnon (Zicou) en bêta : ses réglages n'apparaissent que si le serveur l'a allumé (site de test).
@@ -86,13 +90,26 @@ final class SettingsStore: ObservableObject {
     }
 
     var hostMode: Bool { host != nil }
-    var deviceSubscribed: Bool { permission == "granted" && guest?.subscribed == true }
+    var deviceSubscribed: Bool {
+        permission == "granted" && (guest?.subscribed == true || (account != nil && accountOnDevice))
+    }
+    /// L'interrupteur du haut : avec le code de la soirée (Musique) OU un compte connecté.
+    var deviceToggleEnabled: Bool { guest != nil || account != nil }
 
     // MARK: Chargement
 
     /// Écran affiché : le compte seulement (rapide), la carte du haut en dépend.
     func refreshAccount() async {
         account = AccountSummary.parse(await web?.readLocal("vp_account"))
+    }
+
+    /// Ouverture de l'app : le compte connecté reçoit ses notifications sur cet iPhone, si iOS les autorise et que
+    /// l'interrupteur du haut n'a pas été coupé. Jamais de demande d'iOS ici (aucune fenêtre au lancement).
+    func syncAccountPushQuietly() async {
+        await refreshAccount()
+        permission = await PushRegistrar.shared.status()
+        guard account != nil, permission == "granted", accountOnDevice else { return }
+        await syncEventsPush(true)
     }
 
     /// Avant la déconnexion : cet iPhone ne reçoit plus les notifications des événements de ce compte.
@@ -116,14 +133,17 @@ final class SettingsStore: ObservableObject {
         async let party: Void = loadParty()
         async let member: Void = loadEvents()
         _ = await (party, member)
-        if deviceSubscribed { await syncEventsPush(true) }
+        if permission == "granted" && (guest?.subscribed == true || accountOnDevice) { await syncEventsPush(true) }
     }
 
     /// Les événements du compte arrivent sur cet iPhone tant que ses notifications sont actives (sans erreur
     /// affichée : rien à faire pour la personne si le compte n'est pas connecté).
     private func syncEventsPush(_ on: Bool) async {
-        guard account != nil, let token = await web?.accountToken(),
-              let device = on ? try? await PushRegistrar.shared.register() : await savedDevice() else { return }
+        guard account != nil, let token = await web?.accountToken() else { return }
+        let known = on ? nil : await savedDevice()
+        // Couper sans code de soirée : le jeton de cet iPhone (déjà autorisé, aucune demande d'iOS).
+        let fresh = on || (known == nil && permission == "granted")
+        guard let device = fresh ? try? await PushRegistrar.shared.register() : known else { return }
         try? await api.registerEventsPush(token: token, device: device, on: on)
     }
 
@@ -224,20 +244,30 @@ final class SettingsStore: ObservableObject {
 
     /// Notifications de la soirée sur cet iPhone (musique, jeux, avis) : abonnement de l'appareil.
     func setDevice(_ on: Bool) async {
-        guard let me = await web?.guestIdentity() else { return }
+        // Soirée (code saisi dans Musique) : l'abonnement de l'invité en plus de celui du compte.
+        let me = guest == nil ? nil : await web?.guestIdentity()
         await save("device") {
             if on {
-                try await subscribeDevice(me)
+                if let me { try await subscribeDevice(me) } else { _ = try await PushRegistrar.shared.register() }
+                setAccountOnDevice(true)
                 await syncEventsPush(true)
-            } else if let endpoint = await savedEndpoint() {
+            } else {
                 await syncEventsPush(false)
-                try await api.unsubscribePush(endpoint: endpoint)
-                web?.writeLocal(PushRegistrar.pageKey, nil)
+                setAccountOnDevice(false)
+                if me != nil, let endpoint = await savedEndpoint() {
+                    try await api.unsubscribePush(endpoint: endpoint)
+                    web?.writeLocal(PushRegistrar.pageKey, nil)
+                }
             }
-            guest = try await api.notifyPrefs(guestID: me.id)
+            if let me { guest = try await api.notifyPrefs(guestID: me.id) }
             permission = await PushRegistrar.shared.status()
             trackChanged(guest?.prefs["track"] ?? true, deviceSubscribed)
         }
+    }
+
+    private func setAccountOnDevice(_ on: Bool) {
+        accountOnDevice = on
+        UserDefaults.standard.set(on, forKey: Self.accountOnDeviceKey)
     }
 
     func setLiveActivities(_ on: Bool) {
@@ -256,7 +286,6 @@ final class SettingsStore: ObservableObject {
             return "denied"
         }
         await setDevice(true)
-        if !deviceSubscribed { await syncEventsPush(true) }  // au moins les événements du compte (soirée sans code)
         permission = await PushRegistrar.shared.status()
         return permission
     }

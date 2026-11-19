@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 import httpx
 import pytest
 
+from tests.supabase_live.party_shell import in_party, where_visible
 from tests.supabase_live.test_audiences_live import ADMIN, GUEST_B, complete_profile, create_event
 from tests.supabase_live.test_inscription_complete_browser_live import browser, sign_in  # noqa: F401
 from tests.supabase_live.test_invitations_v2_live import terms_version
@@ -105,7 +106,7 @@ def test_a_guest_ticks_the_box_answers_no_joins_sees_the_banner_and_leaves(brows
         pw.expect(box).to_have_attribute('aria-checked', 'true')
         page.get_by_role('button', name='Je ne peux pas').click()
         sign_in(page, '079 000 00 02')
-        pw.expect(page.get_by_text(re.compile(r'Tu es dans le groupe « (\S+ )?Raclette recette groupe »'))).to_be_visible(timeout=30000)
+        where_visible(page, re.compile(r'Tu es dans le groupe « (\S+ )?Raclette recette groupe »'))  # seul ou dans Party
         shot(page, 'live-02-pas-present-dans-le-groupe')
         assert sql(f"select status::text s from public.rsvps where event_id = '{e}' and user_id = '{guest.uid}'")[0]['s'] == 'no'
         assert sql(f"select count(*) n from public.member_group_members where group_id = '{group}' and user_id = '{guest.uid}'")[0]['n'] == 1
@@ -113,8 +114,9 @@ def test_a_guest_ticks_the_box_answers_no_joins_sees_the_banner_and_leaves(brows
                    f"and data->>'group_id' = '{group}'")[0]['n'] == 1
 
         # La discussion du groupe : le bandeau, une seule fois, avec « Quitter ».
+        # Page du module ouverte seule : renvoyée dans Party (cadre, barre d'onglets), party_shell.py.
         page.goto(f'{party}/events/chats/{group}', wait_until='domcontentloaded')
-        note = page.get_by_test_id('group-join-note')
+        note = in_party(page, f'/events/chats/{group}').get_by_test_id('group-join-note')
         pw.expect(note).to_be_visible(timeout=30000)
         pw.expect(note.get_by_text('Ajouté avec ta réponse à « Raclette recette groupe »', exact=False)).to_be_visible()
         shot(page, 'live-03-bandeau-groupe')

@@ -74,7 +74,7 @@ def poll():
 
 
 def open_event(browser, party, e: str, number: str, wait_for: str):  # noqa: F811
-    context, page, errors = phone_page(browser)
+    context, page, errors = phone_page(browser, alone=True)
     page.goto(f'{party}/events/sign-in', wait_until='domcontentloaded')
     sign_in(page, number)
     pw.expect(page.get_by_text('Ton compte Party', exact=True)).to_have_count(0, timeout=30000)

@@ -68,6 +68,8 @@ def browser(request):
 
 
 def mock_services(page, pending=False, events=1, people=(), roles=None, unread=(), rsvps=(), event_extra=None):
+    # Tests du module ouvert seul : pas de renvoi vers la page Party (lib/partyShell.ts, leaveIfAlone).
+    page.add_init_script("try { if (window.top === window) localStorage.setItem('party_module_alone', '1'); } catch (e) {}")
     calls = []
     profile = {'id': USER, 'display_name': 'Compte de démonstration', 'phone': '41791234567', 'role': 'guest' if pending else 'admin', 'status': 'active', 'avatar_url': f'{USER}/photo.jpg', 'first_name': 'Camille', 'last_name': 'Demo', 'created_at': '2026-10-19T08:00:00Z'}
     category = {'id': 'ed69d11e-34dd-43fe-b211-10d0dd158ba9', 'name': 'Soirée', 'color': '#FFB347', 'sort': 0, 'archived': False, 'icon': None}

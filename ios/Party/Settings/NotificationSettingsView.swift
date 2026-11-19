@@ -41,13 +41,13 @@ struct NotificationSettingsView: View {
                 .foregroundStyle(.primary)
             }
             toggle("device", "iphone.radiowaves.left.and.right", .green, "Notifications sur cet iPhone",
-                   "Musique, jeux et réponses à tes avis arrivent ici", isOn: store.deviceSubscribed,
-                   enabled: store.guest != nil) { on in await store.setDevice(on) }
+                   "Événements, discussions, musique et jeux arrivent ici", isOn: store.deviceSubscribed,
+                   enabled: store.deviceToggleEnabled) { on in await store.setDevice(on) }
         } header: {
             Text("Général")
         } footer: {
-            Text(store.guest == nil && !store.hostMode
-                 ? "Entre le code de la soirée (onglet Musique) pour choisir les notifications de la soirée."
+            Text(store.guest == nil && !store.hostMode && store.account == nil
+                 ? "Connecte-toi (Événements) ou entre le code de la soirée (onglet Musique) pour recevoir les notifications."
                  : "Chaque type se choisit ci-dessous. Les événements ont leurs propres réglages, plus bas.")
         }
     }

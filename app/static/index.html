@@ -1219,7 +1219,11 @@ addEventListener("DOMContentLoaded", async () => {
     // recharge l'app installée) le rouvre au lieu de la connexion puis de l'accueil (recette du 10.11.2026).
     const shared = params.get("event") || "";
     const keep = !params.has("ticket") && /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(shared);
-    history.replaceState(null, "", location.pathname + (keep ? "?tab=events&event=" + shared.toLowerCase() : ""));
+    // Page du module venue d'un lien (?path=, module ouvert seul renvoyé dans Party) : gardée elle aussi au rechargement.
+    const path = params.get("path") || "";
+    const kept = keep ? "?tab=events&event=" + shared.toLowerCase()
+      : !params.has("ticket") && PartyEvents.validPath(path) ? "?tab=events&path=" + encodeURIComponent(path) : "";
+    history.replaceState(null, "", location.pathname + kept);
   } else showTab(params.has("pin") ? "music" : startTab());
   PartyEvents.preload();  // pastille « réponses attendues » sans ouvrir l’onglet
   if (params.has("pin")) {

@@ -20,6 +20,7 @@ from urllib.parse import urlparse
 import httpx
 import pytest
 
+from tests.supabase_live.party_shell import ALONE_INIT
 from tests.supabase_live.test_audiences_live import ADMIN, GUEST_A, VIP, complete_profile, create_event
 from tests.supabase_live.test_invitations_v2_live import terms_version
 from tests.supabase_live.test_member_admin_live import KEY_FILE, LOCAL_TEST, TEST_URL, Session, pytestmark as live  # noqa: F401
@@ -106,6 +107,7 @@ def bar():
 def signed_in_page(browser, phone: str, origin: str, event: str, errors: list):
     """La connexion normale de l'app (numéro, code fixe des comptes de test), puis la fiche de l'événement."""
     context = browser.new_context(viewport={'width': 390, 'height': 844}, color_scheme='dark', locale='fr-CH')
+    context.add_init_script(ALONE_INIT)  # le module reste seul (sans renvoi dans Party) : party_shell.py
     page = context.new_page()
     page.on('pageerror', lambda e: errors.append(str(e)))
     page.goto(f'{origin}/events/sign-in')

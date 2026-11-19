@@ -46,7 +46,7 @@ def event():
 
 def test_a_guest_sees_numbers_only_creates_his_named_link_and_copies_it_again(browser, party, event):  # noqa: F811
     admin, guest, e = event
-    context, page, errors = phone_page(browser)
+    context, page, errors = phone_page(browser, alone=True)
     context.grant_permissions(['clipboard-read', 'clipboard-write'], origin=party)
     try:
         page.goto(f'{party}/events/event/{e}', wait_until='domcontentloaded')

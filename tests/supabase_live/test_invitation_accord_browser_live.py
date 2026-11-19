@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from tests.supabase_live.test_audiences_live import ADMIN, GUEST_A, GUEST_B, create_event
+from tests.supabase_live.party_shell import in_party, where_visible
 from tests.supabase_live.test_inscription_complete_browser_live import browser, party, phone_page, sign_in  # noqa: F401
 from tests.supabase_live.test_invitations_v2_live import terms_version
 from tests.supabase_live.test_member_admin_live import Session, pytestmark as live  # noqa: F401
@@ -25,6 +26,7 @@ SHOTS = Path(os.environ['ACCORD_SHOTS']) if os.environ.get('ACCORD_SHOTS') else 
 
 def shot(page, name: str):
     if SHOTS:
+        page = getattr(page, 'page', page)  # cadre du module dans Party : capture de la page
         page.wait_for_timeout(900)
         SHOTS.mkdir(parents=True, exist_ok=True)
         page.screenshot(path=str(SHOTS / f'{name}.png'))
@@ -45,6 +47,8 @@ def event():
 
 def test_a_person_invited_by_a_guest_waits_then_the_organizer_accepts(browser, party, event):  # noqa: F811
     admin, other, e, token = event
+    # Surnom du moment de ce compte (« Guest B » ou « Testeur 2 » : d'autres recettes le changent, conftest.py).
+    who = sql(f"select display_name from public.profiles where id = '{other.uid}'")[0]['display_name']
     context, page, errors = phone_page(browser)
     try:
         page.goto(f'{party}/events/invite/{token}', wait_until='domcontentloaded')
@@ -53,8 +57,8 @@ def test_a_person_invited_by_a_guest_waits_then_the_organizer_accepts(browser, p
         shot(page, '00-carte-avec-accord')
         page.get_by_role('button', name='Je viens !').click()
         sign_in(page, '079 000 00 02')
-        pw.expect(page.get_by_text('Demande envoyée', exact=True)).to_be_visible(timeout=30000)
-        pw.expect(page.get_by_role('button', name='Voir l’événement', exact=True)).to_have_count(0)
+        here = where_visible(page, 'Demande envoyée')  # module seul ou dans Party (party_shell.py)
+        pw.expect(here.get_by_role('button', name='Voir l’événement', exact=True)).to_have_count(0)
         shot(page, '01-demande-envoyee')
         assert not sql(f"select 1 from public.event_invites where event_id = '{e}' and user_id = '{other.uid}'")
         assert not errors, errors
@@ -63,18 +67,21 @@ def test_a_person_invited_by_a_guest_waits_then_the_organizer_accepts(browser, p
 
     context, page, errors = phone_page(browser)
     try:
+        # Adresse de la fiche ouverte seule : renvoyée dans Party (cadre) ; on s'y connecte, la fiche y revient.
         page.goto(f'{party}/events/event/{e}', wait_until='domcontentloaded')
-        page.get_by_role('button', name='Se connecter', exact=True).click()
-        sign_in(page, '079 000 00 04')
-        pw.expect(page.get_by_role('button', name='Se connecter', exact=True)).to_have_count(0, timeout=30000)
+        frame = in_party(page, f'/events/share/{e}')  # sans compte : la page publique de l'événement, dans Party
+        frame.get_by_role('button', name='Se connecter', exact=True).click()
+        sign_in(frame, '079 000 00 04')
+        pw.expect(frame.get_by_role('button', name='Se connecter', exact=True)).to_have_count(0, timeout=30000)
         page.goto(f'{party}/events/event/{e}', wait_until='domcontentloaded')
+        page = in_party(page, f'/events/event/{e}')  # la suite dans le cadre
         card = page.get_by_label('Invités', exact=True)
-        pw.expect(card.get_by_text('Guest B attend ton accord', exact=True)).to_be_visible(timeout=30000)
-        card.get_by_text('Guest B attend ton accord', exact=True).scroll_into_view_if_needed()
+        pw.expect(card.get_by_text(f'{who} attend ton accord', exact=True)).to_be_visible(timeout=30000)
+        card.get_by_text(f'{who} attend ton accord', exact=True).scroll_into_view_if_needed()
         shot(page, '02-organisateur-a-accepter')
-        card.get_by_role('button', name='Accepter Guest B').click()
-        pw.expect(page.get_by_text('Guest B est invité : il voit l’événement', exact=True)).to_be_visible(timeout=15000)
-        pw.expect(card.get_by_text('Guest B attend ton accord', exact=True)).to_have_count(0)
+        card.get_by_role('button', name=f'Accepter {who}').click()
+        pw.expect(page.get_by_text(f'{who} est invité : il voit l’événement', exact=True)).to_be_visible(timeout=15000)
+        pw.expect(card.get_by_text(f'{who} attend ton accord', exact=True)).to_have_count(0)
         shot(page, '03-organisateur-accepte')
         assert not errors, errors
     finally:

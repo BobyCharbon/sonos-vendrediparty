@@ -49,7 +49,7 @@ def photo_file() -> dict:
 
 
 def test_a_group_gets_a_photo_shown_everywhere_then_removed(browser, party, guest):  # noqa: F811
-    context, page, errors = phone_page(browser)
+    context, page, errors = phone_page(browser, alone=True)
     try:
         page.goto(f'{party}/events/sign-in', wait_until='domcontentloaded')
         sign_in(page, '079 000 00 01')

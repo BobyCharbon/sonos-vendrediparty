@@ -26,6 +26,7 @@ import pytest
 from tests.supabase_live.test_audiences_live import ADMIN, create_event
 from tests.supabase_live.test_inscription_complete_live import reset_account
 from tests.supabase_live.test_invitations_v2_live import terms_version
+from tests.supabase_live.party_shell import ALONE_INIT, in_party, where_visible
 from tests.supabase_live.test_member_admin_live import KEY_FILE, TEST_URL, Session, pytestmark as live  # noqa: F401
 from tests.supabase_live.test_rsvp_digest_live import sql
 
@@ -40,6 +41,7 @@ LINK_GUEST, SHARE_GUEST = ('41768163120', '076 816 31 20'), ('41790000006', '079
 
 def shot(page, name: str):
     if SHOTS:
+        page = getattr(page, 'page', page)  # cadre du module dans Party : capture de toute la page
         page.wait_for_timeout(700)
         SHOTS.mkdir(parents=True, exist_ok=True)
         page.screenshot(path=str(SHOTS / f'{name}.png'), full_page=True)
@@ -111,8 +113,11 @@ def poll():
         reset_account(s.uid)
 
 
-def phone_page(browser):
+def phone_page(browser, alone: bool = False):
+    """alone : le module reste seul (pas de renvoi dans Party), pour les recettes qui ne visent pas ce parcours."""
     context = browser.new_context(viewport={'width': 390, 'height': 844}, color_scheme='dark', locale='fr-CH')
+    if alone:
+        context.add_init_script(ALONE_INIT)
     page = context.new_page()
     errors = []
     page.on('pageerror', lambda e: errors.append(str(e)))
@@ -165,16 +170,17 @@ def test_a_guest_invited_by_link_to_a_public_poll_registers_fully_and_the_organi
         page.get_by_role('button', name='📅 Choisir mes dates').click()
         shot(page, '02-lien-connexion-normale')
         sign_in(page, LINK_GUEST[1])
-        complete_profile(page, 'Léa', 'Paint', 'Léa P.')
+        here = where_visible(page, 'Faisons connaissance')  # module seul ou déjà dans Party (voir party_shell.py)
+        complete_profile(here, 'Léa', 'Paint', 'Léa P.')
         shot(page, '03-lien-profil-complet')
-        pw.expect(page.get_by_text('Tes dates, Léa', exact=True)).to_be_visible(timeout=20000)
-        page.get_by_role('button', name=re.compile('^Oui : ')).first.click()
-        page.get_by_role('button', name=re.compile('^Non : ')).nth(1).click()
-        pw.expect(page.get_by_text('C’est noté, Léa !', exact=True)).to_be_visible(timeout=15000)
+        pw.expect(here.get_by_text('Tes dates, Léa', exact=True)).to_be_visible(timeout=20000)
+        here.get_by_role('button', name=re.compile('^Oui : ')).first.click()
+        here.get_by_role('button', name=re.compile('^Non : ')).nth(1).click()
+        pw.expect(here.get_by_text('C’est noté, Léa !', exact=True)).to_be_visible(timeout=15000)
         shot(page, '04-lien-votes')
-        page.get_by_role('button', name='Voir l’événement et les votes').click()
-        page.wait_for_url(f'**/events/event/{event}', timeout=20000)
-        pw.expect(page.get_by_text('Quelle date ?', exact=True)).to_be_visible(timeout=20000)
+        here.get_by_role('button', name='Voir l’événement et les votes').click()
+        frame = in_party(page, f'/events/event/{event}')  # la fiche DANS Party, barre d'onglets (jamais le module seul)
+        pw.expect(frame.get_by_text('Quelle date ?', exact=True)).to_be_visible(timeout=20000)
         shot(page, '05-lien-fiche')
         assert not errors, errors
     finally:
@@ -202,12 +208,12 @@ def test_a_guest_from_the_public_share_link_registers_fully_and_votes_on_the_eve
         shot(page, '06-partage-sondage-sans-compte')
         page.get_by_role('button', name='Se connecter pour choisir mes dates').click()
         sign_in(page, SHARE_GUEST[1])
-        complete_profile(page, 'Marc', 'Partage', 'Marc P.')
-        # Profil complet : la fiche de l'événement, comme pour tout membre ; on y vote.
-        page.wait_for_url(f'**/events/event/{event}', timeout=20000)
-        pw.expect(page.get_by_text('Quelle date ?', exact=True)).to_be_visible(timeout=20000)
-        page.get_by_role('button', name=re.compile('^Oui : ')).first.click()
-        pw.expect(page.get_by_text('2 votants', exact=True)).to_be_visible(timeout=15000)
+        complete_profile(where_visible(page, 'Faisons connaissance'), 'Marc', 'Partage', 'Marc P.')
+        # Profil complet : la fiche de l'événement, comme pour tout membre, DANS Party ; on y vote.
+        frame = in_party(page, f'/events/event/{event}')
+        pw.expect(frame.get_by_text('Quelle date ?', exact=True)).to_be_visible(timeout=20000)
+        frame.get_by_role('button', name=re.compile('^Oui : ')).first.click()
+        pw.expect(frame.get_by_text('2 votants', exact=True)).to_be_visible(timeout=15000)
         shot(page, '07-partage-fiche-vote')
         assert not errors, errors
     finally:

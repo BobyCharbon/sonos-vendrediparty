@@ -55,8 +55,11 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   `ios-app.js` / `html.native-tabs` inchangés.
 - « Retour » en haut de la barre verticale (comme Safari, demande du 19.11) : chaque écran vide de `SystemTabBar` est
   dans un `UINavigationController` (son bouton de gauche monte dans la barre). Affiché seulement s'il y a un écran
-  derrière : la page le dit (`state.back` de native-tabs.js = `PartyBack.can()` : pile `Nav`, ou page du module, signal
-  `party-events:back` / `party-shell:back`, même règle que le glisser `canGoBackHere`) ; sinon « ‹ Réglages » (`pageDetail`).
+  derrière : la page le dit (`state.back` de native-tabs.js = `PartyBack.can()` : pile `Nav`, ou module). Dans le module,
+  il TOUCHE le bouton de l'écran, comme le doigt en haut à gauche (`lib/shellBack.ts` : bouton visible nommé Retour… /
+  Annuler / Fermer, le plus haut à gauche ; feuille ouverte : son « Fermer » ; signaux `party-events:back` /
+  `party-shell:back`) ; jamais `router.back()` à l'aveugle (fiche ouverte de l'extérieur : pas d'historique, bouton
+  sans effet, retour de l'admin du 19.11). Sinon « ‹ Réglages » (`pageDetail`). Test réel : `test_retour_duo_browser_live.py`.
   Écrans natifs (Discussions, Musique) : leur propre retour. Tests : `testBackSitsAtTheTopOfTheVerticalBar…`,
   `test_back_of_the_duo_vertical_bar_follows_the_page_stack`.
 - Écran ≥ 900 px dans l'app (Duo déplié) : la page ne garde pas la place de son rail web (caché), et le panneau des
@@ -235,6 +238,17 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
 - Fin de la maintenance ou serveur revenu (15.11) : `notice.js` recharge TOUTE la page (`location.reload()`), web et app
   iPhone ; sinon la page garde l'ancienne version et Jeux / Événements restent vides. Ne jamais retirer ce rechargement.
 - Tests : `tests/test_notice.py`, `tests/e2e/test_notice.py` (serveur arrêté puis relancé), `PartyNoticeTests`.
+
+## Jamais coincé hors de Party (retour de l'admin du 19.11 : invité du paintball sans moyen de voir les autres événements)
+- Le module Événements ouvert SEUL (pas dans le cadre `#eventsFrame` : lien, agenda, app iPhone ouverte par un lien) ne
+  garde que les pages qui doivent l'être : invite, share, group-invite, join, prono-invite, sign-in, welcome, terms,
+  privacy, admin (`ALONE`, web/events/src/lib/partyShell.ts). Toute autre page repart aussitôt dans Party, même page
+  (`leaveIfAlone(path)` dans _layout.tsx, chemin du ROUTEUR, jamais `location.pathname` qui est en retard) ; jamais
+  pendant le passage par « / » juste après la connexion quand un lien attend (`toLink`, `LINK_INTENT`) : sinon la
+  réponse de l'invité était perdue (recette du 19.11). Fins de parcours : `openInParty(path)` (« Voir l'événement »,
+  « Découvrir Party » de « Demande envoyée »). Party ouvre `?tab=events&event=<id>` ou `&path=<chemin>`
+  (`PartyEvents.validPath`, gardé au rechargement). Tests simulés du module seul : `localStorage.party_module_alone = '1'`
+  (`mock_services`). Recettes réelles : `test_inconnu_jamais_coince_browser_live.py`, aides `tests/supabase_live/party_shell.py`.
 
 ## Inscription des invités (avis 39f148377a8f, 10.11.2026) — profil complet, parcours normal
 - Toute personne invitée (lien d'invitation, lien public « Partager », groupe) passe par la connexion NORMALE de l'app

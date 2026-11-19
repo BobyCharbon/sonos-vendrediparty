@@ -40,7 +40,7 @@ def guest():
 
 
 def test_a_guest_creates_a_group_in_two_steps_and_finds_it_everywhere(browser, party, guest):  # noqa: F811
-    context, page, errors = phone_page(browser)
+    context, page, errors = phone_page(browser, alone=True)
     try:
         page.goto(f'{party}/events/sign-in', wait_until='domcontentloaded')
         sign_in(page, '079 000 00 01')

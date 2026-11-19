@@ -128,7 +128,7 @@ def people():
 
 def test_the_agenda_in_party_for_real(browser, party, people):
     owner, friend, other, gid = people
-    context, page, errors = phone_page(browser)
+    context, page, errors = phone_page(browser, alone=True)
     stranger = browser.new_context(viewport={'width': 390, 'height': 844}, locale='fr-CH', timezone_id='Europe/Zurich')
     try:
         page.goto(f'{party}/events/sign-in', wait_until='domcontentloaded')

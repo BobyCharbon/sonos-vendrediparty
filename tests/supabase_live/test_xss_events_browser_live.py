@@ -61,7 +61,7 @@ def trapped_event():
 
 def test_trapped_event_texts_stay_plain_text_on_the_event_page(browser, party, trapped_event):  # noqa: F811
     e, admin = trapped_event
-    context, page, errors = phone_page(browser)
+    context, page, errors = phone_page(browser, alone=True)
     key = f"sb-{urlparse(TEST_URL).hostname.split('.')[0]}-auth-token"
     session = {**admin.auth, 'expires_at': admin.auth.get('expires_at') or int(time.time()) + 3600}
     context.add_init_script(TRAP + f'localStorage.setItem({json.dumps(key)}, {json.dumps(json.dumps(session))});')

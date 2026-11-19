@@ -38,7 +38,7 @@ def band():
 
 def test_create_play_hidden_result_reveal_and_board(browser, party, band):  # noqa: F811
     a, b, gid = band
-    context, page, errors = phone_page(browser)
+    context, page, errors = phone_page(browser, alone=True)
     try:
         page.goto(f'{party}/events/sign-in', wait_until='domcontentloaded')
         sign_in(page, '079 000 00 01')

@@ -347,6 +347,8 @@ final class WebModel: ObservableObject {
 
     func pageLoaded() {
         Task { await shareSession() }
+        // Notifications du compte sur cet iPhone dès l'ouverture, sans passer par les Réglages (retour du 19.11).
+        Task { [weak self] in try? await Task.sleep(nanoseconds: 3_000_000_000); await self?.settings?.syncAccountPushQuietly() }
         if let fold { webView?.evaluateJavaScript(fold.script) }  // page rechargée : elle reçoit l'état aussitôt
         guard awaitingTabs else { return }
         awaitingTabs = false

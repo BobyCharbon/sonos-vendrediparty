@@ -15,6 +15,7 @@ import { avatarColor, formatLongDay, formatTime, initials } from '@/lib/format';
 import { acceptInvite, fetchInviteCard, unlimited, type Accepted, type InviteCard } from '@/lib/invites';
 import { clearInviteAnswer, peekInviteAnswer, peekInviteJoin, rememberInviteAnswer } from '@/lib/inviteIntent';
 import { groupLabel } from '@/lib/guestGroup';
+import { openInParty } from '@/lib/partyShell';
 import { canInstallWebApp, insideInstalledApp, installWebApp, isAndroid } from '@/lib/installPrompt';
 import { enter, pressTransition } from '@/lib/motion';
 import { safeHref } from '@/lib/links';
@@ -249,6 +250,8 @@ function Waiting({ title, host, group }: { title: string; host: string | null; g
         et l’événement s’ouvrira dans Party.
       </T>
       {group ? <T size={14} color={colors.lavender} style={{ textAlign: 'center' }}>👥 Tu entreras aussi dans le groupe « {group} » à ce moment-là.</T> : null}
+      {/* En attendant : Party et ses autres événements (jamais une impasse, retour de l'admin du 19.11). */}
+      <Button label="Découvrir Party" variant="secondary" onPress={() => openInParty('/')} />
     </Screen>
   );
 }
@@ -354,10 +357,10 @@ function Done({ card, done, onChange }: { card: InviteCard; done: Accepted; onCh
   return <Answered card={card} done={done as Accepted & { status: RsvpStatus }} onChange={onChange} />;
 }
 
-/** La fiche complète de l'événement, comme pour tout membre (profil complet : elle s'ouvre). Identifiant vérifié. */
+/** La fiche complète de l'événement, comme pour tout membre, DANS Party (barre d'onglets : les autres événements, l'app). */
 function OpenEvent({ id, label }: { id: string; label: string }) {
   if (!TOKEN.test(id)) return null;
-  return <Button label={label} variant="secondary" onPress={() => router.replace(`/event/${id}` as Href)} />;
+  return <Button label={label} variant="secondary" onPress={() => openInParty(`/event/${id}`)} />;
 }
 
 /** Sondage de dates : on vote les dates tout de suite ; l'organisateur fixe ensuite celle qui arrange le plus de monde. */

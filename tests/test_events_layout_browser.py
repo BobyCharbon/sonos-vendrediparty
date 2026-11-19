@@ -54,7 +54,7 @@ def session_script():
     token = '.'.join([enc({'alg': 'HS256', 'typ': 'JWT'}), enc({'sub': USER, 'aud': 'authenticated', 'role': 'authenticated', 'exp': int(time.time()) + 3600}), 'sig'])
     session = {'access_token': token, 'refresh_token': 'r', 'expires_in': 3600, 'expires_at': int(time.time()) + 3600, 'token_type': 'bearer',
                'user': {'id': USER, 'aud': 'authenticated', 'phone': PROFILE['phone'], 'app_metadata': {}, 'user_metadata': {}, 'created_at': PROFILE['created_at']}}
-    return f"localStorage.setItem('sb-gsuetixzobooggeaubvb-auth-token', {json.dumps(json.dumps(session))});"
+    return f"localStorage.setItem('sb-gsuetixzobooggeaubvb-auth-token', {json.dumps(json.dumps(session))}); localStorage.setItem('party_module_alone', '1');"  # module seul : pas de renvoi vers Party
 
 
 def backend(page):
