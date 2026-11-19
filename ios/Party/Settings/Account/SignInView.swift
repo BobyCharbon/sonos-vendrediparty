@@ -16,12 +16,15 @@ struct SignInView: View {
                     .font(.subheadline).foregroundStyle(.secondary)
             }
             .listRowBackground(Color.clear)
+            // Erreur (code faux ou expiré, numéro incomplet) AU-DESSUS du champ : sous le champ, le pavé numérique la
+            // cachait (recette du 19.11 : le code s'effaçait sans explication visible).
+            if let error = store.error {
+                Section { Text(error).foregroundStyle(.red) }
+                    .accessibilityIdentifier("login-error")
+            }
             switch store.step {
             case .phone: phoneStep
             case .code(let number): codeStep(number)
-            }
-            if let error = store.error {
-                Section { Text(error).foregroundStyle(.red) }
             }
         }
         .scrollContentBackground(.hidden)
