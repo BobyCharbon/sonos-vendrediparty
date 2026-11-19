@@ -116,6 +116,8 @@ final class WebModel: ObservableObject {
         hostMusic = HostMusicStore(api: api, web: self)
         feedbackAdmin = FeedbackAdminStore(api: api, web: self)
         chats = ChatsStore(api: api, web: self)
+        // Discussions natives : la pastille de l'onglet (page, `chatsBadge`) suit la liste aussitôt (lu, nouveau message).
+        chats?.onBadge = { [weak self] n in self?.webView?.evaluateJavaScript(Self.chatsBadgeScript(n)) }
         eventChats = ChatsStore(api: api, web: self, forEvents: true)
         people = PeopleStore(api: api, web: self,
                              openChat: { [weak self] chat in self?.openChatNow(chat) },
@@ -452,8 +454,14 @@ final class WebModel: ObservableObject {
         webView?.evaluateJavaScript(Self.chatClosedScript)
     }
 
+    /// La pastille de l'onglet Discussions est relue aussi : la discussion lue depuis la fiche ne compte plus (19.11).
     nonisolated static let chatClosedScript = "(function(){var e='party-native-chat:closed';window.dispatchEvent(new Event(e));"
-        + "var f=document.getElementById('eventsFrame');try{f&&f.contentWindow&&f.contentWindow.dispatchEvent(new Event(e));}catch(x){}})()"
+        + "var f=document.getElementById('eventsFrame');try{f&&f.contentWindow&&f.contentWindow.dispatchEvent(new Event(e));}catch(x){}"
+        + "if(typeof refreshChatsBadge==='function')refreshChatsBadge();})()"
+
+    nonisolated static func chatsBadgeScript(_ n: Int) -> String {
+        "typeof setChatsBadge==='function'&&setChatsBadge(\(max(0, n)))"
+    }
 
     /// Discussion demandée avant que l'app soit prête (notification touchée au lancement).
     private var waitingEventChat: (id: String, info: Bool)?

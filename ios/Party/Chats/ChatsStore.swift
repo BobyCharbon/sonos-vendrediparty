@@ -42,6 +42,8 @@ final class ChatsStore: ObservableObject {
     static var retryDelays: [Duration] = [.milliseconds(800), .milliseconds(2500)]
     /// Conversations préchargées depuis la liste (dernier message connu) : une seule lecture par nouveau message.
     private var prefetched: [String: String] = [:]
+    /// Conversation ouverte pas encore notée lue par le serveur (réseau absent à l'ouverture : au prochain essai).
+    private var readOnOpen: String?
     /// Dernière version de chaque conversation, en mémoire (compte memoryAccount) : affichée dès le toucher, sans même
     /// relire le fichier du cache. Oubliée quand un autre compte se connecte.
     private var memory: [String: Conversation] = [:]
@@ -190,8 +192,13 @@ final class ChatsStore: ObservableObject {
     }
 
     private func setBadge(_ n: Int) {
-        if n != badge { badge = n }
+        guard n != badge else { return }
+        badge = n
+        onBadge?(n)
     }
+
+    /// Pastille changée (lu, nouveau message) : l'onglet Discussions de la barre (décrit par la page) la reprend aussitôt.
+    var onBadge: ((Int) -> Void)?
 
     /// Change une ligne tout de suite (avant la réponse du serveur) ; la relecture suivante la corrige au besoin.
     private func update(_ id: String, _ change: (inout ChatSummary) -> Void) {
@@ -404,12 +411,15 @@ final class ChatsStore: ObservableObject {
     }
     #endif
 
-    /// Ouvre (ou relit) une conversation ; la marque comme lue si de nouveaux messages sont arrivés.
+    /// Ouvre (ou relit) une conversation ; la marque comme lue à l'ouverture, puis à chaque nouveau message.
     func open(_ group: String) async {
         #if DEBUG
         if demo { return }
         #endif
         if conversation?.id != group {
+            // Lue dès l'ouverture, même préchargée (ses messages déjà sur le téléphone : rien de « nouveau ») — bug du
+            // 19.11 : la conversation restait non lue dans la liste et la pastille.
+            readOnOpen = group
             older = []
             hasOlder = true
             jumpTo = nil
@@ -440,7 +450,11 @@ final class ChatsStore: ObservableObject {
                 : fresh.with(messages: Conversation.merge(older: older, into: fresh.messages) + waiting)
             if let prefsOverride { shown = prefsOverride(shown) }
             if shown != conversation { conversation = shown }
-            if changed && fresh.member && !forEvents { try? await api.readChat(token: token, group: group, direct: fresh.isDirect) }
+            if (changed || readOnOpen == group) && fresh.member && !forEvents,
+               (try? await api.readChat(token: token, group: group, direct: fresh.isDirect)) != nil {
+                if readOnOpen == group { readOnOpen = nil }
+                update(group) { $0.unread = 0; $0.markedUnread = false }  // la ligne et la pastille, sans attendre la liste
+            }
             // Le serveur répond : les messages restés « pas envoyés » repartent.
             for m in waiting where m.failed { Task { await self.retry(m) } }
         }
