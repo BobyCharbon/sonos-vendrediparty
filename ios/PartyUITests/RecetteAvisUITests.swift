@@ -92,7 +92,8 @@ final class RecetteAvisUITests: XCTestCase {
     private func openRow(_ title: String) -> Bool {
         let cell = app.staticTexts[title].firstMatch
         let barTop = app.tabBars.firstMatch.exists ? app.tabBars.firstMatch.frame.minY : app.frame.maxY
-        for _ in 0..<8 where !(cell.exists && cell.isHittable && cell.frame.maxY < barTop - 8) {
+        // Visible à l'écran (isHittable reste parfois faux sur les lignes des Réglages natifs, iOS 27).
+        for _ in 0..<8 where !(cell.exists && cell.frame.minY > 90 && cell.frame.maxY < barTop - 8) {
             app.swipeUp(velocity: .slow)
             sleep(1)
         }
@@ -408,15 +409,17 @@ final class RecetteAvisUITests: XCTestCase {
         for _ in 0..<4 where !(search.exists && search.isHittable) { app.swipeUp(velocity: .slow) }
         XCTAssertTrue(search.waitForExistence(timeout: 5), "recherche")
         search.tap()
-        app.typeText("Bot")
-        let found = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Ajouter Bot'"))
-        XCTAssertTrue(found.firstMatch.waitForExistence(timeout: 15), "une personne trouvée (« Bot … »)")
+        // La recherche native ne propose que les personnes croisées à un événement (jamais tout le site, 17.11) :
+        // Guest B, invitée de « [QA] Recette discussion » (données de la recette).
+        app.typeText("Guest")
+        let found = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Ajouter Guest'"))
+        XCTAssertTrue(found.firstMatch.waitForExistence(timeout: 15), "une personne croisée trouvée (« Guest … »)")
         shot("ajouter/recherche")
         found.firstMatch.tap()
         let send = app.buttons["group-invite-send"]
         XCTAssertTrue(send.waitForExistence(timeout: 5), "« Inviter … »")
         send.tap()
-        let done = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Déjà invité : Bot'")).firstMatch
+        let done = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Déjà invité : Guest'")).firstMatch
         XCTAssertTrue(done.waitForExistence(timeout: 15), "la ligne passe à « Déjà invité »")
         shot("ajouter/invite")
         app.buttons["new-group-later"].tap()
