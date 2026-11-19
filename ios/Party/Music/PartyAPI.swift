@@ -17,7 +17,8 @@ enum PartyAPIError: LocalizedError, Equatable {
         switch self {
         case .needsCode: return "Code de la soirée requis"
         case .server(let message), .duplicate(let message), .termsRequired(let message): return message
-        case .offline: return "Party ! est injoignable : vérifie ta connexion"
+        // Jamais « injoignable » (avis eb710b132330) : réseau coupé ou serveur lent, on dit quoi faire.
+        case .offline: return "Party ne répond pas pour l'instant : vérifie ta connexion, puis réessaie."
         }
     }
 }
