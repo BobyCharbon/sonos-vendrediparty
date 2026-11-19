@@ -69,7 +69,9 @@ export function NudgeSheet({ request, event, host, when, onClose, onMarked }: {
 
   // Relance d'une ligne : pas de question, elle part au toucher.
   useEffect(() => {
-    if (request && !request.confirm && !done && !busy && !error) void send();
+    if (!request || request.confirm || done || busy || error) return;
+    const t = setTimeout(() => void send(), 0);  // hors du rendu de l'effet (règle set-state-in-effect)
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [request]);
 
