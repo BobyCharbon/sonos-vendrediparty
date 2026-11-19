@@ -225,13 +225,21 @@ struct SystemTabBar: UIViewControllerRepresentable {
             let inset = Self.side(of: page, edge: edge)
             return onRight ? point.x >= view.bounds.width - inset : point.x <= inset
         }
+
+        /// Fond vide de la barre (écran vide ou un de ses conteneurs) : le toucher n'est pas pour elle. Dans la colonne,
+        /// iOS pose aussi le « ‹ » des piles de navigation natives dessous (Réglages › Notifications, Discussions…) :
+        /// avalé ici, il ne faisait rien sur l'iPhone Duo (retour de l'admin, 19.11).
+        func isBackdrop(_ hit: UIView) -> Bool {
+            hit === view || hit === tabs.view || Self.page(of: tabs)?.isDescendant(of: hit) == true
+        }
     }
 
     final class PassThroughView: UIView {
         weak var owner: Host?
         override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
             guard owner?.takesTouch(at: point) == true else { return nil }  // le reste va à la page dessous
-            return super.hitTest(point, with: event)
+            guard let hit = super.hitTest(point, with: event), owner?.isBackdrop(hit) == false else { return nil }
+            return hit
         }
     }
 }

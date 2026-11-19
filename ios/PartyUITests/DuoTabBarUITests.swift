@@ -74,6 +74,30 @@ final class DuoTabBarUITests: XCTestCase {
         snapshot(app, "duo-5-apres-retour")
     }
 
+    /// Réglages natifs › Notifications : iOS pose le « ‹ » de la pile en haut de la colonne de la barre verticale, sous
+    /// la barre d'onglets du système ; il doit ramener aux Réglages (retour de l'admin, 19.11 : il ne faisait rien).
+    func testSettingsBackInTheVerticalBarClosesTheSubPage() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["PARTY_DUO_VERTICAL"] == "1", "iPhone Duo seulement")
+        let app = XCUIApplication()
+        app.launch()
+        // Onglet Réglages, nommé « Se connecter » sans compte (barre verticale : rangée d'une « toolbar »).
+        let settings = app.toolbars.buttons.matching(NSPredicate(format: "label IN {'Réglages', 'Se connecter'}")).firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 40), app.debugDescription)
+        settings.tap()
+        let notifications = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Notifications'")).firstMatch
+        XCTAssertTrue(notifications.waitForExistence(timeout: 15), app.debugDescription)
+        notifications.tap()
+        // Dans la colonne, le « ‹ » de la pile n'est plus dans sa barre de navigation : bouton « BackButton ».
+        let back = app.buttons["BackButton"]
+        XCTAssertTrue(back.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertGreaterThan(back.frame.minX, app.windows.firstMatch.frame.width * 0.75, "« ‹ » dans la colonne : \(back.frame)")
+        snapshot(app, "duo-6-notifications")
+        back.tap()
+        wait(for: [expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: back)], timeout: 10)
+        XCTAssertTrue(notifications.waitForExistence(timeout: 5), "Retour aux Réglages attendu")
+        snapshot(app, "duo-7-retour-reglages")
+    }
+
     /// Écrans natifs (Musique, Discussions, Réglages) sur l'écran extérieur du Duo : rien sous la colonne de la barre d'état
     /// ni sous la barre verticale (recette du 19.11 : « Entrer » et la fin de la consigne de Musique passaient dessous).
     func testNativeScreensStayLeftOfTheStatusColumn() throws {
