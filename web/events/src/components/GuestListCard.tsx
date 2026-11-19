@@ -3,11 +3,12 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { GuestGroupManager } from './GuestGroup';
 import { InviteSheet } from './InviteSheet';
+import { NudgeSheet, type NudgeRequest } from './NudgeSheet';
 import { Avatar, ErrorText, Meter, Skeleton, T, Toast } from './ui';
 import { useQuery } from '@/lib/data';
 import { formatShort } from '@/lib/format';
 import {
-  copyText, decideJoinRequest, fetchGuestList, filterGuests, filterLinks, guestCounts, guestOrigin, inviteLinkUrl, inviteMessage, linkLine, linkSpokenNames, linkTitle, nudgeInvitees,
+  copyText, decideJoinRequest, fetchGuestList, filterGuests, filterLinks, guestCounts, guestOrigin, inviteLinkUrl, inviteMessage, linkLine, linkSpokenNames, linkTitle,
   nudgeLink, removeInvitee, ruleSentence, shareInvite, statusWords, stopLink, unlimited,
   type Guest, type GuestFilter, type GuestList, type JoinRequest, type SentLink,
 } from '@/lib/invites';
@@ -16,7 +17,7 @@ import { pressTransition } from '@/lib/motion';
 import { colors, radius, rsvpColors } from '@/lib/theme';
 import type { EventRow } from '@/lib/types';
 
-type Ev = Pick<EventRow, 'id' | 'title' | 'starts_at' | 'ends_at' | 'all_day' | 'status' | 'announce_group'>;
+type Ev = Pick<EventRow, 'id' | 'title' | 'starts_at' | 'ends_at' | 'all_day' | 'status' | 'announce_group'> & Partial<Pick<EventRow, 'date_mode' | 'rsvp_deadline'>>;
 type Me = { id: string; display_name: string };
 
 const NONE_COLOR = colors.lavender;
@@ -33,6 +34,13 @@ const TILES: { key: Exclude<GuestFilter, 'all'>; label: string; color: string }[
 ];
 
 const when = (ev: Ev) => (ev.starts_at ? formatShort(ev.starts_at).toLowerCase() : null);
+
+/** Plus de relance (la base refuse aussi) : terminé (6 h après la fin, comme private.event_is_over) ou date limite passée. */
+export function nudgeClosed(ev: Ev, now = Date.now()): boolean {
+  const end = ev.ends_at ?? ev.starts_at;
+  if (ev.date_mode !== 'poll' && end && now > Date.parse(end) + 6 * 3600_000) return true;
+  return !!ev.rsvp_deadline && now > Date.parse(ev.rsvp_deadline);
+}
 
 /**
  * Carte « Invités » de la fiche (organisateurs, bêta invites_v2) : d'un coup d'œil qui vient, qui n'a pas encore répondu,
@@ -56,6 +64,7 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [groupEditing, setGroupEditing] = useState(false);
+  const [nudging, setNudging] = useState<NudgeRequest | null>(null);
   const { data: list, reload, error: loadError } = useQuery(() => fetchGuestList(event.id), [event.id, refreshKey]);
 
   const refresh = () => { reload(); onChanged(); };
@@ -72,32 +81,17 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
     reload();
   }
 
-  /** Relancer une personne : notification Party si elle a l'app, sinon la feuille de partage avec son lien. */
-  const nudge = (g: Guest) => run(async () => {
-    const result = await nudgeInvitees(event.id, [g.id]);
-    if (result.notified) return `${g.name} a reçu un rappel dans Party`;
-    if (result.skipped) return `${g.name} a déjà été relancé aujourd’hui`;
-    const url = g.link_token ? inviteLinkUrl(g.link_token) : `${location.origin}/events/event/${event.id}`;
-    const shared = await shareInvite(inviteMessage({ name: g.name, host, title: event.title, when: when(event), url, nudge: true }), url, event.title);
-    return shared === 'copied' ? 'Message copié : colle-le dans WhatsApp ou Messages' : null;
-  });
+  /** Relancer une personne (sa ligne) : notification Party si elle la reçoit, sinon le partage de son lien (NudgeSheet). */
+  const nudge = (g: Guest) => setNudging({ people: [g], confirm: false });
 
-  // Seulement ceux qui ont l'app : les autres ne reçoivent rien d'ici, ils ne sont donc jamais notés « relancés »
-  // (leur bouton « Relancer », qui ouvre le partage avec leur lien, reste sur leur ligne).
-  const nudgeAll = (people: Guest[]) => run(async () => {
-    const reachable = people.filter((p) => p.has_app);
-    const withoutApp = people.length - reachable.length;
-    const result = reachable.length ? await nudgeInvitees(event.id, reachable.map((p) => p.id)) : { notified: 0, skipped: 0, share: [] };
-    const parts = [result.notified ? `${result.notified} ${result.notified > 1 ? 'rappels envoyés' : 'rappel envoyé'} dans Party` : null,
-      withoutApp + result.share.length ? `${withoutApp + result.share.length} sans l’app : relance-les une par une (« Relancer » sur leur ligne)` : null,
-      result.skipped ? `${result.skipped} déjà relancé${result.skipped > 1 ? 's' : ''} aujourd’hui` : null].filter(Boolean);
-    return parts.join(' · ') || 'Personne à relancer';
-  });
-
+  // Le partage d'abord, dans le toucher (Safari et l'app iPhone refusent navigator.share après une attente du réseau),
+  // puis la relance notée (une par jour) seulement s'il est parti.
   const nudgeByLink = (l: SentLink) => run(async () => {
-    await nudgeLink(l.token);
     const url = inviteLinkUrl(l.token);
     const shared = await shareInvite(inviteMessage({ name: l.label, host, title: event.title, when: when(event), url, nudge: true }), url, event.title);
+    if (shared === 'cancelled') return null;
+    if (shared === 'failed') return 'Partage impossible : touche « Copier » sur la ligne du lien';
+    await nudgeLink(l.token);
     return shared === 'copied' ? 'Message copié : colle-le dans WhatsApp ou Messages' : null;
   });
 
@@ -133,7 +127,9 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
   const counts = guestCounts(list);
   // Vue d'un invité (avis 83ebee37aa0f, 11.11) : les mêmes chiffres, jamais un nom ; ses liens à lui.
   const guest = !!list.guest;
-  const waiting = list.people.filter((p) => !p.status && !p.nudged_today);
+  // Sans réponse et pas encore relancés aujourd'hui ; plus personne une fois l'événement terminé (19.11).
+  const closed = nudgeClosed(event);
+  const waiting = closed ? [] : list.people.filter((p) => !p.status && !p.nudged_today);
   const extra = list.people.filter((p) => p.source === 'person' || p.source === 'link' || p.source === 'public');
   const requests = guest ? [] : list.requests ?? [];
   // Sans lien public, la personne invitée par un invité attend l'accord de l'organisateur (12.11).
@@ -141,7 +137,7 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
     : 'Chaque personne que tu invites attend l’accord de l’organisateur avant de voir l’événement.';
 
   const row = (g: Guest) => (
-    <GuestRow key={g.id} guest={g} me={me.id} onNudge={() => void nudge(g)} onRemove={g.removable ? () => void remove(g) : null} />
+    <GuestRow key={g.id} guest={g} me={me.id} onNudge={closed ? null : () => nudge(g)} onRemove={g.removable ? () => void remove(g) : null} />
   );
   const spoken = linkSpokenNames(list.links);
   const linkRows = (links: SentLink[]) => links.map((l) => (
@@ -203,6 +199,16 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
         ]} />
       ) : null}
 
+      {/* Relancer d'un geste (19.11) : visible carte repliée, confirmation simple, puis le bilan (NudgeSheet). */}
+      {waiting.length && !guest ? (
+        <Pressable accessibilityRole="button" onPress={() => setNudging({ people: waiting, confirm: true })}
+          style={({ pressed }) => [st.nudgeAll, pressTransition, pressed && { transform: [{ scale: 0.98 }] }]}>
+          <T size={15} weight="bold" color={colors.accent}>
+            ↻ Relancer {waiting.length > 1 ? `les ${waiting.length} qui n’ont pas répondu` : `${waiting[0]!.name}, sans réponse`}
+          </T>
+        </Pressable>
+      ) : null}
+
       <Pressable accessibilityRole="button" accessibilityState={{ expanded }} aria-expanded={expanded}
         accessibilityLabel={expanded ? 'Réduire la liste des invités' : 'Voir le détail des invités'}
         onPress={() => setExpanded((v) => !v)} hitSlop={6}
@@ -243,15 +249,6 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
         })}
       </View>
 
-      {waiting.length && !guest ? (
-        <Pressable accessibilityRole="button" onPress={() => void nudgeAll(waiting)}
-          style={({ pressed }) => [st.nudgeAll, pressTransition, pressed && { transform: [{ scale: 0.98 }] }]}>
-          <T size={14} weight="bold" color={colors.accent}>
-            ↻ Relancer {waiting.length > 1 ? `les ${waiting.length} qui n’ont pas répondu` : `${waiting[0]!.name}, sans réponse`}
-          </T>
-        </Pressable>
-      ) : null}
-
       {guest ? (
         <View style={{ gap: 14 }}>
           {list.links.length ? <Block title={`Mes liens · ${list.links.length}`}>{linkRows(list.links)}</Block> : (
@@ -283,6 +280,8 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
 
       <InviteSheet visible={sheet} event={event} me={me} list={list} onClose={() => setSheet(false)} onInvited={refresh} guest={guest}
         headline={headline} initialPeople={initialPeople} />
+      <NudgeSheet request={nudging} event={event} host={host} when={when(event)}
+        onClose={(changed) => { setNudging(null); if (changed) reload(); }} onMarked={reload} />
       {note ? <Toast message={note} onHide={() => setNote(null)} /> : null}
     </View>
   );
@@ -352,9 +351,9 @@ function StatusPill({ guest }: { guest: Guest }) {
   );
 }
 
-function GuestRow({ guest, me, onNudge, onRemove }: { guest: Guest; me: string; onNudge: () => void; onRemove: (() => void) | null }) {
+function GuestRow({ guest, me, onNudge, onRemove }: { guest: Guest; me: string; onNudge: (() => void) | null; onRemove: (() => void) | null }) {
   const [confirm, setConfirm] = useState(false);
-  const canNudge = !guest.status && !guest.nudged_today;
+  const canNudge = !!onNudge && !guest.status && !guest.nudged_today;
   // « Relancer » est déjà sur la ligne ; le glissé montre « Retirer » (en deux temps).
   const actions = onRemove ? [{ label: confirm ? 'Confirmer' : 'Retirer', color: colors.red, fg: colors.onRed,
     onPress: () => (confirm ? onRemove() : setConfirm(true)) }] : [];
@@ -371,7 +370,7 @@ function GuestRow({ guest, me, onNudge, onRemove }: { guest: Guest; me: string; 
           <T muted size={12} numberOfLines={1}>{guestOrigin(guest, me)}</T>
         </View>
         {canNudge ? (
-          <Pressable accessibilityRole="button" accessibilityLabel={`Relancer ${guest.name}`} hitSlop={6} onPress={onNudge}
+          <Pressable accessibilityRole="button" accessibilityLabel={`Relancer ${guest.name}`} hitSlop={6} onPress={onNudge ?? undefined}
             style={({ pressed }) => [st.smallAction, pressed && { opacity: 0.7 }]}>
             <T size={12} weight="bold" color={colors.accent}>Relancer</T>
           </Pressable>
@@ -545,7 +544,7 @@ const st = StyleSheet.create({
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   tile: { flexGrow: 1, flexBasis: '30%', minHeight: 64, paddingVertical: 8, paddingHorizontal: 8, borderRadius: radius.md,
     borderWidth: 1.5, borderColor: 'transparent', backgroundColor: colors.fill, alignItems: 'center', justifyContent: 'center', gap: 2 },
-  nudgeAll: { minHeight: 44, borderRadius: radius.md, borderWidth: 1, borderColor: colors.accent, borderStyle: 'dashed',
+  nudgeAll: { minHeight: 48, borderRadius: radius.md, borderWidth: 1.5, borderColor: colors.accent, backgroundColor: colors.accentDim,
     alignItems: 'center', justifyContent: 'center', paddingHorizontal: 12 },
   rowCenter: { flexDirection: 'row', alignItems: 'center' },
   groupRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, borderRadius: radius.md, backgroundColor: colors.surface2 },

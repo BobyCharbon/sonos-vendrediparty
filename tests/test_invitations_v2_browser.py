@@ -165,10 +165,15 @@ def test_organizer_sees_who_comes_filters_nudges_and_invites(browser, v2_origin)
         pw.expect(card.get_by_text('Anaïs', exact=True)).to_be_visible()
         pw.expect(card.get_by_text('Mariana', exact=True)).to_have_count(0)
         shot(page, '02-organisateur-filtre-pas-repondu', full=True)
-        # Relancer Anaïs (sans l'app) : la base note la relance, la feuille de partage s'ouvre (ici : le message copié).
+        # Relancer Anaïs (sans l'app) : la fenêtre de relance propose le partage de son lien (19.11 : partage au toucher,
+        # Safari refusait navigator.share après l'attente du réseau) ; copié → la base note la relance.
         context.grant_permissions(['clipboard-read', 'clipboard-write'])
         card.get_by_role('button', name='Relancer Anaïs').click()
+        relance = page.get_by_label('Relance', exact=True)
+        pw.expect(relance.get_by_text('Anaïs n’a pas l’app : envoie-lui le lien', exact=True)).to_be_visible(timeout=5000)
+        relance.get_by_role('button', name='Copier le message').click()
         pw.expect(page.get_by_text('Message copié', exact=False)).to_be_visible(timeout=5000)
+        relance.get_by_role('button', name='Fermer', exact=True).last.click()
         assert ('nudge_invitees', {'e': EVENT, 'people': [IDS[6]]}) in calls
         card.get_by_role('tab', name='2 Pas répondu').click()  # retour à tout
 

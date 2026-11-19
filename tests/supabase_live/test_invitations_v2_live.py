@@ -164,7 +164,7 @@ def test_party_people_are_added_out_of_the_group_and_nudged_once_a_day(people):
         nudge = admin.rpc('nudge_invitees', e=event, people=[ga.uid, gb.uid]).json()
         assert nudge['notified'] == 1 and nudge['share'] == [ga.uid] and nudge['skipped'] == 0
         notes = gb.get(f"notifications?select=title,body,dedupe_key&kind=eq.private_invite&event_id=eq.{event}&dedupe_key=like.invite_nudge*").json()
-        assert len(notes) == 1 and notes[0]['body'] == 'Admin test attend ta réponse : tu viens ?'
+        assert len(notes) == 1 and notes[0]['body'] == 'Invitation de Admin test · Tu viens ? Réponds en un geste.'  # 19.11 : sans culpabiliser
         # Une seule relance par jour et par personne ; qui a répondu n'est jamais relancé.
         again = admin.rpc('nudge_invitees', e=event, people=[ga.uid, gb.uid]).json()
         assert again == {'notified': 0, 'skipped': 2, 'share': []}
