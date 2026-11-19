@@ -77,6 +77,18 @@ export function cachedChatList(me: string): ChatItem[] | null {
   }
 }
 
+/** « Lu » envoyé par une conversation, pas encore enregistré par la base. Revenue à la liste avant la réponse (réseau ou
+ * base lents), la liste relue gardait « 1 non lu » (recette réelle du 19.11) : elle se relit une fois ces « lu » enregistrés. */
+const readsInFlight = new Set<Promise<void>>();
+export function trackRead(request: PromiseLike<unknown>): void {
+  const done: Promise<void> = Promise.resolve(request).then(() => {}, () => {}).finally(() => { readsInFlight.delete(done); });
+  readsInFlight.add(done);
+}
+/** Les « lu » en cours, enregistrés (ou null : aucun en cours). */
+export function afterReads(): Promise<void> | null {
+  return readsInFlight.size ? Promise.all([...readsInFlight]).then(() => {}) : null;
+}
+
 export function keepChatList(me: string, list: ChatItem[]): void {
   memoryList.set(me, list);
   try { globalThis.localStorage?.setItem(LIST_KEY + me, JSON.stringify(list)); } catch { /* stockage plein ou bloqué */ }
