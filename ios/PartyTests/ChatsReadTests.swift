@@ -60,7 +60,8 @@ struct ChatsReadTests {
 
         await store.open("c1")
         #expect(store.conversation?.messages.map(\.id) == ["m1"])
-        #expect(ReadServer.reads() == ["c1"], "ouvrir la conversation la note lue, même sans message nouveau")
+        await ReadServer.settle()
+        #expect(ReadServer.reads() == ["c1"], "ouvrir la conversation la note lue, même sans message nouveau, une seule fois")
         let row = try #require(store.chat("c1"))
         #expect(row.unread == 0 && !row.markedUnread)
         #expect(store.badge == 0 && told.last == 0, "pastille de l'onglet aussitôt à 0")
@@ -87,16 +88,56 @@ struct ChatsReadTests {
         await store.open("c1")
         #expect(ReadServer.reads() == ["c1"])
     }
+
+    @Test("Panne passagère de la base (503) : la liste v2 reste (discussions d'événement comprises), pas l'ancienne liste")
+    func aPassingOutageKeepsTheListV2() async {
+        let store = store()
+        await store.loadList()
+        #expect(store.chat("e1")?.isEvent == true)
+        ReadServer.listDown = true
+        await store.loadList()
+        #expect(store.chat("e1")?.isEvent == true && store.chat("c1") != nil, "liste affichée gardée")
+        ReadServer.listDown = false
+        await store.loadList()
+        let lists = ReadServer.bodies.filter { $0["fn"] as? String == "chat_list" }.count
+        #expect(lists == 3, "la liste v2 est redemandée après la panne")
+        #expect(store.chat("e1")?.isEvent == true)
+    }
+
+    @Test("Serveur lent, retour avant sa réponse (conversation affichée depuis la mémoire) : « lu » part quand même")
+    func leavingBeforeTheServerAnswersStillReads() async throws {
+        let store = store()
+        await store.loadList()
+        #expect(store.chat("c1")?.needsReading == true)
+        ReadServer.openDelay = 1
+        let opening = Task { await store.open("c1") }
+        try await Task.sleep(for: .milliseconds(150))
+        opening.cancel()  // « ‹ » : l'écran part, sa relecture est annulée
+        store.close()
+        await ReadServer.settle()
+        #expect(ReadServer.reads() == ["c1"])
+        #expect(store.chat("c1")?.unread == 0 && store.chat("c1")?.markedUnread == false && store.badge == 0)
+    }
 }
 
 /// Serveur Party simulé : liste v2 (c1 : 1 non lu, marquée « non lu »), conversation c1, lecture.
 private final class ReadServer: URLProtocol {
     nonisolated(unsafe) static var bodies: [[String: Any]] = []
     nonisolated(unsafe) static var readFails = false
+    nonisolated(unsafe) static var openDelay: TimeInterval = 0
+    nonisolated(unsafe) static var listDown = false
 
     static func reset() {
         bodies = []
         readFails = false
+        openDelay = 0
+        listDown = false
+    }
+
+    /// « Lu » envoyé à part (sans attendre la conversation) : laissé arriver.
+    @MainActor static func settle() async {
+        for _ in 0..<50 where reads().isEmpty { try? await Task.sleep(for: .milliseconds(20)) }
+        try? await Task.sleep(for: .milliseconds(100))
     }
 
     static func paths() -> [String] {
@@ -125,8 +166,10 @@ private final class ReadServer: URLProtocol {
         return (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]
     }
 
-    private func reply(_ json: Any) {
-        let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
+    private func reply(_ json: Any) { replyStatus(200, json) }
+
+    private func replyStatus(_ status: Int, _ json: Any) {
+        let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
         client?.urlProtocol(self, didLoad: (try? JSONSerialization.data(withJSONObject: json)) ?? Data())
         client?.urlProtocolDidFinishLoading(self)
@@ -144,6 +187,7 @@ private final class ReadServer: URLProtocol {
             if Self.readFails { return client!.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet)) }
             reply(["ok": true])
         case "/api/account/chats/open":
+            if Self.openDelay > 0, sent["prefetch"] as? Bool != true { Thread.sleep(forTimeInterval: Self.openDelay) }
             reply([
                 "id": "c1", "name": "Léa", "member": true, "admin": false, "notify": "all", "can_name_admins": false, "me": "me",
                 "reactions": [String](), "members": [[String: Any]](), "direct": true, "user_id": "u2",
@@ -154,10 +198,14 @@ private final class ReadServer: URLProtocol {
         case "/api/account/chats/rpc":
             switch sent["fn"] as? String {
             case "chat_list":
+                if Self.listDown { return replyStatus(503, ["detail": "Ça n'a pas marché. Réessaie dans un instant."]) }
                 reply(["result": [["kind": "direct", "id": "c1", "title": "Léa", "user_id": "u2",
                                    "last": ["id": "m1", "at": "2026-11-19T10:00:00Z", "from_me": false, "type": "text",
                                             "author": "Léa", "text": "Tu viens ?"],
-                                   "unread": read ? 0 : 1, "marked_unread": !read]], "realtime": NSNull()])
+                                   "unread": read ? 0 : 1, "marked_unread": !read],
+                                  ["kind": "event", "id": "e1", "title": "Soirée", "unread": 0,
+                                   "last": ["id": "m9", "at": "2026-11-19T09:00:00Z", "from_me": true, "type": "text", "text": "Salut"]]],
+                       "realtime": NSNull()])
             case "chat_badge": reply(["result": read ? 0 : 1])
             default: reply(["result": NSNull()])
             }

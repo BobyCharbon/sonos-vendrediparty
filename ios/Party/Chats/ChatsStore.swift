@@ -146,8 +146,11 @@ final class ChatsStore: ObservableObject {
                         "token": token, "fn": "chat_list", "args": ["include_archived": true]])
                     list = reply.result
                     if let live = reply.realtime { endpoint = live }
-                } catch PartyAPIError.server(_) {
-                    listV2 = false  // serveur d'avant les Discussions v2 : l'ancienne liste
+                } catch PartyAPIError.server(let detail) {
+                    // Serveur d'avant les Discussions v2 (route absente) : l'ancienne liste. Panne passagère de la base
+                    // (503) : la liste affichée reste — avant, l'app passait pour toute la session à l'ancienne liste
+                    // (sans événements, épingles ni « non lu » manuel ; recette du 19.11).
+                    if detail == "Not Found" { listV2 = false } else if chats != nil { return }
                 }
             }
             if list == nil || endpoint == nil {
@@ -420,6 +423,11 @@ final class ChatsStore: ObservableObject {
             // Lue dès l'ouverture, même préchargée (ses messages déjà sur le téléphone : rien de « nouveau ») — bug du
             // 19.11 : la conversation restait non lue dans la liste et la pastille.
             readOnOpen = group
+            // Ligne non lue de la liste : « lu » part tout de suite, sans attendre la relecture de la conversation ni
+            // dépendre de l'écran (retour avant la réponse du serveur : la lecture était annulée avec lui).
+            if !forEvents, let row = chat(group), row.needsReading, !row.incomingRequest {
+                Task { await self.sendRead(group, direct: row.direct) }
+            }
             older = []
             hasOlder = true
             jumpTo = nil
@@ -450,15 +458,23 @@ final class ChatsStore: ObservableObject {
                 : fresh.with(messages: Conversation.merge(older: older, into: fresh.messages) + waiting)
             if let prefsOverride { shown = prefsOverride(shown) }
             if shown != conversation { conversation = shown }
-            if (changed || readOnOpen == group) && fresh.member && !forEvents,
-               (try? await api.readChat(token: token, group: group, direct: fresh.isDirect)) != nil {
-                if readOnOpen == group { readOnOpen = nil }
-                update(group) { $0.unread = 0; $0.markedUnread = false }  // la ligne et la pastille, sans attendre la liste
-            }
+            if (changed || readOnOpen == group) && fresh.member && !forEvents { await sendRead(group, direct: fresh.isDirect) }
             // Le serveur répond : les messages restés « pas envoyés » repartent.
             for m in waiting where m.failed { Task { await self.retry(m) } }
         }
         if chatLive == nil, conversation?.id == group { await startChatLive(group) }
+    }
+
+    /// « Lu » (groupe, message direct) : la ligne et la pastille passent à 0 aussitôt ; refusé ou réseau absent : la
+    /// conversation encore ouverte le renvoie à sa prochaine relecture.
+    private func sendRead(_ group: String, direct: Bool) async {
+        if readOnOpen == group { readOnOpen = nil }
+        guard let token = await web?.accountToken(),
+              (try? await api.readChat(token: token, group: group, direct: direct)) != nil else {
+            if conversation?.id == group { readOnOpen = group }
+            return
+        }
+        update(group) { $0.unread = 0; $0.markedUnread = false }
     }
 
     private func startChatLive(_ group: String) async {
