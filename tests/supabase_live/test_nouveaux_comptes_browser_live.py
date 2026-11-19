@@ -1,8 +1,8 @@
 """Recette RÉELLE des nouveaux comptes (campagne du 14.11.2026) : vrai navigateur (390 × 844), vrai serveur Party avec les
 drapeaux de la prod (Zicou, Discussions et Bar éteints, Invitations v2 allumées), base de TEST, CGU exigées comme en prod.
 Chaque parcours part d'un compte NEUF (numéro de test à code fixe, compte supprimé à la fin par delete_my_account) :
-1. lien « Inviter avec un lien » d'un groupe de test (créé ici, sans vrais membres) → connexion SMS → profil → le compte est
-   dans le groupe ; puis il le quitte lui-même ;
+1. lien « Inviter » (page du groupe) d'un groupe de test (créé ici, sans vrais membres) → connexion SMS → profil → le compte
+   est dans le groupe, sur sa page dans Party ; puis il le quitte lui-même (Réglages du groupe) ;
 2. lien « Partager » d'un événement public (/?tab=events&event=<id>) → connexion → profil → page rechargée : l'adresse garde
    l'événement → Présent ; puis l'agenda abonné : Présent dedans, Pas présent dehors, Peut-être « [Peut-être] » ;
 3. sondage de dates public : jamais « Présent », on vote les dates, la carte compte les votants ; l'organisateur voit
@@ -28,6 +28,7 @@ from zoneinfo import ZoneInfo
 import httpx
 import pytest
 
+from tests.supabase_live.party_shell import in_party, where_visible
 from tests.supabase_live.test_audiences_live import ADMIN, create_event
 from tests.supabase_live.test_inscription_complete_browser_live import browser, phone_page  # noqa: F401
 from tests.supabase_live.test_member_admin_live import KEY_FILE, OTP, TEST_URL, Session, pytestmark as live  # noqa: F401
@@ -127,7 +128,8 @@ def party(tmp_path_factory):
         else:
             raise AssertionError('Le serveur Party de recette ne démarre pas')
         assert httpx.get(f'{origin}/api/features', timeout=10).json() == {
-            'compagnon': False, 'discussions': False, 'invites_v2': True, 'bar': False}
+            'compagnon': False, 'discussions': False, 'invites_v2': True, 'bar': False,
+            'patates': False, 'agenda': False, 'pronos': False}
         yield origin
     finally:
         process.terminate()
@@ -154,7 +156,7 @@ def admin():
 
 def signed_in_page(browser, party, auth: dict):  # noqa: F811
     """Navigateur de l'organisateur, déjà connecté (sa session mise comme l'app la garde) : aucun code SMS de plus."""
-    context, page, errors = phone_page(browser)
+    context, page, errors = phone_page(browser, alone=True)  # le module seul : ce n'est pas le parcours visé ici
     context.add_init_script(f"localStorage.setItem('{STORAGE_KEY}', {json.dumps(json.dumps(auth))})")
     return context, page, errors
 
@@ -217,16 +219,15 @@ def test_a_new_account_joins_a_group_by_its_invite_link_then_leaves_it(browser, 
     group = r.json()[0]['id']
     admin.made['groups'].append(group)
 
-    # L'organisateur ouvre son groupe : « Inviter avec un lien », le lien du groupe prêt tout de suite.
+    # L'organisateur ouvre « Inviter » de son groupe (page du groupe, 17.11) : le lien du groupe prêt tout de suite.
     context, page, errors = signed_in_page(browser, party, admin.auth)
     try:
-        page.goto(f'{party}/events/groups?open={group}', wait_until='domcontentloaded')
-        card = page.get_by_label(f'Inviter dans {name}')
-        pw.expect(card.get_by_text('👋 Inviter avec un lien', exact=True)).to_be_visible(timeout=30000)
-        pw.expect(card).to_contain_text('/events/group-invite/', timeout=15000)
-        url = re.search(r'http\S+/events/group-invite/[0-9a-zA-Z_-]+', card.inner_text()).group(0)
+        page.goto(f'{party}/events/group/{group}/invite', wait_until='domcontentloaded')
+        panel = page.get_by_test_id('group-invite-panel')
+        pw.expect(panel.get_by_text('/events/group-invite/', exact=False)).to_be_visible(timeout=30000)
+        url = 'http://' + re.search(r'[^\s/]+/events/group-invite/[0-9a-zA-Z_-]+', panel.inner_text()).group(0)
         assert url.startswith(party), url
-        shot(page, '01-groupe-inviter-avec-un-lien', card)
+        shot(page, '01-groupe-inviter-avec-un-lien', panel)
         assert not errors, errors
     finally:
         context.close()
@@ -238,21 +239,22 @@ def test_a_new_account_joins_a_group_by_its_invite_link_then_leaves_it(browser, 
         shot(page, '02-groupe-lien-ouvert-sans-compte')
         page.get_by_role('button', name='M’inscrire ou me connecter').click()
         sign_in(page, page, local(phone))
-        complete_profile(page, 'Noa', 'Groupe', 'Noa G.', page, '03a-groupe-faisons-connaissance')
+        complete_profile(where_visible(page, 'Faisons connaissance'), 'Noa', 'Groupe', 'Noa G.', page, '03a-groupe-faisons-connaissance')
         shot(page, '03-groupe-profil-complet')
-        # Profil complet : il rejoint directement, et arrive sur ses groupes.
-        page.wait_for_url('**/events/groups', timeout=30000)
-        pw.expect(page.get_by_text(name, exact=True)).to_be_visible(timeout=20000)
+        # Profil complet : il rejoint directement et arrive sur la page du groupe, dans Party (19.11 : jamais le module seul).
+        frame = in_party(page, f'/events/group/{group}', timeout=45000)
+        pw.expect(frame.get_by_role('heading', name=name)).to_be_visible(timeout=20000)
         token = browser_token(page)
         me = httpx.get(f'{TEST_URL}/auth/v1/user', headers=headers_of(token), timeout=30).json()['id']
         members = admin.get(f'member_group_members?select=user_id&group_id=eq.{group}').json()
         assert {m['user_id'] for m in members} == {me, admin.uid}, members  # le créateur et lui, personne d'autre
         shot(page, '04-groupe-rejoint')
 
-        # Il quitte le groupe lui-même.
-        page.get_by_role('button', name='Quitter le groupe').click()
-        page.get_by_role('button', name='Confirmer : quitter le groupe').click()
-        pw.expect(page.get_by_text(name, exact=True)).to_have_count(0, timeout=20000)
+        # Il quitte le groupe lui-même (Réglages du groupe), et revient à ses groupes, sans celui-ci.
+        frame.get_by_test_id('group-settings').click()
+        frame.get_by_role('button', name='Quitter le groupe').click()
+        frame.get_by_role('button', name='Confirmer : quitter le groupe').click()
+        pw.expect(frame.get_by_text(name, exact=True)).to_have_count(0, timeout=20000)
         assert admin.get(f'member_group_members?select=user_id&group_id=eq.{group}').json() == [{'user_id': admin.uid}]
         shot(page, '05-groupe-quitte')
 

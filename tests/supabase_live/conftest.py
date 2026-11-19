@@ -6,7 +6,8 @@ from unittest import mock
 import httpx
 import pytest
 
-NAMED = {"test_group_chats_live", "test_group_chats_relay_live", "test_invite_links_live", "test_rsvp_digest_live"}
+NAMED = {"test_group_chats_live", "test_group_chats_relay_live", "test_invite_links_live", "test_rsvp_digest_live",
+         "test_groupes_natifs_live"}
 
 
 def _quiet_event(method: str, url, kwargs: dict) -> dict:
