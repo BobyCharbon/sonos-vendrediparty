@@ -104,6 +104,7 @@ def test_validate_confirms_then_subscribes_the_agenda_to_my_voted_dates(browser,
         page.wait_for_timeout(300)
         assert calls and not any(calls)  # ouvrir la fenêtre n'ajoute rien
         page.get_by_role('button', name='Ajouter les 2 dates à mon agenda', exact=True).click()
+        page.get_by_role('button', name='Calendrier Apple', exact=True).click()  # ordinateur : on choisit son agenda (19.11)
         pw.expect(page.get_by_text('Confirme l’abonnement « Vendredi Party » dans ton agenda', exact=False)).to_be_visible(timeout=10000)
         assert calls[-1] is True  # le toucher ajoute l'événement au calendrier
     finally:
@@ -154,7 +155,8 @@ def _open_in_app(browser, origin, ev, denied=False, agenda=False):
     import json as _json
 
     from tests.test_event_participant_browser import HEADERS, REST, USER, login, mock_services, pw
-    context = browser.new_context(viewport={'width': 402, 'height': 874})
+    context = browser.new_context(viewport={'width': 402, 'height': 874}, user_agent=(  # l'app iPhone se présente comme un iPhone
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148'))
     context.add_init_script(NATIVE % ('true' if denied else 'false'))
     page = context.new_page()
     mock_services(page)
@@ -263,11 +265,11 @@ def _web_fixed(browser, events_origin, subscribed: bool):
 
 
 def test_a_normal_event_goes_to_the_same_subscribed_calendar(browser, events_origin):  # noqa: F811
-    """Retour de l'admin (11.11) : même méthode pour un événement normal. Ordinateur : Apple · Outlook → abonnement."""
+    """Retour de l'admin (11.11) : même méthode pour un événement normal. Ordinateur : on choisit son agenda (19.11)."""
     context, page, pw, calls = _web_fixed(browser, events_origin, subscribed=False)
     try:
         page.get_by_role('button', name='Ajouter à mon agenda', exact=True).click(timeout=15000)
-        page.get_by_role('button', name='Apple · Outlook', exact=True).click()
+        page.get_by_role('button', name='Calendrier Apple', exact=True).click()
         pw.expect(page.get_by_text('Confirme l’abonnement « Vendredi Party »', exact=False)).to_be_visible(timeout=10000)
         assert calls[0] is False and calls[-1] is True
     finally:
@@ -294,7 +296,7 @@ def test_a_date_poll_has_the_add_to_my_agenda_button_even_before_voting(browser,
     try:
         page.reload(wait_until='domcontentloaded')  # le lien est demandé à l'ouverture de la fiche
         page.get_by_role('button', name='Ajouter à mon agenda', exact=True).click(timeout=15000)
-        page.get_by_role('button', name='Apple · Outlook', exact=True).click()
+        page.get_by_role('button', name='Calendrier Apple', exact=True).click()
         pw.expect(page.get_by_text('Confirme l’abonnement « Vendredi Party »', exact=False)).to_be_visible(timeout=10000)
         assert calls[-1] is True
     finally:
@@ -312,5 +314,81 @@ def test_a_poll_where_i_voted_no_everywhere_has_no_agenda_button(browser, events
     try:
         pw.expect(page.get_by_role('button', name=re.compile(r'^Non : ')).first).to_be_visible(timeout=15000)
         pw.expect(page.get_by_role('button', name='Ajouter à mon agenda', exact=True)).to_have_count(0)
+    finally:
+        context.close()
+
+
+ANDROID = 'Mozilla/5.0 (Linux; Android 15; SM-S921B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36'
+
+
+def _android_fixed(browser, events_origin, subscribed: bool):
+    from tests.test_event_participant_browser import event_row, open_event, pw
+    ev = event_row(date_mode='fixed', starts_at='2030-11-27T18:00:00Z', max_participants=None)
+    context, page = open_event(browser, events_origin, ev, user_agent=ANDROID)
+    calls = mock_agenda(page, subscribed)
+    page.add_init_script("window.open = (u) => { window.__opened = (window.__opened || []).concat([String(u)]); return {}; };")
+    page.reload(wait_until='domcontentloaded')
+    return context, page, pw, calls, None
+
+
+def test_android_chooses_its_agenda_and_never_lands_in_google_by_default(browser, events_origin):  # noqa: F811
+    """Avis du 19.11 : sous Android, « Ajouter à mon agenda » partait d'office dans Google Agenda. Désormais on choisit :
+    Google, Outlook, ou « Samsung ou autre agenda » (lien copié à coller), ou juste cet événement."""
+    context, page, pw, calls, _ = _android_fixed(browser, events_origin, subscribed=False)
+    try:
+        context.grant_permissions(['clipboard-read', 'clipboard-write'])
+        page.get_by_role('button', name='Ajouter à mon agenda', exact=True).click(timeout=15000)
+        for name in ('Google Agenda', 'Outlook', 'Samsung ou autre agenda', 'Juste cet événement'):
+            pw.expect(page.get_by_role('button', name=name, exact=True)).to_be_visible()
+        pw.expect(page.get_by_role('button', name='Calendrier Apple', exact=True)).to_have_count(0)
+        assert not page.evaluate('window.__opened || []')  # rien d'ouvert avant le choix
+        page.get_by_role('button', name='Samsung ou autre agenda', exact=True).click()
+        pw.expect(page.get_by_text(f'/api/calendar-feed/{TOKEN}.ics', exact=False)).to_be_visible(timeout=10000)
+        pw.expect(page.get_by_text('ICSx⁵', exact=False)).to_be_visible()
+        assert calls[-1] is True and not page.evaluate('window.__opened || []')
+    finally:
+        context.close()
+
+
+def test_android_outlook_opens_the_outlook_subscription_page(browser, events_origin):  # noqa: F811
+    context, page, pw, calls, _ = _android_fixed(browser, events_origin, subscribed=False)
+    try:
+        page.get_by_role('button', name='Ajouter à mon agenda', exact=True).click(timeout=15000)
+        page.get_by_role('button', name='Outlook', exact=True).click()
+        pw.expect(page.get_by_text('Confirme l’abonnement « Vendredi Party »', exact=False)).to_be_visible(timeout=10000)
+        opened = page.evaluate('window.__opened || []')
+        assert opened and opened[0].startswith('https://outlook.live.com/calendar/0/addfromweb?url=') and TOKEN in opened[0], opened
+    finally:
+        context.close()
+
+
+def test_said_in_the_agenda_but_it_is_not_one_tap_adds_it_again(browser, events_origin):  # noqa: F811
+    """Avis du 19.11 : « Dans ton agenda » alors que le téléphone ne l'a pas : « Pas dans ton agenda ? Le rajouter »."""
+    context, page, pw, calls, _ = _android_fixed(browser, events_origin, subscribed=True)
+    try:
+        page.get_by_role('button', name='Ajouter à mon agenda', exact=True).click(timeout=15000)
+        pw.expect(page.get_by_role('button', name='Déjà dans ton agenda, mis à jour tout seul')).to_be_disabled()
+        page.get_by_role('button', name='Pas dans ton agenda ? Le rajouter', exact=True).click()
+        page.get_by_role('button', name='Google Agenda', exact=True).click()
+        opened = page.evaluate('window.__opened || []')
+        assert opened and opened[0].startswith('https://calendar.google.com/calendar/render?cid=webcal'), opened
+    finally:
+        context.close()
+
+
+def test_settings_add_the_party_agenda_again_without_any_event(browser, events_origin):  # noqa: F811
+    """Avis du 19.11 : Réglages › Agenda Vendredi Party, pour le rajouter dans l'agenda du téléphone à tout moment."""
+    from tests.test_event_participant_browser import HEADERS, REST
+    context, page, pw, _, _ = _android_fixed(browser, events_origin, subscribed=True)
+    try:
+        page.route(REST + 'rpc/calendar_feed_link', lambda r: r.fulfill(status=204, headers=HEADERS) if r.request.method == 'OPTIONS'
+                   else r.fulfill(status=200, content_type='application/json', headers=HEADERS, body=json.dumps({'token': TOKEN, 'subscribed': True})))
+        page.goto(f'{events_origin}/events/profile', wait_until='domcontentloaded')
+        page.get_by_text('Agenda Vendredi Party', exact=True).click(timeout=15000)  # la ligne des Réglages
+        pw.expect(page.get_by_text('Pas sur ce téléphone ? Ajoute-le ci-dessous.', exact=False)).to_be_visible(timeout=15000)
+        page.get_by_role('button', name='Outlook', exact=True).click()
+        opened = page.evaluate('window.__opened || []')
+        assert opened and 'outlook.live.com' in opened[0] and TOKEN in opened[0], opened
+        pw.expect(page.get_by_text('Confirme l’abonnement « Vendredi Party »', exact=False)).to_be_visible()
     finally:
         context.close()

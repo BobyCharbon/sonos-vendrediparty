@@ -263,9 +263,10 @@ def test_add_to_calendar_opens_native_calendar_flow(browser,events_origin,agent)
             body=open(download.path(),encoding='utf-8').read()
             assert 'DTSTART:20301114T180000Z' in body and 'SUMMARY:Sortie de démonstration (test local)' in body
             assert 'LOCATION:Lieu de démonstration' in body
-            pw.expect(frame.get_by_text('Autre choix :',exact=False)).to_be_visible()
+            pw.expect(frame.get_by_text('Autre agenda : Google, Outlook…',exact=True)).to_be_visible()
         else:
-            with context.expect_page() as info: button.click()
+            button.click()  # Android : on choisit son agenda, jamais Google d'office (19.11)
+            with context.expect_page() as info: frame.get_by_role('button',name='Google Agenda',exact=True).click()
             info.value.wait_for_load_state()
             query=parse_qs(urlparse(google[0]).query)
             assert query['action']==['TEMPLATE'] and query['text']==['Sortie de démonstration (test local)']

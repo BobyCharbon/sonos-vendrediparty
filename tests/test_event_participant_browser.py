@@ -40,8 +40,8 @@ def rsvp(user: str, status: str, waitlisted: bool = False, plus_ones: int = 0, p
     return row
 
 
-def open_event(browser, origin, event: dict, perms: list[str] | None = None):
-    context = browser.new_context(viewport={'width': 390, 'height': 844})
+def open_event(browser, origin, event: dict, perms: list[str] | None = None, user_agent: str | None = None):
+    context = browser.new_context(viewport={'width': 390, 'height': 844}, **({'user_agent': user_agent} if user_agent else {}))
     page = context.new_page()
     mock_services(page)
 

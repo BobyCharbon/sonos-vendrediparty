@@ -131,6 +131,9 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   « Ajouter à mon agenda », « Valider mes dates ») l'y met, et l'agenda suit tout changement sans rouvrir Party. Ouvrir une
   fiche n'ajoute rien (add = false). Une fois l'agenda activé, chaque réponse Présent / Peut-être (ou vote Oui / Si besoin)
   y met l'événement toute seule (`private.feed_includes`), Pas présent l'en retire ; titre « [Peut-être] » / « [Si besoin] ». Fichier .ics ponctuel / calendrier natif de l'app seulement en secours.
+  Choix de l'agenda (avis du 19.11) : hors iPhone, jamais Google d'office (`AgendaChoices` : Apple, Google, Outlook, « Samsung
+  ou autre » = lien copié + ICSx⁵, « Juste cet événement ») ; « ✓ Dans ton agenda » veut seulement dire « lu par un agenda » :
+  « Pas dans ton agenda ? Le rajouter » et Réglages › Agenda Vendredi Party (`/settings/calendar`, `calendar_feed_link`).
   Tests : `tests/test_calendar_feed.py`, `tests/test_calendar_poll_dates.py`, `tests/supabase_live/test_agenda_abonnement_live.py`.
 - Groupes : on ne réserve un événement qu'aux groupes dont on FAIT PARTIE, « Membres Vendredi Party » compris
   (écrans : `choosableGroups` / `mayUseVip`, assistant IA ; base : migration 20261106090000, triggers

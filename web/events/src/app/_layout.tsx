@@ -266,6 +266,7 @@ function Gate() {
         <Stack.Screen name="settings/profile" options={{ title: 'Mon profil' }} />
         <Stack.Screen name="settings/account" options={{ title: 'Mon compte' }} />
         <Stack.Screen name="settings/privacy" options={{ title: 'Confidentialité' }} />
+        <Stack.Screen name="settings/calendar" options={{ title: 'Agenda' }} />
       </Stack.Protected>
       <Stack.Screen name="share/[id]" options={{ title: '' }} />
       {/* Liens d'invitation (événement sur invitation, groupe) : lisibles avant connexion. */}

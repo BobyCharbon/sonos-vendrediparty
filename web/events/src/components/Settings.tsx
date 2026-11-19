@@ -98,6 +98,8 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
             <RowDivider />
             <LinkRow icon="👥" tint="#0A84FF" label="Groupes" hint="Les groupes dont tu fais partie ; crée les tiens" onPress={() => router.push('/groups')} />
             <RowDivider />
+            <LinkRow icon="📆" tint="#FF9F0A" label="Agenda Vendredi Party" hint="Le rajouter dans l’agenda de ton téléphone" onPress={() => router.push('/settings/calendar')} />
+            <RowDivider />
           </>
         ) : null}
         {isAdmin ? (

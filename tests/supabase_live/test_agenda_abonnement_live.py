@@ -198,3 +198,22 @@ def test_a_poll_vote_puts_the_dates_in_the_agenda_if_needed_is_marked():
       raise exception 'résultat: dates=% si_besoin=%', jsonb_array_length(r->'dates'),
         (select count(*) from jsonb_array_elements(r->'dates') d where (d->>'maybe')::boolean);""")
     assert "résultat: dates=2 si_besoin=1" in out, out
+
+
+def test_settings_give_the_same_link_without_an_event_and_never_to_a_visitor():
+    """Avis du 19.11 : Réglages › Agenda Vendredi Party rend le même lien que la fiche, sans événement ; jamais sans compte."""
+    out = run(FRESH_VICTOR + olga_event(announce=False) + as_bot("victor") + f"""
+      m := case when public.calendar_feed_link()->>'subscribed' = 'false' then 1 else 0 end;
+      r := public.calendar_feed_token(e);
+      perform set_config('party.t', r->>'token', true);
+      {AS_ANON}
+      perform public.calendar_feed(current_setting('party.t'));
+      begin
+        perform public.calendar_feed_link();
+        n := 1;
+      exception when others then n := 0;
+      end;
+      {as_bot('victor')}
+      raise exception 'résultat: neuf=% meme=% lu=% anonyme=%', m,
+        public.calendar_feed_link()->>'token' = current_setting('party.t'), public.calendar_feed_link()->>'subscribed', n;""")
+    assert "résultat: neuf=1 meme=t lu=true anonyme=0" in out, out

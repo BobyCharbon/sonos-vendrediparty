@@ -172,10 +172,45 @@ export function datesToAdd<T extends ProposedDate>(dates: T[], votes: Record<str
   return upcomingDates(voted ? dates.filter((d) => votes[d.id] === 'yes' || votes[d.id] === 'if_needed') : dates, now);
 }
 
-/** Adresse que l'agenda relit tout seul ; Google Agenda par son lien d'abonnement, l'iPhone, le Mac et Outlook par webcal://. */
-export function subscribeLink(token: string, origin: string, platform: CalendarPlatform | 'google' = calendarPlatform()): string {
-  const webcal = `${origin.replace(/^https?:/, 'webcal:')}/api/calendar-feed/${token}.ics`;
-  return platform === 'android' || platform === 'google' ? `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcal)}` : webcal;
+/**
+ * Agendas proposés pour s'abonner (avis du 19.11 : sous Android, tout partait dans Google Agenda, que beaucoup n'utilisent
+ * pas). `copy` : le lien à coller dans n'importe quel agenda (Samsung via l'app ICSx⁵).
+ */
+export type AgendaApp = 'apple' | 'google' | 'outlook' | 'copy';
+export type AgendaVia = CalendarPlatform | AgendaApp;
+
+export function agendaApps(platform: CalendarPlatform = calendarPlatform()): AgendaApp[] {
+  return platform === 'android' ? ['google', 'outlook', 'copy'] : ['apple', 'google', 'outlook', 'copy'];
+}
+
+/** Adresse que l'agenda relit tout seul : Google et Outlook par leur page d'abonnement, l'iPhone et le Mac par webcal://. */
+export function subscribeLink(token: string, origin: string, via: AgendaVia = calendarPlatform()): string {
+  const https = `${origin.replace(/^webcal:/, 'https:')}/api/calendar-feed/${token}.ics`;
+  const webcal = https.replace(/^https?:/, 'webcal:');
+  if (via === 'android' || via === 'google') return `https://calendar.google.com/calendar/render?cid=${encodeURIComponent(webcal)}`;
+  if (via === 'outlook') return `https://outlook.live.com/calendar/0/addfromweb?url=${encodeURIComponent(https)}&name=${encodeURIComponent('Vendredi Party')}`;
+  if (via === 'copy') return https;
+  return webcal;
+}
+
+/** Ouvre l'agenda choisi pour s'abonner (rien à ouvrir pour `copy` : l'écran copie le lien). */
+export function openSubscription(token: string, via: AgendaVia) {
+  if (via === 'copy') return;
+  const url = subscribeLink(token, window.location.origin, via);
+  if (url.startsWith('https:')) openGoogleCalendar(url);
+  else openIcs(url);
+}
+
+/** Lien de l'agenda « Vendredi Party » sans événement (Réglages › Agenda Vendredi Party). */
+export async function myAgendaLink(): Promise<{ token: string; subscribed: boolean } | null> {
+  try {
+    const { data, error } = await supabase.rpc('calendar_feed_link');
+    const r = data as { token?: unknown; subscribed?: unknown } | null;
+    if (error || !r || typeof r.token !== 'string' || !/^[0-9a-f]{36}$/.test(r.token)) return null;
+    return { token: r.token, subscribed: r.subscribed === true };
+  } catch {
+    return null;
+  }
 }
 
 /** Le calendrier « Vendredi Party » de la personne : son lien, s'il est déjà abonné (lu par un agenda) et si l'événement y est. */
@@ -196,7 +231,7 @@ export async function agendaLink(eventId: string, add = false): Promise<AgendaLi
   }
 }
 
-export type AddDatesResult = 'added' | 'subscribed' | 'native' | 'file' | 'denied';
+export type AddDatesResult = 'added' | 'subscribed' | 'copied' | 'native' | 'file' | 'denied';
 
 /**
  * Ajout à l'agenda, partout la même méthode (retours de l'admin du 11.11) : l'événement entre dans le calendrier
@@ -204,23 +239,22 @@ export type AddDatesResult = 'added' | 'subscribed' | 'native' | 'file' | 'denie
  * Première fois : l'agenda propose de s'abonner ; ensuite, rien à ouvrir. Sans lien : `fallback` (ancien ajout ponctuel).
  */
 export async function addToAgenda(eventId: string, link: AgendaLink | null, fallback: () => Promise<AddDatesResult> | AddDatesResult,
-  via: CalendarPlatform | 'google' = calendarPlatform()): Promise<AddDatesResult> {
+  via: AgendaVia = calendarPlatform(), again = false): Promise<AddDatesResult> {
   if (!link) return fallback();
-  if (!link.subscribed) {
-    const url = subscribeLink(link.token, window.location.origin, via);
-    if (url.startsWith('https:')) openGoogleCalendar(url);
-    else openIcs(url);
-  }
+  // `again` : la personne dit que l'agenda n'est pas sur son téléphone (une lecture ne prouve pas l'abonnement).
+  const open = !link.subscribed || again;
+  if (open) openSubscription(link.token, via);
   const saved = await agendaLink(eventId, true);
-  if (!saved) return link.subscribed ? fallback() : 'subscribed';
+  const done: AddDatesResult = via === 'copy' && open ? 'copied' : open ? 'subscribed' : 'added';
+  if (!saved) return open ? done : fallback();
   // App iPhone : les dates déjà mises directement dans le calendrier feraient doublon avec l'agenda abonné.
   try { await nativeCalendar()?.settle({ eventId, cancelled: true }); } catch { /* app plus ancienne */ }
-  return link.subscribed ? 'added' : 'subscribed';
+  return done;
 }
 
 /** Sondage : sans agenda abonné possible, l'app iPhone les met dans le calendrier ; sinon le fichier .ics, comme avant. */
-export async function addPollDates(ev: PollEvent, dates: ProposedDate[], link?: AgendaLink | null): Promise<AddDatesResult> {
-  return addToAgenda(ev.id, link ?? null, () => pollDatesOnce(ev, dates));
+export async function addPollDates(ev: PollEvent, dates: ProposedDate[], link?: AgendaLink | null, via?: AgendaVia, again = false): Promise<AddDatesResult> {
+  return addToAgenda(ev.id, link ?? null, () => pollDatesOnce(ev, dates), via, again);
 }
 
 /** Sondage sans agenda abonné possible : l'app iPhone met les dates dans le calendrier, sinon le fichier .ics. */

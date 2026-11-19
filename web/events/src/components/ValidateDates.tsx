@@ -3,7 +3,8 @@ import { Modal, StyleSheet, View } from 'react-native';
 
 import { SheetBackdrop, SheetTop, useSheetDrag, useSheetSignal, useSheetTop } from './SheetGesture';
 import { Button, T } from './ui';
-import { addPollDates, agendaLink, datesToAdd, nativeCalendar, type AddDatesResult, type AgendaLink } from '@/lib/calendar';
+import { AgendaChoices, type AgendaChoice } from './AgendaChoices';
+import { addPollDates, agendaLink, calendarPlatform, datesToAdd, nativeCalendar, type AddDatesResult, type AgendaLink } from '@/lib/calendar';
 import { formatShort } from '@/lib/format';
 import { colors, radius } from '@/lib/theme';
 import type { DateVote, EventRow } from '@/lib/types';
@@ -40,6 +41,7 @@ export function ValidateDates({ event, dates, votes }: Props) {
 export const AGENDA_DONE: Record<AddDatesResult, string> = {
   added: '✓ Ajouté à ton calendrier « Vendredi Party » : il y apparaît d’ici peu (au plus une heure) et suivra chaque changement. Désormais, chaque événement où tu réponds Présent ou Peut-être s’y ajoute tout seul.',
   native: '✓ C’est dans ton agenda. Quand la date sera fixée, Party gardera la bonne et retirera les autres.',
+  copied: '✓ Colle le lien dans ton agenda : ensuite, chaque événement où tu réponds Présent ou Peut-être s’y ajoute et s’y met à jour tout seul.',
   subscribed: '✓ Confirme l’abonnement « Vendredi Party » dans ton agenda : ensuite, chaque événement où tu réponds Présent ou Peut-être s’y ajoute et s’y met à jour tout seul.',
   file: 'Ajoute-les dans la fenêtre qui s’ouvre.',
   denied: 'Party n’a pas accès à ton calendrier : autorise-le dans Réglages › Party › Calendriers.',
@@ -74,14 +76,19 @@ function ValidatedSheet({ visible, onClose, event, dates }: {
     return () => { alive = false; };
   }, [visible, event.id, n]);
 
-  async function add() {
+  const [choices, setChoices] = useState(false);
+  async function add(choice?: AgendaChoice) {
+    // Avis du 19.11 : hors iPhone, chacun choisit son agenda (jamais Google d'office) ; « Pas dans ton agenda ? » rouvre le choix.
+    if (!choice && link && (!link.subscribed || already) && calendarPlatform() !== 'ios') return setChoices((v) => !v);
+    if (choice !== 'copy') setChoices(false);
     setBusy(true);
     try {
-      setResult(await addPollDates(event, dates, link));
+      setResult(await addPollDates(event, dates, link, choice === 'file' ? undefined : choice, already));
     } finally {
       setBusy(false);
     }
   }
+  const picker = choices && link ? <AgendaChoices token={link.token} onPick={(c) => void add(c)} /> : null;
 
   const addLabel = n > 1 ? `Ajouter les ${n} dates à mon agenda` : 'Ajouter la date à mon agenda';
   return (
@@ -105,16 +112,20 @@ function ValidatedSheet({ visible, onClose, event, dates }: {
           {result ? (
             <>
               <T size={14} weight="bold" color={result === 'denied' ? colors.coralSoft : colors.mint} style={st.center}>{AGENDA_DONE[result]}</T>
+              {result === 'copied' ? picker : null}
               <Button label="Terminé" onPress={onClose} />
             </>
           ) : already || !n ? (
             <>
               {already ? <T size={14} weight="bold" color={colors.mint} style={st.center}>✓ Tes dates sont déjà dans ton agenda.</T> : null}
+              {already && !choices ? <Button label="Pas dans ton agenda ? Le rajouter" variant="secondary" onPress={() => void add()} /> : null}
+              {picker}
               <Button label="Terminé" onPress={onClose} />
             </>
           ) : (
             <View style={{ gap: 8 }}>
               <Button label={busy ? 'Ajout…' : addLabel} loading={busy} onPress={() => void add()} />
+              {picker}
               <Button label="Plus tard" variant="secondary" onPress={onClose} />
             </View>
           )}
