@@ -1367,8 +1367,10 @@ body {
   background-attachment: fixed; transition: --stage .6s ease;
   padding-top: max(14px, env(safe-area-inset-top));
 }
-/* Pas de sélection ni de menu contextuel sur les commandes : ça se comporte comme une app. */
-button, .tabs, .g-mini, .chips, .seg { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+/* Comme une app (avis du 19.11) : jamais de sélection de mots ni de menu iOS au doigt, nulle part ; la saisie reste
+   sélectionnable. */
+body, button, .tabs, .g-mini, .chips, .seg { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+input, textarea, [contenteditable="true"] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
 
 /* Grand titre d'écran, aligné à gauche, comme une app iOS */
 .top-head { align-items: flex-end; min-height: 52px; margin: 6px 0 14px; }

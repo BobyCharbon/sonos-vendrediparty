@@ -7,15 +7,15 @@ const path = new URL('../dist/index.html', import.meta.url);
 // carte en overflow: hidden comme un conteneur de défilement ; avec overscroll-behavior: contain, le geste
 // commencé sur une carte n’atteignait plus la liste (seul le bord droit, sans carte, défilait). Le rebond est
 // déjà bloqué par html { overscroll-behavior: none }. Test : test_android_finger_on_an_event_card_scrolls_the_list.
-// Discussions (html.chats-touch, posé par app/_layout.tsx) : aucune sélection de texte d'iOS au doigt, menus et feuilles
-// compris ; la saisie reste sélectionnable. Test : tests/test_chats_touch_browser.py (avis du 19.11).
+// Comme une app (avis du 19.11) : aucune sélection de mots ni menu d'iOS au doigt, nulle part (menus et feuilles compris) ;
+// la saisie reste sélectionnable ; copier un message : « Copier ». Test : tests/test_chats_touch_browser.py.
 const appStyle = `<style id="app-shell">
 html,body,#root{height:100%;margin:0;background:#0B0817;overflow:hidden}
 #root{background:#15102A}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%;touch-action:manipulation;overscroll-behavior:none}
 *{-webkit-tap-highlight-color:transparent}
-html.chats-touch body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
-html.chats-touch :is(input,textarea){-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
+body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+:is(input,textarea,[contenteditable="true"]){-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
 </style>`;
 let html = readFileSync(path, 'utf8')
   .replace('<html lang="en">', '<html lang="fr">')

@@ -118,6 +118,32 @@ struct ChatsReadTests {
         #expect(ReadServer.reads() == ["c1"])
         #expect(store.chat("c1")?.unread == 0 && store.chat("c1")?.markedUnread == false && store.badge == 0)
     }
+
+    @Test("Relecture annulée ou raté réseau passager, conversation affichée : jamais « Party ne répond pas »")
+    func aCancelledOrFailedReloadSaysNothing() async throws {
+        let store = store()
+        await store.open("c1")
+        #expect(store.conversation?.messages.map(\.id) == ["m1"])
+        ReadServer.openDelay = 1
+        let reload = Task { await store.open("c1") }
+        try await Task.sleep(for: .milliseconds(150))
+        reload.cancel()  // écran redessiné, conversation changée : la relecture en cours est annulée
+        await reload.value
+        #expect(store.notice == nil && store.error == nil)
+        ReadServer.openDelay = 0
+        ReadServer.openFails = true
+        await store.open("c1")  // relecture régulière pendant un raté du réseau
+        #expect(store.notice == nil && store.error == nil)
+        #expect(store.conversation?.messages.map(\.id) == ["m1"], "la conversation reste affichée")
+    }
+
+    @Test("Premier chargement sans réseau : on dit quoi faire")
+    func aFirstLoadWithoutNetworkSaysSo() async {
+        let store = store()
+        ReadServer.openFails = true
+        await store.open("c1")
+        #expect(store.error == PartyAPIError.offline.errorDescription)
+    }
 }
 
 /// Serveur Party simulé : liste v2 (c1 : 1 non lu, marquée « non lu »), conversation c1, lecture.
@@ -126,12 +152,14 @@ private final class ReadServer: URLProtocol {
     nonisolated(unsafe) static var readFails = false
     nonisolated(unsafe) static var openDelay: TimeInterval = 0
     nonisolated(unsafe) static var listDown = false
+    nonisolated(unsafe) static var openFails = false
 
     static func reset() {
         bodies = []
         readFails = false
         openDelay = 0
         listDown = false
+        openFails = false
     }
 
     /// « Lu » envoyé à part (sans attendre la conversation) : laissé arriver.
@@ -187,6 +215,7 @@ private final class ReadServer: URLProtocol {
             if Self.readFails { return client!.urlProtocol(self, didFailWithError: URLError(.notConnectedToInternet)) }
             reply(["ok": true])
         case "/api/account/chats/open":
+            if Self.openFails { return client!.urlProtocol(self, didFailWithError: URLError(.networkConnectionLost)) }
             if Self.openDelay > 0, sent["prefetch"] as? Bool != true { Thread.sleep(forTimeInterval: Self.openDelay) }
             reply([
                 "id": "c1", "name": "Léa", "member": true, "admin": false, "notify": "all", "can_name_admins": false, "me": "me",

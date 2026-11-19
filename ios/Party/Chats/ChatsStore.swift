@@ -892,6 +892,11 @@ final class ChatsStore: ObservableObject {
         } catch is CancellationError {
             return
         } catch {
+            // Relecture annulée (écran quitté, conversation changée, relecture relancée) : iOS la rend comme une coupure
+            // réseau. Raté passager pendant une relecture, avec le contenu déjà affiché : la suivante repart dans quelques
+            // secondes. Rien à dire dans les deux cas (avis du 19.11 : « Party ne répond pas » en ouvrant une discussion
+            // alors que le serveur avait tout servi).
+            if Task.isCancelled || (!loading && error as? PartyAPIError == .offline) { return }
             if loading { self.error = error.localizedDescription } else { notice = error.localizedDescription }
         }
     }

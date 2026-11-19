@@ -39,7 +39,7 @@ def test_a_finger_tap_opens_the_chat_and_a_long_press_opens_the_menu_without_sel
     open_list(page, events_origin)
     row = page.get_by_role('button', name='Discussion Basket du mardi', exact=False)
     pw.expect(row).to_be_visible(timeout=15000)
-    assert page.evaluate("document.documentElement.classList.contains('chats-touch')")
+    assert page.evaluate("getComputedStyle(document.body).userSelect") == 'none'
     for text in ('Basket du mardi', 'Discussions'):
         assert page.get_by_text(text, exact=True).first.evaluate(NO_SELECT) == ['none', 'none'], text
 
@@ -75,8 +75,22 @@ def test_conversation_bubbles_and_header_are_not_selectable_but_the_composer_is(
         pw.expect(page.get_by_role('menu').get_by_role('button', name='Copier')).to_be_visible()
         assert page.evaluate('getSelection().toString()') == ''
     touch(page, bubble, 900, menu_without_selection)
-    # Hors des Discussions, rien ne change (la règle suit la page).
+    # Partout dans l'app, pas seulement Discussions (avis du 19.11).
     page.goto(f'{events_origin}/events/', wait_until='domcontentloaded')
     page.wait_for_timeout(1500)
-    assert not page.evaluate("document.documentElement.classList.contains('chats-touch')")
+    assert page.evaluate("getComputedStyle(document.body).userSelect") == 'none'
     assert not errors, errors
+
+
+def test_the_party_page_selects_no_words_but_its_fields_do(browser, events_origin):  # noqa: F811
+    """Avis du 19.11 : comme une app, nulle part de sélection de mots d'iOS (Musique, Jeux…) ; les champs restent."""
+    context = browser.new_context(viewport={'width': 390, 'height': 844}, has_touch=True)
+    page = context.new_page()
+    try:
+        page.goto(events_origin, wait_until='domcontentloaded')
+        assert page.evaluate("getComputedStyle(document.body).userSelect") == 'none'
+        assert page.evaluate("getComputedStyle(document.body).webkitTouchCallout || 'none'") == 'none'
+        field = page.locator('input[type=text], input:not([type]), textarea').first
+        assert field.evaluate("e => getComputedStyle(e).userSelect") != 'none'
+    finally:
+        context.close()

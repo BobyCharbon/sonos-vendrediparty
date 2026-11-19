@@ -30,7 +30,7 @@ export function CopyRow({ label, value, shown = value }: { label: string; value:
       style={({ pressed }) => [st.row, pressTransition, pressed && { opacity: 0.75 }]}>
       <View style={{ flex: 1, minWidth: 0 }}>
         <T muted size={12}>{label}</T>
-        <T weight="semibold" size={15}>{shown}</T>
+        <T weight="semibold" size={15} style={done === 'fail' ? ({ userSelect: 'all' } as object) : undefined}>{shown}</T>
       </View>
       <T size={13} weight="bold" color={done === 'ok' ? colors.mint : colors.accent}>{done === 'ok' ? 'Copié ✓' : done === 'fail' ? 'Copie à la main' : 'Copier'}</T>
     </Pressable>
