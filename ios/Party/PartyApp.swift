@@ -189,7 +189,7 @@ struct ContentView: View {
 
                 // iPhone Duo : barre d'onglets verticale du système, sur le côté (voir SystemTabBar).
                 if #available(iOS 27.1, *), sideBarVisible, let tabs = model.visibleTabs {
-                    SystemTabBar(state: tabs, select: model.selectTab) { barExtraInset = $0 }
+                    SystemTabBar(state: tabs, select: model.selectTab, back: model.canGoBack ? { [model] in model.goBack() } : nil) { barExtraInset = $0 }
                         .ignoresSafeArea()
                         .motionTransition(.opacity)
                 }

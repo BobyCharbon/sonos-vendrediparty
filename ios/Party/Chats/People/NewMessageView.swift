@@ -19,6 +19,7 @@ struct NewMessageView: View {
     @State private var loadError: String?
     @State private var query = ""
     @State private var results: [ChatPerson]?
+    @State private var searchError: String?
     @State private var selected: [ChatPerson] = []
     @State private var contactPeople: [ChatPerson]?
     @State private var loadingContacts = false
@@ -148,7 +149,9 @@ struct NewMessageView: View {
         VStack(alignment: .leading, spacing: 4) {
             PeopleSectionLabel(text: "Résultats", systemImage: "magnifyingglass")
             if let results {
-                if results.isEmpty {
+                if let searchError {
+                    note(searchError)
+                } else if results.isEmpty {
                     note("Personne ne correspond. Cherche par prénom, nom ou surnom.")
                 } else {
                     ForEach(results) { row($0) }
@@ -374,8 +377,11 @@ struct NewMessageView: View {
         results = nil
         try? await Task.sleep(nanoseconds: 250_000_000)  // on attend la fin de la frappe
         guard !Task.isCancelled else { return }
-        let found = (try? await people.search(query)) ?? []
+        var found: [ChatPerson] = []
+        var failure: String?
+        do { found = try await people.search(query) } catch { failure = PeopleStore.message(error) }
         guard !Task.isCancelled else { return }
+        searchError = failure
         results = found
         ChatTiming.mark("search.results")
     }

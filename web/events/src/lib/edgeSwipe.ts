@@ -15,6 +15,9 @@ const ROOTS = new Set(['/', '/profile', '/account', '/welcome', '/sign-in']);
 const OWN_GESTURE = 'input, textarea, select, [role="dialog"], [aria-modal="true"], [data-no-edge-swipe]';
 const currentPath = () => location.pathname.replace(/^\/events(?=\/|$)/, '') || '/';
 
+/** Un écran « derrière » existe (même règle que le glisser) : bouton Retour de la barre verticale de l'iPhone Duo. */
+export const canGoBackHere = () => router.canGoBack() && !ROOTS.has(currentPath());
+
 type Drag = { x0: number; y0: number; active: boolean; lastX: number; lastT: number; velocity: number };
 
 /**

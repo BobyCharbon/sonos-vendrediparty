@@ -540,6 +540,19 @@ final class WebModel: ObservableObject {
         webView?.evaluateJavaScript("window.PartyTabs && PartyTabs.select('\(id)')")
     }
 
+    /// Retour de la barre verticale (iPhone Duo) : l'écran d'avant de la page, sinon « ‹ Réglages ».
+    var canGoBack: Bool {
+        (nativeScreen == nil && visibleTabs?.back == true) || pageDetail != nil
+    }
+
+    func goBack() {
+        if nativeScreen == nil, visibleTabs?.back == true {
+            webView?.evaluateJavaScript("window.PartyTabs && PartyTabs.back && PartyTabs.back()")
+        } else if pageDetail != nil {
+            closePageDetail()
+        }
+    }
+
     /// Nouvel essai automatique depuis l'écran « hors ligne », qui reste affiché jusqu'au chargement réussi.
     func retryQuietly() {
         guard let webView, !webView.isLoading else { return }

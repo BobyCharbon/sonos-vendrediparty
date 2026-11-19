@@ -53,6 +53,15 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   `window.PartyFold` et l'événement `party-fold` ; page principale seulement, rien sur un iPhone sans charnière. Mise en
   page d'après le pli (régions réservées), jamais d'après l'angle de la charnière (Apple : entrée de jeu seulement).
   `ios-app.js` / `html.native-tabs` inchangés.
+- « Retour » en haut de la barre verticale (comme Safari, demande du 19.11) : chaque écran vide de `SystemTabBar` est
+  dans un `UINavigationController` (son bouton de gauche monte dans la barre). Affiché seulement s'il y a un écran
+  derrière : la page le dit (`state.back` de native-tabs.js = `PartyBack.can()` : pile `Nav`, ou page du module, signal
+  `party-events:back` / `party-shell:back`, même règle que le glisser `canGoBackHere`) ; sinon « ‹ Réglages » (`pageDetail`).
+  Écrans natifs (Discussions, Musique) : leur propre retour. Tests : `testBackSitsAtTheTopOfTheVerticalBar…`,
+  `test_back_of_the_duo_vertical_bar_follows_the_page_stack`.
+- Écran ≥ 900 px dans l'app (Duo déplié) : la page ne garde pas la place de son rail web (caché), et le panneau des
+  Événements / Discussions / Réglages prend toute la largeur (style.css, `html.native-tabs`, retour du 19.11 ; test
+  `test_wide_screen_in_the_app_keeps_no_room_for_the_hidden_web_rail`).
 - Portrait gardé dans project.yml (iPhone classiques) ; l'écran intérieur du Duo l'ignore : tout écran doit suivre toute
   taille, et le pliage / dépliage garder l'état (page, brouillon, partie).
 - Tests : `PartyTests/DuoTests.swift` ; `PartyUITests/DuoTabBarUITests.swift` (simulateur « iPhone Duo » :
@@ -569,6 +578,9 @@ réglage de prod :
   ↔ personne qui a répondu à SON événement. Demande : VP seul en commun, même événement public, contact du répertoire,
   recherche. Aucun : blocage (deux sens), compte inactif, profil / CGU manquants, « Demandes de message : Personne ».
   L'app ne fait que proposer ; jamais de suggestion « tout le site » ni de recherche par numéro.
+- Listes « Nouveau message » (`chat_people_search`, `chat_people_suggestions`) : `private.dm_link_listed` = même lien SANS
+  les CGU de qui cherche (migration 20261119090000) ; écrire garde `dm_link` → feuille des CGU. Sinon, à chaque nouvelle
+  version des CGU, la recherche était vide pour tous (retour du 19.11). Test : `test_discussions_recherche_cgu_live.py`.
 - Demande de message (`open_direct_chat`, `direct_chats.status`) : UN message texte, sans photo, vocal, lien ni numéro
   (garde `guard_direct_message`, `request_pending`) ; Accepter / Supprimer / Bloquer / Signaler ; l'expéditeur n'est
   jamais prévenu d'un refus. Plafonds : 10 nouvelles / 24 h, 30 en attente (`limit`) ; devinette de numéro : 20 échecs

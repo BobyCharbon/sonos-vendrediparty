@@ -22,6 +22,8 @@
   let seq = 0;
 
   const top = () => stack[stack.length - 1];
+  // La pile a changé : le bouton Retour de la barre verticale (iPhone Duo, native-tabs.js) se relit.
+  const changed = () => dispatchEvent(new Event("party-nav"));
   const depth = () => history.state?.navDepth || 0;
 
   // ── Pile ⇄ historique ──
@@ -34,6 +36,7 @@
     resetSurface(entry);
     pushEntry();
     if (entry.kind === "screen" && entry.animateIn !== false) slideIn(entry);
+    changed();
   }
   /** L'interface a fermé elle-même la couche (bouton ✕, fin de partie…) : on retire son entrée d'historique. */
   function closed(key) {
@@ -43,6 +46,7 @@
     stack.slice(i).forEach(resetSurface);   // arrêtée en plein glissement : rien ne reste décalé (dessous compris)
     stack = stack.slice(0, i);
     rewind(removed);
+    changed();
   }
   let rewindTimer = 0;
   function rewind(n) {
@@ -69,6 +73,7 @@
       stack = stack.slice(0, -1);
       dismiss(layer);
     }
+    changed();
   });
   // Rechargement sur une entrée de couche : la page repart à la racine.
   if (depth()) history.replaceState({ ...history.state, navDepth: 0 }, "");
@@ -185,6 +190,7 @@
     if (!cancelled && landing > dimension(l) / 2) {
       stack = stack.filter((x) => x !== l);
       rewind(1);
+      changed();
       dismiss(l, velocity);
     } else {
       animate(l, 0, velocity, () => resetSurface(l));

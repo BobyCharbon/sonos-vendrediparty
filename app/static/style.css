@@ -1669,6 +1669,12 @@ html.native-tabs body { padding-bottom: 24px; }
 html.native-tabs body.has-mini { padding-bottom: 100px; }
 html.native-tabs .g-mini { bottom: 12px; }
 html.native-tabs body.has-mini[data-tab="events"] .events-panel, html.native-tabs body.has-mini[data-tab="account"] .events-panel, html.native-tabs body.has-mini[data-tab="chats"] .events-panel { bottom: 80px; }
+/* Grand écran dans l'app (iPhone Duo déplié, retour du 19.11) : pas de rail web à gauche, donc pas de place à lui garder. */
+@media (min-width: 900px) {
+  html.native-tabs body { padding-left: max(32px, env(safe-area-inset-left)); padding-right: max(32px, env(safe-area-inset-right)); }
+  html.native-tabs body[data-tab="events"] .events-panel, html.native-tabs body[data-tab="account"] .events-panel, html.native-tabs body[data-tab="chats"] .events-panel { left: 0; max-width: none !important; margin: 0 !important; }  /* plus fort que « body > *:not(…) » */
+  html.native-tabs .g-mini { left: max(32px, env(safe-area-inset-left)); }
+}
 
 /* 👤 Fiche profil d'un joueur (profile-card.js) */
 .pc-backdrop { position: fixed; inset: 0; z-index: 90; display: grid; place-items: end center; background: rgba(0,0,0,.55);

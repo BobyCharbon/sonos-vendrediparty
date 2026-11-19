@@ -106,6 +106,8 @@ struct NativeTabBar: UIViewRepresentable {
 struct SystemTabBar: UIViewControllerRepresentable {
     let state: TabBarState
     let select: (String) -> Void
+    /// « Retour » en haut de la barre verticale (comme Safari) quand la page a un écran derrière ; nil sinon.
+    var back: (() -> Void)?
     /// Largeur que la barre verticale ajoute à la zone sûre de son côté (0 si elle tient dans la colonne de la barre d'état).
     let extraInset: (CGFloat) -> Void
 
@@ -115,12 +117,14 @@ struct SystemTabBar: UIViewControllerRepresentable {
         host.select = select
         host.extraInset = extraInset
         host.show(state)
+        host.showBack(back)
     }
 
     final class Host: UIViewController, UITabBarControllerDelegate {
         let tabs = UITabBarController()
         var select: (String) -> Void = { _ in }
         var extraInset: (CGFloat) -> Void = { _ in }
+        private var back: (() -> Void)?
         private var ids: [String] = []
         private var reported: CGFloat = -1
         private let feedback = UISelectionFeedbackGenerator()
@@ -146,16 +150,41 @@ struct SystemTabBar: UIViewControllerRepresentable {
             let ids = state.tabs.map(\.id)
             if self.ids != ids {
                 self.ids = ids
+                // Chaque écran vide est dans une pile de navigation : son bouton de gauche (Retour) monte en haut de
+                // la barre verticale, au-dessus des onglets (seuls les conteneurs du système y passent).
                 tabs.setViewControllers(state.tabs.enumerated().map { index, tab in
                     let page = UIViewController()
                     page.view.backgroundColor = .clear
                     page.view.isUserInteractionEnabled = false
-                    page.tabBarItem = NativeTabBar.item(for: tab, tag: index)
-                    return page
+                    let stack = UINavigationController(rootViewController: page)
+                    stack.view.backgroundColor = .clear
+                    let look = UINavigationBarAppearance()
+                    look.configureWithTransparentBackground()
+                    stack.navigationBar.standardAppearance = look
+                    stack.navigationBar.scrollEdgeAppearance = look
+                    stack.tabBarItem = NativeTabBar.item(for: tab, tag: index)
+                    return stack
                 }, animated: false)
+                showBack(back, force: true)
             }
             NativeTabBar.refresh(tabs.viewControllers?.map(\.tabBarItem) ?? [], with: state.tabs)
             if let active = state.activeIndex, tabs.selectedIndex != active { tabs.selectedIndex = active }
+        }
+
+        /// Retour présent seulement quand la page a un écran derrière (icône et titre : exigé pour la barre verticale).
+        func showBack(_ action: (() -> Void)?, force: Bool = false) {
+            let had = back != nil
+            back = action
+            guard force || had != (action != nil) else { return }
+            for case let stack as UINavigationController in tabs.viewControllers ?? [] {
+                var item: UIBarButtonItem?
+                if action != nil {
+                    item = UIBarButtonItem(title: "Retour", image: UIImage(systemName: "chevron.backward"),
+                                           primaryAction: UIAction { [weak self] _ in self?.back?() })
+                    item?.accessibilityIdentifier = "duo-back"
+                }
+                stack.topViewController?.navigationItem.leftBarButtonItem = item
+            }
         }
 
         /// La page décide : le toucher lui est envoyé, l'onglet ne change qu'à sa réponse (`show`).
@@ -169,11 +198,17 @@ struct SystemTabBar: UIViewControllerRepresentable {
 
         override func viewDidLayoutSubviews() {
             super.viewDidLayoutSubviews()
-            guard let page = tabs.selectedViewController else { return }
+            guard let page = Self.page(of: tabs) else { return }
             let edge = view.traitCollection.verticalBarEdge
-            let extra = max(0, Self.side(of: page.view, edge: edge) - Self.side(of: view, edge: edge))
+            let extra = max(0, Self.side(of: page, edge: edge) - Self.side(of: view, edge: edge))
             // Hors de la passe de mise en page (l'état SwiftUI change ensuite).
             if extra != reported { reported = extra; DispatchQueue.main.async { [extraInset] in extraInset(extra) } }
+        }
+
+        /// Écran vide affiché (dans sa pile de navigation).
+        static func page(of tabs: UITabBarController) -> UIView? {
+            let selected = tabs.selectedViewController
+            return ((selected as? UINavigationController)?.topViewController ?? selected)?.view
         }
 
         /// Zone sûre du côté de la barre verticale.
@@ -184,10 +219,10 @@ struct SystemTabBar: UIViewControllerRepresentable {
 
         /// Seule la bande de la barre (côté `verticalBarEdge`, hors zone sûre des écrans vides) reçoit les touchers.
         func takesTouch(at point: CGPoint) -> Bool {
-            guard let page = tabs.selectedViewController else { return false }
+            guard let page = Self.page(of: tabs) else { return false }
             let edge = view.traitCollection.verticalBarEdge
             let onRight = (edge == .trailing) != (view.effectiveUserInterfaceLayoutDirection == .rightToLeft)
-            let inset = Self.side(of: page.view, edge: edge)
+            let inset = Self.side(of: page, edge: edge)
             return onRight ? point.x >= view.bounds.width - inset : point.x <= inset
         }
     }

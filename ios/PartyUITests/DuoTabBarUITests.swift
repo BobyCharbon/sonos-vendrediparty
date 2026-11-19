@@ -52,6 +52,28 @@ final class DuoTabBarUITests: XCTestCase {
         XCTAssertFalse(games.isSelected)
     }
 
+    /// « Retour » en haut de la barre verticale (comme Safari) quand la page a un écran derrière ; il le referme.
+    func testBackSitsAtTheTopOfTheVerticalBarAndClosesThePageLayer() throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["PARTY_DUO_VERTICAL"] == "1", "iPhone Duo seulement")
+        let app = XCUIApplication()
+        // Onglet Jeux (page), puis une feuille de la page (pile Nav) s'ouvre : il y a un écran derrière.
+        app.launchEnvironment["PARTY_DEBUG_JS"] = """
+        localStorage.setItem('vp_tab','games');
+        addEventListener('load', function () { setTimeout(function () {
+          document.getElementById('installSheet').classList.remove('hidden'); }, 1500); });
+        """
+        app.launch()
+        let back = app.buttons["duo-back"]
+        XCTAssertTrue(back.waitForExistence(timeout: 40), app.debugDescription)
+        let games = app.buttons["Jeux"]
+        XCTAssertEqual(back.frame.midX, games.frame.midX, accuracy: 4, "Retour dans la barre verticale : \(back.frame)")
+        XCTAssertLessThan(back.frame.midY, games.frame.midY, "Retour au-dessus des onglets")
+        snapshot(app, "duo-4-retour")
+        back.tap()
+        wait(for: [expectation(for: NSPredicate(format: "exists == false"), evaluatedWith: back)], timeout: 10)
+        snapshot(app, "duo-5-apres-retour")
+    }
+
     /// Pont du pli : la page reçoit la posture (événement « party-fold », `<html data-posture>`). Duo fermé : « closed ».
     func testThePageKnowsThePosture() throws {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["PARTY_DUO_VERTICAL"] == "1", "iPhone Duo seulement")

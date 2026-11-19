@@ -579,7 +579,17 @@ document.addEventListener("click", (ev) => {
 Nav.largeTitle($("appTitle"), $("navBar"));
 
 // 👤 Compte Party : le module Événements gère la connexion SMS et le profil ; ici on relie le compte aux jeux.
-let frameAt = null, frameReady = false, account = null;
+let frameAt = null, frameReady = false, account = null, frameCanBack = false;
+// Bouton Retour de la barre verticale de l'iPhone Duo (native-tabs.js → app) : la couche du dessus de la page (Nav),
+// sinon l'écran d'avant du module Événements / Discussions / Réglages affiché.
+window.PartyBack = {
+  can: () => Nav.depth > 0 || (frameCanBack && ["events", "chats", "account"].includes(document.body.dataset.tab)
+    && !document.querySelector(".events-panel")?.classList.contains("hidden")),
+  go() {
+    if (Nav.depth > 0) return Nav.back();
+    if (PartyBack.can()) $("eventsFrame").contentWindow.postMessage({ type: "party-shell:back" }, location.origin);
+  },
+};
 function frameRoute(path) {
   const frame = $("eventsFrame");
   if (!path && frame.hasAttribute("src")) return;
@@ -801,6 +811,7 @@ window.addEventListener("message", (event) => {
   if (event.data?.type === "party-events:chats-badge" && Number.isFinite(event.data.count)) setChatsBadge(event.data.count);
   // Feuille ouverte dans le module (Inviter, QR, billet…) : rien ne flotte par-dessus (pastille de Zicou sur le ✕).
   if (event.data?.type === "party-events:sheet") document.documentElement.classList.toggle("events-sheet", event.data.open === true);
+  if (event.data?.type === "party-events:back") { frameCanBack = event.data.can === true; dispatchEvent(new Event("party-nav")); }
   if (event.data?.type === "party-events:ready") {
     frameReady = true;
     document.documentElement.classList.remove("events-sheet");  // module rechargé : plus de feuille ouverte

@@ -23,6 +23,8 @@ struct TabBarState: Decodable, Equatable {
     let screen: String?
     /// Ligne « Ton avis » / « Retours » des Réglages natifs : sortie de la barre d'onglets (onglet Zicou, 4.11).
     let feedback: FeedbackEntry?
+    /// Un écran derrière dans la page (couche ou page du module) : bouton Retour de la barre verticale (iPhone Duo).
+    let back: Bool
 
     struct FeedbackEntry: Decodable, Equatable {
         let allowed: Bool
@@ -31,7 +33,7 @@ struct TabBarState: Decodable, Equatable {
         let badge: String?
     }
 
-    enum CodingKeys: String, CodingKey { case hidden, tabs, native, host, screen, feedback }
+    enum CodingKeys: String, CodingKey { case hidden, tabs, native, host, screen, feedback, back }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -41,6 +43,7 @@ struct TabBarState: Decodable, Equatable {
         host = try c.decodeIfPresent(Bool.self, forKey: .host) ?? false
         screen = try c.decodeIfPresent(String.self, forKey: .screen)
         feedback = try? c.decodeIfPresent(FeedbackEntry.self, forKey: .feedback)
+        back = try c.decodeIfPresent(Bool.self, forKey: .back) ?? false
     }
 
     /// Onglet affiché en natif plutôt que dans la page, s'il y en a un. Une page des Réglages sans bouton dans la
@@ -58,13 +61,14 @@ struct TabBarState: Decodable, Equatable {
 
     var activeIndex: Int? { tabs.firstIndex(where: \.active) }
 
-    private init(hidden: Bool, tabs: [Tab], native: [String], host: Bool, screen: String?, feedback: FeedbackEntry?) {
+    private init(hidden: Bool, tabs: [Tab], native: [String], host: Bool, screen: String?, feedback: FeedbackEntry?, back: Bool) {
         self.hidden = hidden
         self.tabs = tabs
         self.native = native
         self.host = host
         self.screen = screen
         self.feedback = feedback
+        self.back = back
     }
 
     /// Onglets dessinés par l'app : Discussions fermées sur ce site (/api/features.discussions false, production) →
@@ -74,7 +78,7 @@ struct TabBarState: Decodable, Equatable {
         let closed: Set<String> = ["chats"]
         return TabBarState(hidden: hidden, tabs: tabs.filter { !closed.contains($0.id) },
                            native: native.filter { !closed.contains($0) }, host: host,
-                           screen: screen.flatMap { closed.contains($0) ? nil : $0 }, feedback: feedback)
+                           screen: screen.flatMap { closed.contains($0) ? nil : $0 }, feedback: feedback, back: back)
     }
 
     /// Corps d'un message JavaScript (dictionnaire) → état ; nil si la page envoie autre chose.

@@ -191,3 +191,30 @@ def test_discussions_badge_counts_unread_messages_of_all_groups(app):
     app.wait_for_function("!document.getElementById('chatsBadge').classList.contains('hidden')")
     chats = next(t for t in last_state(app)["tabs"] if t["id"] == "chats")
     assert chats["badge"] == "5"
+
+
+def test_wide_screen_in_the_app_keeps_no_room_for_the_hidden_web_rail(browser, server):
+    """iPhone Duo déplié (retour du 19.11) : au-delà de 900 px, la page gardait 112 px à gauche pour sa barre web
+    verticale, cachée dans l'app ; l'écran avait une bande vide à gauche. Les Événements partaient aussi à 96 px."""
+    ctx = browser.new_context(base_url=server.url, **{**IPHONE, "viewport": {"width": 1000, "height": 760},
+                                                     "screen": {"width": 1000, "height": 844}})
+    ctx.add_init_script(NATIVE_BRIDGE)
+    page = ctx.new_page()
+    page.goto("/")
+    page.wait_for_function("window.__tabStates.length > 0")
+    assert page.evaluate("parseFloat(getComputedStyle(document.body).paddingLeft)") <= 32
+    page.evaluate("PartyTabs.select('events')")
+    page.wait_for_function("document.body.dataset.tab === 'events'")
+    assert page.evaluate("document.querySelector('.events-panel').getBoundingClientRect().left") == 0
+    ctx.close()
+
+
+def test_back_of_the_duo_vertical_bar_follows_the_page_stack(app):
+    """iPhone Duo (retour du 19.11) : « Retour » en haut de la barre verticale. La page dit à l'app s'il y a un écran
+    derrière (state.back) et PartyTabs.back() referme la couche du dessus."""
+    assert last_state(app)["back"] is False
+    app.evaluate("document.getElementById('installSheet').classList.remove('hidden')")
+    app.wait_for_function("window.__tabStates[window.__tabStates.length - 1].back === true")
+    app.evaluate("PartyTabs.back()")
+    app.wait_for_function("document.getElementById('installSheet').classList.contains('hidden')")
+    app.wait_for_function("window.__tabStates[window.__tabStates.length - 1].back === false")

@@ -8,7 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { PendingInviteClaim } from '@/components/AppJoinScreen';
 import { Button, ErrorText, HeaderBack, Loading, Screen, T, Title } from '@/components/ui';
 import { DESTINATION_KEY } from '@/lib/destination';
-import { useEdgeSwipeBack } from '@/lib/edgeSwipe';
+import { canGoBackHere, useEdgeSwipeBack } from '@/lib/edgeSwipe';
 import { usePendingSync } from '@/lib/pending';
 import { hasCompleteIdentity } from '@/lib/profile';
 import { AuthProvider, useAuth } from '@/lib/auth';
@@ -87,6 +87,11 @@ function Gate() {
   const [asked, setAsked] = useState(0);
   const shared = useRef<string | null>(null);
   useEdgeSwipeBack();
+  // Party sait s'il y a un écran derrière (bouton Retour de la barre verticale de l'iPhone Duo).
+  useEffect(() => {
+    if (typeof window === 'undefined' || window.parent === window) return;
+    window.parent.postMessage({ type: 'party-events:back', can: canGoBackHere() }, location.origin);
+  }, [path]);
   // App iPhone : dates de sondage « À confirmer » dans le calendrier ; une fois par connexion, le ménage des sondages
   // tranchés ou annulés depuis (avis 9ddbdea7fe8f).
   const sweptFor = useRef<string | null>(null);
@@ -117,6 +122,8 @@ function Gate() {
       if (e.origin === location.origin && e.data?.type === 'party-shell:refresh') void refreshProfile();
       // Accueil de Zicou (pet/zicou-home.js) : la page a déjà obtenu l’autorisation, on abonne cet appareil au compte.
       if (e.origin === location.origin && e.data?.type === 'party-shell:enable-push') void enableWebPush().catch(() => undefined);
+      // Retour de la barre verticale (iPhone Duo) : l'écran d'avant, comme le glisser depuis le bord.
+      if (e.origin === location.origin && e.data?.type === 'party-shell:back' && canGoBackHere()) router.back();
     };
     window.addEventListener('message', onRefresh);
     return () => window.removeEventListener('message', onRefresh);

@@ -35,6 +35,8 @@
       feedback: typeof window.fbInfo === "function" ? window.fbInfo() : null,
       // Un jeu en plein écran masque la barre web (display: none) : la barre native suit.
       hidden: getComputedStyle(bar).display === "none",
+      // Un écran derrière (couche de la page ou page du module) : bouton Retour de la barre verticale (iPhone Duo).
+      back: !!(window.PartyBack && window.PartyBack.can()),
       // Onglet masqué par la page (« Ton avis » sans le droit d'écrire un avis) : absent de la barre native aussi.
       tabs: [...bar.querySelectorAll("button[data-tab]")].filter((button) => !button.classList.contains("hidden")).map((button) => ({
         id: button.dataset.tab,
@@ -67,6 +69,7 @@
   new MutationObserver(schedule).observe(document.body, { attributes: true, attributeFilter: ["class", "data-tab"] });
   new MutationObserver(schedule).observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
   addEventListener("pageshow", schedule);
+  addEventListener("party-nav", schedule);
 
   window.PartyTabs = {
     /** Toucher d'un onglet natif : même chemin qu'un toucher dans la page (clic délégué → showTab). */
@@ -76,6 +79,8 @@
       // Page sans bouton dans la barre (« Ton avis », sous Réglages) : ouverte directement, liens profonds compris.
       else if (typeof showTab === "function") showTab(id);
     },
+    /** Bouton Retour de la barre verticale (iPhone Duo). */
+    back() { window.PartyBack && window.PartyBack.go(); },
     /** La page a changé quelque chose hors de la barre (pastille de « Ton avis ») : nouvelle description. */
     refresh: schedule,
   };
