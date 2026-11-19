@@ -149,8 +149,10 @@ def test_invite_sheet_error_is_shown_next_to_its_button():
 
 
 def test_nudge_all_skips_people_without_the_app():
-    card = src('components/GuestListCard.tsx')
-    assert 'people.filter((p) => p.has_app)' in card
+    # 19.11 : la relance (une ligne ou « Relancer les N ») passe par NudgeSheet ; ceux sans notification → le partage.
+    sheet = src('components/NudgeSheet.tsx')
+    assert 'people.filter((p) => p.has_app)' in sheet and 'nudgeInvitees(event.id, reachable.map((p) => p.id))' in sheet
+    assert 'NudgeSheet request={nudging}' in src('components/GuestListCard.tsx')
 
 
 def test_rsvp_card_confirms_only_after_the_save():
