@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { createElement } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Title } from '@/components/ui';
 import { BADGE_RED } from '@/lib/activityBadge';
@@ -34,7 +35,10 @@ type HeaderProps = {
 export function HomeHeader({ searchOpen, onToggleSearch, important, onBell, agendaPending = 0 }: HeaderProps) {
   const many = important > 1 ? 's' : '';
   const bellLabel = important ? `Activité, ${important} nouveauté${many} importante${many}` : 'Activité';
-  const { width } = useWindowDimensions();
+  const screen = useWindowDimensions();
+  const side = useSafeAreaInsets();
+  // Largeur vraiment disponible : sans la colonne de la barre d'état de l'iPhone Duo plié (sinon titre en 28 et coupé).
+  const width = screen.width - side.left - side.right;
   // Le titre cède un peu de place au bouton Agenda sur un téléphone (jamais coupé : « Événem… »).
   const titleSize = width < 380 ? 22 : width < 430 ? 24 : 28;
   const many2 = agendaPending > 1 ? 's' : '';

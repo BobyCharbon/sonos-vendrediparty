@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EventCard } from '@/components/EventCard';
 import { GroupBubbles } from '@/components/GroupBits';
@@ -30,6 +30,9 @@ type PillKey = Exclude<Tab, 'pending'> | 'filters';
 type Filter = { kind: 'all' } | { kind: 'subscribed' } | { kind: 'category'; id: string } | { kind: 'tag'; id: string };
 
 export default function Home() {
+  // Boutons flottants : positionnés sur tout l'écran, ils gardent eux-mêmes la marge latérale (iPhone Duo plié : colonne
+  // de la barre d'état à droite), comme le contenu de la SafeAreaView.
+  const side = useSafeAreaInsets();
   const me = useMe();
   const { can } = useAuth();
   const isAdmin = can('events.approve');
@@ -290,7 +293,7 @@ export default function Home() {
       </ScrollView>
 
       {canPropose || aiEvent ? (
-      <View pointerEvents="box-none" style={st.fabWrap}>
+      <View pointerEvents="box-none" style={[st.fabWrap, { left: side.left, right: side.right }]}>
         {/* Effacé : hors de l'arbre d'accessibilité aussi (VoiceOver « activer » touchait ce qu'il y a derrière). */}
         <View pointerEvents={fabAway ? 'none' : 'box-none'} aria-hidden={fabAway || undefined} accessibilityElementsHidden={fabAway}
           importantForAccessibility={fabAway ? 'no-hide-descendants' : 'auto'}

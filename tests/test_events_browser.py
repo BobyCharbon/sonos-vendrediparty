@@ -2,6 +2,7 @@
 import base64
 import json
 import os
+import re
 from pathlib import Path
 import socket
 import subprocess
@@ -819,3 +820,33 @@ def test_about_comes_right_after_the_place(browser, events_origin):
         y=lambda loc: loc.bounding_box()['y']  # noqa: E731
         assert y(place) < y(about) < y(answer)
     finally: context.close()
+
+
+def test_duo_side_inset_is_kept_once_and_the_events_home_uses_the_whole_width(browser, events_origin):
+    """iPhone Duo plié (retour de l'admin du 19.11) : la colonne de la barre d'état, à droite, arrive au module par
+    PartyEvents.frameInsets. Comptée deux fois (mise en page des onglets + écran), l'accueil n'occupait que ~64 % de la
+    largeur et « Événements » se coupait en trois lignes. Une seule fois : titre sur une ligne, contenu jusqu'à la marge."""
+    width, side = 466, 76
+    context=browser.new_context(viewport={'width':width,'height':678})
+    page=context.new_page()
+    mock_services(page)
+    try:
+        page.goto(events_origin, wait_until='domcontentloaded')
+        page.evaluate(f"PartyEvents.frameInsets = () => ({{ top: 0, right: {side}, bottom: 0, left: 0 }})")
+        page.get_by_role('button',name='Événements',exact=True).click()
+        page.evaluate("document.getElementById('eventsFrame').contentWindow.location.reload()")
+        frame=page.frame_locator('#eventsFrame')
+        login(frame)
+        title=frame.get_by_role('heading',name='Événements',exact=True)
+        pw.expect(title).to_be_visible(timeout=15000)
+        box=title.bounding_box()
+        assert box['height'] < 60, f'« Événements » sur plusieurs lignes : {box}'
+        bell=frame.get_by_role('button',name=re.compile(r'^Activité')).bounding_box()
+        assert bell['x'] + bell['width'] > width - side - 16 - 12, f'en-tête arrêté trop tôt (marge comptée deux fois) : {bell}'
+        assert bell['x'] + bell['width'] <= width - side + 1, f'en-tête sous la colonne de droite : {bell}'
+        propose=frame.get_by_role('button',name='Proposer un événement')
+        if propose.count():
+            fab=propose.bounding_box()
+            assert fab['x'] + fab['width'] <= width - side + 1, f'« + Proposer » sous la colonne de droite : {fab}'
+    finally:
+        context.close()
