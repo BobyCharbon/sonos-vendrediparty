@@ -145,3 +145,11 @@ Pour chaque type : **lié à l'identité : oui · suivi : non · finalité : App
 - [ ] Après la revue : vérifier que le compte de démo existe encore et que le bar « Soirée démo » n'a pas été fermé ;
       mettre à jour `ios/appstore/app-store-connect.md` et `metadata-fr.json` (drapeaux discussions / bar allumés, Audio
       Data, Purchase History, Customer Support, Contests, URL marketing) — fichiers hors de ce dossier, non modifiés ici.
+
+## 20.11.2026 : contrôle complet avant le nouvel envoi
+- [x] En-tête (3840 × 1646) et Résultats de recherche (3840 × 2560) : `visuels/app-store-connect/` (zones sûres d'Apple).
+- [x] Captures iPhone Duo (10) et vidéo d'aperçu (grand écran) déposées.
+- [x] Classification par âge : nouvelles questions « Position partagée » = Non, « Rencontres et relations » = Non (18+).
+- [x] Confidentialité (15 types, sans suivi), conformité (DSA déclaré ; Chine hors distribution), prix et 26 pays,
+      pas de Mac ni de Vision Pro, comptes de démo et codes fixes valables jusqu'à fin 2027.
+- [ ] Accessibilité de l'app : facultatif, laissé vide (ne rien déclarer sans l'avoir vérifié).
