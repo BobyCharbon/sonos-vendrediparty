@@ -61,13 +61,13 @@
       aucune section PRONOS, aucun prono de démo à préparer.
       Questionnaire : Simulated Gambling **None** tant qu'ils restent éteints.
       Aucun code de compte dans le dépôt.
-- [ ] **Attachment** : la partie B de `notes-for-review.md` en PDF, sans l'encadré « À FAIRE » (le champ pièce jointe
-      d'App Review Information : À VÉRIFIER qu'il est proposé ; sinon, mettre le guide sur une page et donner son lien
-      dans les notes).
+- [x] **Attachment** : `guide-revue-apple.pdf` (partie B de `notes-for-review.md`, mise en page A4, refait le 20.11),
+      envoyé par `tools/appstore_submit.py attach` (workflow « App iOS → revue App Store », mode attach).
 - [ ] **Contact** : prénom, nom, téléphone qui répond vraiment pendant la revue (+41…), e-mail `support@vendrediparty.ch`
       (s'envoyer un message de test) — **À FOURNIR** (rien dans le dépôt).
 
-- [ ] **Discussions v2 (18.11)** : la section DISCUSSIONS des notes (demandes de message, « Nouveau message », groupes
+- [x] **Discussions v2 (18.11)** (fait le 20.11 : `supabase/prod/2026-11-20-demo-apple-test-2-apply.sql`, code fixe
+      ajouté dans Test OTP) : la section DISCUSSIONS des notes (demandes de message, « Nouveau message », groupes
       privés non lus par l'administration, mini-profil, Signaler / Bloquer). **Deux comptes de démo** : « Apple-test » et
       « Apple-test 2 » (second numéro à code fixe, Supabase › Test OTP ; son numéro dans le guide PDF, son code saisi
       seulement dans App Store Connect ; jamais dans le dépôt), sans groupe ni événement privé en commun, avec une demande

@@ -4,6 +4,8 @@
 Lancé par .github/workflows/ios-appstore.yml (secrets ASC_KEY_ID, ASC_ISSUER_ID, clé .p8) :
   python3 tools/appstore_submit.py check  <fichier .p8>
       lecture seule : versions, builds de l'app, notes et compte de démo de la revue (jamais le mot de passe).
+  python3 tools/appstore_submit.py attach <fichier .p8> <version>
+      guide PDF (docs/app-store/guide-revue-apple.pdf) en pièce jointe de la revue, à la place des anciennes.
   python3 tools/appstore_submit.py submit <fichier .p8> <version> <build>
       version modifiable (créée si besoin) ← build (traité, sans chiffrement propre), nouveautés
       (ios/appstore/whats-new-fr.txt, seulement après une 1re version publiée : Apple les refuse sur la première), notes pour les examinateurs (ios/appstore/review-notes.txt), compte de démo
@@ -379,7 +381,41 @@ def screens(key: str, version: str) -> int:
     return 0
 
 
+GUIDE_FILE = ROOT / "docs/app-store/guide-revue-apple.pdf"
+
+
+def attach(key: str, version: str) -> int:
+    """Pièce jointe de la revue (App Review Information › Attachment) : remplace les anciennes par le guide PDF."""
+    data = GUIDE_FILE.read_bytes()
+    asc = Asc(key)
+    v = editable_version(asc, app_id(asc), version)
+    detail = review_detail(asc, v["id"])
+    if detail is None:
+        raise SystemExit("Pas encore d'informations de revue pour cette version (lancer fill d'abord)")
+    for old in asc.data(f"/v1/appStoreReviewDetails/{detail['id']}/appStoreReviewAttachments"):
+        asc.call("DELETE", f"/v1/appStoreReviewAttachments/{old['id']}")
+        print(f"Ancienne pièce jointe retirée : {old['attributes'].get('fileName')}")
+    reserved = asc.call("POST", "/v1/appStoreReviewAttachments", {"data": {
+        "type": "appStoreReviewAttachments", "attributes": {"fileName": GUIDE_FILE.name, "fileSize": len(data)},
+        "relationships": {"appStoreReviewDetail": {"data": {"type": "appStoreReviewDetails", "id": detail["id"]}}}}})["data"]
+    upload_parts(reserved["attributes"]["uploadOperations"], data)
+    asc.call("PATCH", f"/v1/appStoreReviewAttachments/{reserved['id']}", {"data": {
+        "type": "appStoreReviewAttachments", "id": reserved["id"],
+        "attributes": {"uploaded": True, "sourceFileChecksum": hashlib.md5(data).hexdigest()}}})
+    deadline = time.time() + ASSET_WAIT_S
+    while time.time() < deadline:
+        st = asc.call("GET", f"/v1/appStoreReviewAttachments/{reserved['id']}")["data"]["attributes"]
+        state_ = (st.get("assetDeliveryState") or {}).get("state")
+        if state_ in ("COMPLETE", "FAILED"):
+            break
+        time.sleep(10)
+    print(f"Pièce jointe {GUIDE_FILE.name} ({len(data) // 1024} Ko) : {state_}")
+    return 0 if state_ == "COMPLETE" else 1
+
+
 if __name__ == "__main__":
+    if len(sys.argv) == 4 and sys.argv[1] == "attach":
+        sys.exit(attach(sys.argv[2], sys.argv[3]))
     if len(sys.argv) == 4 and sys.argv[1] == "fill":
         sys.exit(fill(sys.argv[2], sys.argv[3]))
     if len(sys.argv) == 4 and sys.argv[1] == "screens":

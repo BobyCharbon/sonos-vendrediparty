@@ -121,7 +121,7 @@ has a **fixed code** (also in "Sign-in information", Password field): no SMS is 
 | Event **"Soirée démo Vendredi Party"** (12 Dec.) | Organised by us, invitation only; the demo account is invited AND co-organiser: answer, event discussion, and an **open party bar** (answer **Présent**, then order a drink; organiser side: ZONE ORGANISATEUR › **Gérer le bar**, recap, **Scanner au bar**). Tickets, payment and carpool are off on this event (options of the organiser, described below for completeness). |
 | Group **"Démo Apple"** | The demo account + one of our admins, with a few messages. |
 | Direct message | One message from our admin to the demo account. |
-| Second demo account **"Apple-test 2"** | Number: given in this guide when exported (same fixed-code method). Shares no group or private event with "Apple-test" and has sent it a **message request** (Discussions › **Demandes**). Sign in with it to see the sender side ("Demande envoyée", input closed until accepted). |
+| Second demo account **"Apple-test 2"** | Number **+41 79 000 00 01**, same fixed code as the first demo account (no SMS). Shares no group or private event with "Apple-test" and has sent it a **message request** (Discussions › **Demandes**). Sign in with it to see the sender side ("Demande envoyée", input closed until accepted). |
 
 If you test account deletion: please do it last. Signing in again with the same number then creates a new, empty
 account (the prepared data stays linked to the deleted one).
@@ -163,8 +163,8 @@ Tab **Événements**:
 - Top right: magnifier (search) and bell (activity).
 - Bottom right: **✨ Avec l'IA** (AI assistant) and **+ Proposer** (create with a form).
 - Tap a card to open the event page. Its sections, top to bottom: title, date, place (tap: directions in Maps), "À propos",
-  **Ajouter à mon agenda**, your answer, your ticket, the "Invités" card, carpool, party bar, details, participants,
-  polls, "Qui amène quoi" (who brings what), discussion, **Signaler cet événement**, and for organisers the
+  **Ajouter à mon agenda**, your answer, the event's polls (right under the answer), your ticket, the "Invités" card,
+  carpool, party bar, details, participants, "Qui amène quoi" (who brings what), discussion, **Signaler cet événement**, and for organisers the
   **ZONE ORGANISATEUR**. The page updates live (answers, arrivals, carpool, bar).
 - Tap any name to open that person's profile (with **Écrire**, **Bloquer**, **Signaler le profil**).
 
@@ -212,7 +212,8 @@ On an online event you organise (e.g. one you create), card **Invités** › **+
 #### B4.6 Answer an event
 
 On an event page: **Présent** (going), **Peut-être** (maybe), **Absent** (not going). Each answer shows its time.
-Absent removes you from the carpool.
+Absent removes you from the carpool. The event's polls sit right under the answer; on an event with a fixed date,
+voting in them is open once you answered **Présent** or **Peut-être**.
 
 #### B4.7 Vote on a date poll
 
@@ -250,7 +251,8 @@ people pay:
 
 Guest side, on a priced event after **Présent** (the demo event is free): **Payer [organiser] · 10 CHF** opens the organiser's details; a payment
 link opens **outside the app (Safari or the provider's app)**. Back in Party, **J'ai payé** is only a note to the organiser.
-Organiser side: **Reçu ✓** / **Pas reçu**. While "Paiement ouvert" is off, guests only see "paiement bientôt possible".
+With **On me paie**, the organiser confirms it: **Reçu ✓** / **Pas reçu**. With **Paiement en ligne**, the organiser
+simply sees who noted they paid (the third-party site is not theirs to check). While "Paiement ouvert" is off, guests only see "paiement bientôt possible".
 
 Party never sells anything, never processes, holds or transfers money, and offers no digital goods: these are payments
 between real people for real-world goods and services consumed outside the app (guideline 3.1.3(e)). No in-app purchase
