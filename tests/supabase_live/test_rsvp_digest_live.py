@@ -93,7 +93,7 @@ def test_many_changes_give_one_notification_after_five_minutes(world):
     assert sql('select private.flush_rsvp_digests() as n')[0]['n'] >= 1
 
     notes = rsvp_notes(admin, event)
-    assert notes == ['Testeur 1 vient · Testeur 2 ne vient pas'], notes
+    assert notes == ['Testeur 1 vient'], notes  # « ne vient pas » : jamais notifié (20.11)
     assert sql(f"select count(*)::int as n from private.rsvp_digest where event_id = '{event}'")[0]['n'] == 0
     assert sql('select private.flush_rsvp_digests() as n')[0]['n'] == 0  # rien de plus ensuite
     assert len(rsvp_notes(admin, event)) == 1
@@ -107,3 +107,14 @@ def test_the_organizer_answering_his_own_event_is_not_notified(world):
     sql(f"update private.rsvp_digest set first_at = now() - interval '6 minutes' where event_id = '{event}'")
     sql('select private.flush_rsvp_digests()')
     assert len(rsvp_notes(admin, event)) == 1  # toujours la seule de l'autre test
+
+
+def test_not_coming_alone_sends_nothing(world):
+    """20.11 : seuls « vient » et « peut-être » préviennent l'organisateur."""
+    admin, ga, gb, event = world
+    answer(gb, event, 'maybe')
+    answer(gb, event, 'no')
+    sql(f"update private.rsvp_digest set first_at = now() - interval '6 minutes' where event_id = '{event}'")
+    sql('select private.flush_rsvp_digests()')
+    assert len(rsvp_notes(admin, event)) == 1
+    assert sql(f"select count(*)::int as n from private.rsvp_digest where event_id = '{event}'")[0]['n'] == 0

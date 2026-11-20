@@ -229,6 +229,9 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   vote qu'après Présent ou Peut-être (organisation et admins toujours : `private.event_chat_member`, déclencheur
   `poll_votes_presence`, refus `present_required`) ; sinon « Réponds Présent ou Peut-être pour voter. ». Sondage de dates :
   inchangé. Tests : `tests/supabase_live/test_sondage_presents_live.py`, `test_a_poll_asks_to_answer_present_or_maybe_before_voting`.
+- Réponses (20.11, migration 20261120090000) : l'organisateur n'est prévenu que de « vient » / « peut-être » (réponses
+  regroupées `flush_rsvp_digests`, lien d'invitation `link_join`) ; « ne vient pas » ne notifie jamais. Tests :
+  `test_rsvp_digest_live.py`, `test_lien_invitation_reponse_live.py`.
 - Public par défaut (formulaire et IA) ; un événement public ne prévient JAMAIS personne à sa publication (base : `events_public_silent`, 20261106200000).
 
 ## Avis du 13.11.2026 (à garder)

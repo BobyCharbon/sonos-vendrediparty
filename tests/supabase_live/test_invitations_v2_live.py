@@ -95,7 +95,7 @@ def test_links_for_one_or_several_people_and_answer_once_the_profile_is_complete
         # Rouvrir le même lien pour changer sa réponse : pas de seconde arrivée ni de seconde notification.
         assert new.rpc('accept_invite', token=single['token'], answer='maybe').json()['status'] == 'maybe'
         notes = admin.get(f"notifications?select=body&kind=eq.link_join&event_id=eq.{event}").json()
-        assert notes == [{'body': "Léa a répondu par ton lien d'invitation"}]
+        assert notes == [{'body': "Léa vient · par ton lien d'invitation"}]
 
         # Pour une personne : déjà servi. Pour plusieurs : 2 places, puis plein.
         assert 'une seule personne' in error_of(gb.rpc('accept_invite', token=single['token'], answer='yes'))
