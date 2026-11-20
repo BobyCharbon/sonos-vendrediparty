@@ -413,6 +413,22 @@ def attach(key: str, version: str) -> int:
     return 0 if state_ == "COMPLETE" else 1
 
 
+def cancel(key: str) -> int:
+    """Retire de la revue l'envoi en attente (WAITING_FOR_REVIEW), avant qu'Apple commence : sans pénalité."""
+    asc = Asc(key)
+    app = app_id(asc)
+    subs = asc.data(f"/v1/reviewSubmissions?filter[app]={app}&filter[platform]=IOS&limit=20")
+    waiting = [s for s in subs if s["attributes"].get("state") in ("WAITING_FOR_REVIEW", "READY_FOR_REVIEW")]
+    if not waiting:
+        print("Aucun envoi en attente : " + ", ".join(s["attributes"].get("state", "?") for s in subs))
+        return 1
+    for s in waiting:
+        done = asc.call("PATCH", f"/v1/reviewSubmissions/{s['id']}", {"data": {
+            "type": "reviewSubmissions", "id": s["id"], "attributes": {"canceled": True}}})
+        print(f"Envoi {s['id']} retiré de la revue : {done['data']['attributes'].get('state', '')}")
+    return 0
+
+
 if __name__ == "__main__":
     if len(sys.argv) == 4 and sys.argv[1] == "attach":
         sys.exit(attach(sys.argv[2], sys.argv[3]))
@@ -421,6 +437,8 @@ if __name__ == "__main__":
     if len(sys.argv) == 4 and sys.argv[1] == "screens":
         sys.exit(screens(sys.argv[2], sys.argv[3]))
     mode = sys.argv[1] if len(sys.argv) > 1 else ""
+    if mode == "cancel" and len(sys.argv) == 3:
+        sys.exit(cancel(sys.argv[2]))
     if mode == "check" and len(sys.argv) == 3:
         sys.exit(check(sys.argv[2]))
     if mode == "submit" and len(sys.argv) == 5:

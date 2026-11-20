@@ -10,7 +10,7 @@ on:
       mode:
         description: check (lecture), fill (fiche, âge, compte de démo d'après ios/appstore/metadata-fr.json), screens (captures d'ios/appstore/screenshots), attach (guide PDF en pièce jointe) ou submit (envoi en revue)
         type: choice
-        options: [check, fill, screens, attach, submit]
+        options: [check, fill, screens, attach, submit, cancel]
         default: check
       version:
         description: Version (ex. 1.0.0)
@@ -52,6 +52,8 @@ jobs:
             "$RUNNER_TEMP/asc/bin/python" tools/appstore_submit.py attach "$KEY_PATH" "$VERSION"
           elif [ "$MODE" = "fill" ]; then
             "$RUNNER_TEMP/asc/bin/python" tools/appstore_submit.py fill "$KEY_PATH" "$VERSION"
+          elif [ "$MODE" = "cancel" ]; then
+            "$RUNNER_TEMP/asc/bin/python" tools/appstore_submit.py cancel "$KEY_PATH"
           elif [ "$MODE" = "submit" ]; then
             "$RUNNER_TEMP/asc/bin/python" tools/appstore_submit.py submit "$KEY_PATH" "$VERSION" "$BUILD"
           else
