@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { formatShort } from '@/lib/format';
 import { enter } from '@/lib/motion';
 import { colors, radius } from '@/lib/theme';
-import { chf, confirmPayment, fetchCheckins, type TicketPerson } from '@/lib/tickets';
+import { chf, confirmPayment, fetchCheckins, setPaid, type TicketPerson } from '@/lib/tickets';
 
 import { PersonName } from './PersonName';
 import { Avatar, Button, ErrorText, Section, T } from './ui';
@@ -12,6 +12,7 @@ import { Avatar, Button, ErrorText, Section, T } from './ui';
 /**
  * Organisateur d'un événement payant : qui dit avoir payé (« en attente »), à confirmer « Reçu ✓ » ou « Pas reçu ».
  * Paiement en ligne (19.11) : rien à confirmer, « J'ai payé » compte ; la liste dit qui a payé et quand.
+ * 20.11 : l'organisateur note lui-même « A payé » (payé sur le site ou à lui, sans l'avoir noté) et peut l'annuler.
  * `refreshKey` : relu quand les réponses changent (temps réel de la page).
  */
 export function PendingPayments({ eventId, price, refreshKey, onConfirmed, online = false }: {
@@ -30,10 +31,10 @@ export function PendingPayments({ eventId, price, refreshKey, onConfirmed, onlin
   ), [eventId]);
   useEffect(() => { void load(); }, [load, refreshKey]);
 
-  async function confirm(p: TicketPerson, received: boolean) {
+  async function confirm(p: TicketPerson, received: boolean, byOrganizer = false) {
     setBusy(`${p.user_id}:${received}`);
     try {
-      const after = await confirmPayment(eventId, p.user_id, received, p);
+      const after = byOrganizer ? await setPaid(eventId, p.user_id, received, p) : await confirmPayment(eventId, p.user_id, received, p);
       setNotice(after.notice ?? null);  // « Pas reçu » : billet remis par ce paiement retiré
       await load();
       onConfirmed?.();
@@ -48,6 +49,7 @@ export function PendingPayments({ eventId, price, refreshKey, onConfirmed, onlin
   const present = people.filter((p) => !p.waitlisted);
   const pending = online ? [] : present.filter((p) => p.pay_pending);
   const payers = present.filter((p) => p.paid || (online && p.pay_pending));
+  const unpaid = present.filter((p) => !p.paid && !p.pay_pending);
   const paid = payers.length;
 
   return (
@@ -78,6 +80,20 @@ export function PendingPayments({ eventId, price, refreshKey, onConfirmed, onlin
               <Avatar id={p.user_id} name={p.display_name} photo={p.avatar_url} size={24} />
               <PersonName id={p.user_id} pseudo={p.display_name} weight="semibold" />
               <T size={12} muted>{p.paid ? (p.pay_declared_at ? `payé · ${formatShort(p.pay_declared_at)}` : 'payé') : `en ligne · ${formatShort(p.pay_declared_at!)}`}</T>
+              {p.paid ? <Button small variant="ghost" label="Annuler" loading={busy === `${p.user_id}:false`} onPress={() => confirm(p, false, true)} /> : null}
+            </View>
+          ))}
+        </View>
+      ) : null}
+      {unpaid.length ? (
+        <View style={{ gap: 4 }}>
+          <T size={12} weight="bold" color={colors.muted}>{'Pas encore payé'.toUpperCase()} · {unpaid.length}</T>
+          <T muted size={12}>{online ? 'Payé sur le site sans le noter ? Si la personne te le dit, note-le pour elle.' : 'Payé sans le noter ? Si tu as reçu son paiement, note-le pour elle.'}</T>
+          {unpaid.map((p) => (
+            <View key={p.user_id} style={st.paidRow}>
+              <Avatar id={p.user_id} name={p.display_name} photo={p.avatar_url} size={24} />
+              <View style={{ flex: 1, minWidth: 0 }}><PersonName id={p.user_id} pseudo={p.display_name} weight="semibold" /></View>
+              <Button small variant="secondary" label="A payé ✓" loading={busy === `${p.user_id}:true`} onPress={() => confirm(p, true, true)} />
             </View>
           ))}
         </View>

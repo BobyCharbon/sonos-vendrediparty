@@ -151,6 +151,10 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   choisit jamais le mode. Le lien de l'événement remplace celui du même service dans le profil (un seul « Payer avec Revolut »).
   Tests : `tests/supabase_live/test_paiement_mode_live.py`, `test_paiement_mode_browser_live.py` (recette réelle),
   `test_event_tickets_browser.py`.
+  « A payé ✓ » (20.11) : dans la carte « Paiements » de la fiche, l'organisateur coche lui-même qui a payé (sur le site
+  ou à lui, sans l'avoir noté) et peut « Annuler » (`set_ticket_paid`, « On me paie » et en ligne) ; l'invité ne se note
+  jamais payé lui-même. Tests : `test_the_organizer_marks_a_guest_as_paid_from_the_event`,
+  `test_the_organizer_marks_paid_himself_and_a_guest_cannot`.
   « Paiement ouvert » (16.11, migration 20261116130000, `events.payment_open`, allumé par défaut) : l'organisateur prépare
   tout puis l'allume ; éteint, les invités voient « ⏳ paiement bientôt possible » sans lien ni bouton, `event_pay_info`
   ne donne aucun lien, `declare_ticket_payment` refuse « J'ai payé ». Tests : `test_paiement_mode_live.py`,

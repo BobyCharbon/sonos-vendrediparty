@@ -104,3 +104,18 @@ def test_payment_prepared_but_not_open_yet_shows_no_link_and_refuses_i_paid(part
     assert a.rpc('declare_ticket_payment', e=eid, declared=True).json()['pay_pending'] is True
     a.rpc('declare_ticket_payment', e=eid, declared=False)
     patch(admin, eid, payment_mode='organizer', payment_url=None)
+
+
+@pytest.mark.parametrize('mode,url', [('organizer', LINK), ('online', 'https://billetterie.example.ch/paintball')])
+def test_the_organizer_marks_paid_himself_and_a_guest_cannot(party, mode, url):
+    """20.11 (demande de l'admin) : payé sur le site ou à l'organisateur sans l'avoir noté. L'organisateur coche lui-même
+    « A payé » depuis la fiche, et l'annule ; l'invité ne peut jamais se noter payé lui-même."""
+    admin, a, eid = party
+    assert patch(admin, eid, payment_mode=mode, payment_url=url).status_code in (200, 204)
+    refused = a.rpc('set_ticket_paid', e=eid, member=a.uid, is_paid=True)
+    assert refused.status_code >= 400, refused.text
+    marked = admin.rpc('set_ticket_paid', e=eid, member=a.uid, is_paid=True).json()
+    assert marked['paid'] is True, marked
+    assert ticket(a, eid)['paid'] is True
+    undone = admin.rpc('set_ticket_paid', e=eid, member=a.uid, is_paid=False).json()
+    assert undone['paid'] is False and undone['pay_pending'] is False, undone

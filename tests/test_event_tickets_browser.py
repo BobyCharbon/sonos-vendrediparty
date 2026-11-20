@@ -469,3 +469,30 @@ def test_online_the_organizer_sees_who_paid_and_has_nothing_to_confirm(browser, 
         assert not errors
     finally:
         context.close()
+
+
+@pytest.mark.parametrize('mode', ['organizer', 'online'])
+def test_the_organizer_marks_a_guest_as_paid_from_the_event(browser, origin, mode):
+    """Demande de l'admin du 20.11 : payé sur le site (ou à l'organisateur) sans l'avoir noté. L'organisateur le coche
+    lui-même depuis la carte « Paiements » de la fiche, et peut l'annuler."""
+    extra = {'payment_mode': 'online', 'payment_url': 'https://billetterie.example.ch/paintball'} if mode == 'online' else None
+    context, page, frame, state, errors, _ = launch(browser, origin, [LEA_YES], extra=extra)
+    try:
+        frame.get_by_text('Sortie de démonstration (test local)', exact=True).click()
+        pw.expect(frame.get_by_text('PAS ENCORE PAYÉ · 1', exact=True)).to_be_visible(timeout=15000)
+        frame.get_by_text('PAS ENCORE PAYÉ · 1', exact=True).scroll_into_view_if_needed()
+        page.wait_for_timeout(700)
+        shot(page, f'organisateur-note-paye-{mode}-avant')
+        frame.get_by_role('button', name='A payé ✓', exact=True).click()
+        pw.expect(frame.get_by_text('ONT PAYÉ · 1', exact=True)).to_be_visible(timeout=10000)
+        assert state['paid_calls'] == [True]
+        assert frame.get_by_text('PAS ENCORE PAYÉ · 1', exact=True).count() == 0
+        frame.get_by_text('ONT PAYÉ · 1', exact=True).scroll_into_view_if_needed()
+        page.wait_for_timeout(700)
+        shot(page, f'organisateur-note-paye-{mode}-apres')
+        frame.get_by_role('button', name='Annuler', exact=True).click()
+        pw.expect(frame.get_by_text('PAS ENCORE PAYÉ · 1', exact=True)).to_be_visible(timeout=10000)
+        assert state['paid_calls'] == [True, False]
+        assert not errors
+    finally:
+        context.close()
