@@ -15,6 +15,8 @@ BOTS seulement, transactions ANNULÉES (rien ne reste, aucune notification envoy
 Lancement : SUPABASE_LIVE_TESTS=1 python -m pytest tests/supabase_live/test_discussions_v2_live.py -q"""
 import json
 
+import pytest
+
 from tests.supabase_live.test_groups_members_only_live import sql_test
 from tests.supabase_live.test_member_admin_live import ROOT_ID, pytestmark  # noqa: F401
 
@@ -377,6 +379,21 @@ def test_member_mini_already_met_and_upcoming_together():
     assert out["p_deja_vu"] == "5", out
     assert out["bloque"] == "true/none/0", out
 
+
+
+@pytest.mark.parametrize('victor,vera,listed', [('yes', 'yes', '1'), ('maybe', 'maybe', '1'), ('yes', 'no', '0'),
+                                                 ('no', 'yes', '0'), ('yes', None, '0')])
+def test_upcoming_together_only_when_both_come(victor, vera, listed):
+    """20.11 (capture du profil de Hono) : « À venir ensemble » = l'autre ET moi sommes Présent, Peut-être (ou organisons) ;
+    jamais un événement où l'un des deux a dit « Pas présent » ou n'a pas répondu."""
+    answers = f"(e2, victor, '{victor}')" + (f", (e2, vera, '{vera}')" if vera else "")
+    out = run(as_postgres() + INVITED_EVENT + f"""
+      insert into public.event_invites (event_id, user_id) values (e2, victor), (e2, vera);
+      update public.events set show_participants = true where id = e2;
+      insert into public.rsvps (event_id, user_id, status) values {answers};"""
+              + as_bot("victor") + "r := public.member_mini(vera);"
+              + keep("a_venir", "r ->> 'events_count'"))
+    assert out["a_venir"] == listed, out
 
 def test_private_group_is_not_read_by_root_and_request_links_are_refused():
     out = run(as_postgres() + GROUP_VICTOR_VERA + as_bot("victor")
