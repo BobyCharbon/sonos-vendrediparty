@@ -12,13 +12,15 @@ import { enter } from '@/lib/motion';
 
 export type MenuChoice =
   | { kind: 'read' } | { kind: 'unread' } | { kind: 'pin' } | { kind: 'unpin' } | { kind: 'archive' } | { kind: 'unarchive' }
-  | { kind: 'mute'; span: MuteSpan } | { kind: 'profile' } | { kind: 'block' };
+  | { kind: 'mute'; span: MuteSpan } | { kind: 'profile' } | { kind: 'block' } | { kind: 'move'; step: -1 | 1 };
 
 /**
  * Appui long (ou « … ») sur une discussion : aperçu du dernier message, puis Lu / Non lu, Épingler, Sourdine (1 h, 8 h,
  * 1 semaine, Toujours), Archiver, Voir le profil, Bloquer (confirmé). Feuille commune (glisser vers le bas, ✕, fond).
  */
-export function ChatMenu({ chat, onClose, onChoose }: { chat: ChatItem | null; onClose: () => void; onChoose: (c: ChatItem, choice: MenuChoice) => void }) {
+export function ChatMenu({ chat, onClose, onChoose, pins }: { chat: ChatItem | null; onClose: () => void; onChoose: (c: ChatItem, choice: MenuChoice) => void;
+  /** Épinglées dans l'ordre des tuiles : « Déplacer à gauche / à droite » (avis e75a1d5af3ee). */
+  pins?: ChatItem[] }) {
   const c = useNeon();
   const personText = usePersonText();
   const sheet = useRef<View>(null);
@@ -33,6 +35,7 @@ export function ChatMenu({ chat, onClose, onChoose }: { chat: ChatItem | null; o
   const muted = isMuted(chat);
   const direct = chat.kind === 'direct';
   const last = chat.last;
+  const pinAt = chat.pinned_at && pins ? pins.findIndex((x) => x.kind === chat.kind && x.id === chat.id) : -1;
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={close}>
@@ -41,7 +44,8 @@ export function ChatMenu({ chat, onClose, onChoose }: { chat: ChatItem | null; o
         <View ref={sheet} accessibilityViewIsModal accessibilityLabel={`Options : ${name}`}
           style={[st.sheet, { backgroundColor: c.sheet }, web({ boxShadow: '0 -1px 0 rgba(255,255,255,.08) inset, 0 -30px 60px -20px rgba(0,0,0,.7)' }), enter('rise')]}>
           <View style={[st.grabber, { backgroundColor: c.line2 }]} />
-          <SheetClose onPress={close} label="Fermer" style={{ position: 'absolute', top: 12, right: 12 }} />
+          {/* Au-dessus de la ligne du nom (qui le recouvrait : le ✕ ne fermait rien, recette du 20.11). */}
+          <SheetClose onPress={close} label="Fermer" style={{ position: 'absolute', top: 12, right: 12, zIndex: 3 }} />
           <View style={st.head}>
             <ChatFace chat={chat} size={54} />
             <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
@@ -63,6 +67,8 @@ export function ChatMenu({ chat, onClose, onChoose }: { chat: ChatItem | null; o
               ? <Item icon="check" label="Marquer comme lu" onPress={() => pick({ kind: 'read' })} />
               : <Item icon="chat" label="Marquer comme non lu" onPress={() => pick({ kind: 'unread' })} />}
             <Item icon="pin" label={chat.pinned_at ? 'Désépingler' : 'Épingler'} onPress={() => pick({ kind: chat.pinned_at ? 'unpin' : 'pin' })} />
+            {pinAt > 0 ? <Item icon="chevl" label="Déplacer à gauche" onPress={() => pick({ kind: 'move', step: -1 })} /> : null}
+            {pinAt >= 0 && pins && pinAt < pins.length - 1 ? <Item icon="chevr" label="Déplacer à droite" onPress={() => pick({ kind: 'move', step: 1 })} /> : null}
             {muted
               ? <Item icon="bell" label="Réactiver les notifications" onPress={() => pick({ kind: 'mute', span: 'off' })} />
               : <Item icon="bellslash" label="Sourdine…" expanded={muteOpen} onPress={() => setMuteOpen((v) => !v)} />}

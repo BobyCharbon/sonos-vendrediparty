@@ -49,6 +49,7 @@ struct ChatsView: View {
     @State private var profile: ProfileTarget?
     @State private var muting: ChatSummary?
     @State private var blocking: ChatSummary?
+    @State private var ordering: [ChatSummary]?
     @Environment(\.openGroupPage) private var openGroupPage
     @Environment(\.chatsRoutes) private var routes
 
@@ -84,6 +85,9 @@ struct ChatsView: View {
                 .sheet(isPresented: $creating) { NewGroupSheet(store: store) }
                 .sheet(isPresented: $writing) { routes.newMessage?(nil) }
                 .sheet(item: $profile) { target in routes.miniProfile?(target.id) }
+                .sheet(isPresented: Binding(get: { ordering != nil }, set: { if !$0 { ordering = nil } })) {
+                    if let ordering { ChatPinOrderSheet(chats: ordering) { order in Task { await store.reorderPins(order) } } }
+                }
                 .confirmationDialog(muting.map { "Sourdine : \($0.name)" } ?? "", isPresented: Binding(get: { muting != nil }, set: { if !$0 { muting = nil } }),
                                     titleVisibility: .visible, presenting: muting) { chat in
                     ForEach(ChatMuteSpan.allCases) { span in
@@ -183,7 +187,9 @@ struct ChatsView: View {
                         ForEach(pinned) { chat in
                             Button { open(chat) } label: { ChatPinnedTile(chat: chat) }
                                 .buttonStyle(.plain)
-                                .chatRowActions(chat, store: store, askMute: { muting = $0 }, askBlock: { blocking = $0 }, showProfile: showProfile)
+                                .chatRowActions(chat, store: store, askMute: { muting = $0 }, askBlock: { blocking = $0 }, showProfile: showProfile,
+                                                reorderPins: pinned.count > 1 ? { ordering = pinned } : nil)
+                                .accessibilityIdentifier("chat-pin-\(chat.id)")
                         }
                     }
                     .padding(.horizontal, 10)
@@ -296,6 +302,11 @@ struct ChatsView: View {
             }
             if ChatListLogic.unreadChats(chats) > 0 {
                 Button { Task { await store.markAllRead() } } label: { Label("Tout marquer comme lu", systemImage: "checkmark.circle") }
+            }
+            let pinned = ChatListLogic.pinned(chats, filter: .all)
+            if pinned.count > 1 {
+                Button { ordering = pinned } label: { Label("Réorganiser les épinglées", systemImage: "arrow.left.arrow.right") }
+                    .accessibilityIdentifier("chats-reorder-pins")
             }
         } label: {
             NeonCircleLabel(systemImage: "ellipsis")

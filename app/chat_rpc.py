@@ -27,7 +27,7 @@ log = logging.getLogger("party.chats")
 RELAY = {
     "chat_link", "open_direct_chat", "accept_message_request", "decline_message_request",   # §1-2
     "chat_prefs_get", "chat_prefs_set",
-    "chat_list", "set_chat_state", "chat_badge", "mark_event_chat_read",                    # §3
+    "chat_list", "set_chat_state", "chat_badge", "mark_event_chat_read", "reorder_chat_pins",  # §3 (+ ordre, 20.11)
     "chat_people_suggestions", "chat_people_search", "member_mini", "contacts_match",       # §4
     "create_chat_group", "chat_group_with",                                                 # §5
     "direct_seen", "chat_event_cards", "edit_direct_message", "edit_group_message",         # §6

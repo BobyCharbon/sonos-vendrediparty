@@ -14,6 +14,7 @@ Lancement : SUPABASE_LIVE_TESTS=1 python -m pytest tests/supabase_live/test_noti
 import re
 import time
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import httpx
 import pytest
@@ -122,6 +123,34 @@ def test_a_direct_invitation_is_told_once_then_changes_and_cancellation(w):
         assert len([n for n in notes(s, e, 'event_changed') if n['title'] == 'Événement annulé']) == 1
     assert notes(oscar, e) == []  # jamais pour sa propre action
 
+
+
+def test_only_place_date_or_a_new_vote_tell_participants_of_a_change(w):
+    """Avis 27b5eea5121c (20.11) : description, titre, prix, heure de fin ou lien du lieu : rien. Lieu, date de début,
+    retour au sondage de dates : une notification qui dit ce qui change."""
+    who, _, made = w
+    oscar, gus = who['oscar'], who['gus']
+    e = event(oscar, 'Test notifs modif', location_name='Salle A', location_address='Rue A 1, 1000 Lausanne')
+    made.append(e)
+    post(oscar, 'event_invites', {'event_id': e, 'user_id': gus.uid})
+    answer(gus, e, 'yes')
+    later = (datetime.now(timezone.utc) + timedelta(days=40)).isoformat()
+    for change in ({'description': 'Nouvelle description'}, {'title': 'Test notifs modif (renommé)'}, {'price_chf': 15},
+                   {'ends_at': later}, {'location_url': 'https://maps.example.ch/a'}):
+        patch(oscar, 'events', f'id=eq.{e}', change)
+    assert notes(gus, e, 'event_changed') == []  # rien de tout cela ne prévient
+    patch(oscar, 'events', f'id=eq.{e}', {'location_name': 'Salle B', 'location_address': 'Rue B 2, 1000 Lausanne'})
+    patch(oscar, 'events', f'id=eq.{e}', {'location_address': 'Rue B 4, 1000 Lausanne'})
+    start = (datetime.now(timezone.utc) + timedelta(days=35)).replace(hour=19, minute=30, second=0, microsecond=0)
+    patch(oscar, 'events', f'id=eq.{e}', {'starts_at': start.isoformat(), 'description': 'encore'})
+    shown = start.astimezone(ZoneInfo('Europe/Zurich')).strftime('%d.%m à %H:%M')
+    patch(oscar, 'events', f'id=eq.{e}', {'date_mode': 'poll'})
+    bodies = [n['body'] for n in notes(gus, e, 'event_changed')]
+    assert bodies == ['« Test notifs modif (renommé) » : nouveau lieu : Salle B.',
+                      '« Test notifs modif (renommé) » : nouvelle adresse : Rue B 4, 1000 Lausanne.',
+                      f'« Test notifs modif (renommé) » : nouvelle date : {shown}.',
+                      '« Test notifs modif (renommé) » : date à revoter.'], bodies
+    assert notes(oscar, e, 'event_changed') == []  # jamais pour sa propre modification
 
 def test_a_group_hears_nothing_without_prevenir_then_validators_decide_and_first_answer_wins(w):
     who, group, made = w
@@ -233,7 +262,8 @@ def test_answers_are_grouped_and_the_two_hours_reminder_comes_once(w):
     while time.time() < deadline and not (notes(oscar, e, 'rsvp') and (notes(gus, e, 'reminder') or not off)):
         time.sleep(20)
     digest = notes(oscar, e, 'rsvp')
-    assert len(digest) == 1 and re.fullmatch(r'.+ vient · .+ ne vient pas', digest[0]['body']), digest
+    # « ne vient pas » ne prévient plus l'organisateur (20.11, migration 20261120090000) : Gus seul.
+    assert len(digest) == 1 and re.fullmatch(r'Bot Gus vient', digest[0]['body']), digest
     title = {'2h': 'Dans 2 heures', '1d': "C'est demain", '7d': 'Dans une semaine'}.get(off)
     assert [n['title'] for n in notes(gus, e, 'reminder')] == ([title] if off else [])
     assert notes(gina, e, 'reminder') == []  # ne vient pas : pas de rappel

@@ -4,6 +4,7 @@ une seule liste (groupes, messages directs, soirées) via chat_list, épinglées
 survol et glissés (épingler, sourdine, archiver) ; Demandes (Accepter / Supprimer / Bloquer / Signaler) et Archivées ; état vide
 avec des personnes croisées ; pastille de l'onglet (chat_badge). Captures : CHATS_SHOTS=<dossier> (sinon un dossier temporaire)."""
 import json
+import re
 import os
 import urllib.parse
 from datetime import datetime, timedelta, timezone
@@ -126,6 +127,13 @@ def list_services(page, chats=None):
                         c['pinned_at'] = ago() if body['pinned'] else None
                     if body.get('muted_until') is not None:
                         c['muted_until'] = body['muted_until']
+            result = None
+        elif name == 'reorder_chat_pins':  # ordre choisi : la première à gauche = la plus récente (20.11)
+            now = datetime.now(timezone.utc)
+            for i, item in enumerate(body['chats']):
+                for c in state['chats']:
+                    if c['id'] == item['id'] and c['kind'] == item['kind'] and c['pinned_at']:
+                        c['pinned_at'] = (now - timedelta(seconds=i)).isoformat()
             result = None
         elif name == 'chat_people_search':
             result = [p for p in PEOPLE if body['q'].lower()[:2] in p['name'].lower()]
@@ -475,4 +483,45 @@ def test_in_party_the_chats_tab_is_full_screen_with_a_single_title(phone, events
     pw.expect(page.locator('#appTitle')).to_be_hidden()
     assert page.locator('.events-panel').evaluate('e => getComputedStyle(e).position') == 'fixed'
     shot(page, '11-dans-party.png')
+    assert not errors, errors
+
+
+
+def pin_order(page):
+    return [b.get_attribute('aria-label').split(',')[0] for b in page.get_by_role('list', name='Épinglées').get_by_role('button').all()]
+
+
+def test_pinned_chats_move_left_and_right_and_the_order_stays(phone, events_origin):  # noqa: F811
+    """Avis e75a1d5af3ee (20.11) : réorganiser les épinglées. Appui long sur une tuile : « Déplacer à gauche / à droite »
+    (jamais au bout de la rangée) ; l'ordre change tout de suite, part à la base (reorder_chat_pins) et reste au retour."""
+    page, errors = phone
+    state = list_services(page)
+    open_list(page, events_origin)
+    pins = page.get_by_role('list', name='Épinglées')
+    pw.expect(pins.get_by_role('button')).to_have_count(4, timeout=15000)
+    assert pin_order(page) == ['Message direct Léa', 'Événement Raclette chez Léa', 'Discussion Coloc’ de la Cité', 'Message direct Maman']
+    # Au bout de la rangée : pas de « Déplacer à gauche » sur la première, pas de « Déplacer à droite » sur la dernière.
+    pins.get_by_role('button', name='Message direct Léa', exact=False).click(delay=700)
+    pw.expect(page.get_by_role('menuitem', name='Déplacer à droite')).to_be_visible()
+    pw.expect(page.get_by_role('menuitem', name='Déplacer à gauche')).to_have_count(0)
+    sheet = page.get_by_label('Options : Léa', exact=True)
+    sheet.get_by_role('button', name='Fermer', exact=True).click()  # ✕ : il était recouvert par la ligne du nom (20.11)
+    pw.expect(sheet).to_have_count(0)
+    pins.get_by_role('button', name='Message direct Maman', exact=False).click(delay=700)
+    pw.expect(page.get_by_role('menuitem', name='Déplacer à gauche')).to_be_visible()
+    pw.expect(page.get_by_role('menuitem', name='Déplacer à droite')).to_have_count(0)
+    page.get_by_role('menuitem', name='Déplacer à gauche').click()
+    pw.expect(page.get_by_label('Options : Maman', exact=True)).to_have_count(0)
+    assert pin_order(page) == ['Message direct Léa', 'Événement Raclette chez Léa', 'Message direct Maman', 'Discussion Coloc’ de la Cité']
+    sent = [b for n, b in state['rpc'] if n == 'reorder_chat_pins']
+    assert [(c['kind'], c['id']) for c in sent[-1]['chats']] == [('direct', DM_LEA), ('event', E_RACLETTE), ('direct', DM_MAMAN), ('group', G_COLOC)]
+    # Raclette passe en premier.
+    pins.get_by_role('button', name='Événement Raclette chez Léa', exact=False).click(delay=700)
+    page.get_by_role('menuitem', name='Déplacer à gauche').click()
+    pw.expect(pins.get_by_role('button').first).to_have_attribute('aria-label', re.compile('^Événement Raclette chez Léa'))
+    shot(page, '9-epinglees-ordre.png')
+    # Retour sur la liste (relue de la base) : le même ordre.
+    page.reload(wait_until='domcontentloaded')
+    pw.expect(pins.get_by_role('button')).to_have_count(4, timeout=15000)
+    assert pin_order(page) == ['Événement Raclette chez Léa', 'Message direct Léa', 'Message direct Maman', 'Discussion Coloc’ de la Cité']
     assert not errors, errors

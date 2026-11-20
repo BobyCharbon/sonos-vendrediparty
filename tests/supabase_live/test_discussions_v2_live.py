@@ -308,6 +308,38 @@ def test_chat_list_groups_directs_events_pins_archives_and_seen():
     assert out["soiree_passee"] == "0" and out["root_groupe"] == "true", out
 
 
+
+def test_pinned_chats_follow_the_order_i_choose():
+    """Avis e75a1d5af3ee (20.11) : reorder_chat_pins réécrit l'ordre de MES épingles ; ni une discussion non épinglée,
+    ni celle d'un autre ; une nouvelle épingle se met en tête ; sorte inconnue ou liste trop longue refusées."""
+    grp = "(select id from public.member_groups where name = '[DV2] Groupe {0}')"
+    item = "jsonb_build_object('kind', 'group', 'id', {0})"
+    order = ("(select string_agg(right(x ->> 'title', 1), '' order by pos) from jsonb_array_elements(public.chat_list()) "
+             "with ordinality t(x, pos) where x ->> 'pinned_at' is not null)")
+    out = run(as_postgres() + """
+      insert into public.member_groups (name, created_by) values ('[DV2] Pas à Vera', olga) returning id into e;
+      for i in 1..4 loop
+        insert into public.member_groups (name, created_by) values ('[DV2] Groupe ' || i, victor) returning id into g2;
+        insert into public.member_group_members (group_id, user_id) values (g2, vera);
+      end loop;""" + as_bot("vera")
+              + "".join(f"perform public.set_chat_state('group', {grp.format(i)}, pinned => true);" for i in (1, 2, 3))
+              + "perform public.reorder_chat_pins(jsonb_build_array(" + ", ".join(item.format(grp.format(i)) for i in (2, 3, 1)) + "));"
+              + keep("ordre", order)
+              + "perform public.reorder_chat_pins(jsonb_build_array(" + ", ".join(item.format(x) for x in (grp.format(4), "e", grp.format(1), grp.format(3), grp.format(2))) + "));"
+              + keep("sans_autres", order)
+              + keep("groupe4_pas_epingle", in_list(grp.format(4), "pinned_at") + " is null")
+              + "perform public.set_chat_state('group', " + grp.format(4) + ", pinned => true);"
+              + keep("nouvelle_en_tete", "right(public.chat_list() -> 0 ->> 'title', 1)")
+              + note("sorte", "perform public.reorder_chat_pins('[{\"kind\": \"chat\", \"id\": \"00000000-0000-0000-0000-000000000000\"}]'::jsonb)")
+              + note("trop", "perform public.reorder_chat_pins((select jsonb_agg(jsonb_build_object('kind', 'group', 'id', gen_random_uuid())) from generate_series(1, 11)))")
+              + note("pas_liste", "perform public.reorder_chat_pins('{}'::jsonb)")
+              + as_postgres() + keep("olga_intacte", "(select count(*) from public.chat_list_state where chat_id = e)"))
+    assert out["ordre"] == "231", out
+    assert out["sans_autres"] == "132", out
+    assert out["groupe4_pas_epingle"] == "true" and out["nouvelle_en_tete"] == "4", out
+    assert out["sorte"].startswith("invalid") and out["trop"].startswith("invalid") and out["pas_liste"].startswith("invalid"), out
+    assert out["olga_intacte"] == "0", out
+
 def person(fn: str, who: str, field: str = "id") -> str:
     return f"(select p ->> '{field}' from jsonb_array_elements({fn}) p where p ->> 'id' = {who}::text)"
 

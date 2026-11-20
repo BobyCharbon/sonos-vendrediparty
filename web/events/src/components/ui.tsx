@@ -417,7 +417,7 @@ const signedPhotos = new Map<string, { at: number; url: Promise<string | null> }
 
 /** Un seul lien signé par photo pour toute la page (campagne 2 : la même photo était signée et téléchargée 3 à 5 fois,
  * une fois par carte ou à chaque nouvel affichage, chaque lien neuf déjouant le cache du navigateur). */
-function signedPhotoUrl(path: string): Promise<string | null> {
+export function signedPhotoUrl(path: string): Promise<string | null> {
   const hit = signedPhotos.get(path);
   if (hit && Date.now() - hit.at < PHOTO_URL_REUSE_MS) return hit.url;
   const url = supabase.storage.from(PROFILE_PHOTOS).createSignedUrl(path, PHOTO_URL_TTL_S)

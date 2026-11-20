@@ -124,7 +124,7 @@ export function ShareSheet({ prono, onClose }: { prono: V2; onClose: () => void 
           <View style={{ alignItems: 'center', paddingTop: 8 }}><View style={{ width: 38, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.25)' }} /></View>
           <View style={{ height: 52, alignItems: 'center', justifyContent: 'center' }}>
             <Text style={text(17, '700')}>Partager</Text>
-            <SheetClose onPress={onClose} style={{ position: 'absolute', right: 12, top: 4 }} />
+            <SheetClose onPress={onClose} style={{ position: 'absolute', right: 12, top: 4, zIndex: 3 }} />
           </View>
           <CardView p={prono} />
           <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 16 }}>

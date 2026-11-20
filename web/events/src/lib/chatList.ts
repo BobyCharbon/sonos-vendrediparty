@@ -156,6 +156,22 @@ export async function setChatState(c: Pick<ChatItem, 'kind' | 'id'>, change: { p
   if (error) fail(error, 'Le changement n’a pas été enregistré. Vérifie ta connexion et réessaie.');
 }
 
+/** Ordre des épinglées choisi (avis e75a1d5af3ee, 20.11) : la première à gauche ; la base réécrit leurs pinned_at. */
+export async function reorderPins(order: Pick<ChatItem, 'kind' | 'id'>[]): Promise<void> {
+  const { error } = await supabase.rpc('reorder_chat_pins', { chats: order.map((c) => ({ kind: c.kind, id: c.id })) });
+  if (error) fail(error, 'L’ordre n’a pas été enregistré. Vérifie ta connexion et réessaie.');
+}
+
+/** Nouvel ordre des épinglées après « Déplacer à gauche / à droite » ; null si elle ne peut pas aller plus loin. */
+export function movedPins(pinned: ChatItem[], chat: ChatItem, step: -1 | 1): ChatItem[] | null {
+  const i = pinned.findIndex((x) => chatKey(x) === chatKey(chat));
+  const j = i + step;
+  if (i < 0 || j < 0 || j >= pinned.length) return null;
+  const next = [...pinned];
+  [next[i], next[j]] = [next[j], next[i]];
+  return next;
+}
+
 /** « Lu » : les messages sont lus (groupe, message direct) et la marque « non lue » part. */
 export async function markRead(c: ChatItem): Promise<void> {
   if (c.unread > 0 && c.kind === 'direct') await supabase.rpc('mark_direct_read', { chat: c.id });

@@ -184,7 +184,7 @@ function ChatsHome() {
       {!searching && !empty ? <Fab collapsed={collapsed} bottom={insets.bottom + 18} onPress={() => newMessage(push)} /> : null}
       <View pointerEvents="none" style={[st.fade, web({ backgroundImage: `linear-gradient(180deg, transparent, ${c.bg} 85%)` })]} />
       <Snack snack={actions.snack} onDone={() => actions.setSnack(null)} bottom={insets.bottom + 86} />
-      <ChatMenu chat={menu} onClose={() => setMenu(null)} onChoose={actions.choose} />
+      <ChatMenu chat={menu} onClose={() => setMenu(null)} onChoose={actions.choose} pins={pinned} />
     </View>
   );
 

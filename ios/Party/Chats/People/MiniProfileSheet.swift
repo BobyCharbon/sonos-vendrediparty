@@ -100,6 +100,7 @@ struct MiniProfileSheet: View {
         VStack(spacing: 18) {
             VStack(spacing: 8) {
                 PronoAvatar(face: m.person.face, size: 112)
+                    .opensProfilePhoto(m.person.face.photo, name: title(m))
                     .padding(4)
                     .background(PronoTheme.bg, in: Circle())
                     .overlay(Circle().strokeBorder(PronoTheme.line2, lineWidth: 1))
@@ -122,7 +123,7 @@ struct MiniProfileSheet: View {
                         .accessibilityIdentifier("mini-profile-met")
                 }
             }
-            .accessibilityElement(children: .combine)
+            .accessibilityElement(children: .contain)  // la photo reste un bouton (voir en grand)
 
             actions(m)
 

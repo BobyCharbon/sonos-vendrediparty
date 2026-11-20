@@ -322,3 +322,33 @@ def test_the_member_card_sends_a_message_through_open_direct_chat(phone, events_
     assert rpc_args(state, 'open_direct_chat') == [{'target': LEA}]
     assert not rpc_args(state, 'start_direct_chat')
     assert not errors, errors
+
+
+def test_the_profile_photo_opens_full_size_and_closes(phone, events_origin):
+    """Avis 163be6ce5df6 (20.11) : toucher la photo d'un profil l'ouvre en grand, dans sa vraie qualité (le même fichier,
+    jamais une miniature) ; toucher deux fois zoome ; ✕ ferme et le profil reste ouvert. Sans photo : rien à toucher."""
+    state = {'mini': mini()}
+    page, frame, errors = start(phone, events_origin, state)
+    sheet = open_lea(frame)
+    sheet.get_by_role('button', name='Voir la photo de Léa Morel en grand').click()
+    full = frame.get_by_test_id('profile-photo-full')
+    pw.expect(full).to_be_visible()
+    img = full.locator('img')
+    pw.expect(img).to_have_attribute('src', 'https://photos.test/lea.svg')
+    box = full.get_by_role('img', name=re.compile('^Photo de Léa')).bounding_box()
+    assert box['width'] >= 380, box  # tout l'écran, pas la vignette de 104 px
+    shot(page, 'photo-profil-grand')
+    full.get_by_role('img', name=re.compile('^Photo de Léa')).dblclick()
+    pw.expect(full.get_by_role('img', name=re.compile('agrandie'))).to_be_visible()
+    full.get_by_role('button', name='Fermer', exact=True).click()
+    pw.expect(full).to_have_count(0)
+    pw.expect(frame.get_by_test_id('mini-profile')).to_be_visible()
+    # Sans photo : la vignette n'est pas un bouton.
+    state['mini'] = {**mini(), 'photo': None}
+    frame.get_by_role('button', name='Fermer', exact=True).click()
+    pw.expect(frame.get_by_test_id('mini-profile')).to_have_count(0)
+    frame.get_by_role('button', name='Profil de Léa').first.click()
+    sheet = frame.get_by_test_id('mini-profile')
+    pw.expect(sheet.get_by_role('heading', name='Léa Morel')).to_be_visible(timeout=15000)
+    pw.expect(sheet.get_by_role('button', name='Voir la photo de Léa Morel en grand')).to_have_count(0)
+    assert not errors, errors

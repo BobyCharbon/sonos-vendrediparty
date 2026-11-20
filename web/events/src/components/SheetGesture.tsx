@@ -180,6 +180,6 @@ const st = StyleSheet.create({
   bar: { position: 'absolute', width: 14, height: 2, borderRadius: 1, backgroundColor: colors.textSoft },
   backdrop: { position: 'fixed' as 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   top: { height: 28, justifyContent: 'center', marginTop: -6 },
-  topClose: { position: 'absolute', right: -6, top: -4 },
+  topClose: { position: 'absolute', right: -6, top: -4, zIndex: 3 },  // jamais recouvert par le contenu (20.11)
   grabber: { alignSelf: 'center', width: 40, height: 5, borderRadius: 3, backgroundColor: colors.lineStrong },
 });

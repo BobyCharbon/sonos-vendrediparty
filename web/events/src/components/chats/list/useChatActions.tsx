@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { chatFont, useNeon, web } from '../neon';
 import type { MenuChoice } from './ChatMenu';
 import type { RowAction } from './ChatRow';
-import { chatKey, markRead, PIN_LIMIT, setChatState, setMute, sortChats, type ChatItem } from '@/lib/chatList';
+import { chatKey, markRead, movedPins, PIN_LIMIT, reorderPins, setChatState, setMute, sortChats, type ChatItem } from '@/lib/chatList';
 import { useMiniProfile } from '@/lib/miniProfile';
 import { setBlocked } from '@/lib/moderation';
 import { enter } from '@/lib/motion';
@@ -53,8 +53,18 @@ export function useChatActions(chats: ChatItem[], setChats: (next: ChatItem[]) =
         return void setMute(chat, choice.span).then((r) => patch(chat, r), (e: Error) => setError(e.message));
       case 'profile': if (chat.user_id) mini.open(chat.user_id); return undefined;
       case 'block': if (chat.user_id) void run(chat, { blocked: true }, () => setBlocked(chat.user_id!, true)); return undefined;
+      case 'move': {
+        const order = movedPins(sortChats(latest.current.filter((x) => x.pinned_at && !x.archived)), chat, choice.step);
+        if (!order) return undefined;
+        // L'ordre à l'écran tout de suite (la première à gauche = la plus récente), puis la base.
+        const now = Date.now();
+        const at = new Map(order.map((x, i) => [chatKey(x), new Date(now - i * 1000).toISOString()]));
+        setError(null);
+        setChats(sortChats(latest.current.map((x) => (at.has(chatKey(x)) ? { ...x, pinned_at: at.get(chatKey(x))! } : x))));
+        return void reorderPins(order).catch((e: Error) => { setError(e.message); void reload(); });
+      }
     }
-  }, [run, patch, mini]);
+  }, [run, patch, mini, setChats, reload]);
 
   const rowAction = useCallback((chat: ChatItem, a: RowAction, openMute: () => void) => {
     if (a === 'mute') return openMute();

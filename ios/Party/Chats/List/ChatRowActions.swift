@@ -9,6 +9,8 @@ struct ChatRowActions: ViewModifier {
     let askMute: (ChatSummary) -> Void
     let askBlock: (ChatSummary) -> Void
     let showProfile: ((String) -> Void)?
+    /// Réorganiser les épinglées (tuiles, s'il y en a au moins deux).
+    var reorderPins: (() -> Void)? = nil
 
     private var muted: Bool { chat.isMuted() }
 
@@ -52,6 +54,9 @@ struct ChatRowActions: ViewModifier {
             Button { Task { await store.setState(chat, pinned: !chat.pinned) } } label: {
                 Label(chat.pinned ? "Désépingler" : "Épingler", systemImage: chat.pinned ? "pin.slash" : "pin")
             }
+            if chat.pinned, let reorderPins {
+                Button { reorderPins() } label: { Label("Réorganiser les épinglées", systemImage: "arrow.left.arrow.right") }
+            }
         }
         Menu {
             if muted {
@@ -84,8 +89,10 @@ struct ChatRowActions: ViewModifier {
 
 extension View {
     func chatRowActions(_ chat: ChatSummary, store: ChatsStore, askMute: @escaping (ChatSummary) -> Void,
-                        askBlock: @escaping (ChatSummary) -> Void, showProfile: ((String) -> Void)?) -> some View {
-        modifier(ChatRowActions(chat: chat, store: store, askMute: askMute, askBlock: askBlock, showProfile: showProfile))
+                        askBlock: @escaping (ChatSummary) -> Void, showProfile: ((String) -> Void)?,
+                        reorderPins: (() -> Void)? = nil) -> some View {
+        modifier(ChatRowActions(chat: chat, store: store, askMute: askMute, askBlock: askBlock, showProfile: showProfile,
+                                reorderPins: reorderPins))
     }
 }
 

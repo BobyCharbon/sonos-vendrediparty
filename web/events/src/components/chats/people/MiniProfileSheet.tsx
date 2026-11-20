@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
 
 import { GroupTile } from '@/components/GroupBits';
+import { PhotoTap } from '@/components/ProfilePhotoViewer';
 import { ReportSheet } from '@/components/ReportSheet';
 import { SheetBackdrop, useSheetDrag, useSheetTop } from '@/components/SheetGesture';
 import { useTermsGate } from '@/components/TermsSheet';
@@ -126,7 +127,7 @@ export function MiniProfileSheet({ userId, onClose }: { userId: string; onClose:
             onScroll={(e) => { if (!full && e.nativeEvent.contentOffset.y > 8) setFull(true); }}>
             <View style={st.pid}>
               <View style={[st.pav, web({ boxShadow: `0 0 0 1px rgba(255,255,255,.08), 0 0 40px -6px ${look.main}99` })]}>
-                <PersonFace id={userId} name={name || '?'} photo={mini?.photo} size={104} />
+                <PhotoTap photo={mini?.photo} name={name || 'cette personne'}><PersonFace id={userId} name={name || '?'} photo={mini?.photo} size={104} /></PhotoTap>
               </View>
               {mini ? (
                 <>

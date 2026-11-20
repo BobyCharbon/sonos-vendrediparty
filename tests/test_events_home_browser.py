@@ -89,8 +89,8 @@ def setup(page):
     return notifs
 
 
-def open_home(browser, origin):
-    context = browser.new_context(viewport={'width': 390, 'height': 844})
+def open_home(browser, origin, touch=False):
+    context = browser.new_context(viewport={'width': 390, 'height': 844}, has_touch=touch)
     page = context.new_page()
     notifs = setup(page)
     errors = []
@@ -167,6 +167,49 @@ def test_bell_badge_counts_only_important_unread_and_opens_activity(browser, eve
     finally:
         context.close()
 
+
+
+def finger(page, box, dx, steps=10):
+    """Vrai geste tactile (CDP) : doigt posé au milieu de la ligne, glissé de dx px à l'horizontale, levé."""
+    cdp = page.context.new_cdp_session(page)
+    x, y = box['x'] + box['width'] * 0.7, box['y'] + box['height'] / 2
+    cdp.send('Input.dispatchTouchEvent', {'type': 'touchStart', 'touchPoints': [{'x': x, 'y': y}]})
+    for i in range(1, steps + 1):
+        page.wait_for_timeout(16)
+        cdp.send('Input.dispatchTouchEvent', {'type': 'touchMove', 'touchPoints': [{'x': x + dx * i / steps, 'y': y + i * 0.3}]})
+    cdp.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []})
+
+
+def test_swiping_a_notification_left_marks_it_read_without_opening_it(browser, events_origin):
+    """Avis 85cd4af01e3e (20.11) : dans l'Activité (la cloche), glisser une notification de droite à gauche la marque
+    comme lue, sans l'ouvrir ; un petit glissé ne fait rien ; un toucher l'ouvre toujours ; une lue ne se glisse plus."""
+    context, page, frame, notifs, errors = open_home(browser, events_origin, touch=True)
+    try:
+        frame.get_by_test_id('home-bell').click()
+        pw.expect(frame.get_by_role('heading', name='Activité', exact=True)).to_be_visible()
+        pw.expect(frame.get_by_role('button', name='✓ Importantes · 2', exact=True)).to_be_visible()
+        pw.expect(frame.get_by_text('Glisse une notification vers la gauche pour la marquer comme lue.', exact=False)).to_be_visible()
+        poll = frame.get_by_test_id('activity-n1')
+        # Petit glissé (40 px) : rien ne change, rien ne s'ouvre.
+        finger(page, poll.bounding_box(), -40)
+        page.wait_for_timeout(600)
+        assert notifs[0]['read_at'] is None
+        pw.expect(frame.get_by_role('heading', name='Activité', exact=True)).to_be_visible()
+        # Vrai glissé (150 px) : lue, sans ouvrir le sondage ; elle passe sous « DÉJÀ LU » et la bulle baisse.
+        finger(page, poll.bounding_box(), -150)
+        pw.expect(frame.get_by_role('button', name='✓ Importantes · 1', exact=True)).to_be_visible(timeout=10000)
+        assert notifs[0]['read_at'] is not None and notifs[1]['read_at'] is None
+        pw.expect(frame.get_by_role('heading', name='Activité', exact=True)).to_be_visible()
+        assert module_path(page).rstrip('/').endswith('/activity')
+        pw.expect(frame.get_by_role('button', name='Nouveau sondage. Raclette de novembre : choisis tes dates', exact=True)).to_be_visible()
+        page.screenshot(path='/tmp/claude-501/activite-glisse.png')
+        # Un toucher ouvre toujours la notification (l'invitation, non lue).
+        frame.get_by_test_id('activity-n2').tap()
+        pw.expect(frame.get_by_role('heading', name='Activité', exact=True)).to_have_count(0, timeout=10000)
+        assert notifs[1]['read_at'] is not None
+        assert not errors, errors
+    finally:
+        context.close()
 
 def test_activity_opened_from_a_notification_closes_to_home(browser, events_origin):
     """Lien d'une notification (/events/activity, sans historique) : ✕ ramène quand même à l'accueil."""

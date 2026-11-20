@@ -172,6 +172,7 @@ struct MemberCardView: View {
                     Section {
                         VStack(spacing: 8) {
                             AdminAvatar(photo: card.photo, name: card.displayName, size: 104)
+                                .opensProfilePhoto(card.photo, name: card.displayName)
                             let known = contacts.label(for: card.me ? nil : card.id, pseudo: card.displayName)
                             Text(known.primary.isEmpty ? "Profil à compléter" : known.primary).font(.title2.weight(.bold))
                             if let nick = known.secondary {

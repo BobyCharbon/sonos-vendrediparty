@@ -7,6 +7,7 @@ import { ReportSheet } from '@/components/ReportSheet';
 import { useTermsGate } from '@/components/TermsSheet';
 import { nativeOpenDirect, openDirect, refusal } from '@/components/chats/people/people';
 import { ZicouOnProfile } from '@/components/ZicouOnProfile';
+import { PhotoTap } from '@/components/ProfilePhotoViewer';
 import { Avatar, Button, Card, Cascade, ConfirmButton, Empty, ErrorText, Loading, Reveal, Screen, Section, T, Title } from '@/components/ui';
 import { personLabel, useContactNames } from '@/lib/contactNames';
 import { useQuery } from '@/lib/data';
@@ -111,7 +112,11 @@ export default function MemberScreen() {
       {/* Fiche : la photo se pose, puis le reste monte en cascade. */}
       <Cascade>
       <View style={{ alignItems: 'center', gap: 8 }}>
-        <Reveal kind="pop"><Avatar id={data.id} name={data.display_name} photo={data.avatar_url} size={112} profile={false} /></Reveal>
+        <Reveal kind="pop">
+          <PhotoTap photo={data.avatar_url} name={data.display_name || 'ce membre'}>
+            <Avatar id={data.id} name={data.display_name} photo={data.avatar_url} size={112} profile={false} />
+          </PhotoTap>
+        </Reveal>
         {/* App iPhone : le nom de mon répertoire en titre, le pseudo dessous (avis f780431defe7). */}
         <Title>{known.primary || 'Profil à compléter'}</Title>
         {known.secondary ? <T muted size={15}>{known.secondary} · dans tes contacts</T> : null}

@@ -228,6 +228,18 @@ final class ChatsStore: ObservableObject {
         await listAct { token in try await api.chatsRPCRun(token: token, fn: "set_chat_state", args: args) }
     }
 
+    /// Ordre des épinglées choisi (avis e75a1d5af3ee) : la première à gauche. reorder_chat_pins réécrit leurs pinned_at.
+    func reorderPins(_ ordered: [ChatSummary]) async {
+        guard var list = chats, ordered.count > 1 else { return }
+        let now = Date(), iso = ISO8601DateFormatter()
+        for (i, chat) in ordered.enumerated() {
+            if let k = list.firstIndex(where: { $0.id == chat.id }) { list[k].pinnedAt = iso.string(from: now.addingTimeInterval(-Double(i))) }
+        }
+        Motion.animate(Motion.snappy) { showList(list) }
+        let items = ordered.map { ["kind": $0.kind.rawValue, "id": $0.id] }
+        await listAct { token in try await api.chatsRPCRun(token: token, fn: "reorder_chat_pins", args: ["chats": items]) }
+    }
+
     /// Lu : les messages lus (groupe, direct) et la marque « non lu » retirée.
     func markRead(_ chat: ChatSummary) async {
         update(chat.id) { $0.unread = 0; $0.markedUnread = false }
