@@ -30,18 +30,20 @@ struct ProfilePhotoViewer: View {
                 .onChanged { scale = max(1, min(5, lastScale * $0)) }
                 .onEnded { _ in
                     lastScale = scale
+                    Motion.animate { drag = .zero }
                     if scale <= 1 { Motion.animate(Motion.snappy) { pan = .zero; lastPan = .zero } }
                 })
             .simultaneousGesture(DragGesture()
                 .onChanged { value in
                     if scale > 1 {
+                        drag = .zero  // un pincement commence à 1 : jamais de reste du glissé (✕ caché, photo décalée)
                         pan = CGSize(width: lastPan.width + value.translation.width, height: lastPan.height + value.translation.height)
                     } else {
                         drag = value.translation
                     }
                 }
                 .onEnded { value in
-                    if scale > 1 { lastPan = pan; return }
+                    if scale > 1 { lastPan = pan; drag = .zero; return }
                     if abs(value.translation.height) > 120 { dismiss() } else { Motion.animate { drag = .zero } }
                 })
             .onTapGesture(count: 2) {

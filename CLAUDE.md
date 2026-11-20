@@ -237,21 +237,28 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   regroupées `flush_rsvp_digests`, lien d'invitation `link_join`) ; « ne vient pas » ne notifie jamais. Tests :
   `test_rsvp_digest_live.py`, `test_lien_invitation_reponse_live.py`.
 - Public par défaut (formulaire et IA) ; un événement public ne prévient JAMAIS personne à sa publication (base : `events_public_silent`, 20261106200000).
-- Modifier un événement (avis 27b5eea5121c, 20.11, migration 20261120200000) : « Événement modifié » seulement quand le LIEU
-  change (nom, sinon adresse), la DATE de début d'une date fixe, ou le retour au sondage (« date à revoter ») ; le texte dit
-  quoi (« nouveau lieu : … · nouvelle date : 05.12 à 20:30 »). Description, titre, prix, heure de fin, lien du lieu : rien.
+- Modifier un événement (avis 27b5eea5121c, 20.11, migration 20261120200000) : notification seulement quand le LIEU change
+  (nom, sinon adresse ; espaces ignorés), la DATE de début d'une date fixe (à la minute), ou le retour au sondage. Titre = le
+  nom de l'événement ; texte = une phrase par changement (demande de l'admin) : « La date a été modifiée au 05.12 à 20:30. »,
+  « Le nouveau lieu de l'événement est Salle B. ». Description, titre, prix, heure de fin, lien du lieu : rien.
   La date est gardée exprès (venir le mauvais jour). Les sondages gardent « Nouveau sondage » (notify_poll). Test :
   `test_only_place_date_or_a_new_vote_tell_participants_of_a_change` (test_notifications_recette_live.py).
 - Activité (la cloche, avis 85cd4af01e3e) : glisser une notification NON lue de droite à gauche (≥ 80 px) la marque lue
-  sans l'ouvrir ; un toucher l'ouvre toujours ; action VoiceOver « Marquer comme lu ». Test réel au doigt :
+  sans l'ouvrir ; un toucher l'ouvre toujours (et la marque lue, comme « Tout marquer lu » pour VoiceOver : react-native-web
+  ignore accessibilityActions). Test réel au doigt :
   `test_swiping_a_notification_left_marks_it_read_without_opening_it`.
 - Photo de profil en grand (avis 163be6ce5df6) : toucher la photo du mini-profil ou de la fiche l'ouvre en plein écran, le
-  fichier enregistré (1024 px), jamais une miniature ; zoom (pincer / double toucher), glisser vers le bas ou ✕ ferme.
+  fichier enregistré (1024 px), jamais une miniature ; zoom (iPhone : pincer / double toucher ; web : double toucher puis
+  glisser pour se déplacer), glisser vers le bas, toucher hors de la photo ou ✕ ferme.
   Web `PhotoTap` (components/ProfilePhotoViewer.tsx), iPhone `opensProfilePhoto` (Chats/People/ProfilePhotoViewer.swift).
 - Discussions, ordre des épinglées (avis e75a1d5af3ee, migration 20261120200100) : `reorder_chat_pins` réécrit les pinned_at
   de MES épingles (la première = à gauche) ; iPhone : « Réorganiser les épinglées » (appui long d'une tuile ou « … »,
   `ChatPinOrderSheet`), web : « Déplacer à gauche / à droite » (appui long). Tests : `test_pinned_chats_follow_the_order_i_choose`,
   `test_pinned_chats_move_left_and_right_and_the_order_stays`.
+- iPhone, tuiles épinglées : JAMAIS de `.contextMenu` ni de `Menu` sur une tuile. Toutes les tuiles sont dans UNE ligne de
+  la `List`, où iOS ne garde qu'un menu contextuel (l'appui long ouvrait le menu de la PREMIÈRE tuile : « Désépingler »
+  touchait la mauvaise discussion) ; un `Menu` s'ouvrait sous le doigt et se choisissait en le levant. Appui long =
+  `confirmationDialog` des actions de CETTE tuile (`tileActions`). Recette : `RecetteAvis2011UITests` (Release + TEST).
 - Tout ✕ en `position: absolute` dans une feuille web a `zIndex` : le ✕ du menu d'une discussion était recouvert par la
   ligne du nom et ne fermait rien (recette du 20.11).
 

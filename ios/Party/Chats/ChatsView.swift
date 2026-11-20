@@ -50,6 +50,8 @@ struct ChatsView: View {
     @State private var muting: ChatSummary?
     @State private var blocking: ChatSummary?
     @State private var ordering: [ChatSummary]?
+    /// Tuile épinglée dont on montre les actions (appui long).
+    @State private var tileMenu: ChatSummary?
     @Environment(\.openGroupPage) private var openGroupPage
     @Environment(\.chatsRoutes) private var routes
 
@@ -96,6 +98,10 @@ struct ChatsView: View {
                 } message: { _ in
                     Text("Plus de notification de cette discussion pendant ce temps. Les messages arrivent quand même.")
                 }
+                .confirmationDialog(tileMenu?.name ?? "", isPresented: Binding(get: { tileMenu != nil }, set: { if !$0 { tileMenu = nil } }),
+                                    titleVisibility: .visible, presenting: tileMenu) { chat in
+                    tileActions(chat)
+                }
                 .confirmationDialog("Bloquer cette personne ?", isPresented: Binding(get: { blocking != nil }, set: { if !$0 { blocking = nil } }),
                                     titleVisibility: .visible, presenting: blocking) { chat in
                     Button("Bloquer", role: .destructive) { Task { await store.block(chat) } }
@@ -135,6 +141,31 @@ struct ChatsView: View {
         Haptics.selection()
         if chat.isEvent && chat.needsReading { Task { await store.markEventRead(chat.id) } }
         path.append(chat.isEvent ? .event(chat.id) : .chat(chat.id))
+    }
+
+    /// Actions d'une tuile épinglée (les mêmes que l'appui long d'une ligne).
+    @ViewBuilder private func tileActions(_ chat: ChatSummary) -> some View {
+        let later = { (work: @escaping () -> Void) in DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: work) }
+        Button(chat.needsReading ? "Marquer comme lu" : "Marquer comme non lu") {
+            Task { if chat.needsReading { await store.markRead(chat) } else { await store.setState(chat, unread: true) } }
+        }
+        Button("Désépingler") { Task { await store.setState(chat, pinned: false) } }
+        if ChatListLogic.pinned(store.chats ?? [], filter: .all).count > 1 {
+            Button("Réorganiser les épinglées") { later { ordering = ChatListLogic.pinned(store.chats ?? [], filter: .all) } }
+        }
+        if chat.isMuted() {
+            Button("Réactiver les notifications") { Task { await store.mute(chat, nil) } }
+        } else {
+            Button("Sourdine…") { later { muting = chat } }
+        }
+        Button("Archiver") { Task { await store.setState(chat, archived: true) } }
+        if chat.direct, let user = chat.userID, let showProfile {
+            Button("Voir le profil") { later { showProfile(user) } }
+        }
+        if chat.direct, !chat.blocked {
+            Button("Bloquer", role: .destructive) { later { blocking = chat } }
+        }
+        Button("Annuler", role: .cancel) {}
     }
 
     private var showProfile: ((String) -> Void)? {
@@ -185,10 +216,18 @@ struct ChatsView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 4) {
                         ForEach(pinned) { chat in
-                            Button { open(chat) } label: { ChatPinnedTile(chat: chat) }
-                                .buttonStyle(.plain)
-                                .chatRowActions(chat, store: store, askMute: { muting = $0 }, askBlock: { blocking = $0 }, showProfile: showProfile,
-                                                reorderPins: pinned.count > 1 ? { ordering = pinned } : nil)
+                            // Appui long : SES actions, en feuille d'actions en bas. Toutes les tuiles sont dans UNE ligne de
+                            // la liste, où iOS ne garde qu'un menu contextuel (l'appui long ouvrait le menu de la première
+                            // tuile) ; un menu sous le doigt pouvait aussi se choisir en levant le doigt (recette du 20.11).
+                            ChatPinnedTile(chat: chat)
+                                .onTapGesture { open(chat) }
+                                .onLongPressGesture(minimumDuration: 0.45) {
+                                    Haptics.tap()
+                                    tileMenu = chat
+                                }
+                                .accessibilityAddTraits(.isButton)
+                                .accessibilityAction { open(chat) }
+                                .accessibilityAction(named: "Options") { tileMenu = chat }
                                 .accessibilityIdentifier("chat-pin-\(chat.id)")
                         }
                     }

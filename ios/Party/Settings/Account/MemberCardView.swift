@@ -186,7 +186,7 @@ struct MemberCardView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
-                        .accessibilityElement(children: .combine)
+                        .accessibilityElement(children: .contain)  // la photo reste un bouton (voir en grand)
                         if !card.me, !card.blocked, !card.restricted, writeDirect != nil {
                             Button { write(card.id) } label: {
                                 Label("Envoyer un message", systemImage: "bubble.left.fill").frame(maxWidth: .infinity)

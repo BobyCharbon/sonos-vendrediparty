@@ -55,7 +55,7 @@ export default function Activity() {
     else reload();
   }
 
-  /** Glisser de droite à gauche (ou action VoiceOver) : lue, sans l'ouvrir. */
+  /** Glisser de droite à gauche : lue, sans l'ouvrir (VoiceOver : l'ouvrir la marque lue, ou « Tout marquer lu »). */
   // Stable : le glissé en cours n'est pas recréé à chaque rendu de la liste.
   const markRead = useCallback(async (n: Item) => {
     if (n.read_at) return;
@@ -150,8 +150,6 @@ function Row({ n, index, onPress, onRead }: { n: Item; index: number; onPress: (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`${n.read_at ? '' : 'Non lu : '}${n.title}. ${n.body}`}
-            accessibilityActions={canRead ? [{ name: 'markRead', label: 'Marquer comme lu' }] : undefined}
-            onAccessibilityAction={(e) => { if (e.nativeEvent.actionName === 'markRead') onRead?.(n); }}
             testID={`activity-${n.id}`}
             onPress={(e) => { if (Math.abs(e.timeStamp - swipedAt) < 900) return; onPress(); }}
             style={({ pressed }) => [st.row, !n.read_at && st.rowUnread, hot && st.rowHot, pressTransition,

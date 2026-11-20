@@ -45,7 +45,38 @@ struct ChatRowActions: ViewModifier {
             }
     }
 
-    @ViewBuilder private var menu: some View {
+    private var menu: some View {
+        ChatRowMenu(chat: chat, store: store, askMute: askMute, askBlock: askBlock, showProfile: showProfile, reorderPins: reorderPins)
+    }
+
+    private func toggleRead() async {
+        Haptics.tap()
+        if chat.needsReading { await store.markRead(chat) } else { await store.setState(chat, unread: true) }
+    }
+}
+
+extension View {
+    func chatRowActions(_ chat: ChatSummary, store: ChatsStore, askMute: @escaping (ChatSummary) -> Void,
+                        askBlock: @escaping (ChatSummary) -> Void, showProfile: ((String) -> Void)?,
+                        reorderPins: (() -> Void)? = nil) -> some View {
+        modifier(ChatRowActions(chat: chat, store: store, askMute: askMute, askBlock: askBlock, showProfile: showProfile,
+                                reorderPins: reorderPins))
+    }
+}
+
+/// Menu d'une discussion (appui long d'une ligne ou d'une tuile épinglée) : Lu, Épingler, Réorganiser, Sourdine, Archiver,
+/// Voir le profil, Bloquer.
+struct ChatRowMenu: View {
+    let chat: ChatSummary
+    @ObservedObject var store: ChatsStore
+    let askMute: (ChatSummary) -> Void
+    let askBlock: (ChatSummary) -> Void
+    let showProfile: ((String) -> Void)?
+    var reorderPins: (() -> Void)? = nil
+
+    private var muted: Bool { chat.isMuted() }
+
+    var body: some View {
         Button { Task { await toggleRead() } } label: {
             Label(chat.needsReading ? "Marquer comme lu" : "Marquer comme non lu",
                   systemImage: chat.needsReading ? "envelope.open" : "envelope.badge")
@@ -84,15 +115,6 @@ struct ChatRowActions: ViewModifier {
     private func toggleRead() async {
         Haptics.tap()
         if chat.needsReading { await store.markRead(chat) } else { await store.setState(chat, unread: true) }
-    }
-}
-
-extension View {
-    func chatRowActions(_ chat: ChatSummary, store: ChatsStore, askMute: @escaping (ChatSummary) -> Void,
-                        askBlock: @escaping (ChatSummary) -> Void, showProfile: ((String) -> Void)?,
-                        reorderPins: (() -> Void)? = nil) -> some View {
-        modifier(ChatRowActions(chat: chat, store: store, askMute: askMute, askBlock: askBlock, showProfile: showProfile,
-                                reorderPins: reorderPins))
     }
 }
 

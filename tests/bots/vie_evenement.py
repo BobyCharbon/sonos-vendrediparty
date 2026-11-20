@@ -313,7 +313,7 @@ def phase_modifier(browser, origin):
         p.goto("/events/activity")
         p.page.wait_for_timeout(3000)
         p.shot("activite")
-        item = p.page.get_by_role("button", name=re.compile("Événement modifié.*Vie A")).first
+        item = p.page.get_by_role("button", name=re.compile("Vie A.*(nouveau lieu|date a été modifiée)")).first
         if p.see(item, "la notification « Événement modifié »", 8000):
             p.tap(item, "notification Événement modifié")
             p.page.wait_for_url(FICHE_URL, timeout=45000)

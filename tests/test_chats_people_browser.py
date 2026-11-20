@@ -338,9 +338,30 @@ def test_the_profile_photo_opens_full_size_and_closes(phone, events_origin):
     box = full.get_by_role('img', name=re.compile('^Photo de Léa')).bounding_box()
     assert box['width'] >= 380, box  # tout l'écran, pas la vignette de 104 px
     shot(page, 'photo-profil-grand')
-    full.get_by_role('img', name=re.compile('^Photo de Léa')).dblclick()
+    photo = full.get_by_role('img', name=re.compile('^Photo de Léa'))
+    photo.dblclick()
     pw.expect(full.get_by_role('img', name=re.compile('agrandie'))).to_be_visible()
+    # Agrandie : glisser déplace la photo (elle ne se ferme pas).
+    page.wait_for_timeout(600)  # fin du zoom animé
+    before = page.frame_locator('#eventsFrame').locator('[data-testid=profile-photo-full] img').bounding_box()
+    box = photo.bounding_box()
+    page.mouse.move(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
+    page.mouse.down()
+    for i in range(1, 9):
+        page.mouse.move(box['x'] + box['width'] / 2 + i * 10, box['y'] + box['height'] / 2)
+    page.mouse.up()
+    page.wait_for_timeout(600)
+    after = page.frame_locator('#eventsFrame').locator('[data-testid=profile-photo-full] img').bounding_box()
+    assert after['x'] > before['x'] + 30, (before, after)
+    pw.expect(full).to_be_visible()
     full.get_by_role('button', name='Fermer', exact=True).click()
+    pw.expect(full).to_have_count(0)
+    # Toucher hors de la photo la ferme aussi.
+    sheet.get_by_role('button', name='Voir la photo de Léa Morel en grand').click()
+    pw.expect(full).to_be_visible()
+    page.wait_for_timeout(500)
+    full_box = frame.get_by_test_id('profile-photo-backdrop').bounding_box()
+    page.mouse.click(full_box['x'] + 20, full_box['y'] + full_box['height'] - 40)
     pw.expect(full).to_have_count(0)
     pw.expect(frame.get_by_test_id('mini-profile')).to_be_visible()
     # Sans photo : la vignette n'est pas un bouton.

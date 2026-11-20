@@ -15,18 +15,20 @@ declare
   new_text text := $new$    else
       -- Avis 27b5eea5121c : seulement le lieu, la date de début (date fixe) ou le retour au sondage de dates.
       changes := array_remove(array[
-        case when new.location_name is distinct from old.location_name
-             then 'nouveau lieu : ' || coalesce(nullif(btrim(new.location_name), ''), nullif(btrim(new.location_address), ''), 'à définir')
-             when new.location_address is distinct from old.location_address
-             then 'nouvelle adresse : ' || coalesce(nullif(btrim(new.location_address), ''), 'à définir') end,
-        case when new.date_mode is distinct from 'poll' and new.starts_at is not null and new.starts_at is distinct from old.starts_at
-             then 'nouvelle date : ' || to_char(new.starts_at at time zone 'Europe/Zurich', 'DD.MM à HH24:MI') end,
+        case when nullif(btrim(new.location_name), '') is distinct from nullif(btrim(old.location_name), '')
+             then coalesce('Le nouveau lieu de l''événement est ' || coalesce(nullif(btrim(new.location_name), ''), nullif(btrim(new.location_address), '')) || '.',
+                           'Le lieu de l''événement est à définir.')
+             when nullif(btrim(new.location_address), '') is distinct from nullif(btrim(old.location_address), '')
+             then coalesce('La nouvelle adresse de l''événement est ' || nullif(btrim(new.location_address), '') || '.',
+                           'L''adresse de l''événement est à définir.') end,
+        case when new.date_mode is distinct from 'poll' and new.starts_at is not null
+               and date_trunc('minute', new.starts_at) is distinct from date_trunc('minute', old.starts_at)
+             then 'La date a été modifiée au ' || to_char(new.starts_at at time zone 'Europe/Zurich', 'DD.MM à HH24:MI') || '.' end,
         case when new.date_mode = 'poll' and old.date_mode is distinct from 'poll'
-             then 'date à revoter' end], null);
+             then 'La date est de nouveau à choisir : vote pour tes dates.' end], null);
       if cardinality(changes) > 0 then
         for u in select a from event_audience(new.id) a join notification_prefs np on np.user_id = a where np.event_changed loop
-          perform queue_notification(u, 'event_changed', new.id, 'Événement modifié',
-            '« ' || new.title || ' » : ' || array_to_string(changes, ' · ') || '.');
+          perform queue_notification(u, 'event_changed', new.id, new.title, array_to_string(changes, ' '));
         end loop;
       end if;$new$;
 begin

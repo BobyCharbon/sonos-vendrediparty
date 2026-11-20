@@ -115,7 +115,7 @@ def test_a_direct_invitation_is_told_once_then_changes_and_cancellation(w):
     answer(gus, e, 'yes')
     later = (datetime.now(timezone.utc) + timedelta(days=31)).isoformat()
     patch(oscar, 'events', f'id=eq.{e}', {'starts_at': later})
-    assert [n['title'] for n in notes(gus, e, 'event_changed')] == ['Événement modifié']  # il vient : prévenu
+    assert [n['title'] for n in notes(gus, e, 'event_changed')] == ['Test notifs invitation']  # il vient : prévenu (titre = l'événement)
     assert notes(gina, e, 'event_changed') == []  # sans réponse : pas d'une modification
     patch(oscar, 'events', f'id=eq.{e}', {'status': 'cancelled'})
     for s in (gus, gina):  # annulation : participants ET invités sans réponse, une fois
@@ -144,12 +144,22 @@ def test_only_place_date_or_a_new_vote_tell_participants_of_a_change(w):
     start = (datetime.now(timezone.utc) + timedelta(days=35)).replace(hour=19, minute=30, second=0, microsecond=0)
     patch(oscar, 'events', f'id=eq.{e}', {'starts_at': start.isoformat(), 'description': 'encore'})
     shown = start.astimezone(ZoneInfo('Europe/Zurich')).strftime('%d.%m à %H:%M')
+    # Rien de visible : espaces autour du lieu, secondes de l'heure → rien.
+    patch(oscar, 'events', f'id=eq.{e}', {'location_name': '  Salle B ', 'starts_at': (start + timedelta(seconds=30)).isoformat()})
+    # Lieu et date ensemble : une seule notification qui dit les deux.
+    start2 = start + timedelta(days=1)
+    shown2 = start2.astimezone(ZoneInfo('Europe/Zurich')).strftime('%d.%m à %H:%M')
+    patch(oscar, 'events', f'id=eq.{e}', {'location_name': 'Salle C', 'starts_at': start2.isoformat()})
+    patch(oscar, 'events', f'id=eq.{e}', {'location_name': None, 'location_address': None})  # lieu retiré
     patch(oscar, 'events', f'id=eq.{e}', {'date_mode': 'poll'})
-    bodies = [n['body'] for n in notes(gus, e, 'event_changed')]
-    assert bodies == ['« Test notifs modif (renommé) » : nouveau lieu : Salle B.',
-                      '« Test notifs modif (renommé) » : nouvelle adresse : Rue B 4, 1000 Lausanne.',
-                      f'« Test notifs modif (renommé) » : nouvelle date : {shown}.',
-                      '« Test notifs modif (renommé) » : date à revoter.'], bodies
+    told = [(n['title'], n['body']) for n in notes(gus, e, 'event_changed')]
+    t = 'Test notifs modif (renommé)'  # titre = le nom de l'événement ; une phrase par changement
+    assert told == [(t, "Le nouveau lieu de l'événement est Salle B."),
+                    (t, "La nouvelle adresse de l'événement est Rue B 4, 1000 Lausanne."),
+                    (t, f'La date a été modifiée au {shown}.'),
+                    (t, f"Le nouveau lieu de l'événement est Salle C. La date a été modifiée au {shown2}."),
+                    (t, "Le lieu de l'événement est à définir."),
+                    (t, 'La date est de nouveau à choisir : vote pour tes dates.')], told
     assert notes(oscar, e, 'event_changed') == []  # jamais pour sa propre modification
 
 def test_a_group_hears_nothing_without_prevenir_then_validators_decide_and_first_answer_wins(w):
