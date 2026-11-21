@@ -31,7 +31,14 @@ export default function ChatsRoute() {
   // Sombre comme tout Party ; « ?theme=light » / « ?theme=auto » : aperçu des jetons clairs de la maquette 1b.
   const { theme } = useLocalSearchParams<{ theme?: string }>();
   if (!discussionsOn) return <ChatsOff />;
-  return <NeonTheme scheme={theme === 'light' || theme === 'auto' ? theme : 'dark'}><ChatsHome /></NeonTheme>;
+  // L'en-tête de la pile reste caché dès le premier rendu (chargement compris) : la liste porte son grand titre. Posé
+  // seulement avec la liste, il apparaissait le temps du chargement (module seul), puis disparaissait.
+  return (
+    <NeonTheme scheme={theme === 'light' || theme === 'auto' ? theme : 'dark'}>
+      <Stack.Screen options={{ headerShown: false, title: 'Discussions' }} />
+      <ChatsHome />
+    </NeonTheme>
+  );
 }
 
 function ChatsHome() {
@@ -119,9 +126,10 @@ function ChatsHome() {
 
   return (
     <View style={[st.screen, { backgroundColor: c.bg }]}>
-      <Stack.Screen options={{ headerShown: false, title: 'Discussions' }} />
       <View style={glow(c)} />
-      <ScrollView onScroll={onScroll} scrollEventThrottle={32} keyboardShouldPersistTaps="handled"
+      {/* transform: 'none' : le translateZ(0) du ScrollView de react-native-web rendait le fond « fixed » du menu « … »
+          relatif à la liste ; liste défilée, il défilait avec elle et un toucher en bas de l'écran ne fermait plus le menu. */}
+      <ScrollView onScroll={onScroll} scrollEventThrottle={32} keyboardShouldPersistTaps="handled" style={web({ transform: 'none' })}
         contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 120 }}>
         <ListHeader title="Discussions">
           {!empty ? <PauseButton /> : null}

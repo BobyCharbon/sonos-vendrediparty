@@ -466,6 +466,26 @@ def test_new_message_button_and_more_menu(phone, events_origin):
     assert not errors, errors
 
 
+def test_a_touch_beside_the_more_menu_closes_it_even_once_the_list_has_scrolled(phone, events_origin):
+    """Le fond du menu « … » couvre tout l'écran, même liste défilée (menu ouvert puis liste déplacée) : un toucher en bas
+    ferme le menu et n'ouvre jamais la discussion qui est dessous. Le ScrollView de react-native-web (translateZ(0))
+    rendait le fond « fixed » relatif à la liste : il défilait avec elle et laissait le bas de l'écran découvert."""
+    page, errors = phone
+    list_services(page)
+    open_list(page, events_origin)
+    page.get_by_role('button', name='Plus : Demandes de message', exact=False).click(timeout=15000)
+    menu = page.get_by_role('menu', name='Menu')
+    pw.expect(menu.get_by_role('menuitem', name='Archivées (3)')).to_be_visible()
+    scrolled = page.evaluate('''() => { const s = [...document.querySelectorAll('div')].find((d) => d.scrollHeight > d.clientHeight + 100
+      && getComputedStyle(d).overflowY === 'auto'); s.scrollTop = 150; return s.scrollTop; }''')
+    assert scrolled > 100
+    page.wait_for_timeout(300)
+    page.mouse.click(40, 800)  # bas de l'écran, sur une ligne de la liste
+    pw.expect(page.get_by_role('menu', name='Menu')).to_have_count(0)
+    pw.expect(page).to_have_url(f'{events_origin}/events/chats')
+    assert not errors, errors
+
+
 def test_in_party_the_chats_tab_is_full_screen_with_a_single_title(phone, events_origin):
     """Page Party : l'onglet Discussions est en plein écran comme les Événements (panneau fixe, style.css) ; le module porte
     le grand titre de la maquette, Party ne le répète pas."""
