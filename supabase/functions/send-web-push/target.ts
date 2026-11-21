@@ -32,6 +32,15 @@ export function notificationTarget(row: {
   return target.href;
 }
 
+/** Priorité et durée de vie chez le service push (retour de l'admin du 21.11 : relance à Lidia, webapp iPhone, reçue
+ * une heure plus tard, seulement quand le téléphone s'est réveillé pour autre chose). `Urgency: normal` laisse Apple
+ * attendre que le téléphone se réveille de lui-même ; avec `TTL` 1 h, une notification gardée plus longtemps était
+ * perdue. Comme l'app iPhone (apns-priority 10) : `high` pour toute notification, `normal` seulement pendant une pause
+ * (lune, Discussions : rien ne réveille le téléphone) ; 24 h pour arriver quand le téléphone revient en ligne. */
+export function deliveryOptions(silent: boolean): { TTL: number; urgency: 'high' | 'normal' } {
+  return { TTL: 24 * 3600, urgency: silent ? 'normal' : 'high' };
+}
+
 /** Étiquette de la notification (`tag`) : façon WhatsApp, un message de la discussion d'un événement remplace le
  * précédent de la même discussion au lieu de s'empiler (sw.js la refait sonner : renotify hors « party-event- ») ;
  * toute autre notification garde sa propre étiquette. */

@@ -126,6 +126,11 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   terminé / date limite passée : refus. Texte « Invitation de X · Tu viens ? Réponds en un geste. ». Tests :
   `tests/supabase_live/test_relances_live.py` (push calculé par le code de send-push / send-web-push),
   `test_relances_browser_live.py`, `tests/test_relances_browser.py`.
+- Web Push (send-web-push, retour de l'admin du 21.11 : relance à Lidia, webapp iPhone, acceptée par Apple en 8 s mais
+  affichée 1 h plus tard) : `Urgency: high` pour toute notification (`normal` seulement pendant une pause, lune /
+  Discussions) et TTL 24 h (`deliveryOptions`, target.ts). Jamais revenir à `normal` / 1 h : Apple attendait que
+  l'iPhone se réveille de lui-même et jetait la notification après 1 h. Déployé en prod le 21.11 (Ok prod de l'admin).
+  Test : `test_a_notification_is_pushed_right_away_and_kept_a_day`.
 - Agenda (11.11) : partout la même méthode, le calendrier abonné « Vendredi Party » de la personne (un lien par personne,
   `calendar_feed_token(e, add)` / `calendar_feed`, `/api/calendar-feed/<jeton>.ics`) : ajouter un événement (bouton
   « Ajouter à mon agenda », « Valider mes dates ») l'y met, et l'agenda suit tout changement sans rouvrir Party. Ouvrir une

@@ -74,7 +74,7 @@ def test_event_chat_messages_replace_each_other_per_discussion():
 
 def test_the_function_sends_the_notification_url():
     source = (FUNCTION / "index.ts").read_text()
-    assert "import { notificationTag, notificationTarget } from './target.ts';" in source
+    assert "import { deliveryOptions, notificationTag, notificationTarget } from './target.ts';" in source
     assert "db.from('notifications').select('id, data')" in source
     assert "url: notificationTarget({ ...row, url: urls.get(row.notification_id) })" in source
 
@@ -82,3 +82,17 @@ def test_the_function_sends_the_notification_url():
 def test_party_opens_the_account_tab_from_a_notification():
     page = (ROOT / "app/static/index.html").read_text()
     assert 'params.get("tab") === "account"' in page and 'showTab("account");' in page
+
+
+@pytest.mark.skipif(not shutil.which("node"), reason="Node absent")
+def test_a_notification_is_pushed_right_away_and_kept_a_day():
+    """Relance à Lidia (webapp iPhone, 21.11) : acceptée par Apple en 8 s mais affichée une heure plus tard, quand le
+    téléphone s'est réveillé pour autre chose. Urgency « high » (immédiat), sauf pendant une pause (lune, Discussions) ;
+    TTL 24 h (1 h perdait les notifications que le téléphone n'avait pas encore prises)."""
+    script = ("import(process.argv[1]).then(({ deliveryOptions }) => "
+              "console.log(JSON.stringify([deliveryOptions(false), deliveryOptions(true)])))")
+    out = subprocess.run(["node", "-e", script, (FUNCTION / "target.ts").as_uri()],
+                         capture_output=True, text=True, check=True, timeout=30)
+    assert json.loads(out.stdout) == [{"TTL": 86400, "urgency": "high"}, {"TTL": 86400, "urgency": "normal"}]
+    source = (FUNCTION / "index.ts").read_text()
+    assert "...deliveryOptions(row.silent === true)" in source and "urgency: 'normal'" not in source

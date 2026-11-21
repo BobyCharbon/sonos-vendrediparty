@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import webpush from 'web-push';
 
-import { notificationTag, notificationTarget } from './target.ts';
+import { deliveryOptions, notificationTag, notificationTarget } from './target.ts';
 
 type Keys = { publicKey: string; privateKey: string };
 type Delivery = {
@@ -61,7 +61,7 @@ Deno.serve(async (req: Request) => {
             });
             const request = webpush.generateRequestDetails(row.subscription, payload, {
               vapidDetails: { ...keys!, subject: 'https://party.bobycharbon.ch' },
-              TTL: 3600, contentEncoding: 'aes128gcm', urgency: 'normal',
+              ...deliveryOptions(row.silent === true), contentEncoding: 'aes128gcm',
             });
             const response = await fetch(row.subscription.endpoint, {
               method: 'POST', headers: request.headers, body: new Uint8Array(request.body),
