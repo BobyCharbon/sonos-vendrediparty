@@ -121,7 +121,9 @@ function ChatsHome() {
     <View style={[st.screen, { backgroundColor: c.bg }]}>
       <Stack.Screen options={{ headerShown: false, title: 'Discussions' }} />
       <View style={glow(c)} />
-      <ScrollView onScroll={onScroll} scrollEventThrottle={32} keyboardShouldPersistTaps="handled"
+      {/* transform: 'none' : le translateZ(0) du ScrollView de react-native-web rendait le fond « fixed » du menu « … »
+          relatif à la liste ; liste défilée, il défilait avec elle et un toucher en bas de l'écran ne fermait plus le menu. */}
+      <ScrollView onScroll={onScroll} scrollEventThrottle={32} keyboardShouldPersistTaps="handled" style={web({ transform: 'none' })}
         contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + 120 }}>
         <ListHeader title="Discussions">
           {!empty ? <PauseButton /> : null}
