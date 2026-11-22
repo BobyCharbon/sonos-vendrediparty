@@ -85,6 +85,11 @@ def people_backend(page, state):
             'rpc/chat_event_cards': [{'id': EVENT, 'title': 'Sortie de démonstration (test local)', 'start': '2030-11-14T18:00:00Z',
                                       'place': 'Lieu de démonstration', 'cover': None, 'going': 4, 'mine': 'yes'}],
         }
+        if fn == 'rpc/member_note_set':
+            text = (body or {}).get('body', '').strip()
+            state['note'] = {'body': text} if text else None
+        answers['rpc/member_note_get'] = state.get('note')
+        answers['rpc/member_note_set'] = state.get('note')
         if fn in answers:
             return route.fulfill(status=200, headers=HEADERS, content_type='application/json', body=json.dumps(answers[fn]))
         if fn in ('direct_messages', 'group_messages') and request.method == 'POST':
@@ -372,4 +377,28 @@ def test_the_profile_photo_opens_full_size_and_closes(phone, events_origin):
     sheet = frame.get_by_test_id('mini-profile')
     pw.expect(sheet.get_by_role('heading', name='Léa Morel')).to_be_visible(timeout=15000)
     pw.expect(sheet.get_by_role('button', name='Voir la photo de Léa Morel en grand')).to_have_count(0)
+    assert not errors, errors
+
+
+def test_a_private_note_on_the_mini_profile_is_written_edited_and_erased(phone, events_origin):
+    """Avis ede29a5bb24e : « 📝 Ma note privée », visible par moi seul, 500 caractères, modifiable et effaçable."""
+    state = {'mini': mini(), 'note': {'body': 'Rencontrée au paintball'}}
+    page, frame, errors = start(phone, events_origin, state)
+    sheet = open_lea(frame)
+    note = sheet.get_by_test_id('private-note')
+    pw.expect(note.get_by_text('📝 Ma note privée')).to_be_visible()
+    pw.expect(note.get_by_text('🔒 Visible par toi seul')).to_be_visible()
+    box = note.get_by_test_id('private-note-input')
+    pw.expect(box).to_have_value('Rencontrée au paintball')
+    assert box.get_attribute('maxlength') == '500'
+    shot(page, 'mini-profil-note-avant')
+    assert rpc_args(state, 'member_note_get') == [{'target': LEA}]
+    box.fill('Rencontrée au paintball, amie de Noé')
+    note.get_by_test_id('private-note-save').click()
+    pw.expect(note.get_by_text('Enregistrée ✓', exact=False)).to_be_visible()
+    assert rpc_args(state, 'member_note_set')[-1] == {'target': LEA, 'body': 'Rencontrée au paintball, amie de Noé'}
+    shot(page, 'mini-profil-note')
+    note.get_by_role('button', name='Effacer ma note').click()
+    pw.expect(box).to_have_value('')
+    assert rpc_args(state, 'member_note_set')[-1] == {'target': LEA, 'body': ''}
     assert not errors, errors

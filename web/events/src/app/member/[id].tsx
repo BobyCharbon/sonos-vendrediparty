@@ -5,6 +5,7 @@ import { Linking, View } from 'react-native';
 import { InvitedBySection } from '@/components/InvitedBy';
 import { ReportSheet } from '@/components/ReportSheet';
 import { useTermsGate } from '@/components/TermsSheet';
+import { PrivateNote } from '@/components/chats/people/PrivateNote';
 import { nativeOpenDirect, openDirect, refusal } from '@/components/chats/people/people';
 import { ZicouOnProfile } from '@/components/ZicouOnProfile';
 import { PhotoTap } from '@/components/ProfilePhotoViewer';
@@ -148,6 +149,8 @@ export default function MemberScreen() {
       ) : !data.me && !data.restricted ? (
         <T muted size={13}>{data.display_name || 'Ce membre'} ne montre pas son numéro dans vos groupes : impossible de l’ajouter aux contacts depuis Party.</T>
       ) : null}
+      {/* Ma note privée (avis ede29a5bb24e) : visible par moi seul. */}
+      {!data.me ? <PrivateNote userId={data.id} name={data.display_name || 'ce membre'} style={{ marginHorizontal: 0, marginTop: 0 }} /> : null}
       {data.groups.length ? (
         <Section title={data.me ? 'Mes groupes' : 'Groupes en commun'}>
           <T>{data.groups.join(' · ')}</T>

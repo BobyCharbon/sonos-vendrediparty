@@ -52,7 +52,7 @@ def test_only_the_functions_of_the_contract_are_relayed():
     for fn in ("chat_list", "chat_badge", "open_direct_chat", "accept_message_request", "decline_message_request", "chat_link",
                "chat_prefs_get", "chat_prefs_set", "set_chat_state", "chat_people_suggestions", "chat_people_search",
                "member_mini", "create_chat_group", "chat_group_with", "direct_seen", "chat_event_cards", "chat_search",
-               "edit_direct_message", "edit_group_message", "mark_event_chat_read", "contacts_match"):
+               "edit_direct_message", "edit_group_message", "mark_event_chat_read", "member_note_get", "member_note_set", "contacts_match"):
         assert call(client, fn).status_code == 200, fn
     assert [n for n, _ in rpcs(seen)][-1] == "contacts_match"
 

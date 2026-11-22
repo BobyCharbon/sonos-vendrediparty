@@ -723,3 +723,9 @@ réglage de prod :
   `test_discussions_v2_browser_live.py`, iOS `ChatsListTests`, `ChatsPeopleTests`, `ConversationV2Tests`.
 - Avant la prod : correctif D1 (les admins lisaient photos et vocaux des messages directs), clé vault `storage_secret_key`,
   compte démo « Apple-test 2 », représentant UE, notes de revue Apple.
+
+## Note privée sur un profil (avis ede29a5bb24e, 22.11, migration 20261122132000)
+- `public.member_notes` (auteur, personne, 500 caractères ; cascade sur les deux comptes) : RLS auteur SEUL, jamais lue par la
+  personne notée ni montrée à un admin, jamais partagée ; `member_note_get` / `member_note_set` (vide = effacer), relais iPhone
+  (RELAY d'app/chat_rpc.py). Bloc « 📝 Ma note privée · Visible par toi seul » : mini-profil web (`PrivateNote.tsx`) + fiche
+  `/member/<id>`, iPhone `PrivateNoteCard`. Tests : `tests/supabase_live/test_notes_privees_live.py`, `test_chats_people_browser.py`.
