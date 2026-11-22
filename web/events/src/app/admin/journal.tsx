@@ -22,8 +22,8 @@ function describe(e: Entry): string {
   const target = e.target_name || (e.target ? 'compte supprimé' : '');
   const d = e.details ?? {};
   switch (e.action) {
-    case 'account.created': return `${target || 'Nouveau compte'} a créé son compte`;
-    case 'account.login': return `${target || 'Un compte'} s’est connecté${d.device ? ` (${String(d.device).slice(0, 40)})` : ''}`;
+    case 'account.created': return `${e.target_name || 'Nouveau compte'} a créé son compte`;
+    case 'account.login': return `${e.target_name || 'Un compte'} s’est connecté${d.device ? ` (${String(d.device).slice(0, 40)})` : ''}`;
     case 'account.deleted': return d.by === 'self' ? `${target} a supprimé son compte` : `${who} a supprimé le compte de ${target}${d.phone_end ? ` (numéro …${d.phone_end})` : ''}`;
     case 'member.role': return `${who} a passé ${target} de ${role(d.from)} à ${role(d.to)}`;
     case 'member.status': return `${who} : ${target} ${status(d.from)} → ${status(d.to)}`;

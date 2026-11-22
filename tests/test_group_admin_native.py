@@ -305,3 +305,13 @@ def test_zicou_rights_are_hidden_while_zicou_is_off(monkeypatch):
     assert [p["key"] for p in admin.roles("tok")["catalog"]] == ["events.approve"]
     monkeypatch.setenv("COMPAGNON_ENABLED", "1")
     assert [p["key"] for p in admin.roles("tok")["catalog"]] == ["events.approve", "zicou.event_coins"]
+
+
+def test_journal_new_account_without_a_name_yet_is_not_a_deleted_account():
+    """22.11 : à la création, le profil n'a pas encore de surnom ; jamais « compte supprimé a créé son compte »."""
+    assert ga.describe({"action": "account.created", "target": "t"}) == "Nouveau compte a créé son compte"
+    assert ga.describe({"action": "account.login", "target": "t", "details": {"device": "iPhone"}}) == \
+        "Un compte s'est connecté (iPhone)"
+    assert ga.describe({"action": "account.created", "target": "t", "target_name": "Léa"}) == "Léa a créé son compte"
+    sql = open("supabase/migrations/20261122120000_journal_noms.sql").read()
+    assert "private.audit_name(a.target)" in sql and "private.audit_name(a.actor)" in sql

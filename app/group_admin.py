@@ -91,10 +91,10 @@ def describe(e: dict, labels: dict | None = None) -> str:
     d = e.get("details") or {}
     action = e.get("action")
     if action == "account.created":
-        return f"{target or 'Nouveau compte'} a créé son compte"
+        return f"{e.get('target_name') or 'Nouveau compte'} a créé son compte"
     if action == "account.login":
         device = f" ({str(d['device'])[:40]})" if d.get("device") else ""
-        return f"{target or 'Un compte'} s'est connecté{device}"
+        return f"{e.get('target_name') or 'Un compte'} s'est connecté{device}"
     if action == "account.deleted":
         if d.get("by") == "self":
             return f"{target} a supprimé son compte"
