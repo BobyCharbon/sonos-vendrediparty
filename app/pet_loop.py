@@ -121,9 +121,11 @@ def visit(life: dict, owner: dict, now: datetime, rng, src: str | None = None, s
     _roll_week(loop, owner, today, rng, life)
     events += _soft_night(life, loop, now)
     if (src and life["asleep"] and life["stage"] not in ("egg", "dead") and not loop.get("tucked_at")
-            and life["g"]["energy"] >= WAKE_ON_VISIT):
+            and not life.get("dodo") and life["g"]["energy"] >= WAKE_ON_VISIT):
         # Endormi de fatigue (pas bordé pour la nuit) et assez reposé : il se réveille en te voyant. Avant, un passage
         # par jour tombait souvent sur un compagnon endormi, et aucun soin n'était possible (playtest « Marc »).
+        # Couché avec « Dodo 🌙 » (life["dodo"]) : il dort jusqu'à être reposé. Avant, rouvrir l'app le réveillait dès
+        # 50 d'énergie et il restait toujours fatigué (avis 34a9511228e3).
         life["asleep"] = False
         events.append({"kind": "woke_up"})
     if loop["day"] == today.isoformat():

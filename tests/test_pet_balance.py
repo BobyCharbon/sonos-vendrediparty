@@ -120,3 +120,41 @@ def test_a_tired_companion_wakes_up_when_you_open_the_app_but_not_after_being_tu
     assert still["asleep"]
     low = dict(life, g=dict(life["g"], energy=20.0))
     assert pet_loop.visit(low, pet.new_owner(), now, random.Random(1), src="tab")[0]["asleep"]   # trop fatigué
+
+
+def test_put_to_bed_with_dodo_he_sleeps_until_rested_even_if_you_reopen_the_app():
+    """Avis 34a9511228e3 : « il a beau dormir, il est toujours fatigué ; des fois l'énergie augmente, des fois pas ».
+    « Dodo 🌙 » le couchait, mais la réouverture suivante de l'app le réveillait dès 50 d'énergie (réveil « en te
+    voyant », prévu pour un Zicou tombé de fatigue tout seul) : il ne se reposait jamais à fond."""
+    life, owner = pet.new_pet(T0)
+    now = T0 + timedelta(hours=2)
+    pet.advance(life, now, owner)
+    life["g"]["energy"] = 30.0
+    life, owner, _ = pet.act(life, owner, "sleep", now)
+    for h in (1, 3, 5):   # on rouvre l'app plusieurs fois pendant sa sieste
+        at = now + timedelta(hours=h)
+        pet.advance(life, at, owner)
+        life, owner, events = pet_loop.visit(life, owner, at, random.Random(h), src="tab")
+        assert life["asleep"] and {"kind": "woke_up"} not in events, (h, life["g"]["energy"])
+    at = now + timedelta(hours=7)   # 30 + 11 × 7 > 100 : bien reposé, il se réveille tout seul, énergie pleine
+    pet.advance(life, at, owner)
+    life, owner, _ = pet_loop.visit(life, owner, at, random.Random(7), src="tab")
+    assert not life["asleep"] and life["g"]["energy"] >= 95
+
+
+def test_after_a_dodo_a_companion_that_falls_asleep_from_exhaustion_wakes_up_when_you_open_the_app_again():
+    life, owner = pet.new_pet(T0)
+    now = T0 + timedelta(hours=2)
+    pet.advance(life, now, owner)
+    life["g"]["energy"] = 30.0
+    life, owner, _ = pet.act(life, owner, "sleep", now)
+    life, owner, _ = pet.act(life, owner, "wake", now + timedelta(hours=1))   # « Réveiller ☀️ » reste possible
+    assert not life["asleep"]
+    life["g"]["energy"] = 0.5   # puis il tombe de fatigue tout seul
+    later = now + timedelta(hours=2)
+    pet.advance(life, later, owner)
+    assert life["asleep"]
+    at = later + timedelta(hours=5)
+    pet.advance(life, at, owner)
+    life, owner, events = pet_loop.visit(life, owner, at, random.Random(1), src="tab")
+    assert not life["asleep"] and {"kind": "woke_up"} in events

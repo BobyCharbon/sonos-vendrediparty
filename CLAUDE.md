@@ -433,6 +433,9 @@ l'admin. Toujours :
   pet/zicou-home.js) et cache sa pastille (`html.native-zicou`). Navigateur : `zc_bubble_off`. Tests :
   `tests/e2e/test_zicou_bubble.py`, `ZicouBubbleTests`, `ZicouBubbleUITests` (serveur local, TEST_RUNNER_PARTY_ZICOU_UI=1).
 - Jamais allumé en production ni migré en production avant que l'admin dise « le projet Compagnon est complet ».
+- Énergie (avis 34a9511228e3) : couché avec « Dodo 🌙 » (`life["dodo"]`), il dort jusqu'à être reposé (100) ou
+  « Réveiller ☀️ » ; seul un Zicou tombé de fatigue tout seul se réveille en rouvrant l'app (`WAKE_ON_VISIT`, pet_loop.visit).
+  Tests : `test_put_to_bed_with_dodo_*` (test_pet_balance.py), `test_dodo_is_kept_*` (test_pet_api.py).
 - Ne jamais changer l'icône de Vendredi Party.
 - Tests : `tests/test_compagnon_flag.py`, `tests/e2e/test_compagnon_off.py` (les autres tests tournent allumé).
 - Nom : toujours « Zicou » dans un texte visible (web, module Événements, iOS, Apple TV, admin, notifications, réglages,
