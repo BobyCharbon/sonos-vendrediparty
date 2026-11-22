@@ -22,12 +22,34 @@ export function PhotoTap({ photo, name, children }: { photo: string | null | und
         onPress={() => setOpen(true)} style={({ pressed }) => [pressed && { opacity: 0.85, transform: [{ scale: 0.97 }] }, transition('transform, opacity', duration.fast)]}>
         {children}
       </Pressable>
-      {open ? <ProfilePhotoViewer photo={photo!} name={name} onClose={() => setOpen(false)} /> : null}
+      {open ? <PhotoViewer photo={photo!} name={name} onClose={() => setOpen(false)} /> : null}
     </>
   );
 }
 
-function ProfilePhotoViewer({ photo, name, onClose }: { photo: string; name: string; onClose: () => void }) {
+/** Enregistre la photo : partage du téléphone (« Enregistrer l'image » d'iOS) s'il prend les fichiers, sinon
+ *  téléchargement. Le fichier est déjà lu (navigator.share exige d'être appelé au toucher, sans attente avant). */
+export function savePhoto(file: File | null, url: string) {
+  const nav = navigator as Navigator & { canShare?: (d: { files: File[] }) => boolean };
+  if (file && nav.share && nav.canShare?.({ files: [file] })) {
+    void nav.share({ files: [file] }).catch(() => {});
+    return;
+  }
+  const a = document.createElement('a');
+  a.href = file ? URL.createObjectURL(file) : url;
+  a.download = file?.name ?? 'photo-party.jpg';
+  a.target = '_blank';
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  if (file) setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+}
+
+/** Photo en plein écran : profil (ci-dessus) ou photo d'une discussion (save : bouton « Enregistrer », avis 48a0eefd44ce). */
+export function PhotoViewer({ photo, name, onClose, save = false, label, testID = 'profile-photo-full' }: {
+  photo: string; name: string; onClose: () => void; save?: boolean; label?: string; testID?: string;
+}) {
   const direct = /^https?:/.test(photo);
   const [signed, setSigned] = useState<string | null | undefined>(undefined);
   const url = direct ? photo : signed;
@@ -54,6 +76,17 @@ function ProfilePhotoViewer({ photo, name, onClose }: { photo: string; name: str
     if (!url) return;
     Image.getSize(url, (w, h) => { if (w > 0 && h > 0) setRatio(w / h); }, () => {});
   }, [url]);
+
+  // « Enregistrer » : le fichier est lu dès l'ouverture (le partage doit partir au toucher même).
+  const [file, setFile] = useState<File | null>(null);
+  useEffect(() => {
+    if (!save || !url) return undefined;
+    let live = true;
+    void fetch(url).then((r) => (r.ok ? r.blob() : null)).then((b) => {
+      if (live && b) setFile(new File([b], `photo-party.${b.type === 'image/png' ? 'png' : 'jpg'}`, { type: b.type || 'image/jpeg' }));
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [save, url]);
 
   const boxW = Math.min(width, height * ratio, 1024);
   const boxH = boxW / ratio;
@@ -95,8 +128,8 @@ function ProfilePhotoViewer({ photo, name, onClose }: { photo: string; name: str
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onClose}>
-      <View style={[st.screen, { backgroundColor: `rgba(0,0,0,${Math.max(0.45, 1 - drag / 500)})` }]} testID="profile-photo-full"
-        accessibilityViewIsModal accessibilityLabel={`Photo de profil de ${name}`}>
+      <View style={[st.screen, { backgroundColor: `rgba(0,0,0,${Math.max(0.45, 1 - drag / 500)})` }]} testID={testID}
+        accessibilityViewIsModal accessibilityLabel={label ?? `Photo de profil de ${name}`}>
         {/* Autour de la photo : ferme ; agrandie, la photo déborde : le toucher la remet à sa taille. */}
         <Pressable accessibilityLabel={zoom ? 'Réduire la photo' : 'Fermer la photo'} testID="profile-photo-backdrop" style={StyleSheet.absoluteFill}
           onPress={() => { if (!zoom) return onClose(); setZoom(false); setShift({ x: 0, y: 0 }); }} />
@@ -118,6 +151,14 @@ function ProfilePhotoViewer({ photo, name, onClose }: { photo: string; name: str
         )}
         {failed && url ? <Text style={[st.error, { position: 'absolute', bottom: 60 }]}>La photo n’a pas pu s’afficher.</Text> : null}
         <SheetClose onPress={onClose} label="Fermer" style={[st.close, { top }]} />
+        {save && url && !failed ? (
+          <Pressable accessibilityRole="button" accessibilityLabel="Enregistrer la photo" testID="chat-photo-save"
+            onPress={() => savePhoto(file, url)}
+            style={({ pressed }) => [st.save, { opacity: drag ? 0 : 1 }, pressed && { transform: [{ scale: 0.96 }] },
+              transition('transform, opacity', duration.fast), enter('fade')]}>
+            <Text style={st.saveText}>⬇︎  Enregistrer</Text>
+          </Pressable>
+        ) : null}
       </View>
     </Modal>
   );
@@ -127,4 +168,7 @@ const st = StyleSheet.create({
   screen: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   close: { position: 'absolute', left: 16, backgroundColor: 'rgba(255,255,255,0.16)' },
   error: { color: 'rgba(255,255,255,0.8)', fontSize: 15 },
+  save: { position: 'absolute', bottom: 32, minHeight: 44, paddingHorizontal: 22, borderRadius: 999, justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.16)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)' },
+  saveText: { color: '#fff', fontSize: 15, fontWeight: '700' },
 });

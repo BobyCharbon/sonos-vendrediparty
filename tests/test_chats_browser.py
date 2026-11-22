@@ -270,3 +270,35 @@ def test_settings_turn_off_group_announcements_and_everyone_notifications(phone,
     page.wait_for_timeout(500)
     assert ('prefs', {'group_broadcasts': False}) in state['rpc']
     assert not errors, errors
+
+
+# 1×1 pixel PNG : la photo d'un message (avis 48a0eefd44ce, 22.11).
+PIXEL = bytes.fromhex('89504e470d0a1a0a0000000d4948445200000001000000010806000000'
+                      '1f15c4890000000d49444154789c6360f8cf000000030101005d1ac0e40000000049454e44ae426082')
+
+
+def test_touching_a_group_photo_opens_it_full_screen_and_saves_it(phone, events_origin):
+    page, errors = phone
+    frame, state = open_chats(page, events_origin)
+    # Après les routes de la base simulée (la dernière posée répond la première) : signature puis fichier de la photo.
+    page.route('**/storage/v1/object/sign/chat-photos', lambda r: r.fulfill(
+        status=200, content_type='application/json', headers=CORS,
+        body=json.dumps([{'path': 'g/photo.png', 'signedURL': '/object/sign/chat-photos/g/photo.png?token=t', 'error': None}])))
+    page.route('**/storage/v1/object/sign/chat-photos/g/photo.png*', lambda r: r.fulfill(
+        status=200, content_type='image/png', headers=CORS, body=PIXEL))
+    state['messages'].append(message('a0000000-0000-4000-8000-000000000003', LEA, '', '2026-11-03T10:02:00Z', photo_path='g/photo.png'))
+    frame.get_by_role('button', name='Discussion Les amis').click()
+    photo = frame.get_by_test_id('chat-photo-open')
+    pw.expect(photo).to_be_visible(timeout=15000)
+    photo.click()
+    viewer = frame.get_by_test_id('chat-photo-full')
+    pw.expect(viewer).to_be_visible()
+    save = frame.get_by_role('button', name='Enregistrer la photo')
+    pw.expect(save).to_be_visible()
+    page.wait_for_timeout(500)  # le fichier est lu dès l'ouverture
+    with page.expect_download() as download:
+        save.click()
+    assert download.value.suggested_filename == 'photo-party.png'
+    frame.get_by_role('button', name='Fermer', exact=True).last.click()
+    pw.expect(viewer).to_have_count(0)
+    assert not errors, errors

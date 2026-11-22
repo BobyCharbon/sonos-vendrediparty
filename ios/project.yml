@@ -73,7 +73,7 @@ targets:
         NSPhotoLibraryUsageDescription: "Pour choisir une photo de profil, d'événement, de groupe, de discussion ou un ticket du Pot commun."
         # Appui long sur une image de la page (photo d'événement, billet QR) › « Ajouter à Photos » : sans ce texte, iOS
         # ferme l'app (WKWebView garde son menu d'image).
-        NSPhotoLibraryAddUsageDescription: "Pour enregistrer dans tes photos une image que tu choisis de garder (photo d'un événement, billet QR)."
+        NSPhotoLibraryAddUsageDescription: "Pour enregistrer dans tes photos une image que tu choisis de garder (photo d'un événement ou d'une discussion, billet QR)."
         NSSpeechRecognitionUsageDescription: "Pour transformer ta voix en texte quand tu dictes (la description d'un événement pour l'assistant IA, ton avis). La transcription est faite par Apple."
         NSMicrophoneUsageDescription: "Seulement quand tu touches le micro : pour dicter un texte (la description d'un événement à l'assistant IA, ton avis) ou enregistrer un message vocal dans une discussion."
         # Agenda (17.11) : « Rien ne quitte ton iPhone » n'est plus vrai quand on partage ses dispos (conformite.md, règle 8).

@@ -4,6 +4,7 @@ import { Animated, Image, PanResponder, Pressable, Text, View, type ViewStyle } 
 import { C, cf, Icon, lavButton, mineBubble, neonName, web } from './chats/conversation/kit';
 import type { PrivateQuote } from './chats/conversation/data';
 import { LinkedText } from './LinkedText';
+import { PhotoViewer } from './ProfilePhotoViewer';
 import { Avatar } from './ui';
 import { deletedLabel, voiceClock, withoutAnnounceTag, type GroupMessage, type Reaction } from '@/lib/chats';
 import { formatClock } from '@/lib/format';
@@ -117,6 +118,19 @@ export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, aud
     focusable: true,
   } as object) : {};
   const announced = Boolean(m.announcement && m.pinned) && !deleted;
+  // Toucher la photo : plein écran (zoom, glisser vers le bas, « Enregistrer » ; avis 48a0eefd44ce).
+  const [viewing, setViewing] = useState(false);
+  const viewer = viewing && photoUrl ? (
+    <PhotoViewer photo={photoUrl} name={author.name} save testID="chat-photo-full" label={`Photo de ${mine ? 'toi' : author.name}`}
+      onClose={() => setViewing(false)} />
+  ) : null;
+  const photoTap = (child: ReactNode) => (
+    <Pressable accessibilityRole="imagebutton" accessibilityLabel={`Photo de ${author.name}, voir en grand`} testID="chat-photo-open"
+      onPress={m.failed ? onRetry : () => setViewing(true)} onLongPress={menu} delayLongPress={380}
+      style={({ pressed }) => [pressed && { opacity: 0.88 }, transition('opacity', duration.fast)]}>
+      {child}
+    </Pressable>
+  );
   const showName = showAuthor && first && !mine;
   const photoOnly = Boolean(photoUrl) && !m.body && !deleted;
   const corners: ViewStyle = mine
@@ -142,12 +156,13 @@ export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, aud
             <Text numberOfLines={1} style={[cf.semibold, { color: C.t2, fontSize: 12, flex: 1 }]}>· {mine ? 'toi' : author.name}</Text>
             <Meta m={m} mine={false} deleted={false} />
           </View>
-          {photoUrl ? <Image accessibilityLabel={`Photo de ${author.name}`} source={{ uri: photoUrl }} resizeMode="cover"
-            style={{ width: '100%', height: 220, borderRadius: 16, backgroundColor: C.s2 }} /> : null}
+          {photoUrl ? photoTap(<Image accessibilityLabel={`Photo de ${author.name}`} source={{ uri: photoUrl }} resizeMode="cover"
+            style={{ width: '100%', height: 220, borderRadius: 16, backgroundColor: C.s2 }} />) : null}
           {m.audio_seconds != null ? <VoicePlayer id={m.id} url={audioUrl ?? null} seconds={m.audio_seconds} mine={false} /> : null}
           {withoutAnnounceTag(m.body) ? <MentionText body={withoutAnnounceTag(m.body)} names={names} color={C.t1} mentionColor={C.pinkInk} size={17} /> : null}
         </Pressable>
         <Reactions counts={counts} reacted={reacted} canWrite={canWrite} onReact={onReact} align="flex-start" />
+        {viewer}
       </View>
     );
   }
@@ -203,8 +218,8 @@ export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, aud
           ) : null}
           {photoUrl && !deleted ? (
             <View>
-              <Image accessibilityLabel={`Photo de ${author.name}`} source={{ uri: photoUrl }} resizeMode="cover"
-                style={{ width: 244, height: 244, borderRadius: 18, backgroundColor: C.s2 }} />
+              {photoTap(<Image accessibilityLabel={`Photo de ${author.name}`} source={{ uri: photoUrl }} resizeMode="cover"
+                style={{ width: 244, height: 244, borderRadius: 18, backgroundColor: C.s2 }} />)}
               {photoOnly ? (
                 <View style={[{ position: 'absolute', left: 0, right: 0, bottom: 0, paddingTop: 26, paddingBottom: 8, paddingHorizontal: 10,
                   borderBottomLeftRadius: 18, borderBottomRightRadius: 18, alignItems: 'flex-end' },
@@ -241,6 +256,7 @@ export function ChatBubble({ message: m, mine, me, author, quoted, photoUrl, aud
         <Reactions counts={counts} reacted={reacted} canWrite={canWrite} onReact={onReact} align={mine ? 'flex-end' : 'flex-start'} />
       </View>
     </Animated.View>
+    {viewer}
     </View>
   );
 }
