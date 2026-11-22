@@ -37,9 +37,19 @@ export const TITLES: Record<Visibility, string> = {
   invite: '✉️ Sur invitation seulement',
 };
 
+/** Événement public sans le droit « publier sans validation » (22.11) : dit AVANT de publier (formulaire, étape 2). */
+export const PUBLIC_REVIEW = 'Un événement public attend l’accord d’un organisateur, d’un co-admin ou d’un admin de Vendredi Party avant d’être visible. '
+  + 'Ils peuvent le refuser ; les admins et co-admins peuvent aussi, à tout moment, modifier ses informations ou le retirer.';
+
+/** Réservé à des groupes seulement (sans Membres Vendredi Party) : jamais de validation du site, la règle du groupe décide. */
+export const needsSiteReview = (kind: Visibility, vip: boolean) => !(kind === 'group' && !vip);
+
 /** Ce que veut dire le choix, en une phrase ; proposing : il faut d'abord la validation d'un admin. */
 export function visibilitySentence(kind: Visibility, groupNames: string[], proposing = false): string {
-  if (kind === 'public') return 'Tout le monde peut le voir : tous les comptes Party, et toute personne qui a le lien (elle répond après connexion par SMS).';
+  if (kind === 'public') {
+    const sentence = 'Tout le monde peut le voir : tous les comptes Party, et toute personne qui a le lien (elle répond après connexion par SMS).';
+    return proposing ? `${sentence} ${PUBLIC_REVIEW}` : sentence;
+  }
   if (kind === 'vip') return 'Tous les Membres VIP et au-dessus le voient. Tu pourras inviter d’autres personnes juste après.';
   if (kind === 'group') {
     return groupNames.length
@@ -96,7 +106,7 @@ export function PublishChoice({ groups, vipOk, suggested, suggestedGroups, propo
     <View style={{ gap: 10 }}>
       {kinds.map((k) => {
         const on = k === shown;
-        const label = publishLabel(k, k === 'group' ? names : [], proposing);
+        const label = publishLabel(k, k === 'group' ? names : [], proposing && needsSiteReview(k, vip));
         const press = () => (k === 'group' ? setPicking(true) : onPublish(k, [], false));
         return (
           <View key={k} style={[st.card, on && st.cardOn]}>
@@ -107,7 +117,7 @@ export function PublishChoice({ groups, vipOk, suggested, suggestedGroups, propo
                 <T weight="bold" size={16} style={{ flex: 1 }}>{TITLES[k]}</T>
                 {on ? <View style={st.tag}><T size={12} weight="bold" color={colors.onAction}>Suggéré</T></View> : null}
               </View>
-              <T size={13} color={colors.textSoft}>{visibilitySentence(k, k === 'group' ? names : [], proposing)}</T>
+              <T size={13} color={colors.textSoft}>{visibilitySentence(k, k === 'group' ? names : [], proposing && needsSiteReview(k, vip))}</T>
               {k !== 'group' ? <T size={14} weight="bold" color={colors.accentSoft}>{label} ›</T> : null}
             </Pressable>
             {k === 'group' && picking ? (
@@ -117,7 +127,7 @@ export function PublishChoice({ groups, vipOk, suggested, suggestedGroups, propo
                   {chips.map((c) => <Chip key={c.id} label={c.label} selected={chosen.includes(c.id)} onPress={() => toggle(c.id)} />)}
                 </View>
                 <AnnounceToggle groupIds={groupIds} vip={vip} label={announceLabel} value={announce} onChange={onAnnounce} disabled={busy} />
-                <Button label={publishLabel('group', names, proposing)} disabled={!names.length || busy} loading={busy}
+                <Button label={publishLabel('group', names, proposing && needsSiteReview('group', vip))} disabled={!names.length || busy} loading={busy}
                   onPress={() => onPublish(vip && !groupIds.length ? 'vip' : 'group', groupIds, vip)} />
               </View>
             ) : k === 'group' ? <T size={14} weight="bold" color={colors.accentSoft}>Choisir les groupes ›</T> : null}

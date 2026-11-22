@@ -131,7 +131,7 @@ def test_leaving_a_changed_form_asks_first():
 
 def test_invite_step_publishes_without_a_half_changed_draft():
     step = src('components/InviteStep.tsx')
-    assert ".update({ status, announce_group: announceGroup })" in step
+    assert ".update({ status: asked, announce_group: announceGroup })" in step
     assert 'restoreDraft(' in step and 'Rien n’est publié' in step
 
 

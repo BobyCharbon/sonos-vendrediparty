@@ -131,7 +131,7 @@ def test_confirmed_draft_creates_the_event_as_the_user_then_publishes_it(tmp_pat
     assert row["location_address"].startswith("Rue du Lac") and row["pot_enabled"] and row["max_participants"] == 12
     assert ("POST", "/rest/v1/event_groups", {"event_id": "e1", "group_id": "g-ski"}) in accounts.calls
     assert any(p == "/rest/v1/bring_items" for _, p, _ in accounts.calls)
-    assert accounts.calls[-1] == ("PATCH", "/rest/v1/events?id=eq.e1", {"status": "published"})
+    assert accounts.calls[-1] == ("PATCH", "/rest/v1/events?id=eq.e1&select=status", {"status": "published"})
 
 
 def test_without_direct_publishing_the_event_is_proposed(tmp_path):

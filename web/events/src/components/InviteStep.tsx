@@ -137,8 +137,11 @@ export function InviteStep({ eventId, preset }: { eventId: string; preset: Prese
       }
       check(await supabase.from('events').update(audienceToEvent(who)).eq('id', ev.id));
       await saveAudience(ev.id, { ...who, invitees: [], phones: [] }, { people: false });
-      const status = proposing ? 'pending' : 'published';
-      check(await supabase.from('events').update({ status, announce_group: announceGroup }).eq('id', ev.id));
+      // La base décide (guard_event) : réservé à ses groupes, il est publié même sans le droit « publier sans validation ».
+      const asked = proposing ? 'pending' : 'published';
+      const saved = await supabase.from('events').update({ status: asked, announce_group: announceGroup }).eq('id', ev.id).select('status');
+      check(saved);
+      const status = (saved.data?.[0] as { status?: string } | undefined)?.status ?? asked;
       // Publié : les personnes citées ne servent plus (elles sont cochées dans la feuille « Inviter », jamais invitées).
       if (data!.stored.length) await supabase.from('events').update({ ai_suggested: [] }).eq('id', ev.id);
       router.replace(afterPublish(ev.id, kind, status === 'published', named, invitesV2On) as never);
@@ -187,7 +190,7 @@ export function InviteStep({ eventId, preset }: { eventId: string; preset: Prese
       <Card>
         <T weight="bold" size={17}>Qui voit l’événement ?</T>
         <T muted size={13}>
-          {proposing ? 'Un toucher l’envoie pour validation (les groupes : coche-les d’abord) : un admin le valide avant qu’il soit visible.'
+          {proposing ? 'Tes groupes : un toucher le publie (coche-les d’abord). Public, Membres Vendredi Party ou sur invitation : un toucher l’envoie pour validation, l’équipe de Vendredi Party le valide avant qu’il soit visible.'
             : 'Un toucher le publie (les groupes : coche-les d’abord). Une fois l’événement en ligne, tu invites qui tu veux avec le lien à partager.'}
         </T>
         <PublishChoice groups={data.groups} vipOk={data.vipOk} suggested={suggested} suggestedGroups={knownGroups}

@@ -51,6 +51,13 @@ export const TERMS_SECTIONS: { title: string; paragraphs: string[] }[] = [
     ],
   },
   {
+    title: 'Événements publics et groupes',
+    paragraphs: [
+      'Un événement public (visible par tous les comptes et par son lien), créé par un membre qui ne publie pas directement, attend l’accord d’un organisateur, d’un co-admin ou d’un admin de Vendredi Party avant d’être visible ; ils peuvent le refuser. Les admins et co-admins de Vendredi Party peuvent aussi, à tout moment, modifier ses informations ou le retirer, même après sa publication.',
+      'Dans tes groupes, tu es libre : un événement réservé à tes groupes est publié sans validation de Vendredi Party ; seul un groupe qui le demande fait valider les événements de ses membres par qui le gère. Les administrateurs de Party voient la liste de tous les groupes et de leurs membres, jamais les messages, photos ni vocaux des groupes privés créés depuis « Nouveau message ».',
+    ],
+  },
+  {
     title: 'Paiements, billets et bar',
     paragraphs: [
       'Party ne vend rien et ne touche jamais d’argent : ni paiement, ni portefeuille, ni commission. Un organisateur peut indiquer un prix et un moyen de payer qui est le sien (Revolut, billetterie, sur place) ; le paiement se fait en dehors de Party, entre personnes. Un « J’ai payé » n’est confirmé que par l’organisateur.',
