@@ -127,6 +127,8 @@ struct MiniProfileSheet: View {
 
             actions(m)
 
+            PrivateNoteCard(userID: m.id, name: shownName)  // ma note privée (avis ede29a5bb24e), visible par moi seul
+
             if !m.restricted {
                 if !m.met.isEmpty {
                     section("Soirées ensemble") {

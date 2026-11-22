@@ -14,6 +14,7 @@ import { relativeDay } from '@/lib/format';
 import { setBlocked, type ReportTarget } from '@/lib/moderation';
 import { duration, ease, reducedMotion, transition } from '@/lib/motion';
 
+import { PrivateNote } from './PrivateNote';
 import { DateTile, Icon, K, Label, NeonButton, PersonFace, disp, txt, web } from './bits';
 import { fetchMini, metLabel, nativeOpenDirect, openDirect, refusal, shortName, type Answer, type Mini, type MiniEvent } from './people';
 
@@ -164,6 +165,9 @@ export function MiniProfileSheet({ userId, onClose }: { userId: string; onClose:
                   <Text style={st.note}>Ce sera une demande de message : {first} choisit de l’accepter.</Text>
                 ) : null}
                 {error ? <Text accessibilityRole="alert" style={[st.note, { color: K.danger }]}>{error}</Text> : null}
+
+                {/* Ma note privée (avis ede29a5bb24e) : visible par moi seul. */}
+                <PrivateNote userId={mini.id} name={first || 'cette personne'} />
 
                 {!restricted && mini.groups.length ? (
                   <>
