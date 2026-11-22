@@ -68,15 +68,15 @@ export function GroupInvitePanel({ group, fresh = false, onInvited }: {
   const name = (p: GroupFound) => personText(p.id, p.display_name);
   const q = search.trim().replace(/^@/, '').trim();
   const phone = phoneOf(search);
-  const ready = !!phone || q.length >= MIN_LETTERS;
+  const readyFor = (v: string) => !!phoneOf(v) || v.trim().replace(/^@/, '').trim().length >= MIN_LETTERS;
+  const ready = readyFor(search);
   const shown = ready ? found ?? [] : [];
   const isPicked = (id: string) => picked.some((p) => p.id === id);
 
   // Recherche dans la base, 450 ms après la dernière touche (anti-annuaire : 30 recherches par heure).
   useEffect(() => {
-    if (!ready) { setFound(null); setSearching(false); return; }
+    if (!ready) return;  // found / searching remis à zéro à la frappe (onChangeText)
     let live = true;
-    setSearching(true);
     const timer = setTimeout(() => {
       searchPeople(group.id, phone ? `+${phone}` : q)
         .then((list) => { if (live) { setFound(list); setError(null); } })
@@ -174,7 +174,7 @@ export function GroupInvitePanel({ group, fresh = false, onInvited }: {
         <T size={13} weight="bold" color={colors.muted} style={st.label}>AJOUTER QUELQU’UN</T>
         <Input accessibilityLabel="Chercher une personne" placeholder="🔍 Numéro, nom, prénom ou surnom" value={search}
           autoCapitalize="none" autoCorrect={false}
-          onChangeText={(v) => { setSearch(v); setError(null); }} onSubmitEditing={() => { if (phone && found && !found.length) addPhone(); }} />
+          onChangeText={(v) => { setSearch(v); setError(null); setFound(null); setSearching(readyFor(v)); }} onSubmitEditing={() => { if (phone && found && !found.length) addPhone(); }} />
         {!ready ? (
           <T muted size={13}>Tape son numéro complet (+41 79…) ou au moins 3 lettres de son nom, prénom ou surnom.</T>
         ) : searching && !found ? (
