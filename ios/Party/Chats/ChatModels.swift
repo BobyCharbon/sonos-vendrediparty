@@ -363,6 +363,9 @@ struct Conversation: Codable, Equatable {
     /// Discussion d'un événement (app/event_chats.py) : citations spéciales permises (vide : aucune).
     var event: Bool? = nil
     var tags: [Tag]? = nil
+    /// Discussion d'un événement : qui je peux citer en @surnom (organisation, Présent, Peut-être ; invités sans réponse
+    /// hors événement public ; avis f0e2fd838ab8). nil (ancien serveur, groupe) : les membres.
+    var taggable: [Member]? = nil
     /// Temps réel de l'événement (adresse et clé publiques de Supabase), donné avec la discussion d'un événement.
     var realtime: ChatRealtime.Endpoint? = nil
     var joinNote: JoinNote? = nil
@@ -401,7 +404,7 @@ struct Conversation: Codable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case id, name, member, admin, notify, reactions, members, messages, me, highlights, organizer, everyone, direct, photo, blocked
-        case event, tags, realtime, extras, level, unread, description, joinNote = "join_note"
+        case event, tags, taggable, realtime, extras, level, unread, description, joinNote = "join_note"
         case canNameAdmins = "can_name_admins", userID = "user_id", mutedUntil = "muted_until", writeMode = "write_mode"
         case canWrite = "can_write", eventCard = "event_card"
     }
@@ -420,6 +423,8 @@ struct Conversation: Codable, Equatable {
     }
 
     var isDirect: Bool { direct == true }
+    /// Personnes proposées après l'@ et cherchées dans le texte envoyé.
+    var citable: [Member] { taggable ?? members }
     var isEvent: Bool { event == true }
 
     /// Admin ou organisateur : fait des annonces (@annonce) et les retire.
@@ -492,7 +497,7 @@ struct Conversation: Codable, Equatable {
     func mentions(in body: String, me: String?) -> [String] {
         if isDirect { return [] }
         let folded = Mentions.fold(body)
-        return members.filter { $0.id != me && !$0.name.isEmpty && folded.contains("@" + Mentions.fold($0.name)) }.map(\.id)
+        return citable.filter { $0.id != me && !$0.name.isEmpty && folded.contains("@" + Mentions.fold($0.name)) }.map(\.id)
     }
 }
 

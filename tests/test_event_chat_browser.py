@@ -80,6 +80,34 @@ def test_a_guest_has_no_announcement_and_is_told_before_tagging_everyone(browser
         ctx.close()
 
 
+def test_a_guest_tags_the_people_the_base_allows_including_invitees_without_answer(browser, v2_origin):  # noqa: F811
+    """Avis f0e2fd838ab8 (22.11) : tout participant cite des @surnoms ; les suggestions sont celles de la base
+    (event_chat_taggable : organisation, Présent, Peut-être, invités sans réponse hors événement public)."""
+    ctx, page = new_page(browser)
+    try:
+        mock_services(page, people=[{'id': VICTOR, 'display_name': 'Bot Victor'}])
+        mock_terms(page, [], accepted=True)
+        chat_state(page, staff=False)
+        nina = '99999999-0000-4000-8000-000000000009'
+        page.route(f'{SUPA}/rest/v1/rpc/event_chat_taggable', lambda r: fulfill(r, [
+            {'id': VICTOR, 'display_name': 'Bot Victor', 'avatar_url': None},
+            {'id': nina, 'display_name': 'Nina Sans Réponse', 'avatar_url': None}]))
+        posts = chat_routes(page, [message(1, VICTOR, 'Coucou')])
+        open_chat(page, v2_origin)
+        field = page.get_by_label('Message', exact=True)
+        pw.expect(field).to_be_visible(timeout=15000)
+        field.fill('@ni')
+        pw.expect(page.get_by_role('menuitem', name='Citer Nina Sans Réponse')).to_be_visible()
+        page.get_by_role('menuitem', name='Citer Nina Sans Réponse').click()
+        field.press_sequentially('tu viens ?')
+        page.get_by_role('button', name='Envoyer', exact=True).click()
+        page.wait_for_timeout(1000)
+        sent = json.loads(posts[-1])
+        assert sent['mentions'] == [nina] and sent['body'].startswith('@Nina Sans Réponse'), sent
+    finally:
+        ctx.close()
+
+
 def test_inside_the_iphone_app_the_discussion_opens_the_native_screen(browser, v2_origin):  # noqa: F811
     ctx, page = new_page(browser)
     try:

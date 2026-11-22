@@ -105,3 +105,50 @@ def test_people_to_cite_hide_unanswered_guests_from_guests_but_not_from_the_orga
     assert "Valentin" not in guest and "Ada:yes" in guest and "Victor:maybe" in guest, out
     assert "Valentin:-" in staff, out
     assert "state=true" in out and "ada_state=false/true" in out, out
+
+
+# Avis f0e2fd838ab8 (22.11, migration 20261122131000) : tout participant cite des @surnoms.
+TAGGABLE = "(select string_agg(display_name, ',' order by display_name) from public.event_chat_taggable(e))"
+
+
+def cite(*who: str) -> str:
+    return (f"insert into public.messages (event_id, user_id, body, mentions) values (e, auth.uid(), 'Vous venez ?', "
+            f"array[{', '.join(who)}]) returning id into srv;")
+
+
+def stored() -> str:
+    return (f"(select coalesce(string_agg(p.display_name, ',' order by p.display_name), '') from public.messages m, "
+            f"unnest(m.mentions) x join public.profiles p on p.id = x where m.id = {LAST})")
+
+
+def test_a_guest_cites_invitees_without_answer_and_they_are_notified_but_not_on_a_public_event():
+    out = run(CHAT + VICTOR_MAYBE + as_bot("victor") + keep("taggable", TAGGABLE)
+              + cite("valentin", "ada", "victor") + keep("kept", stored())
+              + as_postgres() + notified("valentin", "valentin")
+              + keep("reply", "(select data->>'can_reply' from public.notifications where event_id = e and user_id = valentin "
+                              "and kind = 'message' limit 1)")
+              + "delete from public.notifications where event_id = e;"
+              # Événement public : seulement Présent, Peut-être et l'organisation.
+              + "update public.events set visibility = 'all' where id = e;"
+              + as_bot("victor") + keep("public_taggable", TAGGABLE) + cite("valentin", "ada") + keep("public_kept", stored())
+              + as_postgres() + notified("public_valentin", "valentin")
+              # Jamais une personne en blocage avec l'auteur.
+              + "update public.events set visibility = 'invited' where id = e;"
+              + "insert into public.direct_blocks (user_id, blocked_id) values (valentin, victor);"
+              + as_bot("victor") + keep("blocked_taggable", TAGGABLE) + cite("valentin") + keep("blocked_kept", stored()))
+    taggable = out.split("taggable=")[1].split(" |")[0]
+    assert "Valentin" in taggable and "Ada" in taggable and "Olga" in taggable and "Côme" in taggable, out
+    assert "Victor" not in taggable, out
+    kept = out.split("kept=")[1].split(" |")[0]
+    assert "Valentin" in kept and "Ada" in kept and "Victor" not in kept, out
+    assert "valentin=true" in out and "reply=false" in out, out
+    assert "Valentin" not in out.split("public_taggable=")[1].split(" |")[0], out
+    assert "Valentin" not in out.split("public_kept=")[1].split(" |")[0] and "public_valentin=null" in out, out
+    assert "Valentin" not in out.split("blocked_taggable=")[1].split(" |")[0], out
+    assert out.split("blocked_kept=")[1].split()[0] in ("|", "CONTEXT:"), out  # rien de gardé
+
+
+def test_tags_and_announcements_stay_with_the_organisation():
+    out = run(CHAT + VICTOR_MAYBE + as_bot("victor") + say("@toutlemonde @present") + flags("guest")
+              + as_postgres() + notified("valentin", "valentin"))
+    assert "guest=false,false,false,false" in out and "valentin=null" in out, out

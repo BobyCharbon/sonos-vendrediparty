@@ -37,6 +37,9 @@ def fake(staff=False, write=True, muted=False, blocked=(), patched=True, forum=T
                 {"id": ME, "display_name": "Boby", "avatar_url": "me.jpg", "rsvp": "yes", "organizer": False, "invited": False},
                 {"id": LEA, "display_name": "Léa", "avatar_url": None, "rsvp": "maybe", "organizer": True, "invited": False},
                 {"id": TOM, "display_name": "Tom", "avatar_url": None, "rsvp": None, "organizer": False, "invited": staff}])
+        if path == "/rest/v1/rpc/event_chat_taggable":  # Léa (Peut-être) et Val (invitée sans réponse), migration 20261122131000
+            return httpx.Response(200, json=[{"id": VAL, "display_name": "Val", "avatar_url": "val.jpg"},
+                                             {"id": LEA, "display_name": "Léa", "avatar_url": None}])
         if path == "/rest/v1/rpc/event_chat_set_level":
             return httpx.Response(200, json={"level": body["level"]})
         if path == "/rest/v1/rpc/event_chat_mute":
@@ -168,6 +171,24 @@ def test_send_cites_people_and_passes_the_announcement_switch_to_the_base():
             raise AssertionError("accepté")
         except accounts_mod.AccountError:
             pass
+
+
+def test_any_participant_can_cite_the_people_the_base_allows():
+    """Avis f0e2fd838ab8 (22.11) : les suggestions de l'@ sont celles de la base (event_chat_taggable : organisation,
+    Présent, Peut-être, invités sans réponse hors événement public), jamais une personne bloquée."""
+    c = fake()[0].conversation("jeton", EV)
+    assert [(t["id"], t["name"]) for t in c["taggable"]] == [(LEA, "Léa"), (VAL, "Val")]
+    assert c["taggable"][1]["photo"].endswith("/profile-photos/val.jpg?t=1")
+    assert VAL not in [m["id"] for m in c["members"]]  # la liste des participants ne change pas
+    assert [t["id"] for t in fake(blocked=(VAL,))[0].conversation("jeton", EV)["taggable"]] == [LEA]
+    # Envoi sans liste (ancienne app) : les citations se cherchent parmi les personnes permises.
+    chats, seen = fake()
+    chats.send("jeton", EV, "@Val tu viens ? @Tom", None, None, None, None, None, None, False)
+    row = next(b for m, p, _, b in seen if m == "POST" and p == "/rest/v1/messages")
+    assert row["mentions"] == [VAL]
+    # Base d'avant la migration : Présent, Peut-être et organisation.
+    c = fake(refuse=("event_chat_taggable",))[0].conversation("jeton", EV)
+    assert [t["id"] for t in c["taggable"]] == [LEA]
 
 
 def test_pin_delete_react():

@@ -833,7 +833,7 @@ struct ConversationView: View {
     /// (@tout et @annonce d'un groupe ; @toutlemonde, @present et @annonce de l'organisation d'un événement).
     @ViewBuilder private func mentionBar(_ chat: Conversation) -> some View {
         let found: [Mentions.Suggestion] = chat.isDirect ? [] : Mentions.query(in: text).map {
-            Mentions.suggestions(for: $0, members: chat.members, me: chat.me, everyone: chat.canEveryone, announce: chat.isStaff,
+            Mentions.suggestions(for: $0, members: chat.citable, me: chat.me, everyone: chat.canEveryone, announce: chat.isStaff,
                                  contacts: ContactNames.shared.names, tags: chat.isEvent ? (chat.tags ?? []) : nil)
         } ?? []
         if let note = chat.tagNote(for: text) {

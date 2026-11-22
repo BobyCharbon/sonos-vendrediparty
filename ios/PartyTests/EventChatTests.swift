@@ -64,6 +64,23 @@ struct EventChatTests {
         #expect(Mentions.suggestions(for: "to", members: [], me: nil, tags: []).isEmpty)  // un invité : aucune
     }
 
+    @Test("Tout participant cite les personnes permises par la base (taggable), pas toute la liste des participants")
+    func eventTaggablePeopleAreSuggested() throws {
+        let c = try JSONDecoder().decode(Conversation.self, from: Data("""
+        {"id":"e1","name":"R","member":true,"admin":false,"event":true,"notify":"all","can_name_admins":false,"reactions":[],
+         "messages":[],
+         "members":[{"id":"u1","name":"Léa","photo":null,"admin":false,"creator":false,"rsvp":"maybe"},
+                    {"id":"u2","name":"Tom","photo":null,"admin":false,"creator":false,"rsvp":"no"}],
+         "taggable":[{"id":"u1","name":"Léa","photo":null,"admin":false,"creator":false},
+                     {"id":"u3","name":"Val","photo":null,"admin":false,"creator":false}]}
+        """.utf8))
+        let found = { (q: String) in Mentions.suggestions(for: q, members: c.citable, me: "me", tags: []).map(\.label) }
+        #expect(found("va") == ["Val"] && found("to").isEmpty && found("") == ["Léa", "Val"])
+        #expect(c.mentions(in: "@Val tu viens ? @Tom", me: "me") == ["u3"])
+        // Ancien serveur (sans taggable) : les participants, comme avant.
+        #expect(try conversation(messages: []).citable.isEmpty)
+    }
+
     @Test("Bandeau : annonces d'abord, puis épinglés, les plus récents en tête")
     func pinsPutAnnouncementsFirst() throws {
         var c = try JSONDecoder().decode(Conversation.self, from: Data("""
