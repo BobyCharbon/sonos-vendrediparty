@@ -8,6 +8,7 @@ struct GroupMembersView: View {
     var body: some View {
         List {
             if let members = store.members {
+                if let stats = members.signupStats { SignupStatsSection(stats: stats) }
                 Section {
                 } footer: {
                     Text("\(members.people.count) compte(s) inscrit(s)")
@@ -116,6 +117,7 @@ struct MemberDetailView: View {
             if let phone = person.phone { LabeledContent("Numéro", value: "+\(phone.trimmingCharacters(in: CharacterSet(charactersIn: "+")))") }
             if full, let created = AdminDate.text(person.createdAt) { LabeledContent("Inscrit le", value: created) }
             if full, let seen = AdminDate.text(person.lastSignInAt) { LabeledContent("Connecté le", value: seen) }
+            if let signup = person.signup { Text(signup).font(.footnote).foregroundStyle(.secondary) }
         }
     }
 
@@ -187,5 +189,41 @@ struct MemberDetailView: View {
         let confirm = person.name.isEmpty ? "" : typed
         typed = ""
         Task { if await store.delete(person, confirmName: confirm) { dismiss() } }
+    }
+}
+
+/// Origine des inscriptions (droit « Voir l'origine des inscriptions ») : par source et par plateforme, 30 jours et total.
+private struct SignupStatsSection: View {
+    let stats: AdminMembers.SignupStats
+
+    var body: some View {
+        Section {
+            rows("Source", stats.sources)
+            rows("Plateforme", stats.platforms)
+        } header: {
+            Text("D'où viennent les inscrits")
+        } footer: {
+            Text("Noté à l'inscription depuis le 22.11.2026 ; les comptes d'avant restent « Inconnu ».")
+        }
+    }
+
+    @ViewBuilder private func rows(_ title: String, _ list: [AdminMembers.SignupStats.Count]) -> some View {
+        HStack {
+            Text(title).font(.subheadline.weight(.semibold))
+            Spacer()
+            Text("30 j").frame(width: 44, alignment: .trailing)
+            Text("Total").frame(width: 48, alignment: .trailing)
+        }
+        .font(.caption).foregroundStyle(.secondary)
+        ForEach(list) { row in
+            HStack {
+                Text(row.label)
+                Spacer()
+                Text("\(row.last30)").fontWeight(.semibold).monospacedDigit().frame(width: 44, alignment: .trailing)
+                Text("\(row.total)").foregroundStyle(.secondary).monospacedDigit().frame(width: 48, alignment: .trailing)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(row.label) : \(row.last30) sur 30 jours, \(row.total) au total")
+        }
     }
 }

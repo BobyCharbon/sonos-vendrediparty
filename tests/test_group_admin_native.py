@@ -122,6 +122,29 @@ def test_members_directory_for_organizers_with_beta_flags():
     assert not any(s[1] == "/rest/v1/rpc/admin_member_list" for s in seen)
 
 
+def test_members_signup_origin_only_with_its_right():
+    """Origine des inscriptions (22.11) : « Inscrit via … » et la métrique, seulement avec members.signup_source."""
+    stats = {"sources": [{"source": "event_link", "label": "Lien d'invitation d'un événement", "last30": 2, "total": 3}],
+             "platforms": [{"platform": "ios", "label": "App iPhone", "last30": 1, "total": 1}]}
+
+    def extra(request):
+        if request.url.path == "/rest/v1/rpc/admin_signup_sources":
+            return httpx.Response(200, json=[{"id": LEA, "source": "event_link", "line": "Inscrit via le lien d'invitation de « Raclette » (lien de Tom) · site · 22.11.2026"}])
+        if request.url.path == "/rest/v1/rpc/admin_signup_stats":
+            return httpx.Response(200, json=stats)
+        return None
+    admin, _ = fake(perms=("members.signup_source",), extra=extra)
+    out = admin.members("tok")
+    assert {p["name"]: p["signup"] for p in out["people"]} == {
+        "Boby": None, "Léa": "Inscrit via le lien d'invitation de « Raclette » (lien de Tom) · site · 22.11.2026"}
+    assert out["signup_stats"] == stats
+
+    admin, seen = fake(extra=extra)
+    out = admin.members("tok")
+    assert "signup_stats" not in out and all("signup" not in p for p in out["people"])
+    assert not any("signup" in s[1] for s in seen)
+
+
 def test_member_role_change_only_reads_back_the_id():
     admin, seen = fake()
     admin.update_member("tok", LEA, "guestplus", None, None)

@@ -1,6 +1,7 @@
 """Connexion native (app iOS) : code SMS, session, déconnexion et suppression du compte, sans passer par la page.
 La session obtenue est la même que celle du module Événements (supabase-js) : l'app la range là où la page la lit
 (storage_key dans le localStorage du site), si bien que la page, les jeux et les Réglages natifs partagent le compte."""
+import contextlib
 import re
 import time
 from urllib.parse import urlparse
@@ -54,6 +55,10 @@ class AccountAuth:
             raise AccountError("Code incorrect ou expiré")
         if not session.get("expires_at"):
             session["expires_at"] = int(time.time()) + int(session.get("expires_in") or 3600)
+        # Origine des inscriptions (22.11) : la base note « app iPhone » pour un compte de moins de 24 h ; sans effet sinon.
+        # Jamais bloquant : la connexion réussit même si la note échoue.
+        with contextlib.suppress(Exception):
+            self.accounts._get("POST", "/rest/v1/rpc/note_signup", session["access_token"], json={"platform": "ios"})
         return {"session": session, "storage_key": storage_key()}
 
     def sign_out(self, token: str) -> None:

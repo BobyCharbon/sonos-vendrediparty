@@ -180,13 +180,15 @@ struct AdminMembers: Decodable, Equatable {
         let groups: [String]
         let rsvpCount: Int
         let messageCount: Int
+        /// « Inscrit via … » (droit « Voir l'origine des inscriptions ») ; nil sans le droit.
+        let signup: String?
 
         enum CodingKeys: String, CodingKey {
             case id, name, phone, photo, role, status, beta, root, complete, groups
             case roleLabel = "role_label", roleRank = "role_rank", roleColor = "role_color"
             case fullName = "full_name", createdAt = "created_at", lastSignInAt = "last_sign_in_at"
             case firstSignInAt = "first_sign_in_at", signInCount = "sign_in_count", lastDevice = "last_device"
-            case rsvpCount = "rsvp_count", messageCount = "message_count"
+            case rsvpCount = "rsvp_count", messageCount = "message_count", signup
         }
 
         init(from decoder: Decoder) throws {
@@ -216,6 +218,7 @@ struct AdminMembers: Decodable, Equatable {
             groups = try c.decodeIfPresent([String].self, forKey: .groups) ?? []
             rsvpCount = try c.decodeIfPresent(Int.self, forKey: .rsvpCount) ?? 0
             messageCount = try c.decodeIfPresent(Int.self, forKey: .messageCount) ?? 0
+            signup = try c.decodeIfPresent(String.self, forKey: .signup)
         }
 
         var displayName: String { name.isEmpty ? "Profil à compléter" : name }
@@ -236,18 +239,33 @@ struct AdminMembers: Decodable, Equatable {
         var id: String { title }
     }
 
+    /// Origine des inscriptions : comptes par source et par plateforme (30 derniers jours, total).
+    struct SignupStats: Decodable, Equatable {
+        struct Count: Decodable, Equatable, Identifiable {
+            let label: String
+            let last30: Int
+            let total: Int
+            var id: String { label }
+        }
+        let sources: [Count]
+        let platforms: [Count]
+    }
+
     let access: AdminAccess
     /// Liste complète (Root, Admin) : numéros, connexions, suppression, journal.
     let full: Bool
     let people: [Person]
+    /// Droit « Voir l'origine des inscriptions » seulement.
+    let signupStats: SignupStats?
 
-    enum CodingKeys: String, CodingKey { case full, people }
+    enum CodingKeys: String, CodingKey { case full, people, signupStats = "signup_stats" }
 
     init(from decoder: Decoder) throws {
         access = try decodeAccess(decoder)
         let c = try decoder.container(keyedBy: CodingKeys.self)
         full = try c.decodeIfPresent(Bool.self, forKey: .full) ?? false
         people = try c.decodeIfPresent([Person].self, forKey: .people) ?? []
+        signupStats = try? c.decodeIfPresent(SignupStats.self, forKey: .signupStats)
     }
 
     /// Sections : actifs par rôle (du plus haut au plus bas), puis en attente, puis accès retiré.

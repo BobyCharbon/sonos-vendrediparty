@@ -274,7 +274,13 @@ class GroupAdmin:
                  "last_device": p.get("last_device"), "groups": p.get("groups") or [],
                  "rsvp_count": p.get("rsvp_count") or 0, "message_count": p.get("message_count") or 0}
                 for p in people]
-        return {**me, "people": sorted(rows, key=lambda p: (p["name"] or "~").lower())}
+        extra = {}
+        if "members.signup_source" in me["perms"]:
+            # Origine des inscriptions (22.11) : « Inscrit via … » sur chaque fiche et le compte par source (la base vérifie le droit).
+            lines = {x["id"]: x["line"] for x in self._rpc(token, "admin_signup_sources", {}, "L'origine des inscriptions n'a pas pu être lue.") or []}
+            rows = [{**p, "signup": lines.get(p["id"])} for p in rows]
+            extra["signup_stats"] = self._rpc(token, "admin_signup_stats", {}, "L'origine des inscriptions n'a pas pu être lue.")
+        return {**me, **extra, "people": sorted(rows, key=lambda p: (p["name"] or "~").lower())}
 
     def update_member(self, token: str, member: str, role: str | None, status: str | None, beta: bool | None) -> dict:
         if beta is not None:

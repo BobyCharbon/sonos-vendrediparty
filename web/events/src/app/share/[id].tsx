@@ -19,6 +19,7 @@ import { chf } from '@/lib/tickets';
 import { colors } from '@/lib/theme';
 import type { EventRow, Profile, Rsvp } from '@/lib/types';
 import { openInParty } from '@/lib/partyShell';
+import { rememberSharedEvent } from '@/lib/signupOrigin';
 
 const EVENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -151,7 +152,7 @@ export default function PublicEventScreen() {
             <T muted size={13}>
               {poll ? 'Connecte-toi avec ton numéro de téléphone pour choisir les dates où tu es dispo.' : 'Connecte-toi avec ton numéro de téléphone pour répondre.'} Tu reçois un code par SMS.
             </T>
-            <Button label={poll ? 'Se connecter pour choisir mes dates' : 'Se connecter pour répondre'} onPress={() => router.push('/sign-in' as Href)} />
+            <Button label={poll ? 'Se connecter pour choisir mes dates' : 'Se connecter pour répondre'} onPress={() => { rememberSharedEvent(ev.id); router.push('/sign-in' as Href); }} />
           </>
         ) : closed ? (
           <T muted>{ev.status === 'cancelled' ? 'Cet événement a été annulé.' : 'Les réponses sont closes.'}</T>
