@@ -260,3 +260,33 @@ def test_present_votes_in_the_poll(browser, events_origin):
         assert page.get_by_text('Réponds Présent ou Peut-être pour voter.', exact=True).count() == 0
     finally:
         context.close()
+
+
+def test_fixing_a_poll_date_asks_for_a_confirmation(browser, events_origin):
+    """Avis ebfbd8e94fa5 : « Fixer cette date » ouvre « Fixer la soirée au … ? » ; Annuler n'envoie rien, Confirmer fixe."""
+    ev = event_row(date_mode='poll', starts_at=None, max_participants=None, created_by=USER,
+                   author={'id': USER, 'display_name': 'Camille'},
+                   date_options=[{'id': 'd1', 'event_id': EVENT, 'starts_at': '2030-11-20T18:00:00Z', 'proposed_by': None, 'date_votes': []}])
+    context, page = open_event(browser, events_origin, ev)
+    sent: list[dict] = []
+
+    def fix(route):
+        if route.request.method == 'OPTIONS':
+            return route.fulfill(status=204, headers=HEADERS)
+        sent.append(json.loads(route.request.post_data or '{}'))
+        route.fulfill(status=200, content_type='application/json', headers=HEADERS, body='null')
+    page.route(REST + 'rpc/fix_event_date', fix)
+    question = page.get_by_text('Fixer la soirée au mercredi 20 novembre à 19:00 ?', exact=True)
+    try:
+        page.get_by_role('button', name='Fixer cette date', exact=True).click()
+        pw.expect(question).to_be_visible()
+        page.get_by_role('button', name='Annuler', exact=True).click()
+        pw.expect(question).to_have_count(0)
+        page.wait_for_timeout(300)
+        assert sent == []
+        page.get_by_role('button', name='Fixer cette date', exact=True).click()
+        page.get_by_role('button', name='Confirmer', exact=True).click()
+        pw.expect(question).to_have_count(0, timeout=5000)
+        assert sent == [{'e': EVENT, 'opt': 'd1'}]
+    finally:
+        context.close()

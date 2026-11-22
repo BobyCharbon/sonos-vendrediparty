@@ -69,7 +69,9 @@ def test_a_participant_offers_seats_with_a_city(browser, events_origin):  # noqa
         pw.expect(page.get_by_text('Zoé', exact=False).first).to_be_visible()
         shot(page, '01-covoiturage-carte')
         page.get_by_role('button', name='🚗 Je conduis').click()
-        page.get_by_role('button', name='Une place de plus').click()  # 3 → 4
+        # 4 places par défaut : voiture de 5 places moins le conducteur (avis f9995c431f07).
+        pw.expect(page.get_by_text('Places libres dans ta voiture', exact=True)).to_be_visible()
+        pw.expect(page.get_by_text('4', exact=True)).to_be_visible()
         page.get_by_label('Ville de départ (facultatif)').fill('Sierre')
         shot(page, '02-covoiturage-je-conduis')
         page.get_by_role('button', name='Proposer mes places').click()
