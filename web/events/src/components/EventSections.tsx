@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, View } from 'react-native';
 
-import { formatAnswerTime, formatShort, parseLocalDateTime } from '@/lib/format';
+import { formatAnswerTime, formatLongDay, formatShort, formatTime, parseLocalDateTime } from '@/lib/format';
 import { enter, pressTransition, useChangedSinceMount } from '@/lib/motion';
 import { refreshPending } from '@/lib/pending';
 import { fetchAttendance } from '@/lib/attendance';
@@ -23,6 +23,7 @@ import { GuestGroupCheck, GuestGroupJoin } from './GuestGroup';
 import { fetchEventGuestGroup, setGuestGroupChoice } from '@/lib/guestGroup';
 import { SharedBringRow } from './BringShared';
 import { DateTimeField } from './DateTimeField';
+import { SheetBackdrop } from './SheetGesture';
 import { LinkedText } from './LinkedText';
 import { ReportSheet } from './ReportSheet';
 import { RsvpButtons } from './RsvpButtons';
@@ -455,6 +456,9 @@ export function DatePollSection({
 }) {
   const [error, setError] = useState<string | null>(null);
   const [proposal, setProposal] = useState('');
+  // « Fixer cette date » demande toujours une confirmation (avis ebfbd8e94fa5 : un toucher par erreur fixait la soirée).
+  const [fixing, setFixing] = useState<DateOption | null>(null);
+  const [fixBusy, setFixBusy] = useState(false);
   const closed = event.status !== 'published' || (!!event.poll_deadline && new Date(event.poll_deadline) < new Date());
   const voters = new Set(votes.map((v) => v.user_id));
 
@@ -549,7 +553,7 @@ export function DatePollSection({
                 after: ` (${[voteLabel[v.vote], formatAnswerTime(v.voted_at)].filter(Boolean).join(' · ')})` }))} />
             ) : null}
             {canManage ? (
-              <Button small variant={lead ? 'primary' : 'secondary'} label="Fixer cette date" onPress={() => act(supabase.rpc('fix_event_date', { e: event.id, opt: o.id }), onChange, setError)} />
+              <Button small variant={lead ? 'primary' : 'secondary'} label="Fixer cette date" onPress={() => setFixing(o)} />
             ) : null}
           </View>
         );
@@ -569,6 +573,27 @@ export function DatePollSection({
         </T>
       ) : null}
       <ErrorText error={error} />
+      <Modal visible={!!fixing} transparent animationType="fade" onRequestClose={() => setFixing(null)}>
+        <View style={st.confirmOverlay}>
+          <SheetBackdrop onPress={() => setFixing(null)} />
+          <View style={st.confirmCard} accessibilityViewIsModal accessibilityRole="alert">
+            <T weight="bold" size={18}>
+              {fixing ? `Fixer la soirée au ${formatLongDay(fixing.starts_at).toLowerCase()} à ${formatTime(fixing.starts_at)} ?` : ''}
+            </T>
+            <T size={14} color={colors.textSoft}>
+              Les Oui et les Si besoin deviennent Présent, les Non Absent, et tout le monde est prévenu. Les votes restent gardés.
+            </T>
+            <Button label="Confirmer" loading={fixBusy} disabled={fixBusy} onPress={async () => {
+              if (!fixing || fixBusy) return;
+              setFixBusy(true);
+              await act(supabase.rpc('fix_event_date', { e: event.id, opt: fixing.id }), onChange, setError);
+              setFixBusy(false);
+              setFixing(null);
+            }} />
+            <Button label="Annuler" variant="secondary" onPress={() => setFixing(null)} />
+          </View>
+        </View>
+      </Modal>
     </Section>
   );
 }
@@ -782,6 +807,8 @@ export function BringSection({
 }
 
 const st = StyleSheet.create({
+  confirmOverlay: { flex: 1, backgroundColor: 'rgba(10,6,22,0.85)', alignItems: 'center', justifyContent: 'center', padding: 16 },
+  confirmCard: { width: '100%', maxWidth: 380, gap: 12, padding: 20, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.lineStrong },
   undecided: { gap: 2, padding: 10, borderRadius: radius.md, backgroundColor: colors.coralDim },
   // Fond rose sombre plein : « À répondre » en rose se lit (AA, 5:1 ; le voile rose translucide ne donnait que 4,3:1).
   pill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: colors.accentDim },

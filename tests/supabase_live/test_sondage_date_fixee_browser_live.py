@@ -129,6 +129,7 @@ def test_fixing_then_editing_then_back_to_a_poll_keeps_every_date_and_every_vote
         tallies_shown(page)
         shot(page, '03-organisateur-sondage')
         page.get_by_role('button', name='Fixer cette date', exact=True).first.click()
+        page.get_by_role('button', name='Confirmer', exact=True).click()  # avis ebfbd8e94fa5
         pw.expect(page.get_by_text('Quelle date ?', exact=True).locator('visible=true')).to_have_count(0, timeout=20000)
         shot(page, '04-date-fixee')
         row = event_row(e)

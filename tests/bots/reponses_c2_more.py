@@ -88,6 +88,7 @@ def _fix(browser, origin, event_key: str) -> dict:
         p.dump("resultats")
         with p.step("Fixer cette date (la plus votée)"):
             p.tap(page.get_by_role("button", name="Fixer cette date").first, "Fixer cette date")
+            p.tap(page.get_by_role("button", name="Confirmer", exact=True), "Confirmer")
             page.wait_for_timeout(3500)
             p.shot("apres-fixer")
             p.dump("apres-fixer")

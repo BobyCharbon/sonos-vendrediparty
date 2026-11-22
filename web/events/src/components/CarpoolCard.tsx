@@ -12,7 +12,8 @@ import { pressTransition } from '@/lib/motion';
 import { colors, radius } from '@/lib/theme';
 
 type Mode = 'drive' | 'seek' | null;
-const DEFAULT_SEATS = 3;
+// Voiture de 5 places moins le conducteur (avis f9995c431f07).
+const DEFAULT_SEATS = 4;
 
 /**
  * Covoiturage (avis 34d5c07f2e56 de l'admin, 11.11) : qui conduit (places, ville de départ facultative), qui cherche une

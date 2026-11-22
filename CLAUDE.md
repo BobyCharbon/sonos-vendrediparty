@@ -199,8 +199,10 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
 - Covoiturage (avis 34d5c07f2e56, 13.11, migration 20261113090000) : option de l'organisateur (`events.carpool_enabled`,
   éteinte par défaut, jamais allumée par l'IA) ; seuls les participants (Présent / Peut-être) et les organisateurs y prennent
   part, tout par les fonctions `carpool*` (table sans accès direct, places comptées sous verrou, ville filtrée comme un nom,
-  CGU) ; « Pas présent » fait quitter le covoiturage. Carte `CarpoolCard`. Aucun argent ni partage de frais ici.
+  CGU) ; « Pas présent » fait quitter le covoiturage. Carte `CarpoolCard` (« Je conduis » : 4 places par défaut). Aucun argent ni partage de frais ici.
   Tests : `tests/supabase_live/test_covoiturage_live.py`, `test_covoiturage_browser_live.py`, `tests/test_covoiturage_browser.py`.
+- « Fixer cette date » demande toujours « Fixer la soirée au … ? » (Confirmer / Annuler, avis ebfbd8e94fa5, 22.11 : toucher
+  par erreur). Test : `test_fixing_a_poll_date_asks_for_a_confirmation`.
 - Date fixée (bouton « Fixer » ou formulaire) : les créneaux du sondage et leurs votes ne sont JAMAIS effacés (cachés ;
   repasser en « Date à définir » les retrouve). Le formulaire les effaçait : votes du paintball perdus (prod, 13.11).
   Test : `test_editing_a_fixed_date_keeps_the_poll_dates_and_their_votes`. Ces créneaux cachés ne comptent nulle part en date
