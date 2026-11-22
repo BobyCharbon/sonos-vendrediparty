@@ -241,10 +241,12 @@ def _step(life: dict, dt: float, frozen: tuple = ()) -> float:
         g["energy"] = clamp(g["energy"] + ENERGY_REGEN * dt)
         if g["energy"] >= FULL:
             life["asleep"] = False   # bien reposé : il se réveille tout seul
+            life.pop("dodo", None)
     elif "energy" not in frozen:
         g["energy"] = clamp(g["energy"] - ENERGY_RATE * k * dt)
         if g["energy"] <= 0:
             life["asleep"] = True    # épuisé : il s'endort tout seul
+            life.pop("dodo", None)
     if g["care"] <= 0:
         life["sick"] = True
     life["care_sum"] += dt * sum(g.values()) / len(GAUGES)
@@ -456,11 +458,13 @@ def _care_action(life: dict, owner: dict, action: str, score: int) -> None:
         if g["energy"] >= SLEEPY_ENOUGH:
             raise PetError("Il n'a pas sommeil, il est en pleine forme ⚡")
         life["asleep"] = True
+        life["dodo"] = True   # couché à la main : il dort jusqu'à être reposé (rouvrir l'app ne le réveille pas)
         return
     if action == "wake":
         if not life["asleep"]:
             raise PetError("Il est déjà réveillé ☀️")
         life["asleep"] = False
+        life.pop("dodo", None)
         return
     if life["asleep"]:
         raise PetError("Chut, il dort 🌙 Touche « Réveiller ☀️ » pour allumer la lumière.")

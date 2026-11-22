@@ -281,6 +281,22 @@ def test_actions_are_saved_with_projections_and_journal(setup):
     assert act(c, "rename", name="<img src=x>").json()["pet"]["name"] == "<img src=x>"   # échappé par le navigateur
 
 
+def test_dodo_is_kept_when_the_app_is_reopened_until_he_is_rested(setup):
+    """Avis 34a9511228e3 : couché avec « Dodo 🌙 », rouvrir l'onglet le réveillait dès 50 d'énergie (toujours fatigué)."""
+    c, base, clock, *_ = setup
+    me(c)
+    clock.go(hours=12)
+    tired = me(c)["pet"]["gauges"]["energy"]
+    assert act(c, "sleep").status_code == 200
+    clock.go(hours=3)
+    back = me(c)["pet"]   # nouvelle ouverture (src « tab »)
+    assert back["asleep"] and back["gauges"]["energy"] > max(tired, 50), back["gauges"]
+    assert base.saves[-1]["p_life"]["dodo"] is True   # gardé en base entre deux ouvertures
+    clock.go(hours=3)   # reposé (100), il s'est réveillé tout seul il y a un moment
+    rested = me(c)["pet"]
+    assert not rested["asleep"] and rested["gauges"]["energy"] >= 90
+
+
 def test_refusals_are_400_with_a_gentle_message(setup):
     c, _, clock, *_ = setup
     me(c)
