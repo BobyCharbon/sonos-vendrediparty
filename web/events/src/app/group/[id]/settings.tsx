@@ -18,7 +18,7 @@ import { must, supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
 
 type Row = { id: string; name: string; emoji: string; color: GroupColor; photo_path: string | null; created_by: string | null; system_key: string | null;
-  events_need_approval: boolean; announce_mode: 'request' | 'free'; member_group_members: { user_id: string }[] };
+  events_need_approval: boolean; announce_mode: 'request' | 'free'; members_invite: boolean; member_group_members: { user_id: string }[] };
 
 /**
  * Réglages du groupe (⚙ de sa page) : ce qui était dans Réglages › Groupes, inchangé côté droits — Modifier (nom, emoji,
@@ -38,7 +38,7 @@ export default function GroupSettings() {
 
   const { data, loading, error: loadError, reload } = useQuery(async () => {
     const [row, privacy] = await Promise.all([
-      supabase.from('member_groups').select('id, name, emoji, color, photo_path, created_by, system_key, events_need_approval, announce_mode, member_group_members(user_id)')
+      supabase.from('member_groups').select('id, name, emoji, color, photo_path, created_by, system_key, events_need_approval, announce_mode, members_invite, member_group_members(user_id)')
         .eq('id', id).maybeSingle(),
       supabase.rpc('my_privacy'),
     ]);
@@ -137,10 +137,23 @@ export default function GroupSettings() {
         </Section>
       ) : null}
 
-      {/* Réglages des événements du groupe (06.11) : son créateur ; Vendredi Party : les Co-admins et plus. */}
+      {/* Règles du groupe : « Tous les membres peuvent inviter » (avis f0e9bf158133, 22.11, allumé par défaut ; qui gère le
+          groupe, jamais Membres Vendredi Party ; éteint : seuls ceux qui gèrent invitent et partagent son lien), puis les
+          réglages des événements (06.11 ; « Événements à valider » éteint par défaut ; Vendredi Party : Co-admins et plus). */}
       {(system && rank >= roleRank('coadmin')) || manage ? (
-        <GroupEventRules groupId={group.id} needApproval={!!group.events_need_approval} mode={group.announce_mode ?? 'request'} system={system}
-          onSaved={() => void reload()} />
+        <Section title="Règles du groupe">
+          {manage ? (
+            <ToggleRow label="Tous les membres peuvent inviter"
+              hint={group.members_invite !== false
+                ? 'Chaque membre peut ajouter quelqu’un et partager le lien du groupe.'
+                : 'Seuls toi et ceux qui gèrent le groupe invitent et partagent le lien du groupe.'}
+              value={group.members_invite !== false} disabled={busy}
+              onChange={(allowed) => void run(supabase.rpc('set_group_members_invite', { grp: group.id, allowed }),
+                allowed ? 'Tous les membres peuvent inviter' : 'Seuls ceux qui gèrent le groupe invitent')} />
+          ) : null}
+          <GroupEventRules groupId={group.id} needApproval={!!group.events_need_approval} mode={group.announce_mode ?? 'request'} system={system}
+            onSaved={() => void reload()} />
+        </Section>
       ) : null}
 
       {manage ? (

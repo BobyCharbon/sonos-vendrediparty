@@ -148,6 +148,7 @@ def test_touching_someone_in_my_group_sends_an_invitation_instead_of_adding_him(
     page.route('https://gsuetixzobooggeaubvb.supabase.co/rest/v1/member_group_members*',
                lambda route: (inserts.append(1) if route.request.method == 'POST' else None, route.fallback()))
     signed_in(page, events_origin, f'/group/{FOOT}/invite')
+    page.get_by_label('Chercher une personne').fill('mal', timeout=15000)  # 22.11 : recherche, jamais de liste
     page.get_by_role('checkbox', name='Ajouter Malik').click(timeout=15000)
     page.get_by_role('button', name='Inviter Malik').click()
     pw.expect(page.get_by_text('Malik : invitation envoyée', exact=False)).to_be_visible(timeout=10000)

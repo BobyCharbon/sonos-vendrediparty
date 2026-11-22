@@ -506,6 +506,13 @@ réglage de prod :
   `RecetteGroupesNatifsUITests` (Release + serveur local + base de TEST).
 - Tests : `tests/test_groups_browser.py`, `tests/supabase_live/test_groupes_graphisme_live.py`,
   `test_groupes_graphisme_browser_live.py`, `GroupLookTests`.
+- Ajouter quelqu'un (avis f0e9bf158133, 22.11, migration 20261122134000) : JAMAIS de liste des membres de Party, seulement
+  « numéro exact ou nom » (`group_people_search` : numéro complet, ou 3 lettres d'un nom / prénom / surnom → 5 au plus ;
+  surnom, photo, initiale du nom, jamais le numéro ; ni blocages, ni profils incomplets, ni comptes non actifs, ni membres,
+  ni ceux qui refusent les demandes ; 30 recherches / heure). Invitation à accepter (`invite_to_group`, lien direct OU
+  demande). « Tous les membres peuvent inviter » (`members_invite`, ALLUMÉ par défaut, `private.may_invite_group`) et
+  « Événements à valider » (`events_need_approval`, éteint) dans Règles du groupe (web settings, iPhone natif) ; jamais
+  Membres Vendredi Party. Tests : `tests/supabase_live/test_groupes_simples_live.py`, `tests/test_groups_browser.py`.
 
 ## Invités → groupe (17.11, migration 20261117110000)
 - Option par événement `events.guest_group` (éteinte par défaut, jamais allumée par l'IA : hors du schéma de ai_events.py /

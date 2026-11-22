@@ -96,6 +96,8 @@ export default function GroupPage() {
   const memberIds = group.member_group_members.map((m) => m.user_id);
   const member = memberIds.includes(me.id);
   const manage = overview?.manage ?? (!system && (group.created_by === me.id || rank >= roleRank('admin')));
+  // « Tous les membres peuvent inviter » (22.11, allumé par défaut) : la base décide (my_groups_overview.invite).
+  const invite = !system && (overview?.invite ?? manage);
   const p = palette(group.color);
   const name = groupName(group);
   const creator = group.created_by ? people.get(group.created_by) : null;
@@ -154,9 +156,9 @@ export default function GroupPage() {
               </Pressable>
             </Reveal>
           ) : null}
-          {(manage && !system) || (member && discussionsOn) ? (
+          {invite || (member && discussionsOn) ? (
             <Reveal index={2} style={{ flexDirection: 'row', gap: 10 }}>
-              {manage && !system ? (
+              {invite ? (
                 <Pressable accessibilityRole="button" accessibilityLabel="Inviter" testID="group-invite"
                   onPress={() => router.push(`/group/${id}/invite`)}
                   style={({ pressed }) => [st.secondary, pressTransition, pressed && { transform: [{ scale: 0.96 }] }]}>

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { GroupTile } from './GroupBits';
@@ -7,8 +7,7 @@ import { usePersonText } from './PersonName';
 import { Avatar, Button, ErrorText, Input, T, Toast } from './ui';
 import { useMe } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
-import { plural } from '@/lib/format';
-import { fetchSuggestions, type GroupLook, type GroupSuggestion } from '@/lib/groups';
+import { searchPeople, type GroupFound, type GroupLook } from '@/lib/groups';
 import { copyText, openWhatsApp, shareInvite } from '@/lib/invites';
 import { enter, pressTransition } from '@/lib/motion';
 import { supabase } from '@/lib/supabase';
@@ -17,12 +16,17 @@ import { colors, font, radius } from '@/lib/theme';
 
 type Picked = { id: string | null; name: string; phone?: string };
 
-/** Numéro tapé (« 079 123 45 67 », « +41 79… ») → chiffres au format international, comme l'ancien écran Groupes. */
-function phoneOf(typed: string): string | null {
+/** Numéro tapé (« 079 123 45 67 », « +41 79… », « 0041… ») → chiffres au format international, comme la connexion SMS
+ * (même règle que la base : private.search_phone). */
+export function phoneOf(typed: string): string | null {
   const digits = typed.replace(/\D/g, '');
-  if (!/^[+0-9][0-9 .()-]{6,}$/.test(typed.trim()) || digits.length < 8) return null;
-  return digits.startsWith('0') && digits.length === 10 ? `41${digits.slice(1)}` : digits;
+  if (!/^(\+|00)?[0-9][0-9 .()/-]{6,}$/.test(typed.trim()) || digits.length < 8) return null;
+  if (digits.startsWith('00')) return digits.slice(2);
+  return /^0[1-9]/.test(digits) && digits.length === 10 ? `41${digits.slice(1)}` : digits;
 }
+
+/** Nom tapé assez long pour chercher (3 lettres), comme la base. */
+const MIN_LETTERS = 3;
 
 /** « Chloé, Malik et Inès », « Chloé, Malik et 3 autres ». */
 export function namesLine(names: string[]): string {
@@ -33,9 +37,10 @@ export function namesLine(names: string[]): string {
 
 /**
  * Inviter dans un groupe (étape 2 de la création, et « Inviter » de la page du groupe) : le lien du groupe
- * (WhatsApp / Copier / Autre) et son code QR, puis « Déjà sur Party » : seulement des personnes déjà croisées à un
- * événement (group_invite_suggestions, jamais tout le site), un surnom exact ou un numéro. Chacun reçoit une
- * invitation (invite_to_group) et entre dès qu'il accepte. Droits de la base inchangés (créateur, Admin du site).
+ * (WhatsApp / Copier / Autre) et son code QR, puis « Ajouter quelqu'un » (avis f0e9bf158133, 22.11) : JAMAIS de liste
+ * des membres de Party, seulement une recherche « numéro exact ou nom » (group_people_search : numéro complet, ou 3
+ * lettres d'un nom, prénom ou surnom → 5 personnes au plus, sans leur numéro ; 30 recherches par heure). Chacun reçoit
+ * une invitation (invite_to_group) et entre dès qu'il accepte. Qui invite : la base (« Tous les membres peuvent inviter »).
  */
 export function GroupInvitePanel({ group, fresh = false, onInvited }: {
   group: GroupLook; fresh?: boolean; onInvited?: (count: number) => void;
@@ -55,18 +60,35 @@ export function GroupInvitePanel({ group, fresh = false, onInvited }: {
     if (failed || !data) throw new Error('Le lien n’a pas pu être créé. Réessaie.');
     return inviteUrl('group', data as string);
   }, [group.id]);
-  const { data: people, error: peopleError } = useQuery(() => fetchSuggestions(group.id), [group.id]);
+  const [found, setFound] = useState<GroupFound[] | null>(null);
+  const [searching, setSearching] = useState(false);
 
   const host = me.display_name.trim() || 'Moi';
   const message = (link: string) => `Hello ! ${host} t’invite dans le groupe « ${group.emoji} ${group.name} » sur Party. Rejoins-le ici : ${link}`;
-  const name = (p: GroupSuggestion) => personText(p.id, p.display_name);
-  const q = search.trim().toLocaleLowerCase('fr').replace(/^@/, '');
+  const name = (p: GroupFound) => personText(p.id, p.display_name);
+  const q = search.trim().replace(/^@/, '').trim();
   const phone = phoneOf(search);
-  const shown = (people ?? []).filter((p) => !q || phone || name(p).toLocaleLowerCase('fr').includes(q) || p.display_name.toLocaleLowerCase('fr').includes(q));
+  const ready = !!phone || q.length >= MIN_LETTERS;
+  const shown = ready ? found ?? [] : [];
   const isPicked = (id: string) => picked.some((p) => p.id === id);
 
-  function toggle(p: GroupSuggestion) {
-    setPicked(isPicked(p.id) ? picked.filter((x) => x.id !== p.id) : [...picked, { id: p.id, name: name(p) }]);
+  // Recherche dans la base, 450 ms après la dernière touche (anti-annuaire : 30 recherches par heure).
+  useEffect(() => {
+    if (!ready) { setFound(null); setSearching(false); return; }
+    let live = true;
+    setSearching(true);
+    const timer = setTimeout(() => {
+      searchPeople(group.id, phone ? `+${phone}` : q)
+        .then((list) => { if (live) { setFound(list); setError(null); } })
+        .catch((e: unknown) => { if (live) { setFound([]); setError(e instanceof Error ? e.message : 'La recherche n’a pas marché. Réessaie.'); } })
+        .finally(() => { if (live) setSearching(false); });
+    }, 450);
+    return () => { live = false; clearTimeout(timer); };
+  }, [group.id, q, phone, ready]);
+
+  function toggle(p: GroupFound) {
+    // Trouvé par son numéro : invité par ce numéro (le numéro vaut contact) ; sinon par son compte.
+    setPicked(isPicked(p.id) ? picked.filter((x) => x.id !== p.id) : [...picked, { id: p.id, name: name(p), ...(phone ? { phone } : {}) }]);
   }
 
   async function send(how: 'whatsapp' | 'copy' | 'other') {
@@ -76,20 +98,10 @@ export function GroupInvitePanel({ group, fresh = false, onInvited }: {
     else if ((await shareInvite(message(url), url, group.name)) === 'copied') setNote('Message copié : colle-le où tu veux');
   }
 
-  /** Surnom exact (compte existant) ou numéro (inscrit ou pas : l'invitation l'attend), comme l'ancien écran. */
-  async function addTyped() {
-    const typed = search.trim().replace(/^@/, '');
-    if (!typed) return;
-    if (phone) {
-      setPicked([...picked, { id: null, name: search.trim(), phone }]);
-      return setSearch('');
-    }
-    const { data } = await supabase.from('profiles').select('id, display_name').eq('status', 'active')
-      .ilike('display_name', typed.replace(/[\\%_]/g, (c) => `\\${c}`)).limit(1);
-    const found = (data ?? [])[0] as { id: string; display_name: string } | undefined;
-    if (!found || found.id === me.id) return setError('Personne avec ce surnom. Essaie son numéro de téléphone.');
-    setError(null);
-    if (!isPicked(found.id)) setPicked([...picked, { id: found.id, name: personText(found.id, found.display_name) }]);
+  /** Numéro sans compte : l'invitation l'attend (il la trouve en s'inscrivant avec ce numéro). */
+  function addPhone() {
+    if (!phone || picked.some((p) => p.phone === phone)) return;
+    setPicked([...picked, { id: null, name: search.trim(), phone }]);
     setSearch('');
   }
 
@@ -101,7 +113,8 @@ export function GroupInvitePanel({ group, fresh = false, onInvited }: {
     const done: Picked[] = [];
     try {
       for (const p of picked) {
-        const { error: failed } = await supabase.rpc('invite_to_group', { grp: group.id, member: p.id, phone: p.phone ?? null });
+        const { error: failed } = await supabase.rpc('invite_to_group', p.phone ? { grp: group.id, member: null, phone: p.phone }
+          : { grp: group.id, member: p.id, phone: null });
         if (failed) throw new Error(`${p.name} : ${failed.message.replace(/^\w+: /, '')}`);
         done.push(p);
       }
@@ -124,7 +137,7 @@ export function GroupInvitePanel({ group, fresh = false, onInvited }: {
         <GroupTile group={group} size={52} />
         <View style={{ flex: 1 }}>
           <Text role="heading" style={st.title}>{fresh ? 'Invite ta bande' : 'Inviter dans le groupe'}</Text>
-          <T muted size={14}>{fresh ? `« ${group.name} » est prêt. Invite maintenant ou plus tard.` : `« ${group.name} » : envoie le lien ou choisis des gens déjà croisés.`}</T>
+          <T muted size={14}>{fresh ? `« ${group.name} » est prêt. Invite maintenant ou plus tard.` : `« ${group.name} » : envoie le lien, ou cherche quelqu’un sur Party.`}</T>
         </View>
       </View>
 
@@ -158,13 +171,21 @@ export function GroupInvitePanel({ group, fresh = false, onInvited }: {
       </View>
 
       <View style={{ gap: 10 }}>
-        <T size={13} weight="bold" color={colors.muted} style={st.label}>DÉJÀ SUR PARTY</T>
-        <Input accessibilityLabel="Chercher une personne" placeholder="🔍 Prénom, surnom ou numéro" value={search}
-          onChangeText={(v) => { setSearch(v); setError(null); }} onSubmitEditing={() => void addTyped()} />
-        {phone ? (
-          <Button small variant="secondary" label={`Inviter le numéro ${search.trim()}`} onPress={() => void addTyped()} />
-        ) : q && !shown.length ? (
-          <Button small variant="secondary" label={`Inviter le surnom « ${search.trim()} »`} onPress={() => void addTyped()} />
+        <T size={13} weight="bold" color={colors.muted} style={st.label}>AJOUTER QUELQU’UN</T>
+        <Input accessibilityLabel="Chercher une personne" placeholder="🔍 Numéro, nom, prénom ou surnom" value={search}
+          autoCapitalize="none" autoCorrect={false}
+          onChangeText={(v) => { setSearch(v); setError(null); }} onSubmitEditing={() => { if (phone && found && !found.length) addPhone(); }} />
+        {!ready ? (
+          <T muted size={13}>Tape son numéro complet (+41 79…) ou au moins 3 lettres de son nom, prénom ou surnom.</T>
+        ) : searching && !found ? (
+          <T muted size={13}>Recherche…</T>
+        ) : !searching && found && !found.length ? (
+          phone ? (
+            <View style={{ gap: 6 }}>
+              <T muted size={13}>Pas trouvé sur Party : la personne trouvera l’invitation en s’inscrivant avec ce numéro.</T>
+              <Button small variant="secondary" label={`Inviter le numéro ${search.trim()}`} onPress={addPhone} />
+            </View>
+          ) : <T muted size={13}>Personne trouvé. Vérifie l’orthographe, ou tape son numéro complet.</T>
         ) : null}
         {picked.filter((p) => !p.id).map((p) => (
           <View key={p.phone} style={st.person}>
@@ -175,24 +196,21 @@ export function GroupInvitePanel({ group, fresh = false, onInvited }: {
             </Pressable>
           </View>
         ))}
-        {people && !people.length && !q ? (
-          <T muted size={13}>Personne croisée à un événement pour l’instant : envoie le lien du groupe, ou tape un surnom ou un numéro.</T>
-        ) : null}
-        <ErrorText error={peopleError} />
-        <View>
-          {shown.slice(0, 30).map((p, i) => {
-            const on = isPicked(p.id);
-            const done = p.invited || sent.has(p.id);
+        <View testID="group-search-results">
+          {/* Les personnes choisies restent visibles quand la recherche change ; puis les résultats (5 au plus). */}
+          {[...picked.filter((p) => p.id && !shown.some((f) => f.id === p.id)).map((p) => ({ id: p.id as string, label: p.name, f: null as GroupFound | null })),
+            ...shown.map((f) => ({ id: f.id, label: name(f), f }))].map(({ id, label, f }, i) => {
+            const on = isPicked(id);
+            const done = !!f?.invited || sent.has(id);
             return (
-              <Pressable key={p.id} accessibilityRole="checkbox" accessibilityState={{ checked: on, disabled: done }} aria-checked={on}
-                accessibilityLabel={`${done ? 'Déjà invité : ' : on ? 'Retirer ' : 'Ajouter '}${name(p)}`} disabled={done} onPress={() => toggle(p)}
+              <Pressable key={id} accessibilityRole="checkbox" accessibilityState={{ checked: on, disabled: done }} aria-checked={on}
+                accessibilityLabel={`${done ? 'Déjà invité : ' : on ? 'Retirer ' : 'Ajouter '}${label}`} disabled={done}
+                onPress={() => (f ? toggle(f) : setPicked(picked.filter((x) => x.id !== id)))}
                 style={({ pressed }) => [st.person, i ? st.personLine : null, pressTransition, pressed && { opacity: 0.7 }]}>
-                <Avatar id={p.id} name={p.display_name} photo={p.avatar_url} size={40} profile={false} />
+                <Avatar id={id} name={f?.display_name ?? label} photo={f?.avatar_url ?? null} size={40} profile={false} />
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <T weight="semibold" numberOfLines={1}>{name(p)}</T>
-                  <T muted size={13} numberOfLines={1}>
-                    {done ? 'Invitation envoyée' : p.together > 1 ? `${plural(p.together, 'soirée')} ensemble` : p.last_title ?? 'Croisé à un événement'}
-                  </T>
+                  <T weight="semibold" numberOfLines={1}>{label}{f?.initial ? <T muted size={14}>{`  ${f.initial}.`}</T> : null}</T>
+                  <T muted size={13} numberOfLines={1}>{done ? 'Invitation envoyée' : on ? 'Sera invité' : 'Sur Party'}</T>
                 </View>
                 <View key={on ? 'on' : 'off'} style={[st.check, (on || done) && st.checkOn, done && { opacity: 0.5 }, on && enter('pop')]}>
                   {on || done ? <T size={13} weight="bold" color={colors.onAction}>✓</T> : null}

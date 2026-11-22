@@ -2,9 +2,10 @@ import CoreImage.CIFilterBuiltins
 import SwiftUI
 
 /// Inviter dans un groupe (étape 2 de la création, et « Inviter » de la page du groupe), comme le web (GroupInvite.tsx) :
-/// le lien du groupe (WhatsApp / Copier / Autre) et son code QR, puis « Déjà sur Party » : seulement des personnes déjà
-/// croisées à un événement (group_invite_suggestions, jamais tout le site), un surnom exact ou un numéro. Chacun reçoit
-/// une invitation (invite_to_group) et entre dès qu'il accepte. Droits de la base inchangés (créateur, Admin du site).
+/// le lien du groupe (WhatsApp / Copier / Autre) et son code QR, puis « Ajouter quelqu'un » (avis f0e9bf158133, 22.11) :
+/// JAMAIS de liste des membres de Party, seulement une recherche « numéro exact ou nom » (group_people_search : numéro
+/// complet, ou 3 lettres d'un nom, prénom ou surnom → 5 personnes au plus, sans leur numéro ; 30 recherches par heure).
+/// Chacun reçoit une invitation (invite_to_group) et entre dès qu'il accepte. Qui invite : la base décide.
 struct GroupInviteView: View {
     let groupID: String
     var fresh = false
@@ -16,7 +17,8 @@ struct GroupInviteView: View {
     @State private var page: GroupPage?
     @State private var link: GroupLinkURL?
     @State private var linkError: String?
-    @State private var suggestions: [GroupSuggestion]?
+    @State private var found: [GroupFound]?
+    @State private var searching = false
     @State private var search = ""
     @State private var picked: [Picked] = []
     @State private var sent: Set<String> = []
@@ -29,6 +31,8 @@ struct GroupInviteView: View {
         let name: String
         var member: String?
         var phone: String?
+        /// Personne trouvée par la recherche (nil : un numéro sans compte).
+        var face: PronoFace?
     }
 
     var body: some View {
@@ -67,7 +71,7 @@ struct GroupInviteView: View {
                             .font(.system(.title2, design: .rounded).weight(.heavy)).foregroundStyle(PronoTheme.t1)
                             .accessibilityAddTraits(.isHeader)
                         Text(fresh ? "« \(page.group.name) » est prêt. Invite maintenant ou plus tard."
-                             : "« \(page.group.name) » : envoie le lien ou choisis des gens déjà croisés.")
+                             : "« \(page.group.name) » : envoie le lien, ou cherche quelqu’un sur Party.")
                             .font(.subheadline).foregroundStyle(PronoTheme.t2)
                     }
                 }
@@ -159,31 +163,34 @@ struct GroupInviteView: View {
             .background(whatsapp ? PronoTheme.fixed(0x1FA855) : PronoTheme.s1b, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
-    // MARK: Déjà sur Party
+    // MARK: Ajouter quelqu'un (numéro exact ou nom)
 
-    private var query: String { search.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "^@", with: "", options: .regularExpression) }
+    private var query: String {
+        search.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "^@", with: "", options: .regularExpression)
+            .trimmingCharacters(in: .whitespaces)
+    }
     private var typedPhone: String? { GroupText.phone(search) }
+    private var ready: Bool { typedPhone != nil || query.count >= GroupText.searchLetters }
+    private var shown: [GroupFound] { ready ? found ?? [] : [] }
 
-    private var shown: [GroupSuggestion] {
-        let q = query.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "fr_CH"))
-        guard !q.isEmpty, typedPhone == nil else { return suggestions ?? [] }
-        return (suggestions ?? []).filter {
-            $0.displayName.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: Locale(identifier: "fr_CH")).contains(q)
-                || ContactNames.shared.names[$0.id].map { $0.localizedCaseInsensitiveContains(q) } == true
-        }
+    /// Les personnes choisies restent visibles quand la recherche change ; puis les résultats (5 au plus).
+    private var rows: [(id: String, name: String, face: PronoFace, found: GroupFound?)] {
+        let kept = picked.filter { p in p.face != nil && !shown.contains { $0.id == p.id } }
+            .map { (id: $0.id, name: $0.name, face: $0.face!, found: GroupFound?.none) }
+        return kept + shown.map { (id: $0.id, name: ContactNames.shared.names[$0.id] ?? $0.displayName, face: $0.face, found: Optional($0)) }
     }
 
     @ViewBuilder private var alreadyOnParty: some View {
         VStack(alignment: .leading, spacing: 10) {
-            PeopleSectionLabel(text: "Déjà sur Party", systemImage: "person.2")
+            PeopleSectionLabel(text: "Ajouter quelqu’un", systemImage: "person.badge.plus")
             HStack {
                 Image(systemName: "magnifyingglass").foregroundStyle(PronoTheme.t3)
-                TextField("Prénom, surnom ou numéro", text: $search)
+                TextField("Numéro, nom, prénom ou surnom", text: $search)
                     .foregroundStyle(PronoTheme.t1)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .submitLabel(.done)
-                    .onSubmit { Task { await addTyped() } }
+                    .onSubmit { if typedPhone != nil, found?.isEmpty == true { addPhone() } }
                     .onChange(of: search) { _ in error = nil }
                     .accessibilityLabel("Chercher une personne")
                     .accessibilityIdentifier("group-invite-search")
@@ -192,16 +199,25 @@ struct GroupInviteView: View {
             .frame(minHeight: 50)
             .background(PronoTheme.s1, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(PronoTheme.line2, lineWidth: 1))
-            if typedPhone != nil {
-                PeopleGhostButton(title: "Inviter le numéro \(search.trimmingCharacters(in: .whitespaces))", systemImage: "phone") {
-                    Task { await addTyped() }
-                }
-            } else if !query.isEmpty && shown.isEmpty {
-                PeopleGhostButton(title: "Inviter le surnom « \(search.trimmingCharacters(in: .whitespaces)) »", systemImage: "at") {
-                    Task { await addTyped() }
+            .task(id: search) { await runSearch() }
+            if !ready {
+                Text("Tape son numéro complet (+41 79…) ou au moins 3 lettres de son nom, prénom ou surnom.")
+                    .font(.footnote).foregroundStyle(PronoTheme.t2)
+            } else if searching && found == nil {
+                Text("Recherche…").font(.footnote).foregroundStyle(PronoTheme.t3)
+            } else if !searching, let found, found.isEmpty {
+                if typedPhone != nil {
+                    Text("Pas trouvé sur Party : la personne trouvera l’invitation en s’inscrivant avec ce numéro.")
+                        .font(.footnote).foregroundStyle(PronoTheme.t2)
+                    PeopleGhostButton(title: "Inviter le numéro \(search.trimmingCharacters(in: .whitespaces))", systemImage: "phone") {
+                        addPhone()
+                    }
+                } else {
+                    Text("Personne trouvé. Vérifie l’orthographe, ou tape son numéro complet.")
+                        .font(.footnote).foregroundStyle(PronoTheme.t2)
                 }
             }
-            ForEach(picked.filter { $0.member == nil }) { p in
+            ForEach(picked.filter { $0.face == nil }) { p in
                 HStack(spacing: 12) {
                     Text("📱").font(.title3).frame(width: 40, height: 40).background(PronoTheme.s1b, in: Circle())
                     Text(p.name).font(.body.weight(.semibold)).foregroundStyle(PronoTheme.t1)
@@ -210,20 +226,22 @@ struct GroupInviteView: View {
                         .accessibilityLabel("Retirer \(p.name)")
                 }
             }
-            if let suggestions, suggestions.isEmpty, query.isEmpty {
-                Text("Personne croisée à un événement pour l’instant : envoie le lien du groupe, ou tape un surnom ou un numéro.")
-                    .font(.footnote).foregroundStyle(PronoTheme.t2)
-            }
             VStack(spacing: 0) {
-                ForEach(Array(shown.prefix(30).enumerated()), id: \.element.id) { i, p in
-                    let on = picked.contains { $0.member == p.id }
-                    let done = p.invited || sent.contains(p.id)
-                    Button { toggle(p) } label: {
+                ForEach(Array(rows.enumerated()), id: \.element.id) { i, row in
+                    let on = picked.contains { $0.id == row.id }
+                    let done = row.found?.invited == true || sent.contains(row.id)
+                    Button { toggle(row) } label: {
                         HStack(spacing: 12) {
-                            PronoAvatar(face: p.face, size: 40)
+                            PronoAvatar(face: row.face, size: 40)
                             VStack(alignment: .leading, spacing: 2) {
-                                PersonName(id: p.id, pseudo: p.displayName).font(.body.weight(.semibold)).foregroundStyle(PronoTheme.t1).lineLimit(1)
-                                Text(GroupText.suggestion(p, sent: sent.contains(p.id))).font(.footnote).foregroundStyle(PronoTheme.t2).lineLimit(1)
+                                HStack(spacing: 6) {
+                                    Text(row.name).font(.body.weight(.semibold)).foregroundStyle(PronoTheme.t1).lineLimit(1)
+                                    if let initial = row.found?.initial {
+                                        Text("\(initial).").font(.subheadline).foregroundStyle(PronoTheme.t3)
+                                    }
+                                }
+                                Text(done ? "Invitation envoyée" : on ? "Sera invité" : "Sur Party")
+                                    .font(.footnote).foregroundStyle(PronoTheme.t2).lineLimit(1)
                             }
                             Spacer(minLength: 8)
                             PeopleCheck(on: on || done).opacity(done ? 0.5 : 1)
@@ -234,12 +252,12 @@ struct GroupInviteView: View {
                     }
                     .buttonStyle(.plain)
                     .disabled(done)
-                    .accessibilityLabel("\(done ? "Déjà invité : " : on ? "Retirer " : "Ajouter ")\(p.displayName)")
+                    .accessibilityLabel("\(done ? "Déjà invité : " : on ? "Retirer " : "Ajouter ")\(row.name)")
                     .accessibilityAddTraits(on ? .isSelected : [])
-                    if i < min(shown.count, 30) - 1 { Divider().overlay(PronoTheme.line).padding(.leading, 64) }
+                    if i < rows.count - 1 { Divider().overlay(PronoTheme.line).padding(.leading, 64) }
                 }
             }
-            .background(shown.isEmpty ? Color.clear : PronoTheme.s1, in: RoundedRectangle(cornerRadius: PronoTheme.Radius.card, style: .continuous))
+            .background(rows.isEmpty ? Color.clear : PronoTheme.s1, in: RoundedRectangle(cornerRadius: PronoTheme.Radius.card, style: .continuous))
             if !picked.isEmpty {
                 PeoplePinkButton(title: "Inviter \(GroupText.names(picked.map(\.name)))", systemImage: "paperplane.fill", busy: busy) {
                     Task { await invite() }
@@ -260,44 +278,51 @@ struct GroupInviteView: View {
         guard let people else { return }
         let api = GroupsAPI(people: people)
         async let pageJob = try? api.page(groupID)
-        async let suggestionsJob = try? api.suggestions(groupID)
         do {
             link = try await api.link(groupID)
         } catch {
             linkError = "Le lien n’a pas pu être créé. Réessaie."
         }
         page = await pageJob
-        suggestions = await suggestionsJob ?? []
     }
 
-    private func toggle(_ p: GroupSuggestion) {
-        Haptics.selection()
-        if picked.contains(where: { $0.member == p.id }) { picked.removeAll { $0.member == p.id } }
-        else { picked.append(Picked(id: p.id, name: ContactNames.shared.names[p.id] ?? p.displayName, member: p.id)) }
-    }
-
-    /// Surnom exact (compte existant) ou numéro (inscrit ou pas : l'invitation l'attend), comme le web.
-    private func addTyped() async {
-        let typed = query
-        guard !typed.isEmpty, let people else { return }
-        if let phone = typedPhone {
-            if !picked.contains(where: { $0.phone == phone }) {
-                picked.append(Picked(id: "phone:\(phone)", name: search.trimmingCharacters(in: .whitespaces), phone: phone))
-            }
-            search = ""
+    /// Recherche dans la base, 450 ms après la dernière touche (anti-annuaire : 30 recherches par heure).
+    private func runSearch() async {
+        guard ready, let people else {
+            found = nil
+            searching = false
             return
         }
+        searching = true
+        try? await Task.sleep(for: .milliseconds(450))
+        if Task.isCancelled { return }
+        let q = typedPhone.map { "+" + $0 } ?? query
         do {
-            guard let found = try await GroupsAPI(people: people).find(typed) else {
-                error = "Personne avec ce surnom. Essaie son numéro de téléphone."
-                return
-            }
+            let list = try await GroupsAPI(people: people).search(groupID, q)
+            if Task.isCancelled { return }
+            found = list
             error = nil
-            if !picked.contains(where: { $0.member == found.id }) { picked.append(Picked(id: found.id, name: found.name, member: found.id)) }
-            search = ""
-        } catch {
-            self.error = PeopleStore.message(error)
+        } catch let failure {
+            if Task.isCancelled { return }
+            found = []
+            error = PeopleStore.message(failure)
         }
+        searching = false
+    }
+
+    private func toggle(_ row: (id: String, name: String, face: PronoFace, found: GroupFound?)) {
+        Haptics.selection()
+        if picked.contains(where: { $0.id == row.id }) { picked.removeAll { $0.id == row.id }; return }
+        // Trouvé par son numéro : invité par ce numéro (le numéro vaut contact) ; sinon par son compte.
+        let phone = typedPhone
+        picked.append(Picked(id: row.id, name: row.name, member: phone == nil ? row.id : nil, phone: phone, face: row.face))
+    }
+
+    /// Numéro sans compte : l'invitation l'attend (il la trouve en s'inscrivant avec ce numéro).
+    private func addPhone() {
+        guard let phone = typedPhone, !picked.contains(where: { $0.phone == phone && $0.face == nil }) else { return }
+        picked.append(Picked(id: "phone:\(phone)", name: search.trimmingCharacters(in: .whitespaces), phone: phone))
+        search = ""
     }
 
     private func invite() async {
@@ -315,7 +340,7 @@ struct GroupInviteView: View {
                 break
             }
         }
-        sent.formUnion(done.compactMap { $0.member ?? $0.phone })
+        sent.formUnion(done.map(\.id))
         picked.removeAll { done.contains($0) }
         busy = false
         if !done.isEmpty {
