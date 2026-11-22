@@ -97,18 +97,18 @@ def test_the_group_rule_decides_for_a_simple_member_never_the_site():
 
 def test_a_guest_public_event_still_waits_and_a_group_event_turned_public_waits_again():
     """Pas de faille : publié dans son groupe puis rendu public = validation du site (Membre : peut modifier un publié,
-    mais ne publie pas sans validation). Un Guest (sans « modifier un événement publié ») ne le modifie pas du tout."""
+    mais ne publie pas sans validation). Le Guest créateur le modifie aussi (22.11, 20261122160000) : en attente aussi."""
     out = run(gus_group() + as_postgres() + """
       insert into public.member_group_members (group_id, user_id) values (g, victor) on conflict do nothing;"""
               + event_by("gus", public=True, group=False) + event_by("victor", var="e2") + """
       st := (select status::text from public.events where id = e2);""" + as_bot("victor") + """
       update public.events set visibility = 'all', public_link = true where id = e2;""" + event_by("gus", var="e2") + """
-      begin update public.events set visibility = 'all', public_link = true where id = e2; r := '{"guest": "changé"}';
+      begin update public.events set visibility = 'all', public_link = true where id = e2; r := jsonb_build_object('guest', (select status from public.events where id = e2));
         exception when others then r := '{"guest": "refusé"}'; end;""" + as_postgres() + """
       raise exception 'résultat: public=% groupe=% devenu_public=% guest=%',
         (select status from public.events where id = e), st,
         (select status from public.events e3 where e3.created_by = victor and e3.title = 'Test groupes libres'), r->>'guest';""")
-    assert "résultat: public=pending groupe=published devenu_public=pending guest=refusé" in out, out
+    assert "résultat: public=pending groupe=published devenu_public=pending guest=pending" in out, out
 
 
 def test_membres_vendredi_party_and_invitation_only_are_unchanged():

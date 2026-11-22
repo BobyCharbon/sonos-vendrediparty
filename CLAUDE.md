@@ -762,3 +762,17 @@ réglage de prod :
 - Admins du site (`sees_all_groups`) : TOUS les groupes et leurs membres, groupes privés de Discussions compris, JAMAIS leur
   contenu (`private.reads_group`, chat-photos inchangés) ; la page d'un groupe privé ne leur donne ni Discussion ni Réglages.
 - Tests : `tests/supabase_live/test_groupes_libres_live.py`.
+- Modifier son événement (22.11, migration 20261122160000) : le CRÉATEUR modifie toujours son événement publié. Public,
+  Membres VP ou « Sur invitation » sans groupe, sans `events.publish_direct` ni `events.edit_own_published` : il repasse
+  « pending » (nouvelle validation du site, formulaire : « ta modification repasse en validation »). Réservé à ses groupes :
+  le groupe décide (`private.regroup_after_edit` : simple membre d'un groupe « Événements à valider » → event_groups
+  « pending » ; qui gère le groupe : libre). Réenregistré sans changement : rien. created_by / approved_by intouchables.
+- Droits de l'équipe : `events.edit_others` (« Modifier les événements des autres » : organise l'événement d'un autre,
+  jamais son brouillon, jamais son statut) et `events.remove_others` (« Retirer / annuler les événements des autres » :
+  annuler seulement), Admin et Co-admin au départ, PAS Organisateur (l'admin les donne). `private.own_event` = créateur
+  ou co-organisateur ; tout autre non-admin passe par ces droits dans `guard_event`.
+- Rôle « Modérateur » (`moderator`, entre Organisateur et Co-admin) : droits de l'Organisateur + `moderation.reports`,
+  `chat.moderate`, `events.approve`, `members.approve` ; jamais `members.ban`, `members.roles`, `events.manage_all`,
+  edit_others / remove_others. Sous le seuil Co-admin : ni admin du site, ni tous les groupes. Tout seuil de rang se
+  compare par clé (`role_rank('coadmin')`), jamais par nombre.
+- Tests : `tests/supabase_live/test_modifier_moderer_live.py`, `tests/test_modifier_moderer_browser.py`.

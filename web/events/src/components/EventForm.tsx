@@ -313,9 +313,9 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
     const [taxonomy, members, groups, settings, current, editorRoles] = await Promise.all([
       fetchTaxonomy(),
       supabase.from('profiles').select('id, display_name, role').eq('status', 'active').order('display_name'),
-      supabase.from('member_groups').select('id, name, created_by, system_key, member_group_members(user_id)').order('name'),
+      supabase.from('member_groups').select('id, name, created_by, system_key, events_need_approval, member_group_members(user_id)').order('name'),
       supabase.from('group_settings').select('require_approval').single(),
-      eventId ? supabase.from('events').select('status').eq('id', eventId).single() : Promise.resolve(null),
+      eventId ? supabase.from('events').select('status, created_by').eq('id', eventId).single() : Promise.resolve(null),
       // Co-organisateurs : seulement des rôles qui peuvent modifier un événement publié (sinon ni Modifier ni Annuler).
       supabase.from('role_permissions').select('role').in('perm', ['events.edit_own_published', 'events.manage_all']),
     ]);
@@ -346,6 +346,7 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
       groups: must(groups) as MemberGroup[],
       settings: must(settings) as { require_approval: boolean },
       status: current ? (must(current) as { status: EventRow['status'] }).status : null,
+      createdBy: current ? (must(current) as { created_by?: string | null }).created_by ?? null : null,
       editors: new Set((must(editorRoles) as { role: string }[]).map((r) => r.role)),
     };
   }, [eventId]);
@@ -677,6 +678,12 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
   // Publié sur invitation ou pour ses groupes, puis élargi (public, Membres Vendredi Party) : repasse par la validation.
   const widened = siteReview && !!eventId && ctx.status === 'published' && !!initial
     && initial.who.audience === 'invite' && !initial.who.vip && (d.who.audience === 'public' || d.who.vip);
+  // Créateur sans « Modifier ses événements déjà publiés » (22.11) : il modifie, l'événement repasse en validation.
+  const revalidate = siteReview && !widened && !!eventId && ctx.status === 'published' && ctx.createdBy === me.id
+    && !can('events.edit_own_published');
+  // Réservé à ses groupes : un groupe « Événements à valider » qu'il ne gère pas revalide la modification.
+  const recheckGroups = eventId && ctx.status === 'published' && onlyGroups(d.who)
+    ? ctx.groups.filter((g) => d.who.group_ids.includes(g.id) && g.events_need_approval && g.created_by !== me.id) : [];
   const submitLabel = eventId && !['draft', 'rejected'].includes(ctx.status ?? '')
     ? 'Enregistrer'
     : siteReview ? 'Envoyer pour validation' : 'Publier';
@@ -963,12 +970,20 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
         </Pressable>
       )}
 
-      {siteReview && (!eventId || ctx.status !== 'published' || widened) ? (
+      {siteReview && (!eventId || ctx.status !== 'published' || widened || revalidate) ? (
         <View style={{ backgroundColor: colors.lavenderDim, padding: 14, borderRadius: 16 }} testID="site-review">
           <T size={13} color={colors.textSoft}>
             {widened ? 'Élargi au public ou aux Membres Vendredi Party, l’événement repasse par la validation. ' : ''}
+            {revalidate ? 'Une fois enregistrée, ta modification repasse en validation : l’événement reste invisible jusqu’à l’accord. ' : ''}
             {d.who.audience === 'public' ? PUBLIC_REVIEW
               : 'Un admin doit valider ta proposition. Il pourra modifier n’importe quel champ avant de la publier. Réservé à tes groupes, il est publié sans validation.'}
+          </T>
+        </View>
+      ) : null}
+      {recheckGroups.length ? (
+        <View style={{ backgroundColor: colors.lavenderDim, padding: 14, borderRadius: 16 }} testID="group-recheck">
+          <T size={13} color={colors.textSoft}>
+            {recheckGroups.map((g) => `« ${g.name} »`).join(', ')} {recheckGroups.length > 1 ? 'font' : 'fait'} valider les événements de ses membres : une fois enregistrée, ta modification y repasse en validation (sauf si tu gères le groupe).
           </T>
         </View>
       ) : null}

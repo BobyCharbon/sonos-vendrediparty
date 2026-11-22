@@ -4,7 +4,7 @@
 // Usage : un élément avec data-profile-pid="<pid>" dans l'écran d'une partie (code dans data-profile-game).
 (function () {
   const escape = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const ROLES = { guest: "Guest", guestplus: "Guest+", basic: "Membre", member: "Membre VIP", organizer: "Organisateur", coadmin: "Co-admin", admin: "Admin" };
+  const ROLES = { guest: "Guest", guestplus: "Guest+", basic: "Membre", member: "Membre VIP", organizer: "Organisateur", moderator: "Modérateur", coadmin: "Co-admin", admin: "Admin" };
   let sheet = null;
   let shown = 0;  // numéro de la dernière fiche demandée : une réponse plus ancienne est ignorée
   let opener = null;  // élément qui avait le focus (nom du joueur) : il le retrouve à la fermeture (clavier, VoiceOver)

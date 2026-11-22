@@ -224,7 +224,9 @@ export default function EventScreen() {
   }
 
   const published = ev.status === 'published';
-  const canEdit = isAdmin || (isOrganizer && (ev.status !== 'published' || can('events.edit_own_published')));
+  // 22.11 : le créateur modifie toujours (publié : la base le remet en validation) ; events.edit_others : les autres.
+  const canEdit = isAdmin || (can('events.edit_others') && ev.status !== 'draft')
+    || (isOrganizer && (ev.status !== 'published' || can('events.edit_own_published') || ev.created_by === me.id));
   // App iPhone et droit IA : « ✨ IA » ouvre l'écran natif où l'on dit ce qui change (« décale à 21h »…).
   const native = (globalThis as { PartyNative?: { ai?: { editEvent?: (id: string) => void } } }).PartyNative;
   const aiEdit = can('ai.use') && native?.ai?.editEvent ? (id: string) => native.ai!.editEvent!(id) : null;
@@ -553,6 +555,18 @@ export default function EventScreen() {
             confirmLabel="Oui, annuler"
             onConfirm={() => run(supabase.from('events').update({ status: 'cancelled' }).eq('id', ev.id)).then(() => notifyWallet(ev.id))}
           /> : null}
+        </View>
+      ) : null}
+      {/* « Retirer / annuler les événements des autres » (22.11) sans organiser l'événement : annuler seulement. */}
+      {!canManage && published && can('events.remove_others') ? (
+        <View style={st.orgZone}>
+          <T muted size={12} weight="bold">ÉQUIPE VENDREDI PARTY</T>
+          <ConfirmButton
+            small
+            label="Annuler l’événement"
+            confirmLabel="Oui, annuler"
+            onConfirm={() => run(supabase.from('events').update({ status: 'cancelled' }).eq('id', ev.id)).then(() => notifyWallet(ev.id))}
+          />
         </View>
       ) : null}
       {/* Droits « Scanner les billets » (tickets.scan) ou « Confirmer les paiements » (tickets.pay) sans organiser l'événement : l'entrée seulement. */}

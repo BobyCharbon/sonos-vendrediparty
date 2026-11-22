@@ -280,7 +280,7 @@ struct MemberProfile: Decodable, Equatable {
     var roleLabel: String {
         if status == "banned" { return "Accès retiré" }
         if let roleName { return roleName }
-        return ["guest": "Guest", "guestplus": "Guest+", "basic": "Membre", "member": "Membre VIP", "organizer": "Organisateur", "coadmin": "Co-admin", "admin": "Admin"][role] ?? role
+        return ["guest": "Guest", "guestplus": "Guest+", "basic": "Membre", "member": "Membre VIP", "organizer": "Organisateur", "moderator": "Modérateur", "coadmin": "Co-admin", "admin": "Admin"][role] ?? role
     }
 }
 

@@ -89,4 +89,4 @@ def test_a_plain_member_cannot_make_his_own_event_recurring_but_may_stop_it():
               + note("member_stop", "perform public.set_event_recurrence(e, 'none')")
               + as_postgres() + keep("rights", "(select string_agg(role, ',' order by role) from public.role_permissions where perm = 'events.recurring')"))
     assert "member=forbidden: les événements récurrents sont réservés" in out and "member_stop=ok" in out, out
-    assert "rights=admin,coadmin,organizer" in out, out
+    assert "rights=admin,coadmin,moderator,organizer" in out, out  # Modérateur (22.11) : droits de l'Organisateur

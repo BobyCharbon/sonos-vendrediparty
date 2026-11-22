@@ -13,7 +13,7 @@ from tests.supabase_live.test_audiences_live import ADMIN, GUEST_A, GUEST_B, com
 from tests.supabase_live.test_event_tickets_live import answer
 from tests.supabase_live.test_member_admin_live import TEST_URL, Session, pytestmark  # noqa: F401
 
-BUILTIN = ['guest', 'guestplus', 'basic', 'member', 'organizer', 'coadmin', 'admin']
+BUILTIN = ['guest', 'guestplus', 'basic', 'member', 'organizer', 'moderator', 'coadmin', 'admin']  # Modérateur : 22.11
 
 
 def roles(s: Session) -> list[dict]:

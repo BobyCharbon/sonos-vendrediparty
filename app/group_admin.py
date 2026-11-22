@@ -19,7 +19,7 @@ PHOTO_TTL = 3600
 ROLES = ("guest", "guestplus", "basic", "member", "organizer", "coadmin", "admin")
 RANKS = {"guest": 0, "guestplus": 0, "basic": 0, "member": 1, "organizer": 2, "coadmin": 3, "admin": 4}
 ROLE_LABELS = {"guest": "Guest", "guestplus": "Guest+", "basic": "Membre", "member": "Membre VIP", "organizer": "Organisateur",
-               "coadmin": "Co-admin", "admin": "Admin"}
+               "moderator": "Modérateur", "coadmin": "Co-admin", "admin": "Admin"}
 LEGACY_BOOK = tuple({"key": k, "label": ROLE_LABELS[k], "color": None, "icon": None, "rank": RANKS[k], "builtin": True}
                     for k in ROLES)
 ROLE_KEY = r"^[a-z][a-z0-9_]{1,30}$"

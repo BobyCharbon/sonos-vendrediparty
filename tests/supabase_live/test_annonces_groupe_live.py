@@ -241,14 +241,15 @@ def test_two_admins_answering_at_the_same_time_only_the_first_wins():
 
 
 def test_the_organizer_turns_the_announcement_on_after_publishing_without_edit_rights():
-    """Feuille « Inviter » / fiche : seul « Prévenir le groupe » change, même sans « modifier un événement publié »."""
+    """Feuille « Inviter » / fiche : seul « Prévenir le groupe » change, même sans « modifier un événement publié ».
+    Depuis le 22.11 (20261122160000), le CRÉATEUR modifie aussi le reste (événement de groupe : il reste publié)."""
     out = run(as_postgres() + """
       delete from public.role_permissions where role = 'organizer' and perm = 'events.edit_own_published';""" + olga_event(announce=False) + """
       update public.events set announce_group = true where id = e;
       begin update public.events set title = 'Titre changé' where id = e; r := '{"titre": "changé"}';
         exception when others then r := '{"titre": "refusé"}'; end;""" + as_postgres() + """
       raise exception 'résultat: annonce=% titre=%', (select status from public.event_announcements where event_id = e), r->>'titre';""")
-    assert "résultat: annonce=pending titre=refusé" in out, out
+    assert "résultat: annonce=pending titre=changé" in out, out
 
 
 def test_the_screen_knows_whether_the_announcement_goes_directly():

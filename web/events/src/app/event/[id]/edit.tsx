@@ -20,7 +20,10 @@ export default function EditEvent() {
   }, [id]);
   if (loading && !data) return <Loading />;
   const organizer = !!data && (data.created_by === me.id || data.event_organizers.some((o) => o.user_id === me.id));
-  const allowed = can('events.manage_all') || (organizer && (data!.status !== 'published' || can('events.edit_own_published')));
+  // 22.11 : le créateur modifie toujours son événement (publié : il repasse en validation, la base le décide) ;
+  // events.edit_others : l'événement d'un autre, jamais son brouillon.
+  const allowed = can('events.manage_all') || (!!data && can('events.edit_others') && data.status !== 'draft')
+    || (organizer && (data!.status !== 'published' || can('events.edit_own_published') || data!.created_by === me.id));
   if (!allowed) {
     return <NotAllowed title="Tu ne peux pas modifier cet événement" text="Seuls ses organisateurs (et les admins) peuvent le modifier. Tu peux le consulter et y répondre depuis sa fiche." />;
   }
