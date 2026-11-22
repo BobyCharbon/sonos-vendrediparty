@@ -226,7 +226,10 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   @toutlemonde (invités + participants) et @present (Présent / Peut-être) : organisation de l'événement et admins /
   co-admins seulement (`private.event_chat_staff`) ; annonce = 📣 ou @annonce (épinglée, notifiée à tous). La base décide
   d'après le texte (`guard_message_change`), l'app ne fait que proposer. Les invités sans réponse ne sont listés qu'à
-  l'organisation (`event_chat_people`). Temps réel natif : signal `event:<id>`. Tests : `test_discussion_evenement_live.py`,
+  l'organisation (`event_chat_people`). @surnom (avis f0e2fd838ab8, 22.11, migration 20261122131000) : TOUT participant
+  cite l'organisation, les Présent / Peut-être et, hors événement public, les invités sans réponse ; jamais en blocage
+  (`event_chat_taggable` = suggestions web / iPhone, champ `taggable` d'app/event_chats.py ; la garde ne garde que
+  ceux-là dans `mentions`) ; l'invité sans réponse cité est notifié (sans « Répondre »). Temps réel natif : signal `event:<id>`. Tests : `test_discussion_evenement_live.py`,
   `test_discussion_evenement_browser_live.py`, `tests/test_event_chats_native.py`, `tests/test_event_chat_browser.py`,
   `EventChatTests`, recette `RecetteDiscussionUITests` (Release + serveur local + base de TEST).
 - Discussions, son et photos (avis c54e83dc5130 et 48a0eefd44ce, 22.11) : ouvrir Discussions ou une conversation ne touche

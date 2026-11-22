@@ -67,6 +67,9 @@ type ChatGroup = { id: string; name: string; created_by: string | null; everyone
 type EventExtras = {
   card: EventChatCard; level: NotifyLevel; mutedUntil: string | null; lastReadAt: string | null;
   writeMode: ChatWriteMode; mayWrite: boolean; canWrite: boolean; legacyMuted: boolean;
+  /** Qui je peux citer en @surnom (event_chat_taggable, avis f0e2fd838ab8) : organisation, Présent, Peut-être ; invités
+   * sans réponse hors événement public. null (base d'avant) : les participants. */
+  taggable: Profile[] | null;
 };
 
 /** Tables de chaque sorte de discussion (messages, colonne de la discussion, réactions). */
@@ -169,7 +172,7 @@ type EventInfo = { title?: string; starts_at?: string | null; ends_at?: string |
  * la table messages. Droits lus dans event_chat_state, personnes à citer dans event_chat_people, mes notifications dans
  * event_chat_prefs_get ; base d'avant ces migrations : la fiche de l'événement et les membres actifs. */
 async function loadEvent(id: string, me: string) {
-  const [state, msgs, people, blocks, pins, prefs, info] = await Promise.all([
+  const [state, msgs, people, blocks, pins, prefs, info, taggable] = await Promise.all([
     supabase.rpc('event_chat_state', { e: id }),
     supabase.from('messages').select('*').eq('event_id', id).order('created_at', { ascending: false }).order('id', { ascending: false }).limit(PAGE),
     supabase.rpc('event_chat_people', { e: id }),
@@ -178,6 +181,7 @@ async function loadEvent(id: string, me: string) {
       .order('created_at', { ascending: false }).limit(HIGHLIGHTS),
     eventChatPrefs(id).catch(() => null),
     supabase.from('events').select('*').eq('id', id).single(),
+    supabase.rpc('event_chat_taggable', { e: id }),
   ]);
   let st = state.data as EventState | null;
   // Réservée à Présent / Peut-être et à l'organisation (19.11) : la base ne rend aucun message aux autres.
@@ -191,6 +195,7 @@ async function loadEvent(id: string, me: string) {
   }
   let profiles = (people.data as Profile[] | null) ?? null;
   // Base d'avant la migration (ou réponse vide) : les membres actifs, comme l'ancienne page.
+  const legacy = Boolean(people.error || !Array.isArray(profiles) || !profiles.length);
   if (people.error || !Array.isArray(profiles) || !profiles.length) {
     profiles = must(await supabase.from('profiles').select('id, display_name, avatar_url').eq('status', 'active')) as Profile[];
   }
@@ -212,6 +217,7 @@ async function loadEvent(id: string, me: string) {
     mutedUntil: prefs ? prefs.muted_until : st.muted_until ?? null,
     lastReadAt: prefs?.last_read_at ?? null,
     writeMode, mayWrite: st.write, canWrite, legacyMuted: st.muted,
+    taggable: !legacy && !taggable.error && Array.isArray(taggable.data) ? taggable.data as Profile[] : null,
   };
   return {
     group: { id, name: extras.card.title, created_by: null, everyone_tag: 'staff', member_group_members: [] } as ChatGroup,
@@ -570,6 +576,12 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
   // Affichage (pas les @) : app iPhone, « Nom du contact · pseudo » ; ailleurs le pseudo.
   const shownName = (uid: string) => personText(uid, nameOf(uid));
   const hidden = useMemo(() => data?.hidden ?? new Set<string>(), [data?.hidden]);
+  // Qui je peux citer : dans un événement, la liste de la base (avis f0e2fd838ab8) ; sinon les membres.
+  const taggable = data?.event?.taggable;
+  const citable = useMemo(() => (taggable
+    ? taggable.filter((p) => p.id !== me.id && !hidden.has(p.id))
+    : inside.filter((u) => u !== me.id && !hidden.has(u)).map((u) => ({ id: u, display_name: people.get(u)?.display_name ?? '?',
+      avatar_url: people.get(u)?.avatar_url ?? null }))), [taggable, inside, people, me.id, hidden]);
 
   // Saisie : fermée pour un bloqué, une demande reçue (accepter d'abord) et une demande envoyée (un seul message).
   const mySent = shown.some((m) => m.user_id === me.id);
@@ -586,10 +598,8 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
   const mentionTyping = mentionQuery(text, cursor);
   const suggestions = useMemo(() => (mentionTyping === null || direct ? [] : mentionSuggestions(mentionTyping,
     // Moi et les personnes que j'ai bloquées exceptés.
-    inside.filter((u) => u !== me.id && !hidden.has(u)).map((u) => ({ id: u, display_name: nameOf(u), avatar_url: people.get(u)?.avatar_url ?? null })),
-    { everyone: canEveryone, announce: isStaff, tags: event ? (isStaff ? EVENT_TAGS : []) : undefined }, contacts)),
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- nameOf lit people
-  [mentionTyping, inside, people, me.id, canEveryone, isStaff, contacts, direct, event, hidden]);
+    citable, { everyone: canEveryone, announce: isStaff, tags: event ? (isStaff ? EVENT_TAGS : []) : undefined }, contacts)),
+  [mentionTyping, citable, canEveryone, isStaff, contacts, direct, event]);
   // Prévenu avant l'envoi : un simple membre n'annonce pas (message normal), @tout peut être réservé par le groupe.
   const tagNote = direct ? null : event
     ? (!isStaff && eventTag(text) ? '@toutlemonde, @present et les annonces sont réservés à l’organisation de l’événement : ton message partira sans prévenir personne.' : null)
@@ -690,7 +700,7 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
     setAttached(null);
     setPrivateQuote(null);
     setError(null);
-    const tagged = mentionsIn(body, inside.filter((u) => u !== me.id).map((u) => ({ id: u, display_name: nameOf(u) })));
+    const tagged = mentionsIn(body, citable);
     // Colonnes de Discussions v2 envoyées seulement quand elles servent (une base d'avant les refuserait).
     const extra = { ...(eventCard ? { event_id: eventCard } : {}), ...(privately ? { quote: privately } : {}) };
     let audioPath: string | null = null;  // gardé d'un essai à l'autre : le vocal n'est déposé qu'une fois

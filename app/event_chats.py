@@ -55,6 +55,15 @@ class EventChats:
     def _people(self, token: str, event_id: str) -> list:
         return self.admin._rpc(token, "event_chat_people", {"e": event_id}, "Les participants n'ont pas pu être lus.") or []
 
+    def _taggable(self, token: str, event_id: str) -> list:
+        """Qui je peux citer en @surnom (avis f0e2fd838ab8, 22.11) : organisation, Présent, Peut-être ; invités sans
+        réponse si l'événement n'est pas public ; jamais une personne en blocage (event_chat_taggable). Ancienne base :
+        les participants (la garde de la base filtre de toute façon)."""
+        try:
+            return self.admin._rpc(token, "event_chat_taggable", {"e": event_id}, "Les personnes à citer n'ont pas pu être lues.") or []
+        except AccountError:
+            return [p for p in self._people(token, event_id) if p.get("rsvp") in ("yes", "maybe") or p.get("organizer")]
+
     def _blocked(self, token: str) -> set:
         """Personnes que j'ai bloquées (App Store 1.2) : masquées partout dans la discussion."""
         return {b.get("blocked_id") for b in self._rows("/rest/v1/direct_blocks?select=blocked_id", token) or []}
@@ -115,6 +124,7 @@ class EventChats:
             "highlights": POOL.submit(self._rows, f"/rest/v1/messages?select=*&event_id=eq.{event_id}&pinned=is.true"
                                                   f"&deleted_at=is.null&order=created_at.desc&limit={HIGHLIGHTS}", token),
             "people": POOL.submit(self._people, token, event_id),
+            "taggable": POOL.submit(self._taggable, token, event_id),
             "blocks": POOL.submit(self._blocked, token),
             "event": POOL.submit(self._event, token, event_id),
         }
@@ -127,7 +137,8 @@ class EventChats:
         hidden = got["blocks"]
         people = {p["id"]: p for p in got["people"] or []}
         out = self._page(token, event_id, me, list(reversed(got["messages"] or [])), people, hidden)
-        faces = self._faces(token, people)  # déjà signées par _page (cache)
+        # Déjà signées par _page (cache) ; plus les photos des invités sans réponse que je peux citer.
+        faces = self._faces(token, {**people, **{t["id"]: t for t in got["taggable"] or [] if t.get("id")}})
 
         def name(uid: str) -> str:
             return (people.get(uid) or {}).get("display_name") or "?"
@@ -164,6 +175,12 @@ class EventChats:
                          "creator": False, "organizer": bool(p.get("organizer")), "phone": None,
                          "rsvp": p.get("rsvp"), "invited": bool(p.get("invited"))}
                         for u, p in sorted(people.items(), key=lambda kv: (kv[1].get("display_name") or "").lower())],
+            # Suggestions de l'@ : seulement qui je peux citer (invités sans réponse compris hors événement public).
+            "taggable": [{"id": t["id"], "name": t.get("display_name") or "?",
+                          "photo": faces.get(t.get("avatar_url") or ""),
+                          "admin": False, "creator": False}
+                         for t in sorted(got["taggable"] or [], key=lambda t: (t.get("display_name") or "").lower())
+                         if t.get("id") and t["id"] not in hidden and t["id"] != me],
             "messages": out,
             "highlights": highlights,
             # Temps réel : le signal de l'événement (canal public event:<id>, migration 20261116140000), sans contenu.
@@ -201,7 +218,7 @@ class EventChats:
                 raise AccountError("Fichier invalide.")
         me = self.admin.accounts._uid(token)
         if mentions is None:
-            people = {p["id"]: p.get("display_name") or "" for p in self._people(token, event_id)}
+            people = {p["id"]: p.get("display_name") or "" for p in self._taggable(token, event_id)}
             mentions = mentions_in(body, people, me)
         row = {"event_id": event_id, "user_id": me, "body": body, "reply_to": reply_to, "photo_path": photo_path,
                "mentions": mentions, "announcement": announcement}
