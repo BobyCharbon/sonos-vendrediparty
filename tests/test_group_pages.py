@@ -168,6 +168,26 @@ def test_the_group_functions_of_the_base_are_relayed():
         assert call(client, fn).status_code == 200, fn
 
 
+
+def test_simple_groups_search_without_number_and_who_invites():
+    """Groupes plus simples (22.11) : la recherche « numéro exact ou nom » et « Tous les membres peuvent inviter » passent
+    par le relais ; la photo est signée ; la page dit si je peux inviter (my_groups_overview.invite, décidé par la base)."""
+    client, _ = fake(row(created_by=LEA, members_invite=True), perms=(), rpc={
+        "group_chat_people": PEOPLE,
+        "my_groups_overview": [{"id": GRP, "manage": False, "invite": True}],
+        "group_people_search": [{"id": NOE, "display_name": "Noé", "avatar_url": f"{NOE}/me.jpg", "initial": "M", "invited": False}],
+    })
+    page = call(client, "group_page", grp=GRP).json()["result"]
+    assert not page["manage"] and page["can_invite"] and page["group"]["members_invite"] is True
+    out = call(client, "group_people_search", grp=GRP, q="noé").json()["result"]
+    assert out[0]["photo"].endswith(f"/profile-photos/{NOE}/me.jpg?t=1") and "phone" not in out[0]
+    assert call(client, "set_group_members_invite", grp=GRP, allowed=False).status_code == 200
+    # Membres Vendredi Party : jamais d'invitation.
+    client, _ = fake(row(system_key="vip", created_by=None), rpc={"group_chat_people": PEOPLE,
+                                                                   "my_groups_overview": [{"id": GRP, "invite": True}]})
+    assert call(client, "group_page", grp=GRP).json()["result"]["can_invite"] is False
+
+
 def test_groups_home_lists_mine_invitations_and_for_admins_the_others():
     others = [{"id": GRP, "name": "La bande", "emoji": "🎸", "color": "mint", "photo_path": None, "system_key": None,
                "member_group_members": [{"user_id": ME}]},

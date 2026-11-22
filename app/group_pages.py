@@ -125,7 +125,7 @@ class GroupPages:
         uid = self.accounts._uid(token)
         jobs = {
             "group": POOL.submit(self._rows, "/rest/v1/member_groups?select=id,name,emoji,color,photo_path,created_by,created_at,"
-                                             "system_key,private_chat,events_need_approval,announce_mode,"
+                                             "system_key,private_chat,events_need_approval,announce_mode,members_invite,"
                                              f"member_group_members(user_id)&id=eq.{grp}", token),
             "people": POOL.submit(self._quiet, lambda: self._rpc(token, "group_chat_people", {"grp": grp}), None),
             "overview": POOL.submit(self._quiet, lambda: self._rpc(token, "my_groups_overview", {}), []),
@@ -167,8 +167,11 @@ class GroupPages:
             "group": {"id": g["id"], "name": g.get("name") or "", "emoji": g.get("emoji") or "👯", "color": g.get("color"),
                       "photo": None if system else g.get("photo_path"), "system": system, "private": bool(g.get("private_chat")),
                       "created_by": creator, "created_by_name": creator_name, "created_at": g.get("created_at"),
-                      "events_need_approval": bool(g.get("events_need_approval")), "announce_mode": g.get("announce_mode") or "request"},
+                      "events_need_approval": bool(g.get("events_need_approval")), "announce_mode": g.get("announce_mode") or "request",
+                      "members_invite": g.get("members_invite") is not False},
             "me": uid, "member": member, "manage": manage, "creator": creator == uid,
+            # Inviter (« Tous les membres peuvent inviter », 22.11) : la base décide (my_groups_overview.invite).
+            "can_invite": bool(overview.get("invite", manage)) and not system,
             "can_create_event": member and "events.create" in perms,
             "can_set_rules": manage or (system and bool(access.get("site_admin"))),
             "phone_shared": grp in set((got["privacy"] or {}).get("phone_groups") or []),

@@ -55,6 +55,8 @@ export type GroupOverview = {
   photo: string | null;
   /** creator : je l'ai créé ; manage : je gère (créateur ou Admin du site) ; member : j'en fais partie. */
   creator: boolean; manage: boolean; member: boolean;
+  /** invite : je peux inviter (qui gère, ou tout membre si « Tous les membres peuvent inviter »). */
+  invite?: boolean;
   created_by_name: string | null; members: number; faces: GroupFace[];
   last: string | null; last_by: string | null; last_at: string | null; unread: number;
   next_event: { id: string; title: string; starts_at: string | null; date_mode: 'fixed' | 'poll' } | null;
@@ -65,11 +67,13 @@ export async function fetchMyGroups(): Promise<GroupOverview[]> {
   return (must(await supabase.rpc('my_groups_overview')) ?? []) as GroupOverview[];
 }
 
-export type GroupSuggestion = { id: string; display_name: string; avatar_url: string | null; together: number; last_title: string | null; invited: boolean };
+/** Personne trouvée par « Numéro exact ou nom » : surnom, photo, initiale du nom ; jamais son numéro. */
+export type GroupFound = { id: string; display_name: string; avatar_url: string | null; initial: string | null; invited: boolean };
 
-/** « Déjà sur Party » : les personnes croisées à un événement, jamais tout le site (base : group_invite_suggestions). */
-export async function fetchSuggestions(group: string): Promise<GroupSuggestion[]> {
-  return (must(await supabase.rpc('group_invite_suggestions', { grp: group })) ?? []) as GroupSuggestion[];
+/** Numéro complet (« +41 79… », « 079… », comme la connexion SMS) → la personne si elle a un compte ; nom, prénom ou
+ * surnom (3 lettres au moins) → 5 personnes au plus. 30 recherches par heure (base : group_people_search). */
+export async function searchPeople(group: string, q: string): Promise<GroupFound[]> {
+  return (must(await supabase.rpc('group_people_search', { grp: group, q })) ?? []) as GroupFound[];
 }
 
 /** Événements du groupe que je peux voir, à venir d'abord (base : group_events). */

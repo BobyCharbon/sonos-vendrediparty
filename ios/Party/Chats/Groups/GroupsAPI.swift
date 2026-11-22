@@ -122,6 +122,8 @@ struct GroupPage: Decodable, Equatable {
         var createdAt: String?
         var eventsNeedApproval: Bool
         var announceMode: String
+        /// « Tous les membres peuvent inviter » (22.11, allumé par défaut).
+        var membersInvite: Bool
 
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -136,10 +138,11 @@ struct GroupPage: Decodable, Equatable {
             createdAt = try c.decodeIfPresent(String.self, forKey: .createdAt)
             eventsNeedApproval = try c.decodeIfPresent(Bool.self, forKey: .eventsNeedApproval) ?? false
             announceMode = try c.decodeIfPresent(String.self, forKey: .announceMode) ?? "request"
+            membersInvite = try c.decodeIfPresent(Bool.self, forKey: .membersInvite) ?? true
         }
 
         private enum CodingKeys: String, CodingKey {
-            case id, name, emoji, color, photo, system, createdBy, createdByName, createdAt, eventsNeedApproval, announceMode
+            case id, name, emoji, color, photo, system, createdBy, createdByName, createdAt, eventsNeedApproval, announceMode, membersInvite
         }
 
         var title: String { GroupText.name(name, system: system) }
@@ -160,6 +163,8 @@ struct GroupPage: Decodable, Equatable {
     var member: Bool
     var manage: Bool
     var creator: Bool
+    /// Inviter : qui gère, ou tout membre si « Tous les membres peuvent inviter » (la base décide).
+    var canInvite: Bool
     var canCreateEvent: Bool
     var canSetRules: Bool
     var phoneShared: Bool
@@ -175,6 +180,7 @@ struct GroupPage: Decodable, Equatable {
         member = try c.decodeIfPresent(Bool.self, forKey: .member) ?? false
         manage = try c.decodeIfPresent(Bool.self, forKey: .manage) ?? false
         creator = try c.decodeIfPresent(Bool.self, forKey: .creator) ?? false
+        canInvite = try c.decodeIfPresent(Bool.self, forKey: .canInvite) ?? manage
         canCreateEvent = try c.decodeIfPresent(Bool.self, forKey: .canCreateEvent) ?? false
         canSetRules = try c.decodeIfPresent(Bool.self, forKey: .canSetRules) ?? false
         phoneShared = try c.decodeIfPresent(Bool.self, forKey: .phoneShared) ?? false
@@ -185,12 +191,12 @@ struct GroupPage: Decodable, Equatable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case group, me, member, manage, creator, canCreateEvent, canSetRules, phoneShared, unread, members, upcoming, past
+        case group, me, member, manage, creator, canInvite, canCreateEvent, canSetRules, phoneShared, unread, members, upcoming, past
     }
 
     /// Ce que la page montre, selon mes droits (mêmes règles que la page web du groupe).
     var showsSettings: Bool { member || manage }
-    var showsInvite: Bool { manage && !group.system }
+    var showsInvite: Bool { canInvite && !group.system }
     var showsPronos: Bool { member && !group.system }
     var canLeave: Bool { member && !group.system && group.createdBy != me }
     var canReportPhoto: Bool { group.photo != nil && !group.system && !manage }
@@ -217,6 +223,29 @@ struct GroupSuggestion: Decodable, Equatable, Identifiable {
     }
 
     private enum CodingKeys: String, CodingKey { case id, displayName, photo, together, lastTitle, invited }
+
+    var face: PronoFace { PronoFace(id: id, name: displayName, photo: photo) }
+}
+
+/// Personne trouvée par « Numéro exact ou nom » (`group_people_search`, 22.11) : surnom, photo, initiale du nom ; jamais
+/// son numéro, jamais une liste des membres de Party.
+struct GroupFound: Decodable, Equatable, Identifiable {
+    let id: String
+    var displayName: String
+    var photo: String?
+    var initial: String?
+    var invited: Bool
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        displayName = try c.decodeIfPresent(String.self, forKey: .displayName) ?? ""
+        photo = try c.decodeIfPresent(String.self, forKey: .photo)
+        initial = try c.decodeIfPresent(String.self, forKey: .initial)
+        invited = try c.decodeIfPresent(Bool.self, forKey: .invited) ?? false
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, displayName, photo, initial, invited }
 
     var face: PronoFace { PronoFace(id: id, name: displayName, photo: photo) }
 }
@@ -285,13 +314,18 @@ enum GroupText {
         return p.lastTitle ?? "Croisé à un événement"
     }
 
-    /// Numéro tapé (« 079 123 45 67 », « +41 79… ») → chiffres au format international, comme le web ; nil sinon.
+    /// Numéro tapé (« 079 123 45 67 », « +41 79… », « 0041… ») → chiffres au format international, comme la connexion
+    /// SMS et la base (private.search_phone) ; nil sinon.
     static func phone(_ typed: String) -> String? {
         let t = typed.trimmingCharacters(in: .whitespaces)
         let digits = t.filter(\.isNumber)
-        guard t.range(of: #"^[+0-9][0-9 .()\-]{6,}$"#, options: .regularExpression) != nil, digits.count >= 8 else { return nil }
+        guard t.range(of: #"^(\+|00)?[0-9][0-9 .()/\-]{6,}$"#, options: .regularExpression) != nil, digits.count >= 8 else { return nil }
+        if digits.hasPrefix("00") { return String(digits.dropFirst(2)) }
         return digits.hasPrefix("0") && digits.count == 10 ? "41" + digits.dropFirst() : String(digits)
     }
+
+    /// Nom tapé assez long pour chercher (comme la base).
+    static let searchLetters = 3
 
     /// État d'un lien unique.
     static func linkStatus(_ link: GroupLinkRow) -> String {
@@ -354,6 +388,10 @@ struct GroupsAPI {
         let _: GroupAnyReply? = try await people.call("set_group_phone_share", ["grp": id, "visible": visible])
     }
 
+    func setMembersInvite(_ id: String, allowed: Bool) async throws {
+        let _: GroupAnyReply? = try await people.call("set_group_members_invite", ["grp": id, "allowed": allowed])
+    }
+
     func setRules(_ id: String, needApproval: Bool, mode: String) async throws {
         let _: GroupAnyReply? = try await people.call("set_group_event_rules", ["grp": id, "need_approval": needApproval, "mode": mode])
     }
@@ -372,6 +410,11 @@ struct GroupsAPI {
 
     func suggestions(_ id: String) async throws -> [GroupSuggestion] {
         try await people.call("group_invite_suggestions", ["grp": id], as: [GroupSuggestion]?.self) ?? []
+    }
+
+    /// Numéro complet ou 3 lettres d'un nom, prénom ou surnom → 5 personnes au plus (30 recherches par heure).
+    func search(_ id: String, _ q: String) async throws -> [GroupFound] {
+        try await people.call("group_people_search", ["grp": id, "q": q], as: [GroupFound]?.self) ?? []
     }
 
     func find(_ typed: String) async throws -> GroupFoundPerson? {

@@ -93,6 +93,23 @@ struct GroupsNativeTests {
         #expect(links.map(GroupText.linkStatus) == ["Utilisé par Léa", "En attente", "Annulé"])
     }
 
+    @Test("Groupes simples (22.11) : un simple membre invite si le groupe le permet ; recherche sans numéro")
+    func simpleGroups() throws {
+        let p = try page(#"""
+        {"group":{"id":"g1","name":"Foot","emoji":"⚽","system":false,"created_by":"c","members_invite":true},
+         "me":"m","member":true,"manage":false,"can_invite":true,"members":[]}
+        """#)
+        #expect(p.showsInvite && p.group.membersInvite && !p.manage)
+        let off = try page(#"{"group":{"id":"g1","name":"Foot","members_invite":false},"me":"m","member":true,"can_invite":false}"#)
+        #expect(!off.showsInvite && !off.group.membersInvite)
+        let old = try page(#"{"group":{"id":"g1","name":"Foot"},"me":"m","manage":true}"#)  // serveur d'avant : qui gère
+        #expect(old.showsInvite && old.group.membersInvite)
+        let found = try PeopleStore.decoder.decode([GroupFound].self, from: Data(#"""
+        [{"id":"b","display_name":"Léa","photo":"https://x/b.jpg","initial":"M","invited":false},{"id":"c","display_name":"Noé","invited":true}]
+        """#.utf8))
+        #expect(found[0].initial == "M" && found[0].face.photo == "https://x/b.jpg" && found[1].invited && found[1].initial == nil)
+    }
+
     @Test("Textes : noms, numéros tapés, message d'invitation, date de création")
     func texts() throws {
         #expect(GroupText.names(["Chloé"]) == "Chloé")
@@ -102,6 +119,7 @@ struct GroupsNativeTests {
         #expect(GroupText.phone("079 123 45 67") == "41791234567")
         #expect(GroupText.phone("+41 79 123 45 67") == "41791234567")
         #expect(GroupText.phone("Léa") == nil && GroupText.phone("1234") == nil)
+        #expect(GroupText.phone("0041 79 123 45 67") == "41791234567")
         let p = try page(#"{"group":{"id":"g","name":"Foot","emoji":"⚽"},"me":"m","members":[]}"#)
         #expect(GroupText.inviteMessage(host: "", group: p.group, url: "https://p/x")
                 == "Hello ! Moi t’invite dans le groupe « ⚽ Foot » sur Party. Rejoins-le ici : https://p/x")

@@ -199,11 +199,11 @@ def test_the_group_creator_sets_both_rules(browser, v2_origin):  # noqa: F811
         login(page)
         pw.expect(page.get_by_role('button', name='Rechercher', exact=True)).to_be_visible(timeout=15000)
         page.goto(f'{v2_origin}/events/group/{SKI}/settings', wait_until='domcontentloaded')  # réglages du groupe (17.11)
-        pw.expect(page.get_by_text('Les membres créent des événements pour le groupe', exact=True)).to_be_visible(timeout=15000)
+        pw.expect(page.get_by_role('switch', name='Événements à valider')).to_be_visible(timeout=15000)  # 22.11 : interrupteur
         pw.expect(page.get_by_text('Notifications des événements', exact=True)).to_be_visible()
         pw.expect(page.get_by_text('Sans réponse sous 48 h, l’annonce part automatiquement.', exact=False)).to_be_visible()
         shot(page, '04-groupe-reglages')
-        page.get_by_text('Avec validation', exact=True).click()
+        page.get_by_role('switch', name='Événements à valider').click()
         page.wait_for_timeout(800)
         assert ('set_group_event_rules', {'grp': SKI, 'need_approval': True, 'mode': 'request'}) in calls, calls
     finally:

@@ -3,10 +3,9 @@ import { View } from 'react-native';
 
 import { setGroupRules } from '@/lib/groupAnnounce';
 import { colors } from '@/lib/theme';
-import { ErrorText, Segmented, T } from './ui';
+import { ErrorText, Segmented, T, ToggleRow } from './ui';
 
 type Mode = 'request' | 'free';
-type Approval = 'free' | 'approval';
 
 type Props = {
   groupId: string;
@@ -42,18 +41,12 @@ export function GroupEventRules({ groupId, needApproval, mode, system, onSaved }
   return (
     <View style={{ gap: 10 }} accessibilityLabel="Réglages des événements du groupe">
       {system ? null : (
-        <View style={{ gap: 6 }}>
-          <T weight="semibold">Les membres créent des événements pour le groupe</T>
-          <Segmented<Approval>
-            options={[{ key: 'free', label: 'Sans validation' }, { key: 'approval', label: 'Avec validation' }]}
-            value={needApproval ? 'approval' : 'free'} disabled={busy}
-            onChange={(k) => void save(k === 'approval', mode)} />
-          <T muted size={13}>
-            {needApproval
-              ? 'Un événement proposé au groupe par un membre reste invisible pour le groupe tant qu’un admin du groupe ne l’a pas accepté (Activité › À valider).'
-              : 'Un membre qui réserve un événement au groupe le rend visible tout de suite à tout le groupe.'}
-          </T>
-        </View>
+        // « Événements à valider » (avis f0e9bf158133, 22.11, éteint par défaut) : base events_need_approval.
+        <ToggleRow label="Événements à valider" value={needApproval} disabled={busy}
+          hint={needApproval
+            ? 'Un événement créé pour le groupe par un membre attend ton accord (ou celui d’un admin du groupe) avant que le groupe le voie. Tu es prévenu et tu acceptes ou refuses dans Activité › À valider.'
+            : 'Un membre qui crée un événement pour le groupe le rend visible tout de suite à tout le groupe.'}
+          onChange={(on) => void save(on, mode)} />
       )}
       <View style={{ gap: 6 }}>
         <T weight="semibold">Notifications des événements</T>

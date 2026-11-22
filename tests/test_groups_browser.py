@@ -3,7 +3,8 @@ navigateur, Supabase simulé :
 - liste façon WhatsApp (tuile emoji sur la couleur du groupe, dernier message, non lus, prochain événement), grande carte
   « Crée le groupe de ta bande », « Membres Vendredi Party » ; état vide qui donne envie ;
 - création en 2 étapes : nom + emoji + couleur (CGU d'abord), puis Inviter (lien WhatsApp / Copier / Autre, code QR,
-  personnes déjà croisées seulement) ou « Plus tard » → la page du groupe s'ouvre ;
+  recherche « numéro exact ou nom », jamais de liste de personnes) ou « Plus tard » → la page du groupe s'ouvre ;
+- réglages (22.11) : « Tous les membres peuvent inviter », « Événements à valider » ;
 - page du groupe : couverture, membres, « Créer un événement pour le groupe » (ce groupe coché, « Prévenir » éteint),
   Inviter, Discussion, prochains événements ; réglages : quitter soi-même (jamais Vendredi Party) ;
 - onglet Événements : bulles « Tes groupes » (« Crée ton groupe » en premier) et étiquette du groupe sur les cartes.
@@ -60,6 +61,13 @@ SUGGESTIONS = [
     {'id': KOFI, 'display_name': 'Kofi', 'avatar_url': None, 'together': 2, 'last_title': 'Brunch', 'invited': True},
 ]
 
+# group_people_search (22.11) : surnom, photo, initiale du nom ; jamais le numéro.
+FOUND = [
+    {'id': CHLOE, 'display_name': 'Chloé', 'avatar_url': None, 'initial': 'D', 'invited': False},
+    {'id': MALIK, 'display_name': 'Malik', 'avatar_url': None, 'initial': 'B', 'invited': False},
+    {'id': KOFI, 'display_name': 'Kofi', 'avatar_url': None, 'initial': 'A', 'invited': True},
+]
+
 category = {'id': 'ed69d11e-34dd-43fe-b211-10d0dd158ba9', 'name': 'Soirée', 'color': '#FFB347', 'sort': 0, 'archived': False, 'icon': None}
 MATCH = {'id': EVENT, 'title': 'Match + apéro', 'description': None, 'created_by': TOM, 'status': 'published', 'date_mode': 'fixed',
          'starts_at': '2030-11-23T09:00:00Z', 'ends_at': None, 'created_at': '2026-11-01T08:00:00Z', 'updated_at': '2026-11-01T08:00:00Z',
@@ -73,13 +81,13 @@ def group_row(gid, created_by=USER, members=(USER, CHLOE, MALIK, INES)):
     g = next(x for x in GROUPS if x['id'] == gid)
     return {'id': gid, 'name': g['name'], 'emoji': g['emoji'], 'color': g['color'], 'created_by': None if g['system'] else created_by,
             'created_at': '2026-11-01T10:00:00Z', 'system_key': 'vip' if g['system'] else None, 'events_need_approval': False,
-            'announce_mode': 'request', 'member_group_members': [{'user_id': u, 'added_at': None} for u in members]}
+            'announce_mode': 'request', 'members_invite': True, 'member_group_members': [{'user_id': u, 'added_at': None} for u in members]}
 
 
 def group_services(page, groups=GROUPS, row_for=group_row, rank=None):
     """Base simulée des groupes, posée par-dessus mock_services (les routes posées après passent d'abord)."""
     calls = mock_services(page)
-    state = {'inserted': [], 'invites': [], 'deleted': [], 'groups': groups}
+    state = {'inserted': [], 'invites': [], 'deleted': [], 'groups': groups, 'searches': [], 'rules': []}
 
     def handle(route):
         request = route.request
@@ -101,6 +109,13 @@ def group_services(page, groups=GROUPS, row_for=group_row, rank=None):
             result = TOKEN
         elif path.endswith('/rpc/group_invite_suggestions'):
             result = SUGGESTIONS
+        elif path.endswith('/rpc/group_people_search'):
+            state['searches'].append(body['q'])
+            q = body['q'].lower()
+            result = [] if q.startswith('+') else [p for p in FOUND if q in p['display_name'].lower()]
+        elif path.endswith('/rpc/set_group_members_invite') or path.endswith('/rpc/set_group_event_rules'):
+            state['rules'].append((path.rsplit('/', 1)[1], body))
+            result = None
         elif path.endswith('/rpc/invite_to_group'):
             state['invites'].append(body)
             result = {'invited': 'member'}
@@ -203,7 +218,7 @@ def test_no_group_yet_shows_an_inviting_empty_state(phone, events_origin):
     assert not errors, errors
 
 
-def test_creating_a_group_in_two_steps_then_inviting_people_already_met(phone, events_origin):
+def test_creating_a_group_in_two_steps_then_inviting_people_found_by_the_search(phone, events_origin):
     page, errors = phone
     state = group_services(page)
     signed_in(page, events_origin, '/group/new')
@@ -216,7 +231,7 @@ def test_creating_a_group_in_two_steps_then_inviting_people_already_met(phone, e
     shot(page, 'groupes-creer-etape1.png')
     page.get_by_role('button', name='Continuer').click()
 
-    # Étape 2 : lien, QR, personnes déjà croisées (jamais tout le site).
+    # Étape 2 : lien, QR, puis « numéro exact ou nom » : aucune liste de personnes avant de chercher.
     panel = page.get_by_test_id('group-invite-panel')
     pw.expect(panel.get_by_text('Invite ta bande', exact=True)).to_be_visible()
     assert state['inserted'] == [{'name': 'Soirées du vendredi', 'emoji': '🪩', 'color': 'pink', 'created_by': USER}]
@@ -224,16 +239,31 @@ def test_creating_a_group_in_two_steps_then_inviting_people_already_met(phone, e
     for name in ('WhatsApp', 'Copier', 'Autre'):
         pw.expect(panel.get_by_role('button', name=name, exact=True)).to_be_visible()
     pw.expect(panel.get_by_label('Code QR du lien du groupe')).to_be_visible()
+    pw.expect(panel.get_by_text('Tape son numéro complet', exact=False)).to_be_visible()
+    pw.expect(panel.get_by_role('checkbox')).to_have_count(0)
+    search = panel.get_by_label('Chercher une personne')
+    search.fill('ch')  # 2 lettres : on ne cherche pas encore
+    page.wait_for_timeout(700)
+    assert state['searches'] == []
+    search.fill('chl')
+    pw.expect(panel.get_by_role('checkbox', name='Ajouter Chloé')).to_be_visible()
+    pw.expect(panel.get_by_role('checkbox', name='Ajouter Chloé').get_by_text('D.', exact=False)).to_be_visible()  # initiale du nom
+    panel.get_by_role('checkbox', name='Ajouter Chloé').click()
+    search.fill('kof')
     pw.expect(panel.get_by_role('checkbox', name='Déjà invité : Kofi')).to_be_disabled()
-    pw.expect(panel.get_by_text('4 soirées ensemble')).to_be_visible()
-    for who in ('Chloé', 'Malik', 'Inès'):
-        panel.get_by_role('checkbox', name=f'Ajouter {who}').click()
-    pw.expect(panel.get_by_role('button', name='Inviter Chloé, Malik et Inès')).to_be_visible()
+    search.fill('mal')
+    panel.get_by_role('checkbox', name='Ajouter Malik').click()
+    pw.expect(panel.get_by_role('checkbox', name='Retirer Chloé')).to_be_visible()  # le choix reste quand la recherche change
+    # Un numéro sans compte : l'invitation l'attend.
+    search.fill('079 123 45 67')
+    panel.get_by_role('button', name='Inviter le numéro 079 123 45 67').click()
+    pw.expect(panel.get_by_role('button', name='Inviter Chloé, Malik et 079 123 45 67')).to_be_visible()
     shot(page, 'groupes-creer-etape2-inviter.png')
-    panel.get_by_role('button', name='Inviter Chloé, Malik et Inès').click()
-    pw.expect(page.get_by_text('Chloé, Malik et Inès : invitation envoyée')).to_be_visible()
-    assert [i['member'] for i in state['invites']] == [CHLOE, MALIK, INES]
+    panel.get_by_role('button', name='Inviter Chloé, Malik et 079 123 45 67').click()
+    pw.expect(page.get_by_text('Chloé, Malik et 079 123 45 67 : invitation envoyée')).to_be_visible()
+    assert [(i['member'], i['phone']) for i in state['invites']] == [(CHLOE, None), (MALIK, None), (None, '41791234567')]
     assert all(i['grp'] == NEW for i in state['invites'])
+    assert 'chl' in state['searches'] and '+41791234567' in state['searches'] and 'ch' not in state['searches']
 
     # « Plus tard » : la page du groupe s'ouvre.
     page.get_by_role('button', name='Plus tard').click()
@@ -306,4 +336,40 @@ def test_events_tab_shows_group_bubbles_and_the_group_tag_on_cards(phone, events
     shot(page, 'groupes-bulles-evenements.png')
     bubbles.get_by_role('link', name='Groupe Les potes du foot, 3 non lus').click()
     pw.expect(page.get_by_test_id('group-page')).to_be_visible()
+    assert not errors, errors
+
+
+def test_a_simple_member_invites_when_the_group_allows_it(phone, events_origin):
+    page, errors = phone
+    groups = [GROUPS[0], GROUPS[1], {**GROUPS[2], 'invite': True}, GROUPS[3]]
+    group_services(page, groups=groups, row_for=lambda gid: group_row(gid, created_by=TOM, members=(USER, TOM)), rank=2)
+    signed_in(page, events_origin, f'/group/{DISCO}')
+    pw.expect(page.get_by_role('heading', name='Soirées du vendredi')).to_be_visible(timeout=15000)
+    page.get_by_role('button', name='Inviter', exact=True).click()
+    pw.expect(page.get_by_test_id('group-invite-panel')).to_be_visible()
+    pw.expect(page.get_by_label('Chercher une personne')).to_be_visible()
+    # Simple membre : pas de réglages du groupe.
+    page.goto(f'{events_origin}/events/group/{DISCO}/settings', wait_until='domcontentloaded')
+    pw.expect(page.get_by_text('Seul le créateur du groupe change son nom', exact=False)).to_be_visible(timeout=15000)
+    pw.expect(page.get_by_role('switch', name='Tous les membres peuvent inviter')).to_have_count(0)
+    pw.expect(page.get_by_role('switch', name='Événements à valider')).to_have_count(0)
+    assert not errors, errors
+
+
+def test_the_creator_sets_who_invites_and_events_to_approve(phone, events_origin):
+    page, errors = phone
+    state = group_services(page)
+    signed_in(page, events_origin, f'/group/{FOOT}/settings')
+    invite = page.get_by_role('switch', name='Tous les membres peuvent inviter')
+    pw.expect(invite).to_be_visible(timeout=15000)
+    pw.expect(invite).to_be_checked()  # allumé par défaut
+    approval = page.get_by_role('switch', name='Événements à valider')
+    pw.expect(approval).not_to_be_checked()  # éteint par défaut
+    shot(page, 'groupes-reglages-regles.png')
+    invite.click()
+    pw.expect(page.get_by_text('Seuls ceux qui gèrent le groupe invitent')).to_be_visible()
+    approval.click()
+    page.wait_for_timeout(500)
+    assert ('set_group_members_invite', {'grp': FOOT, 'allowed': False}) in state['rules']
+    assert ('set_group_event_rules', {'grp': FOOT, 'need_approval': True, 'mode': 'request'}) in state['rules']
     assert not errors, errors

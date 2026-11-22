@@ -31,7 +31,9 @@ struct GroupSettingsView: View {
                 if let error { Section { Text(error).foregroundStyle(PronoTheme.pinkInk) }.listRowBackground(ConvNeon.surface) }
                 lookSection(page)
                 if page.member { privacySection(page) }
-                if page.canSetRules { GroupRulesSection(page: page, save: saveRules) }
+                if page.canSetRules {
+                    GroupRulesSection(page: page, save: saveRules, saveInvite: page.manage && !page.group.system ? saveMembersInvite : nil)
+                }
                 if page.manage { membersSection(page) }
                 if page.manage { GroupLinksSection(groupID: groupID) }
                 dangerSection(page)
@@ -256,30 +258,50 @@ struct GroupSettingsView: View {
     private func saveRules(_ needApproval: Bool, _ mode: String) {
         run { try await $0.setRules(groupID, needApproval: needApproval, mode: mode) }
     }
+
+    private func saveMembersInvite(_ allowed: Bool) {
+        run(ok: allowed ? "Tous les membres peuvent inviter" : "Seuls ceux qui gèrent le groupe invitent") {
+            try await $0.setMembersInvite(groupID, allowed: allowed)
+        }
+    }
 }
 
-/// Réglages des événements du groupe (décision du 06.11), comme GroupEventRules.tsx : son créateur ; Membres Vendredi
-/// Party : les Co-admins et plus, seule l'annonce s'y règle.
+/// Règles du groupe, comme settings.tsx et GroupEventRules.tsx : « Tous les membres peuvent inviter » (22.11, allumé par
+/// défaut, qui gère le groupe), « Événements à valider » (éteint par défaut) et les notifications (06.11) ; Membres
+/// Vendredi Party : les Co-admins et plus, seule l'annonce s'y règle.
 struct GroupRulesSection: View {
     let page: GroupPage
     let save: (_ needApproval: Bool, _ mode: String) -> Void
+    var saveInvite: ((Bool) -> Void)?
 
     var body: some View {
         Section {
+            if let saveInvite {
+                VStack(alignment: .leading, spacing: 6) {
+                    Toggle("Tous les membres peuvent inviter", isOn: Binding(get: { page.group.membersInvite }, set: { on in
+                        Haptics.selection()
+                        saveInvite(on)
+                    }))
+                    .font(.subheadline.weight(.semibold))
+                    .accessibilityIdentifier("group-members-invite")
+                    Text(page.group.membersInvite
+                         ? "Chaque membre peut ajouter quelqu’un et partager le lien du groupe."
+                         : "Seuls toi et ceux qui gèrent le groupe invitent et partagent le lien du groupe.")
+                        .font(.footnote).foregroundStyle(PronoTheme.t2)
+                }
+                .padding(.vertical, 4)
+            }
             if !page.group.system {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Les membres créent des événements pour le groupe").font(.subheadline.weight(.semibold))
-                    Picker("Validation", selection: Binding(get: { page.group.eventsNeedApproval }, set: { on in
+                VStack(alignment: .leading, spacing: 6) {
+                    Toggle("Événements à valider", isOn: Binding(get: { page.group.eventsNeedApproval }, set: { on in
                         Haptics.selection()
                         save(on, page.group.announceMode)
-                    })) {
-                        Text("Sans validation").tag(false)
-                        Text("Avec validation").tag(true)
-                    }
-                    .pickerStyle(.segmented)
+                    }))
+                    .font(.subheadline.weight(.semibold))
+                    .accessibilityIdentifier("group-events-approval")
                     Text(page.group.eventsNeedApproval
-                         ? "Un événement proposé au groupe par un membre reste invisible pour le groupe tant qu’un admin du groupe ne l’a pas accepté (Activité › À valider)."
-                         : "Un membre qui réserve un événement au groupe le rend visible tout de suite à tout le groupe.")
+                         ? "Un événement créé pour le groupe par un membre attend ton accord (ou celui d’un admin du groupe) avant que le groupe le voie. Tu es prévenu et tu acceptes ou refuses dans Activité › À valider."
+                         : "Un membre qui crée un événement pour le groupe le rend visible tout de suite à tout le groupe.")
                         .font(.footnote).foregroundStyle(PronoTheme.t2)
                 }
                 .padding(.vertical, 4)
@@ -303,7 +325,7 @@ struct GroupRulesSection: View {
             }
             .padding(.vertical, 4)
         } header: {
-            Text("Réglages des événements du groupe")
+            Text("Règles du groupe")
         }
         .listRowBackground(ConvNeon.surface)
     }

@@ -37,6 +37,8 @@ RELAY = {
     "group_invite_suggestions", "invite_to_group", "revoke_invite_link", "set_group_phone_share",
     "set_group_event_rules", "answer_group_invitation",
     "member_note_get", "member_note_set",  # note privée sur un profil (avis ede29a5bb24e), lue par son auteur seul
+    # Groupes plus simples (22.11) : recherche « numéro exact ou nom », « Tous les membres peuvent inviter ».
+    "group_people_search", "set_group_members_invite",
 } | set(LOCAL)  # + lectures composées et écritures dans les tables, faites par le serveur (app/group_pages.py)
 # Signaler depuis les Discussions : messages, profils, photos ; le reste a ses propres écrans.
 REPORT_KINDS = {"group_message", "direct_message", "event_message", "profile", "profile_photo", "group_photo"}
