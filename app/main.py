@@ -4335,6 +4335,19 @@ def may_write_feedback(request: Request, token: str) -> bool:
         return False
 
 
+def feedback_owner(token: str) -> str:
+    """Empreinte du numéro du compte (HMAC du secret partagé par les deux sites) : la même personne retrouve ses avis
+    sur le site de test et en prod (comptes et appareils différents). Jamais le numéro lui-même ; "" sans compte."""
+    if not token:
+        return ""
+    try:
+        phone = "".join(ch for ch in str(accounts.profile(token).get("phone") or "") if ch.isdigit())
+    except Exception:  # noqa: BLE001 — sans compte lisible, l'avis reste lié à l'appareil, comme avant
+        return ""
+    key = FEEDBACK_SYNC_SECRET or ADMIN_PIN or "party"
+    return hmac.new(key.encode(), phone.encode(), hashlib.sha256).hexdigest()[:32] if len(phone) >= 8 else ""
+
+
 FEEDBACK_MIN_LENGTH = 30  # assez pour qu'une idée ou un bug soit compréhensible
 FEEDBACK_AI_MIN_LENGTH = 8  # reformulé par l'IA (titre et description clairs) : une phrase courte dictée suffit
 FEEDBACK_ADMIN_MIN_LENGTH = 5  # l'admin note pour lui-même : un titre court suffit
@@ -4373,12 +4386,13 @@ def send_feedback(body: FeedbackIn, request: Request):
     who = feedback_author_subject(body)
     context["ai_who"] = who
     context["ai_ok"] = "1" if ai_consents.state(who) == ai_feedback.ACCEPTED else ""
-    feedback.add(body.guest_id, name, kind, text, context)
+    owner = feedback_owner(body.token)
+    feedback.add(body.guest_id, name, kind, text, context, owner)
     summary = structured["title"] if structured else text[:140]
     notify_admin({"title": f"{FEEDBACK_KINDS[kind]} de {name}", "body": summary, "url": "/admin#feedback", "tag": "feedback"},
                  kind="feedback")
     store.save()  # l'admin ouvert reçoit la mise à jour (pastille « Retours »)
-    return {"mine": feedback.mine(body.guest_id)}
+    return {"mine": feedback.mine(body.guest_id, owner)}
 
 
 class FeedbackAiIn(BaseModel):
@@ -4462,21 +4476,25 @@ def edit_feedback(body: FeedbackEdit, request: Request):
     text = " ".join(body.text.split())[:1000]
     if len(text) < FEEDBACK_AI_MIN_LENGTH:
         raise HTTPException(400, f"Écris au moins {FEEDBACK_AI_MIN_LENGTH} caractères")
+    owner = feedback_owner(body.token)
     try:
-        item = feedback.edit_text(body.guest_id, body.id, text)
+        item = feedback.edit_text(body.guest_id, body.id, text, owner)
     except FeedbackUnavailable as e:
         raise HTTPException(503, str(e)) from None
     except ValueError as e:  # avis fermé (ici ou dit par la production)
         raise HTTPException(409 if str(e).startswith(FEEDBACK_CLOSED) else 400, str(e)) from None
     if item is None:
         raise HTTPException(404, "Avis introuvable")
-    return {"mine": feedback.mine(body.guest_id)}
+    return {"mine": feedback.mine(body.guest_id, owner)}
 
 
 @app.get("/api/feedback")
-def my_feedback(guest_id: str = ""):
+def my_feedback(request: Request, guest_id: str = ""):
+    """Jeton du compte dans l'en-tête Authorization (jamais dans l'adresse : elle part dans les journaux du serveur)."""
     check_guest_id(guest_id)
-    return {"mine": feedback.mine(guest_id)}
+    auth = request.headers.get("authorization", "")
+    token = auth[7:].strip()[:4096] if auth.lower().startswith("bearer ") else ""
+    return {"mine": feedback.mine(guest_id, feedback_owner(token))}
 
 
 class FeedbackAction(BaseModel):
@@ -4689,14 +4707,16 @@ def notify_feedback_finished(item: dict):
 
 class FeedbackSeen(BaseModel):
     guest_id: str
+    token: str = Field(default="", max_length=4096)
 
 
 @app.post("/api/feedback/seen")
 def feedback_seen(body: FeedbackSeen):
     """L'invité a ouvert « Ton avis » : ses retours terminés ne sont plus signalés par la pastille."""
     check_guest_id(body.guest_id)
-    feedback.mark_seen(body.guest_id)
-    return {"mine": feedback.mine(body.guest_id)}
+    owner = feedback_owner(body.token)
+    feedback.mark_seen(body.guest_id, owner)
+    return {"mine": feedback.mine(body.guest_id, owner)}
 
 
 @app.get("/api/admin/feedback/{fid}/prompt", dependencies=[Depends(require_admin)])

@@ -97,3 +97,33 @@ def test_priority_set_on_the_test_site_lands_in_the_production_list(prod):
     assert box.get(item["id"])["priority"] == "high"
     with pytest.raises(ValueError):
         remote.set_priority([item["id"]], "urgentissime")
+
+
+def test_the_same_account_finds_its_feedback_on_both_sites(prod, monkeypatch):
+    """22.11 : un avis envoyé en prod (appareil A) se retrouve sur le site de test (appareil B) avec le même numéro ;
+    jamais celui d'un autre numéro, jamais le numéro lui-même dans l'avis."""
+    box, remote = prod
+    phones = {"tok-lea-prod": "+41 79 111 22 33", "tok-lea-test": "+41791112233", "tok-tom": "+41798887766"}
+    monkeypatch.setattr(main.accounts, "profile", lambda token: {"phone": phones[token]})
+    lea = main.feedback_owner("tok-lea-prod")
+    assert lea and lea == main.feedback_owner("tok-lea-test") and lea != main.feedback_owner("tok-tom")
+    assert main.feedback_owner("") == ""
+    item = box.add("guest-prod-lea1", "Léa", "idea", "Un mode équipe au Quiz du vendredi", {"site": "Prod"}, owner=lea)
+    assert "79" not in str(item.get("owner"))
+    assert [i["id"] for i in remote.mine("guest-test-lea2", owner=main.feedback_owner("tok-lea-test"))] == [item["id"]]
+    assert remote.mine("guest-test-lea2") == []  # sans compte : seulement les avis de l'appareil
+    assert remote.mine("guest-test-tom1", owner=main.feedback_owner("tok-tom")) == []
+    client = TestClient(main.app)
+    got = client.get("/api/feedback", params={"guest_id": "guest-test-lea2"}, headers={"Authorization": "Bearer tok-lea-test"})
+    assert [i["id"] for i in got.json()["mine"]] == [item["id"]]
+    assert remote.edit_text("guest-test-lea2", item["id"], "Un mode équipe au Quiz, deux camps", owner=lea)
+    assert box.get(item["id"])["text"].endswith("deux camps")
+
+
+def test_an_older_production_still_answers_without_the_owner(prod, monkeypatch):
+    """Prod pas encore à jour (elle ne connaît pas « owner ») : le site de test réessaie sans, rien ne casse."""
+    box, remote = prod
+    original = FeedbackBox.mine
+    monkeypatch.setattr(FeedbackBox, "mine", lambda self, guest_id: original(self, guest_id))
+    box.add("guest-test-0003", "Zoé", "idea", "Des thèmes de couleur pour le Quiz", {})
+    assert len(remote.mine("guest-test-0003", owner="abc")) == 1

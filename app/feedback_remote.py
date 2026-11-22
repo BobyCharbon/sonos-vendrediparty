@@ -69,17 +69,31 @@ class FeedbackRemote:
     def _write(self, op: str, **args):
         with self.lock:
             self.cache.clear()  # la prochaine lecture voit le changement
-        return self._call(op, **args)
+        return self._owned(op, **args)
+
+    def _owned(self, op: str, **args):
+        """Avec l'empreinte du compte ; une production d'avant (elle ne la connaît pas : « Paramètres invalides »)
+        reçoit l'appel sans elle, comme avant."""
+        if not args.get("owner"):
+            args.pop("owner", None)
+            return self._call(op, **args)
+        try:
+            return self._call(op, **args)
+        except ValueError as e:
+            if str(e) != "Paramètres invalides":
+                raise
+            args.pop("owner")
+            return self._call(op, **args)
 
     # Même interface que FeedbackBox.
-    def add(self, guest_id: str, name: str, kind: str, text: str, context: dict) -> dict:
-        return self._write("add", guest_id=guest_id, name=name, kind=kind, text=text, context=context)
+    def add(self, guest_id: str, name: str, kind: str, text: str, context: dict, owner: str = "") -> dict:
+        return self._write("add", guest_id=guest_id, name=name, kind=kind, text=text, context=context, owner=owner)
 
-    def mine(self, guest_id: str) -> list[dict]:
-        return self._call("mine", guest_id=guest_id)
+    def mine(self, guest_id: str, owner: str = "") -> list[dict]:
+        return self._owned("mine", guest_id=guest_id, owner=owner)
 
-    def mark_seen(self, guest_id: str):
-        self._write("mark_seen", guest_id=guest_id)
+    def mark_seen(self, guest_id: str, owner: str = ""):
+        self._write("mark_seen", guest_id=guest_id, owner=owner)
 
     def all(self) -> list[dict]:
         return self._read("all")
@@ -125,8 +139,8 @@ class FeedbackRemote:
     def comment(self, fid: str, author: str, text: str, status: str = "") -> dict | None:
         return self._write("comment", fid=fid, author=author, text=text, status=status)
 
-    def edit_text(self, guest_id: str, fid: str, text: str) -> dict | None:
-        return self._write("edit_text", guest_id=guest_id, fid=fid, text=text)
+    def edit_text(self, guest_id: str, fid: str, text: str, owner: str = "") -> dict | None:
+        return self._write("edit_text", guest_id=guest_id, fid=fid, text=text, owner=owner)
 
     def absorb(self, items: list[dict]) -> int:
         """Verse dans la liste commune des avis gardés jusqu'ici en local (une seule fois, sans doublon)."""

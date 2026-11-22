@@ -141,9 +141,11 @@ class FeedbackBox:
         tmp.write_text(json.dumps(self.items, ensure_ascii=False), encoding="utf-8")
         tmp.replace(self.path)
 
-    def add(self, guest_id: str, name: str, kind: str, text: str, context: dict) -> dict:
+    def add(self, guest_id: str, name: str, kind: str, text: str, context: dict, owner: str = "") -> dict:
+        """owner : empreinte du numéro du compte (la même sur les deux sites) ; l'auteur retrouve son avis partout."""
         item = {"id": secrets.token_hex(6), "at": time.time(), "guest_id": guest_id, "name": name, "kind": kind,
-                "text": text, "context": context, "status": "new", "area": default_area(context)}
+                "text": text, "context": context, "status": "new", "area": default_area(context),
+                **({"owner": owner} if owner else {})}
         if (context or {}).get("platform") in PLATFORMS:  # appareil envoyé par l'app : plateforme pré-remplie
             item["platforms"] = [context["platform"]]
         with self.lock:
@@ -186,7 +188,12 @@ class FeedbackBox:
         now = time.time()
         return sum(1 for i in self.items if i["guest_id"] == guest_id and now - i["at"] < seconds)
 
-    def mine(self, guest_id: str) -> list[dict]:
+    @staticmethod
+    def _is_mine(i: dict, guest_id: str, owner: str = "") -> bool:
+        """Envoyé depuis cet appareil, ou par le même compte (même numéro) depuis l'autre site / l'autre app."""
+        return i["guest_id"] == guest_id or bool(owner and i.get("owner") == owner)
+
+    def mine(self, guest_id: str, owner: str = "") -> list[dict]:
         """Ce que l'invité a envoyé (sans les infos internes), du plus récent au plus ancien.
         Statuts de travail de l'admin (à mûrir, questions, bloqué, chez Claude…) : « envoyé » ou « en cours »."""
         def public(i: dict) -> dict:
@@ -195,12 +202,12 @@ class FeedbackBox:
             return {**{k: i[k] for k in ("id", "at", "kind", "text")}, "status": status, "edited_at": i.get("edited_at", 0),
                     "reply": i.get("reply", "") if status in FINISHED else "", "unseen": bool(i.get("unseen")),
                     **({"title": title} if title else {})}
-        return [public(i) for i in reversed(self.items) if i["guest_id"] == guest_id][:20]
+        return [public(i) for i in reversed(self.items) if self._is_mine(i, guest_id, owner)][:20]
 
-    def mark_seen(self, guest_id: str):
+    def mark_seen(self, guest_id: str, owner: str = ""):
         """L'invité a ouvert son onglet « Ton avis » : la pastille « terminé » s'éteint."""
         with self.lock:
-            changed = [i for i in self.items if i["guest_id"] == guest_id and i.get("unseen")]
+            changed = [i for i in self.items if self._is_mine(i, guest_id, owner) and i.get("unseen")]
             for i in changed:
                 i["unseen"] = False
             if changed:
@@ -282,11 +289,11 @@ class FeedbackBox:
                 self._save()
         return len(fresh)
 
-    def edit_text(self, guest_id: str, fid: str, text: str) -> dict | None:
+    def edit_text(self, guest_id: str, fid: str, text: str, owner: str = "") -> dict | None:
         """L'auteur réécrit son avis (retour de l'admin, 08.11) : l'ancien texte et l'heure sont gardés (edits),
         l'historique le note. None si l'avis n'est pas le sien ; FeedbackClosed si l'admin l'a déjà fermé."""
         with self.lock:
-            item = next((i for i in self.items if i["id"] == fid and i["guest_id"] == guest_id), None)
+            item = next((i for i in self.items if i["id"] == fid and self._is_mine(i, guest_id, owner)), None)
             if item is None:
                 return None
             if item["status"] in FINISHED:

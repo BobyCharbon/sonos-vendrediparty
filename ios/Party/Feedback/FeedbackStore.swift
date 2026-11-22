@@ -76,12 +76,13 @@ final class FeedbackStore: ObservableObject {
     func appear() async {
         guard let me = await web?.guestIdentity() else { return }
         do {
-            items = try await api.feedback(guestID: me.id)
+            let token = await web?.accountToken()
+            items = try await api.feedback(guestID: me.id, token: token)
             loaded = true
             let unseen = Set(items.filter(\.unseen).map(\.id))
             guard !unseen.isEmpty else { return }
             highlighted.formUnion(unseen)
-            try await api.markFeedbackSeen(guestID: me.id)
+            try await api.markFeedbackSeen(guestID: me.id, token: token)
             web?.refreshFeedbackBadge()
         } catch {
             loaded = true  // le formulaire reste utilisable, comme sur la page

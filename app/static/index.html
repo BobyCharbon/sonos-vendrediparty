@@ -956,11 +956,14 @@ async function loadFeedback(shown = document.body.dataset.tab === "feedback") {
   if (shown && fbIsAdmin() && fbView === "admin") FeedbackAdmin.load();
   if (shown && !fbIsAdmin() && fbAllowed()) FeedbackAI.refresh();  // IA : accord, reformulations restantes
   try {
-    const r = await api(`/api/feedback?guest_id=${encodeURIComponent(guestId)}`);
+    // Jeton du compte : mes avis envoyés depuis l'autre site (test ↔ prod) ou l'autre app reviennent aussi.
+    const token = (await freshToken()) || "";
+    const r = await api(`/api/feedback?guest_id=${encodeURIComponent(guestId)}`,
+      token ? { headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } } : {});
     renderFeedback(r.mine);
     const guestVisible = shown && !(fbIsAdmin() && fbView === "admin");
     if (guestVisible && r.mine.some((m) => m.unseen)) {
-      await api("/api/feedback/seen", { method: "POST", body: JSON.stringify({ guest_id: guestId }) });
+      await api("/api/feedback/seen", { method: "POST", body: JSON.stringify({ guest_id: guestId, token }) });
       fbUnseen = 0; fbBadge();
     }
   } catch { /* pas grave : le formulaire reste utilisable */ }

@@ -217,8 +217,17 @@ final class PartyAPI {
 
     // MARK: Ton avis (pas besoin du code de la soirée)
 
-    func feedback(guestID: String) async throws -> [FeedbackItem] {
-        let list: FeedbackList = try await get("/api/feedback", query: ["guest_id": guestID])
+    /// token : jeton du compte, dans l'en-tête (jamais dans l'adresse) : les avis du même numéro envoyés depuis l'autre
+    /// site (test ↔ prod) ou l'autre app reviennent aussi.
+    func feedback(guestID: String, token: String? = nil) async throws -> [FeedbackItem] {
+        guard let base = url("/api/feedback"), var parts = URLComponents(url: base, resolvingAgainstBaseURL: true) else {
+            throw PartyAPIError.offline
+        }
+        parts.queryItems = [URLQueryItem(name: "guest_id", value: guestID)]
+        guard let full = parts.url else { throw PartyAPIError.offline }
+        var request = URLRequest(url: full)
+        if let token, !token.isEmpty { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+        let list = try JSONDecoder().decode(FeedbackList.self, from: try await send(request))
         return list.mine
     }
 
@@ -237,8 +246,8 @@ final class PartyAPI {
         return list.mine
     }
 
-    func markFeedbackSeen(guestID: String) async throws {
-        try await post("/api/feedback/seen", body: ["guest_id": guestID])
+    func markFeedbackSeen(guestID: String, token: String? = nil) async throws {
+        try await post("/api/feedback/seen", body: ["guest_id": guestID, "token": token ?? ""])
     }
 
     /// Pochette : les pochettes Sonos passent par /art, réservé aux invités (cookie de la session).

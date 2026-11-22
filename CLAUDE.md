@@ -328,6 +328,14 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
 - Tests : `tests/supabase_live/test_inscription_complete_live.py`, `test_inscription_complete_browser_live.py` (vrai
   navigateur ; base de TEST ou copie locale via PARTY_TEST_SUPABASE_URL / PARTY_TEST_DB_CONTAINER / PARTY_TEST_EVENTS_DIST).
 
+## Avis (liste commune site de test ↔ prod, 22.11)
+- Une seule liste, gardée par la prod (`app/feedback_remote.py`, `/api/feedback-sync`). « Mes avis » d'une personne : ceux
+  de l'appareil (`guest_id`) ET ceux de son compte sur l'autre site / l'autre app (`owner` = HMAC du numéro avec
+  FEEDBACK_SYNC_SECRET, `feedback_owner`, jeton en en-tête `Authorization`, jamais dans l'adresse). Test : `tests/test_feedback_sync.py`.
+- Quand Claude travaille sur un avis : le passer « En cours » (`progress`) dès le début, puis « À vérifier » (`verify`) dès que
+  c'est sur le site de test ; jamais laissé « Prêt à faire » pendant le travail (`set_fields(ids, {"status": …}, by="claude")`
+  par `main.feedback` du conteneur `vendrediparty-test`).
+
 ## Jeux — requêtes simultanées
 - Tous les téléphones interrogent la partie chaque seconde, en parallèle. Toute lecture-modification d'une partie
   (action, avancée automatique type `quiz.tick`, image des jeux temps réel) passe par le verrou unique
