@@ -30,6 +30,8 @@ struct ConversationView: View {
     @State private var person: PersonRef?
     @State private var picked: PhotosPickerItem?
     @State private var showCamera = false
+    /// Photo d'une bulle touchée : plein écran, zoom, Enregistrer, Partager (avis 48a0eefd44ce).
+    @State private var viewingPhoto: ChatMediaItem?
     @State private var showInfo = false
     @FocusState private var writing: Bool
     @StateObject private var recorder = VoiceRecorder()
@@ -109,6 +111,7 @@ struct ConversationView: View {
             .fullScreenCover(isPresented: $showCamera) {
                 BubbleCamera { image in Task { await sendImage(image) } }.ignoresSafeArea()
             }
+            .fullScreenCover(item: $viewingPhoto) { EventChatPhotoViewer(item: $0) }
             .personSheet($person, store: store, routes: routes, canWrite: chat?.isDirect != true)
             .confirmationDialog("Bloquer \(title) ?", isPresented: $confirmBlock, titleVisibility: .visible) {
                 Button("Bloquer", role: .destructive) {
@@ -397,6 +400,13 @@ struct ConversationView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { proxy.scrollTo(Self.unreadID, anchor: .top) }
     }
 
+    /// Toucher une photo (groupe, événement, à deux) : plein écran, comme dans « Médias ».
+    private func showPhoto(_ m: Conversation.Message) {
+        guard let photo = m.photo, !m.deleted else { return }
+        Haptics.tap()
+        viewingPhoto = ChatMediaItem(messageId: m.id, kind: "photo", url: photo, at: m.at, authorName: m.mine ? "Toi" : m.authorName)
+    }
+
     private func reply(to m: Conversation.Message) {
         Haptics.press()
         Motion.animate {
@@ -635,7 +645,8 @@ struct ConversationView: View {
                                  onReact: { emoji in Haptics.tap(); Task { await store.react(m, emoji) } },
                                  onReply: { reply(to: m) }, onPin: { Task { await store.pin(m) } },
                                  onDelete: { Task { await store.delete(m) } }, onReport: report,
-                                 onPrivateReply: canPrivate ? { replyPrivately(to: m, in: chat) } : nil)
+                                 onPrivateReply: canPrivate ? { replyPrivately(to: m, in: chat) } : nil,
+                                 onPhoto: { showPhoto(m) })
             } else {
                 ChatBubble(message: m, first: first, last: last, showAuthor: !chat.isDirect, names: names,
                            reactions: chat.reactions, canWrite: chat.member && v2.request(in: chat) == nil, isAdmin: chat.admin,
@@ -651,6 +662,7 @@ struct ConversationView: View {
                            onEdit: canEdit ? { startEdit(m) } : nil,
                            onPrivateReply: canPrivate ? { replyPrivately(to: m, in: chat) } : nil,
                            onAuthor: { person = PersonRef(id: m.author) },
+                           onPhoto: { showPhoto(m) },
                            onOpenEvent: routes.openEvent,
                            onRetry: m.failed ? { Haptics.tap(); Task { await store.retry(m) } } : nil)
             }
@@ -804,7 +816,6 @@ struct ConversationView: View {
                            startPoint: .top, endPoint: .init(x: 0.5, y: 0.3))
                 .ignoresSafeArea(edges: .bottom)
         )
-        .task { recorder.warmUp() }  // micro prêt avant le premier appui
     }
 
     /// Au-dessus du champ : ce que le prochain envoi fera (répondre, modifier), avec ✕.
@@ -1238,6 +1249,8 @@ private struct ChatBubble: View {
     var onEdit: (() -> Void)?
     var onPrivateReply: (() -> Void)?
     var onAuthor: (() -> Void)?
+    /// Toucher la photo : plein écran (Enregistrer, Partager).
+    var onPhoto: (() -> Void)?
     var onOpenEvent: (@MainActor (String) -> Void)?
     /// Message pas parti (réseau absent) : un toucher le renvoie.
     var onRetry: (() -> Void)?
@@ -1309,6 +1322,7 @@ private struct ChatBubble: View {
         .accessibilityHint(actions ? "Glisse vers la droite pour répondre ; appui long pour réagir\(onEdit != nil ? ", modifier" : "")\(canPin ? ", épingler" : "") ou supprimer" : "")
         .accessibilityAction(named: "Répondre") { if actions && canWrite && canReply { onReply() } }
         .accessibilityAction(named: "Réessayer") { onRetry?() }
+        .accessibilityActions { if message.photo != nil && !message.deleted { Button("Voir la photo") { onPhoto?() } } }
     }
 
     private var accessibility: String {
@@ -1360,7 +1374,10 @@ private struct ChatBubble: View {
                 }
                 .frame(width: 240, height: 240).clipShape(RoundedRectangle(cornerRadius: 18))
                 .overlay(alignment: .bottomTrailing) { if photoOnly { MessageMeta(message: message, onPhoto: true, seen: seen).padding(8) } }
+                .contentShape(RoundedRectangle(cornerRadius: 18))
+                .onTapGesture { onPhoto?() }
                 .accessibilityLabel("Photo de \(message.authorName)")
+                .accessibilityIdentifier("chat-photo")
             }
             if let seconds = message.audioSeconds, !message.deleted {
                 VoiceBubble(player: player, id: message.id, url: message.audio.flatMap(URL.init(string:)), seconds: seconds, mine: message.mine)
@@ -1414,6 +1431,7 @@ private struct AnnouncementCard: View {
     let onDelete: () -> Void
     let onReport: () -> Void
     var onPrivateReply: (() -> Void)?
+    var onPhoto: (() -> Void)?
 
     private var accent: Color { ConvNeon.pink }
     private var actions: Bool { (canWrite || !message.mine) && !message.pending }
@@ -1435,6 +1453,9 @@ private struct AnnouncementCard: View {
                 if let photo = message.photo.flatMap(URL.init(string:)) {
                     AsyncImage(url: photo) { image in image.resizable().scaledToFill() } placeholder: { ProgressView() }
                         .frame(maxWidth: .infinity).frame(height: 200).clipShape(RoundedRectangle(cornerRadius: 14))
+                        .contentShape(RoundedRectangle(cornerRadius: 14))
+                        .onTapGesture { onPhoto?() }
+                        .accessibilityIdentifier("chat-photo")
                 }
                 if let seconds = message.audioSeconds {
                     VoiceBubble(player: player, id: message.id, url: message.audio.flatMap(URL.init(string:)), seconds: seconds, mine: false)
@@ -1464,6 +1485,7 @@ private struct AnnouncementCard: View {
         .accessibilityLabel("Annonce de \(message.mine ? "toi" : message.authorName) : \(ConversationView.clean(message.preview))")
         .accessibilityAction(named: "Répondre") { if canWrite && canReply && !message.pending { onReply() } }
         .accessibilityIdentifier("chat-announcement")
+        .accessibilityActions { if message.photo != nil { Button("Voir la photo") { onPhoto?() } } }
     }
 }
 

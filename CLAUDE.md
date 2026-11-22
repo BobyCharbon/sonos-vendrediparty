@@ -227,6 +227,12 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   l'organisation (`event_chat_people`). Temps réel natif : signal `event:<id>`. Tests : `test_discussion_evenement_live.py`,
   `test_discussion_evenement_browser_live.py`, `tests/test_event_chats_native.py`, `tests/test_event_chat_browser.py`,
   `EventChatTests`, recette `RecetteDiscussionUITests` (Release + serveur local + base de TEST).
+- Discussions, son et photos (avis c54e83dc5130 et 48a0eefd44ce, 22.11) : ouvrir Discussions ou une conversation ne touche
+  JAMAIS à `AVAudioSession` (l'ancien `warmUp` du micro coupait Spotify) ; seuls le toucher du micro (`VoiceRecorder.start`)
+  et la lecture d'un vocal (`VoicePlayer.toggle`) l'activent, rendue ensuite avec `.notifyOthersOnDeactivation`. Aucun
+  média en lecture automatique sur le web. Toucher une photo de bulle (groupe, événement, à deux ; annonce comprise) =
+  plein écran `EventChatPhotoViewer` (zoom, glisser vers le bas, « Enregistrer » dans Photos, partage) ; web : `PhotoViewer`
+  `save` (partage du téléphone, sinon téléchargement). Test : `tests/test_chat_media_audio.py`.
 - Discussion d'un événement RÉSERVÉE à ceux qui viennent (décision de l'admin du 19.11, migration 20261119120000) : Présent /
   Peut-être et l'organisation (créateur, co-organisateurs, admins : `private.event_chat_member`, `event_chat_open`) la voient
   dans Discussions, la lisent (RLS « lire messages »), y écrivent, la trouvent et en reçoivent les notifications ; pas répondu

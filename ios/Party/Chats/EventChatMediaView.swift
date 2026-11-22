@@ -1,3 +1,4 @@
+import Photos
 import SwiftUI
 
 /// « Médias, liens et vocaux » de la discussion d'un événement, façon WhatsApp : grille des photos, liste des liens,
@@ -191,22 +192,33 @@ struct EventChatMediaView: View {
     }
 }
 
-/// Photo en plein écran : pincer pour zoomer, double toucher, glisser vers le bas pour fermer ; « Voir dans la
-/// discussion » ramène au message.
+/// Photo en plein écran (bulle d'une discussion de groupe, d'événement ou à deux, ou « Médias ») : pincer pour zoomer,
+/// double toucher, glisser vers le bas pour fermer ; « Enregistrer » la met dans Photos, ↑ ouvre le partage d'iOS
+/// (avis 48a0eefd44ce) ; « Voir dans la discussion » (depuis « Médias » seulement) ramène au message.
 struct EventChatPhotoViewer: View {
     let item: ChatMediaItem
-    let onJump: () -> Void
+    var onJump: (() -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var scale: CGFloat = 1
     @State private var lastScale: CGFloat = 1
     @State private var drag: CGSize = .zero
+    @State private var image: UIImage?
+    @State private var failed = false
+    @State private var saved = false
+    @State private var saveProblem: String?
 
     var body: some View {
         ZStack {
             Color.black.opacity(1 - min(0.6, abs(drag.height) / 600)).ignoresSafeArea()
-            AsyncImage(url: URL(string: item.url)) { phase in
-                if let image = phase.image { image.resizable().scaledToFit() } else { ProgressView().tint(.white) }
+            Group {
+                if let image {
+                    Image(uiImage: image).resizable().scaledToFit()
+                } else if failed {
+                    Label("Photo indisponible", systemImage: "photo").foregroundStyle(.white.opacity(0.7))
+                } else {
+                    ProgressView().tint(.white)
+                }
             }
             .scaleEffect(scale)
             .offset(scale > 1 ? .zero : drag)
@@ -227,9 +239,10 @@ struct EventChatPhotoViewer: View {
         .overlay(alignment: .top) {
             HStack {
                 Button { dismiss() } label: {
-                    Image(systemName: "xmark").font(.headline).frame(width: 40, height: 40).background(.ultraThinMaterial, in: Circle())
+                    Image(systemName: "xmark").font(.headline).frame(width: 44, height: 44).background(.ultraThinMaterial, in: Circle())
                 }
                 .accessibilityLabel("Fermer")
+                .accessibilityIdentifier("photo-viewer-close")
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
                     Text(item.authorName).font(.subheadline.weight(.semibold))
@@ -240,21 +253,81 @@ struct EventChatPhotoViewer: View {
             .foregroundStyle(.white)
         }
         .overlay(alignment: .bottom) {
-            Button {
-                Haptics.tap()
-                dismiss()
-                // Après la fermeture du plein écran : la feuille des infos se ferme à son tour.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { onJump() }
-            } label: {
-                Label("Voir dans la discussion", systemImage: "bubble.left.and.text.bubble.right")
-                    .font(.subheadline.weight(.semibold)).padding(.horizontal, 18).padding(.vertical, 12)
-                    .background(.ultraThinMaterial, in: Capsule())
+            VStack(spacing: 10) {
+                if let saveProblem {
+                    Text(saveProblem).font(.footnote).multilineTextAlignment(.center).padding(.horizontal, 24)
+                        .transition(.opacity)
+                }
+                if let image {
+                    HStack(spacing: 10) {
+                        Button { Task { await save(image) } } label: {
+                            Label(saved ? "Enregistrée dans Photos" : "Enregistrer", systemImage: saved ? "checkmark" : "square.and.arrow.down")
+                                .font(.subheadline.weight(.semibold)).padding(.horizontal, 18).padding(.vertical, 12)
+                                .background(.ultraThinMaterial, in: Capsule())
+                        }
+                        .disabled(saved)
+                        .accessibilityIdentifier("photo-viewer-save")
+                        ShareLink(item: Image(uiImage: image),
+                                  preview: SharePreview("Photo de \(item.authorName)", image: Image(uiImage: image))) {
+                            Image(systemName: "square.and.arrow.up").font(.headline).frame(width: 44, height: 44)
+                                .background(.ultraThinMaterial, in: Circle())
+                        }
+                        .accessibilityLabel("Partager la photo")
+                        .accessibilityIdentifier("photo-viewer-share")
+                    }
+                    .transition(.opacity)
+                }
+                if let onJump {
+                    Button {
+                        Haptics.tap()
+                        dismiss()
+                        // Après la fermeture du plein écran : la feuille des infos se ferme à son tour.
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { onJump() }
+                    } label: {
+                        Label("Voir dans la discussion", systemImage: "bubble.left.and.text.bubble.right")
+                            .font(.subheadline.weight(.semibold)).padding(.horizontal, 18).padding(.vertical, 12)
+                            .background(.ultraThinMaterial, in: Capsule())
+                    }
+                }
             }
             .foregroundStyle(.white)
             .padding(.bottom, 24)
             .opacity(drag == .zero ? 1 : 0)
         }
         .animation(reduceMotion ? nil : Motion.snappy, value: drag == .zero)
+        .animation(reduceMotion ? nil : Motion.snappy, value: image != nil)
+        .animation(reduceMotion ? nil : Motion.snappy, value: saved)
+        .animation(reduceMotion ? nil : Motion.snappy, value: saveProblem)
         .preferredColorScheme(.dark)
+        .task { await load() }
+    }
+
+    /// L'image elle-même (lien signé) : affichée, puis enregistrée ou partagée telle quelle.
+    private func load() async {
+        if let url = URL(string: item.url), let (data, _) = try? await URLSession.shared.data(from: url),
+           let loaded = UIImage(data: data) {
+            image = loaded
+        } else {
+            failed = true
+        }
+    }
+
+    /// Dans Photos (accès « ajouter seulement », NSPhotoLibraryAddUsageDescription) ; refusé : Réglages d'iOS.
+    private func save(_ image: UIImage) async {
+        saveProblem = nil
+        let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
+        guard status == .authorized || status == .limited else {
+            Haptics.warning()
+            saveProblem = "Autorise Party à ajouter des photos dans Réglages › Party › Photos."
+            return
+        }
+        do {
+            try await PHPhotoLibrary.shared().performChanges { PHAssetChangeRequest.creationRequestForAsset(from: image) }
+            Haptics.success()
+            saved = true
+        } catch {
+            Haptics.warning()
+            saveProblem = "La photo n'a pas pu être enregistrée. Réessaie."
+        }
     }
 }

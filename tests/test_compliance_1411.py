@@ -104,6 +104,8 @@ PERMISSIONS = [
     (r"LAContext", "NSFaceIDUsageDescription"),
     # Appui long sur une image de la page › « Ajouter à Photos » : WKWebView garde ce menu sauf allowsLinkPreview = false.
     (r"WKWebView\(", "NSPhotoLibraryAddUsageDescription"),
+    # « Enregistrer » de la visionneuse photo des Discussions (avis 48a0eefd44ce).
+    (r"PHAssetChangeRequest", "NSPhotoLibraryAddUsageDescription"),
 ]
 
 
@@ -117,7 +119,7 @@ def test_every_permission_asked_by_the_code_has_its_text_in_french(name):
     code = swift_of(target)
     texts = usage_texts(target)
     for pattern, key in PERMISSIONS:
-        if key == "NSPhotoLibraryAddUsageDescription" and "allowsLinkPreview = false" in code:
+        if pattern == r"WKWebView\(" and "allowsLinkPreview = false" in code:
             continue
         if re.search(pattern, code):
             assert key in texts, f"{name} : {key} manque ({pattern})"

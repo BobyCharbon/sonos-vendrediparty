@@ -39,11 +39,8 @@ final class VoiceRecorder: ObservableObject {
         }
     }
 
-    /// Prépare le micro dès l'ouverture d'une conversation (autorisation déjà donnée) : l'appui démarre sans délai.
-    func warmUp() {
-        guard AVAudioSession.sharedInstance().recordPermission == .granted else { return }
-        try? Self.useBuiltInMicrophone()
-    }
+    // Jamais de session audio à l'ouverture d'une conversation (ancien « warmUp ») : l'activer coupait la musique
+    // en cours (Spotify…) sans qu'on lise ni n'enregistre rien (avis c54e83dc5130). Elle s'ouvre au toucher du micro.
 
     func start() async {
         guard !recording else { return }
@@ -155,7 +152,7 @@ final class VoicePlayer: ObservableObject {
 
     func toggle(id: String, url: URL) {
         if playing == id { return stop() }
-        stop()
+        stop(release: false)  // d'un vocal au suivant : la session reste prise (la musique ne repart pas entre les deux)
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
         try? AVAudioSession.sharedInstance().setActive(true)
         let player = AVPlayer(url: url)
@@ -174,7 +171,8 @@ final class VoicePlayer: ObservableObject {
         player.playImmediately(atRate: speed)
     }
 
-    func stop() {
+    func stop(release: Bool = true) {
+        let wasPlaying = player != nil
         if let observer { player?.removeTimeObserver(observer) }
         if let ended { NotificationCenter.default.removeObserver(ended) }
         observer = nil
@@ -183,6 +181,8 @@ final class VoicePlayer: ObservableObject {
         player = nil
         playing = nil
         progress = 0
+        // Vocal fini ou arrêté : la session audio est rendue, la musique coupée (Spotify…) reprend.
+        if wasPlaying && release { try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation) }
     }
 }
 
