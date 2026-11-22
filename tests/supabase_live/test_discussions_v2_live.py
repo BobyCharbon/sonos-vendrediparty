@@ -9,7 +9,7 @@ BOTS seulement, transactions ANNULÉES (rien ne reste, aucune notification envoy
   « Vu » réciproque, soirée passée de plus de 7 jours, Root ;
 - suggestions et recherche (jamais par numéro, jamais un bloqué ni un Guest sans lien), member_mini (« Déjà vu », 3
   dernières soirées dans l'ordre, liste des participants cachée respectée, À venir, blocage) ;
-- groupe privé (Root ne le lit pas, les admins ne le voient pas, demande = refusée), chat_group_with ;
+- groupe privé (Root ne le lit pas ; les admins le voient avec ses membres, jamais ses messages (22.11) ; demande = refusée), chat_group_with ;
 - modifier après 15 minutes refusé ; carte d'événement invisible sans can_see_event ; citation nettoyée ;
 - devinette de numéro : bloquée après 20 empreintes ratées en 24 h.
 Lancement : SUPABASE_LIVE_TESTS=1 python -m pytest tests/supabase_live/test_discussions_v2_live.py -q"""
@@ -409,7 +409,8 @@ def test_private_group_is_not_read_by_root_and_request_links_are_refused():
     assert out["invitation"] == "1", out
     assert out["root_lit"] == "0" and out["root_liste"] == "0" and out["root_ancienne"] == "0", out
     assert out["root_normal"] == "true", out
-    assert out["admin_voit"] == "0" and out["admin_membres"] == "0", out
+    # Groupes libres (22.11) : l'admin du site voit le groupe privé et ses membres, jamais ses messages (root_lit = 0).
+    assert out["admin_voit"] == "1" and int(out["admin_membres"]) >= 1, out
     assert out["createur"] == "[DV2] Privé", out
 
 

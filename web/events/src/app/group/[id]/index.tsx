@@ -23,7 +23,7 @@ import { must, supabase } from '@/lib/supabase';
 import { colors, font, radius } from '@/lib/theme';
 
 type Row = { id: string; name: string; emoji: string; color: GroupColor; photo_path: string | null; created_by: string | null; created_at: string;
-  system_key: string | null; member_group_members: { user_id: string; added_at: string | null }[] };
+  system_key: string | null; private_chat?: boolean; member_group_members: { user_id: string; added_at: string | null }[] };
 type Person = { id: string; display_name: string; avatar_url: string | null };
 
 const BACK = ['M15 18l-6-6 6-6'];
@@ -62,7 +62,7 @@ export default function GroupPage() {
   const { data, error, loading, reload } = useQuery(async () => {
     const [mine, row, eventIds, taxonomy] = await Promise.all([
       fetchMyGroups(),
-      supabase.from('member_groups').select('id, name, emoji, color, photo_path, created_by, created_at, system_key, member_group_members(user_id, added_at)')
+      supabase.from('member_groups').select('id, name, emoji, color, photo_path, created_by, created_at, system_key, private_chat, member_group_members(user_id, added_at)')
         .eq('id', id).maybeSingle(),
       fetchGroupEventIds(id),
       fetchTaxonomy(),
@@ -95,7 +95,8 @@ export default function GroupPage() {
   const system = !!group.system_key;
   const memberIds = group.member_group_members.map((m) => m.user_id);
   const member = memberIds.includes(me.id);
-  const manage = overview?.manage ?? (!system && (group.created_by === me.id || rank >= roleRank('admin')));
+  // Groupe privé de Discussions (22.11) : l'admin du site le voit (nom, membres), sans le gérer ni lire sa discussion.
+  const manage = overview?.manage ?? (!system && (group.created_by === me.id || (rank >= roleRank('admin') && !group.private_chat)));
   const p = palette(group.color);
   const name = groupName(group);
   const creator = group.created_by ? people.get(group.created_by) : null;

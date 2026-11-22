@@ -663,3 +663,19 @@ réglage de prod :
   `test_discussions_v2_browser_live.py`, iOS `ChatsListTests`, `ChatsPeopleTests`, `ConversationV2Tests`.
 - Avant la prod : correctif D1 (les admins lisaient photos et vocaux des messages directs), clé vault `storage_secret_key`,
   compte démo « Apple-test 2 », représentant UE, notes de revue Apple.
+
+## Groupes libres (décision de l'admin du 22.11, migration 20261122150000)
+- « Chacun est libre de faire ce qu'il veut avec son groupe » : un événement réservé UNIQUEMENT à des groupes ordinaires
+  (visibility 'invited', sans lien public, au moins un groupe non système en attente ou accepté : `private.group_only_event`)
+  ne passe JAMAIS par la validation du site, même d'un Guest ; la règle du groupe (`events_need_approval` →
+  `event_groups.status`, `answer_group_event`) décide seule. Public, Membres Vendredi Party, « Sur invitation » sans groupe :
+  validation du site inchangée (`require_approval`). Statut décidé par `guard_event` à la publication (brouillon puis statut) ;
+  insertion directe « pending » puis groupe : `zzz_event_groups_free_publish`. Un événement publié qui s'ÉLARGIT (invitation /
+  groupe → public ou Membres VP) sans `events.publish_direct` repasse « pending ». Modifier un événement publié : toujours
+  `events.edit_own_published`. Celui qui a `events.create` organise ce qu'il crée (`is_organizer`, Guest compris).
+- Validation du site : Admin, Co-admin ET Organisateur (`events.approve`) ; ceux-là voient les propositions (`can_see_event`).
+  Choisir « Public » sans publish_direct dit AVANT de publier qui valide et que l'équipe peut modifier / refuser / retirer
+  (`PUBLIC_REVIEW`, VisibilityChoice.tsx ; formulaire, étape 2) ; CGU « Événements publics et groupes ».
+- Admins du site (`sees_all_groups`) : TOUS les groupes et leurs membres, groupes privés de Discussions compris, JAMAIS leur
+  contenu (`private.reads_group`, chat-photos inchangés) ; la page d'un groupe privé ne leur donne ni Discussion ni Réglages.
+- Tests : `tests/supabase_live/test_groupes_libres_live.py`.

@@ -19,6 +19,7 @@ import { UNLIMITED_PLUS_ONES, VIP_GROUP_KEY } from '@/lib/types';
 
 import { Button, Cascade, Chip, ErrorText, Field, HeaderBack, Input, Reveal, Rows, s, Screen, Section, Segmented, T, ToggleRow } from './ui';
 import { afterPublish } from './InviteStep';
+import { PUBLIC_REVIEW } from './VisibilityChoice';
 import { invitesV2On } from '@/lib/features';
 import { AudiencePicker, audienceError, saveAudience, audienceFromEvent, audienceToEvent, DEFAULT_AUDIENCE, mayUseVip, type AudienceValue, type Person } from './AudiencePicker';
 import { DateTimeField } from './DateTimeField';
@@ -628,8 +629,12 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
       }
       const status = ctx!.status;
       const needsSubmit = !eventId || status === 'draft' || status === 'rejected';
+      let published = status === 'published';
       if (needsSubmit && !asDraft) {
-        check(await supabase.from('events').update({ status: isAdmin ? 'published' : 'pending' }).eq('id', id));
+        // La base décide (guard_event) : réservé à ses groupes, il est publié même sans « publier sans validation ».
+        const saved = await supabase.from('events').update({ status: isAdmin ? 'published' : 'pending' }).eq('id', id).select('status');
+        check(saved);
+        published = ((saved.data?.[0] as { status?: string } | undefined)?.status ?? (isAdmin ? 'published' : 'pending')) === 'published';
       }
       if (eventId) notifyWallet(id);  // titre, date, lieu : les billets déjà dans Cartes se mettent à jour
       orphanDraft.current = null;
@@ -637,7 +642,7 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
       // Nouvel événement « Sur invitation » (sans groupe), invitations v2 : la fiche ouvre aussitôt la feuille « Inviter »,
       // lien prêt, comme l'étape 2 de « Créer avec l'IA » (recette réelle du 10.11.2026).
       const invitedOnly = snapshot.who.audience === 'invite' && !snapshot.who.vip && !snapshot.who.group_ids.length;
-      setDoneAt(!eventId && !asDraft && invitedOnly ? afterPublish(id, 'invite', isAdmin, [], invitesV2On) : `/event/${id}`);
+      setDoneAt(!eventId && !asDraft && invitedOnly ? afterPublish(id, 'invite', published, [], invitesV2On) : `/event/${id}`);
     } catch (e) {
       // Filtre de la base (titre, description) ou CGU : sa phrase, sans la clé technique (« content_refused: … »).
       const message = e instanceof Error ? e.message : String(e);
@@ -666,9 +671,15 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
 
   // Publier n'a lieu que pour un nouvel événement, un brouillon ou un refusé (needsSubmit) : ailleurs (publié, en
   // attente de validation, annulé), le bouton enregistre seulement et le dit.
+  // Groupes libres (22.11) : réservé à ses groupes (sans Membres Vendredi Party), jamais de validation du site.
+  const onlyGroups = (w: AudienceValue) => w.audience === 'invite' && !w.vip && w.group_ids.length > 0;
+  const siteReview = !isAdmin && ctx.settings.require_approval && !onlyGroups(d.who);
+  // Publié sur invitation ou pour ses groupes, puis élargi (public, Membres Vendredi Party) : repasse par la validation.
+  const widened = siteReview && !!eventId && ctx.status === 'published' && !!initial
+    && initial.who.audience === 'invite' && !initial.who.vip && (d.who.audience === 'public' || d.who.vip);
   const submitLabel = eventId && !['draft', 'rejected'].includes(ctx.status ?? '')
     ? 'Enregistrer'
-    : isAdmin || !ctx.settings.require_approval ? 'Publier' : 'Envoyer pour validation';
+    : siteReview ? 'Envoyer pour validation' : 'Publier';
 
   // Un sondage de dates n’existe qu’en avancé : on n’en cache jamais les créneaux.
   const advanced = mode === 'advanced' || d.date_mode === 'poll';
@@ -952,10 +963,12 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
         </Pressable>
       )}
 
-      {!isAdmin && ctx.settings.require_approval && (!eventId || ctx.status !== 'published') ? (
-        <View style={{ backgroundColor: colors.lavenderDim, padding: 14, borderRadius: 16 }}>
+      {siteReview && (!eventId || ctx.status !== 'published' || widened) ? (
+        <View style={{ backgroundColor: colors.lavenderDim, padding: 14, borderRadius: 16 }} testID="site-review">
           <T size={13} color={colors.textSoft}>
-            Un admin doit valider ta proposition. Il pourra modifier n’importe quel champ avant de la publier.
+            {widened ? 'Élargi au public ou aux Membres Vendredi Party, l’événement repasse par la validation. ' : ''}
+            {d.who.audience === 'public' ? PUBLIC_REVIEW
+              : 'Un admin doit valider ta proposition. Il pourra modifier n’importe quel champ avant de la publier. Réservé à tes groupes, il est publié sans validation.'}
           </T>
         </View>
       ) : null}

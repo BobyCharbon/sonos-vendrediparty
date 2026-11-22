@@ -53,6 +53,8 @@ def draft_event(page, ai_suggested=None) -> list:
             writes.append((request.method, path.rsplit('/', 1)[-1], body))
             if path.endswith('/events') and isinstance(body, dict):
                 event.update(body)
+                if 'select' in parse_qs(urlparse(request.url).query):  # statut relu (la base décide, 22.11)
+                    return route.fulfill(status=200, content_type='application/json', headers=CORS, body=json.dumps([event]))
             return route.fulfill(status=204, headers=CORS)
         single = 'id' in parse_qs(urlparse(request.url).query)
         route.fulfill(status=200, content_type='application/json', headers=CORS, body=json.dumps(event if single else [event]))

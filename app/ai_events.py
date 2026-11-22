@@ -561,9 +561,14 @@ class EventAssistant:
         saved = self._store(token, draft, place, invite=True)
         eid = saved["id"]
         status = "published" if "events.publish_direct" in saved["perms"] else "pending"
-        p = self.accounts._get("PATCH", f"/rest/v1/events?id=eq.{eid}", token, json={"status": status})
+        p = self.accounts._get("PATCH", f"/rest/v1/events?id=eq.{eid}&select=status", token, json={"status": status},
+                               headers={"Prefer": "return=representation"})
         if p.status_code not in (200, 204):
             raise AccountError("L'événement est enregistré en brouillon : ouvre-le pour le publier.")
+        # La base décide (guard_event, 22.11) : réservé aux groupes de la personne, il est publié sans validation du site.
+        rows = p.json() if p.status_code == 200 and p.content else None
+        if isinstance(rows, list) and rows and rows[0].get("status") in ("published", "pending"):
+            status = rows[0]["status"]
         return {"id": eid, "status": status, "title": saved["draft"]["title"], "problems": saved["problems"]}
 
     def _store(self, token: str, draft: dict, place: dict | None, invite: bool) -> dict:
