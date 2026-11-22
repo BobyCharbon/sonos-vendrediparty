@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Linking, View } from 'react-native';
 
 import { InvitedBySection } from '@/components/InvitedBy';
+import { SignupOriginLine } from '@/components/SignupOrigin';
 import { ReportSheet } from '@/components/ReportSheet';
 import { useTermsGate } from '@/components/TermsSheet';
 import { nativeOpenDirect, openDirect, refusal } from '@/components/chats/people/people';
@@ -155,6 +156,8 @@ export default function MemberScreen() {
       ) : null}
       {/* Qui l'a invité (lien Party, groupe, événement) : admins seulement (droit « Voir qui a invité qui »). */}
       {!data.me ? <InvitedBySection id={data.id} /> : null}
+      {/* D'où il vient (lien d'événement, de groupe, « Partager », directe ; app ou site) : droit « Voir l'origine des inscriptions ». */}
+      {!data.me ? <SignupOriginLine id={data.id} /> : null}
       {!data.me ? (
         <Section title="Confidentialité">
           {data.blocked ? (

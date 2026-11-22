@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import { View } from 'react-native';
 
 import { DeleteMember } from '@/components/DeleteMember';
+import { SignupOriginStats } from '@/components/SignupOrigin';
 import { Avatar, Button, Card, Chip, ErrorText, Input, LinkRow, Screen, s, Section, T } from '@/components/ui';
 import { useAuth, useMe } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
@@ -88,6 +89,7 @@ export default function Members() {
           <LinkRow label="📜 Journal des membres" hint="Inscriptions, connexions, rôles, bêta, groupes, suppressions, consultations" onPress={() => router.push('/admin/journal')} />
         </Card>
       ) : null}
+      <SignupOriginStats />
       {data ? <T muted size={13}>{data.people.length} compte(s) inscrit(s){data.full ? '' : ' · liste complète et suppression après la mise à jour de la base'}</T> : null}
       <Input placeholder="Rechercher (surnom, prénom, nom, numéro)" value={search} onChangeText={setSearch} />
       <ErrorText error={error ?? loadError} />

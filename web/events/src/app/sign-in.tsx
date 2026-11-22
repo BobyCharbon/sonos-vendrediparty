@@ -5,6 +5,7 @@ import { KeyboardAvoidingView, Platform, Pressable, View } from 'react-native';
 import { Button, ErrorText, Field, Screen, T, Title } from '@/components/ui';
 import { authErrorMessage } from '@/lib/authErrors';
 import { hasPendingInviteAnswer } from '@/lib/inviteIntent';
+import { noteSignup } from '@/lib/signupOrigin';
 import { enter, pressTransition } from '@/lib/motion';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
@@ -43,6 +44,7 @@ export default function SignIn() {
     const { error } = await supabase.auth.verifyOtp({ phone: sentTo, token: code.trim(), type: 'sms' });
     setBusy(false);
     if (error) setError(authErrorMessage(error, 'verify'));
+    else void noteSignup();  // origine de l'inscription (compte neuf seulement, la base décide)
     // La redirection est gérée par le layout racine.
   }
 

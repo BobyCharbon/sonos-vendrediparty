@@ -41,6 +41,21 @@ struct GroupAdminTests {
         #expect(m.people[3].role == .guest && m.people[3].displayName == "Profil à compléter")
     }
 
+    @Test("Origine des inscriptions : la ligne de la fiche et le compte par source, seulement si le serveur les envoie")
+    func signupOrigin() throws {
+        let m: AdminMembers = try decode("""
+        {"me": "me", "perms": ["members.signup_source"], "rank": 4, "full": true,
+         "signup_stats": {"sources": [{"source": "event_link", "label": "Lien d'invitation d'un événement", "last30": 2, "total": 5}],
+                          "platforms": [{"platform": "ios", "label": "App iPhone", "last30": 1, "total": 3}]},
+         "people": [{"id": "a", "name": "Léa", "role": "basic", "status": "active", "signup": "Inscrit directement · site · 22.11.2026"},
+                    {"id": "b", "name": "Tom", "role": "basic", "status": "active"}]}
+        """)
+        #expect(m.people[0].signup == "Inscrit directement · site · 22.11.2026" && m.people[1].signup == nil)
+        #expect(m.signupStats?.sources.first?.total == 5 && m.signupStats?.platforms.first?.label == "App iPhone")
+        let none: AdminMembers = try decode(#"{"me": "me", "perms": [], "rank": 4, "full": true, "people": []}"#)
+        #expect(none.signupStats == nil)
+    }
+
     @Test("Règles : jamais root, jamais soi-même, seulement en dessous de son rang")
     func memberRules() throws {
         let m: AdminMembers = try decode("""

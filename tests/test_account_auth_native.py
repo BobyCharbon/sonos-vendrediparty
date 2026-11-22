@@ -48,6 +48,20 @@ def test_code_and_session_with_the_storage_key_of_the_page(monkeypatch):
     out = auth.verify("+41790000003", "123456")
     assert out["storage_key"] == "sb-ewromq-auth-token"
     assert out["session"]["access_token"] and out["session"]["expires_at"] > 0
+    # Origine des inscriptions (22.11) : la connexion de l'app iPhone dit sa plateforme, avec la session du compte.
+    assert seen[-1][1:4] == ("/rest/v1/rpc/note_signup", "", {"platform": "ios"}) and seen[-1][4] == "Bearer " + "a" * 40
+
+
+def test_signup_note_failure_never_blocks_sign_in():
+    acc, _ = fake()
+    real = acc._get
+
+    def flaky(method, path, token, **kw):
+        if path.endswith("note_signup"):
+            raise accounts_mod.ServiceUnavailable()
+        return real(method, path, token, **kw)
+    acc._get = flaky
+    assert account_auth.AccountAuth(acc).verify("+41790000003", "123456")["session"]["access_token"]
 
 
 @pytest.mark.parametrize("phone", ["0790000003", "+41", "41790000003", "+41 79 000 00 03"])

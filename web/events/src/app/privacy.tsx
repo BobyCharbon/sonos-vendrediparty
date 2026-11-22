@@ -26,6 +26,7 @@ const BLOCKS: Block[] = [
       'Numéro de téléphone : il sert à te connecter avec un code reçu par SMS et à te reconnaître. Il est visible par toi, par les administrateurs qui gèrent les accès et, si tu le choisis dans tes réglages, par les membres de tes groupes.',
       'Surnom, prénom, nom et, si tu veux, photo de profil : ils te présentent aux autres dans les jeux, les événements et les groupes. Tu les modifies à tout moment dans Réglages › Mon profil.',
       'Rôle, groupes, amis et invitations : ils décident de ce que tu vois et de ce que tu peux faire.',
+      'Origine de ton inscription : à la création de ton compte, Party note d’où tu viens (lien d’invitation d’un événement et la personne dont c’est le lien, lien d’un groupe et qui l’a créé, lien personnel d’un membre, lien « Partager » d’un événement, ou inscription directe) et si c’était dans l’app iPhone ou sur le site. Seuls les administrateurs qui ont le droit « Voir l’origine des inscriptions » le voient, sur ta fiche et dans un compte par source. Rien n’est noté pour les comptes créés avant le 22 novembre 2026 ; tout est effacé avec ton compte.',
       'Nouveau compte : quand tu as fini de créer ton compte (prénom, nom et surnom), les personnes qui valident les membres reçoivent une seule fois une notification avec ton surnom, ton prénom et ton nom. Elles peuvent couper cette notification dans leurs réglages.',
     ],
   },

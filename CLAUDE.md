@@ -273,6 +273,13 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
 - « Nouveau compte » (migration 20261113100000) : ceux qui ont `members.approve` sont prévenus quand un profil devient
   complet, une seule fois ; interrupteur `notification_prefs.member_signups` (web + iPhone, section « Comptes et
   modération »), respecté par `web_push_allowed`. Tests : `tests/supabase_live/test_nouveau_compte_live.py`.
+- Origine des inscriptions (avis 01da90202166, 22.11, migration 20261122133000) : `private.signup_sources` (compte < 24 h) :
+  lien d'événement / de groupe / personnel (noté par la base : `note_invite_join`, `invite_link_arrivals`, avec qui), lien
+  « Partager » ou directe + plateforme (`note_signup`, appelé à la connexion : web sign-in.tsx, iPhone /api/account/verify) ;
+  un lien l'emporte sur « Partager » qui l'emporte sur directe ; comptes d'avant = « Inconnu ». Lecture : droit
+  `members.signup_source` (Admin ; `admin_signup_sources`, `admin_signup_stats`) : fiche « Inscrit via … » (web member/[id],
+  iPhone MemberDetailView) et compte par source dans Membres. Tout nouveau lien d'inscription = une source de plus.
+  Tests : `tests/supabase_live/test_origine_inscription_live.py`, `tests/test_origine_inscription_browser.py`.
 - Bandeau « Ne rate rien de cet événement » en haut de la fiche (`NotifyBanner`) tant que les notifications de CET appareil
   sont éteintes ; app iPhone : `PartyNative.push.enable()` (demande d'iOS + abonnement ; refusées : Réglages d'iOS).
 - Groupes : « Inviter avec un lien » (lien réutilisable du groupe) en haut de son groupe, web et iPhone ; le groupe s'ouvre
