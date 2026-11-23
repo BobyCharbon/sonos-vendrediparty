@@ -93,9 +93,9 @@ final class RecetteAgendaUITests: XCTestCase {
     /// « Qui est libre ? » en calendrier du mois (maquette A, avis du 23.11) : groupe « [QA] Qui est libre 2311 » de la base de
     /// TEST (4 personnes qui partagent), jours dans l'ordre, « n/4 », le meilleur encadré ; toucher un jour ouvre la feuille,
     /// puis le soir / la journée (18 h – 23 h, 8 h – 17 h) et le vote à cocher.
-    func testWhoIsFreeMonthView() {
+    /// Testeur 1 (0790000001), membre du groupe de recette qui partage ses dispos ; puis Réglages › Autres apps › Agenda.
+    private func signInTesteur1AndOpenAgenda() {
         launch()
-        // Testeur 1 (0790000001), membre du groupe de recette qui partage ses dispos.
         let tab = app.tabBars.buttons.matching(NSPredicate(format: "label IN {'Réglages', 'Se connecter'}")).firstMatch
         XCTAssertTrue(tab.waitForExistence(timeout: 40), "onglet Réglages")
         tab.tap()
@@ -111,21 +111,91 @@ final class RecetteAgendaUITests: XCTestCase {
             XCTAssertTrue(code.waitForExistence(timeout: 20), "champ du code")
             code.tap()
             app.typeText("123456")
+            XCTAssertTrue(app.staticTexts["Testeur 1"].waitForExistence(timeout: 30), "connecté en Testeur 1")
+            sleep(3)
+            // Relancée une fois connectée : les drapeaux (/api/features, Agenda) et la session de la page sont relus.
+            app.terminate()
+            launch()
         }
-        XCTAssertTrue(app.staticTexts["Testeur 1"].waitForExistence(timeout: 30), "connecté en Testeur 1")
-        sleep(3)
-        // Relancée une fois connectée : les drapeaux (/api/features, Agenda) et la session de la page sont relus.
-        app.terminate()
-        launch()
+        reopenAgenda()
+    }
+
+    /// Réglages › Autres apps › Agenda (app déjà connectée).
+    private func reopenAgenda() {
         XCTAssertTrue(app.tabBars.buttons["Réglages"].waitForExistence(timeout: 40), "onglet Réglages")
         app.tabBars.buttons["Réglages"].tap()
         sleep(3)
         let row = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Agenda, ")).firstMatch
         for _ in 0..<10 where !(row.exists && row.isHittable) { app.swipeUp(velocity: .slow); sleep(1) }
-        if !row.exists { try? app.debugDescription.write(to: dir.appendingPathComponent("libre-arbre.txt"), atomically: true, encoding: .utf8) }
+        if !row.exists { try? app.debugDescription.write(to: dir.appendingPathComponent("agenda-arbre.txt"), atomically: true, encoding: .utf8) }
         XCTAssertTrue(row.waitForExistence(timeout: 20), "Réglages › Autres apps › Agenda")
         row.tap()
         XCTAssertTrue(agendaPageOpened(), "Agenda ouvert")
+    }
+
+    /// Le tutoriel de l'Agenda (avis du 23.11) : s'ouvre à chaque arrivée tant que « Ne plus me le rappeler » n'est pas touché ;
+    /// 5 cartes, puis l'assistant en 3 étapes ; « Passer » le ferme pour cette fois, « Ne plus me le rappeler » pour de bon.
+    /// Préparer avant (base de TEST) : prefs de l'agenda de Testeur 1 sans `tutorial_off`.
+    func testAgendaTutorialAndSetup() {
+        signInTesteur1AndOpenAgenda()
+        let tutorial = any("identifier == 'agenda-tutorial' OR label == 'Tutoriel de l’agenda'")
+        XCTAssertTrue(any("label CONTAINS 'Ton agenda Party'").waitForExistence(timeout: 30), "tutoriel, carte 1")
+        sleep(1)
+        shot("tuto-1")
+        for n in 2...5 {
+            any("label == 'Suivant'").tap()
+            sleep(1)
+            shot("tuto-\(n)")
+        }
+        XCTAssertTrue(any("label CONTAINS 'Liens de dispo'").exists, "carte 5")
+        // L'assistant : 3 étapes, chacune peut être passée.
+        app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Configurer mon agenda en 3 étapes")).firstMatch.tap()
+        XCTAssertTrue(any("label CONTAINS 'étape 1 sur 3'").waitForExistence(timeout: 20), "étape 1/3")
+        sleep(2)
+        shot("assistant-1")
+        // Sur l'iPhone, l'étape 1 explique d'abord l'accès au calendrier (« Rien n'est envoyé »), puis iOS demande.
+        let go = app.buttons["Continuer"]
+        if go.waitForExistence(timeout: 5) {
+            go.tap()
+            let allow = springboard.buttons.matching(NSPredicate(format: "label CONTAINS 'Autoriser' OR label CONTAINS 'Allow'")).firstMatch
+            if allow.waitForExistence(timeout: 10) {
+                let full = springboard.buttons.matching(NSPredicate(format: "label CONTAINS 'complet' OR label CONTAINS 'Full'")).firstMatch
+                (full.exists ? full : allow).tap()
+            }
+            sleep(3)
+            shot("assistant-1-iphone-relie")
+        }
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Suivant'")).firstMatch.tap()
+        XCTAssertTrue(any("label CONTAINS 'étape 2 sur 3'").waitForExistence(timeout: 20), "étape 2/3")
+        sleep(2)
+        shot("assistant-2")
+        any("label == 'Passer cette étape'").tap()
+        XCTAssertTrue(any("label CONTAINS 'est prêt'").waitForExistence(timeout: 20), "étape 3/3")
+        sleep(2)
+        shot("assistant-3")
+        // Revenir : le tutoriel revient à la prochaine arrivée ; « Ne plus me le rappeler » l'arrête.
+        app.terminate()
+        launch()
+        reopenAgenda()
+        XCTAssertTrue(any("label CONTAINS 'Ton agenda Party'").waitForExistence(timeout: 30), "le tutoriel revient")
+        any("label == 'Ne plus me le rappeler'").tap()
+        sleep(2)
+        XCTAssertFalse(tutorial.exists, "tutoriel fermé")
+        shot("tuto-ferme-pour-de-bon")
+        app.terminate()
+        launch()
+        reopenAgenda()
+        sleep(5)
+        XCTAssertFalse(any("label CONTAINS 'Ton agenda Party'").exists, "le tutoriel ne revient plus")
+        XCTAssertTrue(any("label CONTAINS 'Revoir le tutoriel'").exists || { app.swipeUp(); return any("label CONTAINS 'Revoir le tutoriel'").waitForExistence(timeout: 5) }(), "« Revoir le tutoriel »")
+        shot("accueil-sans-tuto")
+    }
+
+    func testWhoIsFreeMonthView() {
+        signInTesteur1AndOpenAgenda()
+        // Tutoriel encore affiché (compte de recette) : on le passe pour cette fois.
+        let skip = any("label == 'Passer'")
+        if skip.waitForExistence(timeout: 8) { skip.tap(); sleep(1) }
         let free = any("label CONTAINS 'Qui est libre'")
         free.tap()
         let group = any("label == '[QA] Qui est libre 2311'")
