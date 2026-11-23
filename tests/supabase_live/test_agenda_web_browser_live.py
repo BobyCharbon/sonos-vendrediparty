@@ -174,7 +174,7 @@ def test_the_agenda_in_party_for_real(browser, party, people):
 
         # 3. Qui est libre ? Guest B a sa ligne ; le 3e membre est grisé, sans texte de refus.
         page.goto(f'{party}/events/agenda/free?group={gid}', wait_until='domcontentloaded')
-        pw.expect(page.get_by_test_id('free-summary')).to_contain_text('sur 2', timeout=30000)
+        pw.expect(page.get_by_test_id('free-summary')).to_contain_text('tous les 2 sont libres', timeout=30000)
         others = page.get_by_test_id('free-others')
         pw.expect(others).to_contain_text('Agenda', timeout=15000)
         assert 'partag' not in others.inner_text().lower()
