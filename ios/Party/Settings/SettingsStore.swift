@@ -154,13 +154,19 @@ final class SettingsStore: ObservableObject {
         await savedEndpoint().flatMap { $0.hasPrefix("apns:") ? String($0.dropFirst(5)) : nil }
     }
 
+    /// Drapeaux du serveur (/api/features), lus dès l'ouverture des Réglages : sans eux, « Autres apps › Agenda » ne
+    /// s'affichait qu'après un passage par Notifications (recette du 23.11).
+    func loadFeatures() async {
+        guard let features = try? await api.features() else { return }
+        compagnon = features.compagnon
+        discussions = features.discussions
+        bar = features.bar
+        agendaOn = features.agenda
+        pronosOn = features.pronos
+    }
+
     private func loadParty() async {
-        let features = try? await api.features()
-        compagnon = features?.compagnon ?? false
-        discussions = features?.discussions ?? false
-        bar = features?.bar ?? false
-        agendaOn = features?.agenda ?? false
-        pronosOn = features?.pronos ?? false
+        await loadFeatures()
         if let me = await web?.guestIdentity() {
             guest = try? await api.notifyPrefs(guestID: me.id)
             zicouReactions = compagnon && me.id.hasPrefix("acct-")

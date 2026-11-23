@@ -170,16 +170,15 @@ def test_the_agenda_in_party_for_real(browser, party, people):
 
         # 3. Qui est libre ? Guest B a sa ligne ; le 3e membre est grisé, sans texte de refus.
         page.goto(f'{party}/events/agenda/free?group={gid}', wait_until='domcontentloaded')
-        pw.expect(page.get_by_test_id(f'free-person-{friend.uid}')).to_be_visible(timeout=30000)
+        pw.expect(page.get_by_test_id('free-summary')).to_contain_text('sur 2', timeout=30000)
         others = page.get_by_test_id('free-others')
         pw.expect(others).to_contain_text('Agenda', timeout=15000)
         assert 'partag' not in others.inner_text().lower()
-        pw.expect(page.get_by_text('2 personnes partagent')).to_be_visible()
         shot(page, '07-qui-est-libre')
         busy_day = (datetime.now(SWISS) + timedelta(days=2)).date().isoformat()
         page.get_by_test_id(f'free-card-{busy_day}').click()
         pw.expect(page.get_by_test_id(f'free-person-{friend.uid}')).to_contain_text('Occupé')
-        pw.expect(page.get_by_test_id(f'free-person-{friend.uid}')).to_contain_text('jusqu’à 21 h')
+        pw.expect(page.get_by_test_id(f'free-person-{friend.uid}')).to_contain_text('de 19 h à 21 h')
         shot(page, '08-qui-est-libre-occupe')
 
         # 4. Un lien de dispo, demandes allumées.

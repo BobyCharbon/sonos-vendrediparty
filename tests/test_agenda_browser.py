@@ -8,6 +8,7 @@
 - liens de dispo : état vide, modèles, « Toute personne qui a ce lien… », réglage, aperçu ; demandes : Accepter, Signaler.
 Captures : PARTY_SHOTS=<dossier> (sinon le dossier temporaire)."""
 import json
+import re
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -121,7 +122,7 @@ def agenda_services(page, links=None, pending=1, welcome_seen=False):
             result = {'group': {'id': FOOT, 'name': 'Potes du foot', 'emoji': '⚽', 'color': 'mint', 'system': False},
                       'from': iso(datetime.now(SWISS)), 'to': iso(at(30, 0)), 'i_share': True, 'members': [
                           me,
-                          {'id': YANIS, 'name': 'Yanis', 'avatar_url': None, 'me': False, 'shares': True, 'busy': [[iso(at(2, 18)), iso(at(2, 18, 30))]]},
+                          {'id': YANIS, 'name': 'Yanis', 'avatar_url': None, 'me': False, 'shares': True, 'busy': [[iso(at(2, 23, 30)), iso(at(2, 23, 59))]]},
                           {'id': MARC, 'name': 'Marc', 'avatar_url': None, 'me': False, 'shares': True, 'busy': [[iso(at(3, 19)), iso(at(3, 21))]]},
                           {'id': LEA, 'name': 'Léa', 'avatar_url': None, 'me': False, 'shares': True, 'busy': evenings({2, 3})},
                           {'id': SAM, 'name': 'Sam', 'avatar_url': None, 'me': False, 'shares': False}]}
@@ -278,28 +279,46 @@ def test_sharing_starts_unchecked_group_by_group_and_says_it_is_done(phone, even
     assert errors == [], errors
 
 
-def test_who_is_free_shows_the_best_evening_words_and_greyed_others_then_organises(phone, events_origin):
+def test_who_is_free_shows_the_month_in_order_the_best_day_framed_and_organises(phone, events_origin):
+    """Maquette A (avis du 23.11) : les mois jour par jour dans l'ordre, « n/4 » par jour, le meilleur encadré ; le soir
+    18 h – 23 h, la journée 8 h – 17 h ; toucher un jour ouvre la feuille (qui est libre, en mots), puis Organiser."""
     page, errors = phone
     agenda_services(page, welcome_seen=True)
     signed_in(page, events_origin, f'/agenda/free?group={FOOT}')
-    best = page.get_by_test_id(f"free-card-{at(2, 0).date().isoformat()}")
+    best_key = at(2, 0).date().isoformat()
+    best = page.get_by_test_id('free-best')
     pw.expect(best).to_contain_text('LE MIEUX', timeout=15000)
-    pw.expect(best).to_contain_text('4 disponibles')
-    pw.expect(page.get_by_test_id(f'free-person-{YANIS}')).to_contain_text('Disponible dès 18 h 30')
+    pw.expect(best).to_contain_text('4/4')
+    pw.expect(page.get_by_test_id('free-mode-evening')).to_contain_text('18 h – 23 h')
+    pw.expect(page.get_by_test_id('free-mode-day')).to_contain_text('8 h – 17 h')
+    pw.expect(page.get_by_test_id(f'free-card-{best_key}')).to_contain_text('4/4')
+    pw.expect(page.get_by_test_id(f'free-card-{best_key}')).to_have_attribute('aria-label', re.compile('^Le mieux'))
+    keys = [k.removeprefix('free-card-') for k in page.locator('[data-testid^="free-card-"]').evaluate_all('els => els.map(e => e.dataset.testid)')]
+    assert keys == sorted(keys) and len(keys) >= 25, keys  # jour par jour, dans l'ordre
+    assert keys[0] in (at(0, 0).date().isoformat(), at(1, 0).date().isoformat())  # en commençant aujourd'hui
+    pw.expect(page.get_by_test_id(f"free-month-{at(0, 0).strftime('%Y-%m')}")).to_be_visible()
     others = page.get_by_test_id('free-others')
     pw.expect(others).to_contain_text('Sam')
     # Ceux qui ne partagent pas : grisés, aucun texte de refus.
     assert 'partag' not in others.inner_text().lower() and 'pas d' not in others.inner_text().lower()
     shot(page, 'agenda-09-qui-est-libre.png')
-    # Un autre soir : Marc occupé jusqu'à 21 h, écrit et rayé.
+    page.get_by_test_id(f'free-card-{best_key}').click()
+    sheet = page.get_by_test_id('free-day-sheet')
+    pw.expect(sheet).to_contain_text('4 / 4 disponibles')
+    pw.expect(page.get_by_test_id(f'free-person-{YANIS}')).to_contain_text('Disponible jusqu’à 23 h 30')
+    page.get_by_role('button', name='Fermer la fenêtre').first.click()
+    pw.expect(sheet).to_have_count(0)
+    # Un autre soir : Marc occupé de 19 h à 21 h, écrit et rayé.
     page.get_by_test_id(f"free-card-{at(3, 0).date().isoformat()}").click()
     pw.expect(page.get_by_test_id(f'free-person-{MARC}')).to_contain_text('Occupé')
-    pw.expect(page.get_by_test_id(f'free-person-{MARC}')).to_contain_text('jusqu’à 21 h')
+    pw.expect(page.get_by_test_id(f'free-person-{MARC}')).to_contain_text('de 19 h à 21 h')
     shot(page, 'agenda-10-qui-est-libre-occupe.png')
-    page.get_by_test_id(f"free-card-{at(2, 0).date().isoformat()}").click()
+    page.get_by_role('button', name='Fermer la fenêtre').first.click()
+    page.get_by_test_id(f'free-card-{best_key}').click()
     page.get_by_role('button', name='Organiser le', exact=False).click()
     pw.expect(page.get_by_label('Titre', exact=False).first).to_have_value('Soirée Potes du foot', timeout=15000)
     assert f'group={FOOT}' in page.url and 'start=' in page.url
+    assert '16%3A00%3A00.000Z' in page.url or '17%3A00%3A00.000Z' in page.url  # 18 h de Suisse (hiver / été)
     shot(page, 'agenda-11-organiser.png')
     assert errors == [], errors
 
@@ -308,7 +327,10 @@ def test_vote_opens_a_date_poll_with_the_three_best_dates(phone, events_origin):
     page, errors = phone
     agenda_services(page, welcome_seen=True)
     signed_in(page, events_origin, f'/agenda/free?group={FOOT}')
-    page.get_by_role('button', name='🗳️ Faire voter le groupe (3 dates)').click(timeout=15000)
+    page.get_by_role('button', name='🗳️ Faire voter le groupe').click(timeout=15000)
+    pw.expect(page.get_by_test_id('free-vote-bar')).to_be_visible()
+    shot(page, 'agenda-11b-voter.png')
+    page.get_by_role('button', name='🗳️ Faire voter le groupe (3 dates)').click()
     pw.expect(page.get_by_text('Créneau 3', exact=False).first).to_be_visible(timeout=15000)
     assert 'poll=' in page.url and f'group={FOOT}' in page.url
     assert errors == [], errors

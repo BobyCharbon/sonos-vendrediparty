@@ -629,8 +629,11 @@ réglage de prod :
 - Écrans web (module Événements, `/agenda`, direction A validée) : semaine en jours empilés (par défaut, puis la dernière
   vue), jour avec trous « Libre · 1 h + Ajouter », mois ; `item` (titre, jour, heures ; « Plus d'options » ; « Juste pour
   moi ») ; `calendars` (« Voir ici » / « Partager », agendas .ics) ; `share` (tout décoché, groupe par groupe, le bouton
-  compte les groupes) ; `free` (« Le mieux » dès 3 qui partagent, Disponible / Occupé en mots + rayures, « Les autres
-  membres » grisés SANS texte ; « Organiser » → `/event/new?group&title&start&end`, « Faire voter » → `&poll=<iso,…>`) ;
+  compte les groupes) ; `free` = maquette A du 23.11 : calendrier des mois jour par jour dans l'ordre (dès la semaine
+  d'aujourd'hui, « auj. »), chaque case « n/N » et d'autant plus verte que plus de monde est libre, meilleur jour encadré néon
+  + carte « ★ Le mieux », résumé « X soirs où au moins ~60 % sont libres » ; toucher un jour = feuille (Disponible / Occupé
+  en mots + rayures, Organiser / Faire voter) ; vote = 2–3 jours cochés ; le soir 18 h – 23 h, la journée 8 h – 17 h
+  (`MODES`) ; « Les autres membres » grisés SANS texte ; « Organiser » → `/event/new?group&title&start&end`, « Faire voter » → `&poll=<iso,…>`) ;
   `links` (6B avant chaque lien, modèles, plages, champs Non / Facultatif / Obligatoire, aperçu) ; `requests` (Accepter,
   Refuser, Signaler → `agenda_booking_report` via ReportSheet `send`, Bloquer, Couper). Code : `lib/agenda.ts` (heure de
   Suisse, `rankDays`, `personState`, pont `nativeAgenda()` facultatif), `components/agenda/`. Entrées : « 📅 Agenda » de

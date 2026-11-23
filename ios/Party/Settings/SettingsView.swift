@@ -215,6 +215,7 @@ struct SettingsView: View {
         .background(AppConfig.background.ignoresSafeArea())
         .task {
             await store.refreshAccount()
+            await store.loadFeatures()
             await store.pause.load()
         }
         // « Connexions récentes » (Root, Admin) : les droits d'administration sont lus ici, la ligne vide ne se montre pas.

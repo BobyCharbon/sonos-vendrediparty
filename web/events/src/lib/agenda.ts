@@ -439,10 +439,10 @@ export type GroupFree = {
 };
 
 export type FreeMode = 'evening' | 'day';
-/** Moments comparés : le soir 19 h – 23 h (barre 18 h → 1 h), la journée 9 h – 23 h (barre 8 h → minuit). */
-export const MODES: Record<FreeMode, { core: [number, number]; bar: [number, number]; whole: string }> = {
-  evening: { core: [19 * 60, 23 * 60], bar: [18 * 60, 25 * 60], whole: 'toute la soirée' },
-  day: { core: [9 * 60, 23 * 60], bar: [8 * 60, 24 * 60], whole: 'toute la journée' },
+/** Moments comparés (avis du 23.11) : le soir 18 h – 23 h (barre 18 h → minuit), la journée 8 h – 17 h (barre 8 h → 18 h). */
+export const MODES: Record<FreeMode, { core: [number, number]; bar: [number, number]; whole: string; label: string; ticks: string[] }> = {
+  evening: { core: [18 * 60, 23 * 60], bar: [18 * 60, 24 * 60], whole: 'toute la soirée', label: '18 h – 23 h', ticks: ['18 h', '21 h', '0 h'] },
+  day: { core: [8 * 60, 17 * 60], bar: [8 * 60, 18 * 60], whole: 'toute la journée', label: '8 h – 17 h', ticks: ['8 h', '13 h', '18 h'] },
 };
 
 type Span = [number, number];

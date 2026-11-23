@@ -90,6 +90,81 @@ final class RecetteAgendaUITests: XCTestCase {
         shot("agenda-ouvert")
     }
 
+    /// « Qui est libre ? » en calendrier du mois (maquette A, avis du 23.11) : groupe « [QA] Qui est libre 2311 » de la base de
+    /// TEST (4 personnes qui partagent), jours dans l'ordre, « n/4 », le meilleur encadré ; toucher un jour ouvre la feuille,
+    /// puis le soir / la journée (18 h – 23 h, 8 h – 17 h) et le vote à cocher.
+    func testWhoIsFreeMonthView() {
+        launch()
+        // Testeur 1 (0790000001), membre du groupe de recette qui partage ses dispos.
+        let tab = app.tabBars.buttons.matching(NSPredicate(format: "label IN {'Réglages', 'Se connecter'}")).firstMatch
+        XCTAssertTrue(tab.waitForExistence(timeout: 40), "onglet Réglages")
+        tab.tap()
+        sleep(2)
+        if app.staticTexts["Se connecter"].exists {
+            app.staticTexts["Se connecter"].firstMatch.tap()
+            let field = app.textFields["login-phone"]
+            XCTAssertTrue(field.waitForExistence(timeout: 10), "champ du numéro")
+            field.tap()
+            app.typeText("0790000001")
+            app.sendLoginCode()
+            let code = app.textFields["login-code"]
+            XCTAssertTrue(code.waitForExistence(timeout: 20), "champ du code")
+            code.tap()
+            app.typeText("123456")
+        }
+        XCTAssertTrue(app.staticTexts["Testeur 1"].waitForExistence(timeout: 30), "connecté en Testeur 1")
+        sleep(3)
+        // Relancée une fois connectée : les drapeaux (/api/features, Agenda) et la session de la page sont relus.
+        app.terminate()
+        launch()
+        XCTAssertTrue(app.tabBars.buttons["Réglages"].waitForExistence(timeout: 40), "onglet Réglages")
+        app.tabBars.buttons["Réglages"].tap()
+        sleep(3)
+        let row = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Agenda, ")).firstMatch
+        for _ in 0..<10 where !(row.exists && row.isHittable) { app.swipeUp(velocity: .slow); sleep(1) }
+        if !row.exists { try? app.debugDescription.write(to: dir.appendingPathComponent("libre-arbre.txt"), atomically: true, encoding: .utf8) }
+        XCTAssertTrue(row.waitForExistence(timeout: 20), "Réglages › Autres apps › Agenda")
+        row.tap()
+        XCTAssertTrue(agendaPageOpened(), "Agenda ouvert")
+        let free = any("label CONTAINS 'Qui est libre'")
+        free.tap()
+        let group = any("label == '[QA] Qui est libre 2311'")
+        XCTAssertTrue(group.waitForExistence(timeout: 30), "bulle du groupe de recette")
+        group.tap()
+        XCTAssertTrue(any("label BEGINSWITH 'Le mieux'").waitForExistence(timeout: 30), "carte « Le mieux »")
+        XCTAssertTrue(any("label CONTAINS '18 h – 23 h'").exists, "le soir 18 h – 23 h")
+        XCTAssertTrue(any("label CONTAINS 'aujourd’hui'").exists, "aujourd'hui marqué")
+        sleep(2)
+        shot("qui-est-libre-mois")
+        app.swipeUp(velocity: .slow); sleep(1)
+        shot("qui-est-libre-mois-suite")
+        // Toucher le meilleur jour : la feuille, qui est libre en mots, Organiser.
+        let best = any("label BEGINSWITH 'Le mieux : '")
+        XCTAssertTrue(best.waitForExistence(timeout: 10), "case du meilleur jour")
+        best.tap()
+        XCTAssertTrue(any("label BEGINSWITH 'Organiser le'").waitForExistence(timeout: 15), "feuille du jour")
+        XCTAssertTrue(any("label CONTAINS '4 / 4 disponibles'").exists, "4 / 4 disponibles")
+        sleep(1)
+        shot("qui-est-libre-jour")
+        any("label == 'Fermer la fenêtre'").tap()
+        sleep(1)
+        // La journée : 8 h – 17 h.
+        app.swipeDown(velocity: .fast); sleep(1)
+        let day = any("label CONTAINS 'La journée'")
+        if day.exists { day.tap() }
+        XCTAssertTrue(any("label CONTAINS '8 h – 17 h'").waitForExistence(timeout: 10), "la journée 8 h – 17 h")
+        sleep(2)
+        shot("qui-est-libre-journee")
+        any("label CONTAINS 'Le soir'").tap()
+        sleep(1)
+        // Faire voter : 3 jours cochés d'office, le bouton les compte.
+        for _ in 0..<12 where !any("label == '🗳️ Faire voter le groupe'").isHittable { app.swipeUp(velocity: .slow) }
+        any("label == '🗳️ Faire voter le groupe'").tap()
+        XCTAssertTrue(any("label BEGINSWITH '🗳️ Faire voter le groupe (3 dates)'").waitForExistence(timeout: 10), "vote à 3 dates")
+        sleep(1)
+        shot("qui-est-libre-vote")
+    }
+
     func testBookingNotificationOpensTheRequest() {
         let booking = env["RECETTE_BOOKING"]!
         // Toucher d'une notification booking_request, app fermée : l'adresse de send-push (tapPath).
