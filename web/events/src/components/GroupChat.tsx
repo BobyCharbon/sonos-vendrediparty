@@ -62,6 +62,8 @@ const SEEN_EVERY = 15_000;
 export type ChatKind = 'group' | 'direct' | 'event';
 type Profile = { id: string; display_name: string; avatar_url: string | null; member?: boolean; rsvp?: string | null; organizer?: boolean; invited?: boolean };
 type ChatGroup = { id: string; name: string; created_by: string | null; everyone_tag?: EveryoneBy; member_group_members: { user_id: string }[];
+  /** « Qui peut… » du groupe (23.11) : écrire, épingler ; absents sur une base d'avant. */
+  who_write?: 'admins' | 'staff' | 'members'; who_pin?: 'admins' | 'staff' | 'members';
   emoji?: string | null; color?: string | null; photo_path?: string | null; system_key?: string | null };
 /** Discussion d'un événement : en-tête, notifications, qui écrit (migration 20261117190000). */
 type EventExtras = {
@@ -431,6 +433,10 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
   // Admins et organisateurs du groupe (organisation d'un événement) : annonces et leur retrait ; @tout selon le groupe.
   const isStaff = event ? isAdmin : isAdmin || (member && Boolean(data?.organizers.has(me.id)));
   const everyone = data?.group.everyone_tag ?? 'all';
+  // « Qui peut… » du groupe (23.11) : la base refuse de toute façon ; l'écran le dit au lieu d'un envoi raté.
+  const allowed = (lvl?: 'admins' | 'staff' | 'members') => !lvl || lvl === 'members' ? member : lvl === 'staff' ? isStaff : isAdmin;
+  const groupWrite = kind !== 'group' || allowed(data?.group.who_write);
+  const groupPin = isAdmin || (kind === 'group' && data?.group.who_pin !== undefined && data.group.who_pin !== 'admins' && allowed(data.group.who_pin));
   const canEveryone = kind === 'group' && (everyone === 'all' || isStaff);
   const dstate = data?.directState ?? null;
   const requestIn = direct && dstate?.status === 'request' && dstate.requestedBy !== me.id;
@@ -585,7 +591,7 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
 
   // Saisie : fermée pour un bloqué, une demande reçue (accepter d'abord) et une demande envoyée (un seul message).
   const mySent = shown.some((m) => m.user_id === me.id);
-  const canCompose = member && !data?.blocked && !requestIn && !(requestOut && mySent);
+  const canCompose = member && groupWrite && !data?.blocked && !requestIn && !(requestOut && mySent);
   const requestDraft = Boolean(requestOut && !mySent);
 
   // « écrit… » : jamais dans une demande, ni envers une personne bloquée (dans un groupe : pas de signal si j'y ai bloqué
@@ -870,7 +876,7 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
     if (mine && canCompose && editable(m)) out.push({ key: 'edit', label: 'Modifier', icon: 'pencil', run: () => startEdit(m) });
     if (announced) {
       if (isStaff) out.push({ key: 'pin', label: 'Retirer l’annonce', icon: 'pin', run: () => void pin(m.id, false) });
-    } else if (direct ? !requestIn && !requestOut : isAdmin) {
+    } else if (direct ? !requestIn && !requestOut : groupPin) {
       out.push({ key: 'pin', label: m.pinned ? 'Désépingler' : 'Épingler', icon: 'pin', run: () => void pin(m.id, !m.pinned) });
     }
     if (mine || isAdmin) out.push({ key: 'delete', label: 'Supprimer', icon: 'trash', danger: true, run: () => void remove(m.id) });
@@ -1263,6 +1269,10 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
             </View>
           ) : staffOnly ? (
             <Note icon text="Seule l’organisation peut écrire dans cette discussion." />
+          ) : member && !groupWrite ? (
+            <Note icon text={data?.group.who_write === 'staff'
+              ? 'Dans ce groupe, seuls les organisateurs et les admins écrivent. Tu lis, tu réagis et tu signales.'
+              : 'Dans ce groupe, seuls l’admin et les co-admins écrivent. Tu lis, tu réagis et tu signales.'} />
           ) : event ? (
             <Note text="Tu peux lire la discussion ; tu pourras écrire une fois l’événement publié et ta place confirmée." />
           ) : null}

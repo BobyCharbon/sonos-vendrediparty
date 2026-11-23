@@ -122,7 +122,7 @@ def test_the_terms_and_the_name_filter_of_the_base_keep_their_code():
     client, _ = fake(writes={("POST", "member_groups"): (403, {"message": "terms_required: Accepte les conditions d'utilisation."})})
     r = call(client, "group_create", name="Ski", emoji="🎸", color="sky")
     assert r.status_code == 403 and r.json()["code"] == "terms_required"
-    client, _ = fake(writes={("PATCH", "member_groups"): (400, {"message": "content_refused: Ce nom n'est pas accepté."})})
+    client, _ = fake(rpc={"update_group_look": (400, {"message": "content_refused: Ce nom n'est pas accepté."})})
     r = call(client, "group_update", grp=GRP, name="Gros mot", emoji="🎸", color="sky")
     assert r.status_code == 400 and r.json() == {"code": "content_refused", "detail": "Ce nom n'est pas accepté."}
 
@@ -130,7 +130,8 @@ def test_the_terms_and_the_name_filter_of_the_base_keep_their_code():
 def test_a_write_the_base_lets_nothing_through_is_forbidden():
     # Règle RLS : Membres Vendredi Party ou groupe d'un autre → aucune ligne touchée.
     client, _ = fake(writes={("PATCH", "member_groups"): (200, []), ("DELETE", "member_group_members"): (200, []),
-                             ("DELETE", "member_groups"): (200, [])})
+                             ("DELETE", "member_groups"): (200, [])},
+                     rpc={"update_group_look": (404, {"code": "PGRST202", "message": "absente"})})  # base d'avant le 23.11
     assert call(client, "group_update", grp=GRP, name="Nouveau", emoji="🎸", color="sky").json()["code"] == "forbidden"
     assert call(client, "group_leave", grp=GRP).json()["code"] == "forbidden"
     assert call(client, "group_remove_member", grp=GRP, member=LEA).json()["code"] == "forbidden"
@@ -230,24 +231,24 @@ def home_with(all_groups):
 
 def test_the_group_photo_is_uploaded_in_its_folder_then_set_and_the_old_one_removed():
     client, seen = fake(row(photo_path=f"{GRP}/old.jpg"), writes={("POST", "storage"): (200, {}),
-                                                                 ("PATCH", "member_groups"): (200, [{"id": GRP}]),
-                                                                 ("DELETE", "storage"): (200, [])})
+                                                                 ("DELETE", "storage"): (200, [])}, rpc={"set_group_photo": None})
     r = client.post("/api/account/chats/group-photo", json={"token": "t", "group_id": GRP, "photo": base64.b64encode(JPEG).decode()})
     assert r.status_code == 200, r.text
     assert "/group-photos/" in r.json()["result"]["photo"]
     upload = next(p for m, p, _ in seen if m == "POST" and p.startswith("/storage/v1/object/group-photos/"))
     assert upload.startswith(f"/storage/v1/object/group-photos/{GRP}/") and upload.endswith(".jpg")
-    patch = next(b for m, p, b in seen if m == "PATCH")
-    assert patch == {"photo_path": upload.removeprefix("/storage/v1/object/group-photos/")}
+    # Posée par set_group_photo (droit « Modifier le nom, l'emoji et la photo », 23.11), jamais en écrivant dans la table.
+    posed = next(b for m, p, b in seen if p == "/rest/v1/rpc/set_group_photo")
+    assert posed == {"grp": GRP, "path": upload.removeprefix("/storage/v1/object/group-photos/")}
+    assert not any(m == "PATCH" for m, _, _ in seen)
     assert ("DELETE", "/storage/v1/object/group-photos", {"prefixes": [f"{GRP}/old.jpg"]}) in seen
     bad = client.post("/api/account/chats/group-photo", json={"token": "t", "group_id": GRP, "photo": base64.b64encode(b"GIF89a").decode()})
     assert bad.status_code == 400 and bad.json()["code"] == "invalid"
 
 
 def test_a_refused_photo_is_not_left_in_storage():
-    client, seen = fake(row(photo_path=None), writes={("POST", "storage"): (200, {}),
-                                                     ("PATCH", "member_groups"): (400, {"message": "terms_required: Accepte les CGU."}),
-                                                     ("DELETE", "storage"): (200, [])})
+    client, seen = fake(row(photo_path=None), writes={("POST", "storage"): (200, {}), ("DELETE", "storage"): (200, [])},
+                        rpc={"set_group_photo": (400, {"message": "terms_required: Accepte les CGU."})})
     r = client.post("/api/account/chats/group-photo", json={"token": "t", "group_id": GRP, "photo": base64.b64encode(JPEG).decode()})
     assert r.status_code == 403 and r.json()["code"] == "terms_required"
     assert any(m == "DELETE" and p == "/storage/v1/object/group-photos" for m, p, _ in seen)
@@ -292,3 +293,32 @@ def test_inviting_a_typed_nickname_looks_for_this_exact_nickname_only():
 def test_a_group_photo_can_be_reported_from_the_iphone():
     from app import moderation_api
     assert "group_photo" in moderation_api.KINDS
+
+
+def test_the_look_goes_through_the_rights_of_the_group_and_falls_back_on_an_older_base():
+    """23.11 : nom / emoji / couleur par update_group_look (« Qui peut… » : la base décide) ; base sans la fonction :
+    l'écriture dans la table, comme avant."""
+    client, seen = fake(rpc={"update_group_look": None})
+    assert call(client, "group_update", grp=GRP, name="  La   bande ", emoji="🎸", color="sky").json()["result"] == {"ok": True}
+    assert ("POST", "/rest/v1/rpc/update_group_look", {"grp": GRP, "group_name": "La bande", "group_emoji": "🎸",
+                                                       "group_color": "sky"}) in seen
+    assert not any(m == "PATCH" for m, _, _ in seen)
+    client, seen = fake(rpc={"update_group_look": (404, {"code": "PGRST202", "message": "absente"})},
+                        writes={("PATCH", "member_groups"): (200, [{"id": GRP}])})
+    assert call(client, "group_update", grp=GRP, name="La bande", emoji="🎸", color="sky").json()["result"] == {"ok": True}
+    assert any(m == "PATCH" for m, _, _ in seen)
+    client, _ = fake(rpc={"update_group_look": (403, {"message": "forbidden: dans ce groupe, tu ne peux pas changer le nom"})})
+    assert call(client, "group_update", grp=GRP, name="X", emoji="🎸", color="sky").json()["code"] == "forbidden"
+
+
+def test_the_admin_panel_functions_are_relayed():
+    client, seen = fake(rpc={"group_admin_panel": {"group": {"id": GRP}}, "set_group_right": None, "set_group_role": None,
+                             "set_group_join_approval": None, "decide_group_join": None, "transfer_group": None})
+    assert call(client, "group_admin_panel", grp=GRP).status_code == 200
+    for fn, args in (("set_group_right", {"grp": GRP, "k": "write", "level": "admins"}),
+                     ("set_group_role", {"grp": GRP, "member": LEA, "role": "coadmin"}),
+                     ("set_group_join_approval", {"grp": GRP, "approval": True}),
+                     ("decide_group_join", {"grp": GRP, "member": LEA, "accept": True}),
+                     ("transfer_group", {"grp": GRP, "member": LEA})):
+        assert call(client, fn, **args).status_code == 200, fn
+        assert ("POST", f"/rest/v1/rpc/{fn}", args) in seen

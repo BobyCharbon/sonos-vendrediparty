@@ -15,7 +15,9 @@ const TOKEN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 type EventPreview = { id: string; title: string; description: string | null; status: string; date_mode: string;
   starts_at: string | null; location_name: string | null; organizer: string | null; joined: boolean };
-type GroupPreview = { id: string; name: string; creator: string | null; members: number; joined: boolean };
+type GroupPreview = { id: string; name: string; creator: string | null; members: number; joined: boolean;
+  /** « Accepter chaque nouveau membre » (23.11) : le lien envoie une demande ; requested : elle attend l'accord. */
+  approval?: boolean; requested?: boolean };
 
 /** Lien d'invitation (événement réservé à un groupe, ou groupe privé), avis n°9 :
  * 1. sans compte : rien n'est montré, on s'inscrit d'abord avec son numéro (SMS) ;
@@ -78,6 +80,7 @@ function Unavailable({ kind, error }: { kind: 'event' | 'group'; error?: string 
 function JoinInvite({ kind, token }: { kind: 'event' | 'group'; token: string }) {
   const { refreshProfile } = useAuth();
   const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
   const started = useRef(false);
   const { data, loading, error: loadError, reload } = useQuery(async () => {
     const { data, error } = await supabase.rpc(kind === 'event' ? 'invite_event' : 'group_invite_info', { token });
@@ -93,11 +96,17 @@ function JoinInvite({ kind, token }: { kind: 'event' | 'group'; token: string })
     if (!data || cancelled || started.current) return;
     started.current = true;
     void (async () => {
+      const group = kind === 'group' ? (data as GroupPreview) : null;
+      if (group?.requested && !group.joined) return setPending(true);
       if (!data.joined) {
         const { error } = await supabase.rpc(kind === 'event' ? 'join_event_by_link' : 'join_group_by_link', { token });
         if (error) {
           started.current = false;
           return setError(error.message.replace(/^\w+: /, ''));
+        }
+        if (group?.approval) {  // l'admin du groupe accepte d'abord : la demande est partie
+          const { data: after } = await supabase.rpc('group_invite_info', { token });
+          if (!(after as GroupPreview | null)?.joined) return setPending(true);
         }
       }
       await refreshProfile();  // l'accès aux événements suit l'invitation
@@ -116,6 +125,19 @@ function JoinInvite({ kind, token }: { kind: 'event' | 'group'; token: string })
           <T muted>{event.starts_at ? formatShort(event.starts_at) : ''}</T>
           <T weight="bold">Événement annulé</T>
         </Card>
+      </Screen>
+    );
+  }
+  if (pending && data) {
+    return (
+      <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center', gap: 16 }}>
+        <Stack.Screen options={{ title: 'Invitation' }} />
+        <Card>
+          <Title size={24}>{(data as GroupPreview).name}</Title>
+          <T weight="bold">Demande envoyée</T>
+          <T muted>Ce groupe accepte chaque nouveau membre : son admin (ou un co-admin) va répondre. Tu seras prévenu dès que tu es dedans.</T>
+        </Card>
+        <Button label="Retour à mes groupes" variant="secondary" onPress={() => router.replace('/groups')} />
       </Screen>
     );
   }

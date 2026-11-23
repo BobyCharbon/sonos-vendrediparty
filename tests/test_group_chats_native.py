@@ -260,6 +260,17 @@ def test_conversation_marks_announcements_and_keeps_highlights_on_top():
     assert any("pinned=is.true" in q and "deleted_at=is.null" in q for m, p, q, _ in seen if p == "/rest/v1/group_messages")
 
 
+def test_the_group_rights_tell_the_app_who_writes_and_pins():
+    """« Qui peut… » du groupe (23.11) : écrire et épingler, d'après group_my_rights ; base d'avant : rien (comme avant)."""
+    chats, seen = fake()
+    c = chats.conversation("jeton", GRP)
+    assert "can_write" not in c and "can_pin" not in c
+    assert any(p.endswith("/rpc/group_my_rights") for _, p, _, _ in seen)
+    chats._rights = lambda token, group: {"write": False, "pin": True}
+    c = chats.conversation("jeton", GRP)
+    assert c["can_write"] is False and c["can_pin"] is True
+
+
 def test_everyone_tag_is_sent_for_any_member():
     chats, seen = fake(admin=False)
     chats.send("jeton", GRP, "@tout on part à 20h", None, None)

@@ -1,15 +1,19 @@
 import SwiftUI
 
-/// Réglages du groupe (⚙ de sa page), comme web/events/src/app/group/[id]/settings.tsx, mêmes droits : Modifier (nom,
-/// emoji, couleur, photo : son créateur ou un Admin du site), montrer mon numéro, règles des événements, membres
-/// (retirer), autres liens d'invitation, supprimer ; quitter soi-même (jamais Membres Vendredi Party, ni le créateur).
+/// Réglages du groupe (⚙ de sa page), comme web/events/src/app/group/[id]/settings.tsx (maquette du 23.11 « Réglages du
+/// groupe ») : en-tête, Modifier (nom, emoji, couleur, photo : « Qui peut… » le dit), montrer mon numéro, rôles dans le
+/// groupe (toucher un membre ouvre son rôle), « Qui peut… » (un écran par droit), entrée dans le groupe (accepter chaque
+/// nouveau membre, demandes, lien), autres liens, quitter, transmettre, supprimer. La base décide de tout
+/// (group_admin_panel…) ; base d'avant le 23.11 : l'ancien écran (créateur ou Admin du site). Jamais Membres Vendredi Party.
 struct GroupSettingsView: View {
     let groupID: String
     var onGone: () -> Void = {}
 
     @Environment(\.people) private var people
+    @Environment(\.chatsRoutes) private var routes
     @Environment(\.dismiss) private var dismiss
     @State private var page: GroupPage?
+    @State private var panel: GroupPanel?
     @State private var loadError: String?
     @State private var name = ""
     @State private var emoji = "🪩"
@@ -19,8 +23,12 @@ struct GroupSettingsView: View {
     @State private var note: String?
     @State private var askTerms: (() -> Void)?
     @State private var removing: GroupPage.Member?
+    @State private var roleOf: GroupPanel.Member?
+    @State private var person: PersonRef?
+    @State private var handing = false
     @State private var confirmLeave = false
     @State private var confirmDelete = false
+    @State private var confirmRenew = false
 
     private var api: GroupsAPI? { people.map { GroupsAPI(people: $0) } }
     private var clean: String { name.split(whereSeparator: \.isWhitespace).joined(separator: " ") }
@@ -29,12 +37,20 @@ struct GroupSettingsView: View {
         Form {
             if let page {
                 if let error { Section { Text(error).foregroundStyle(PronoTheme.pinkInk) }.listRowBackground(ConvNeon.surface) }
+                headerSection(page)
                 lookSection(page)
                 if page.member { privacySection(page) }
-                if page.canSetRules {
-                    GroupRulesSection(page: page, save: saveRules, saveInvite: page.manage && !page.group.system ? saveMembersInvite : nil)
+                if let panel, !page.group.system {
+                    if panel.me.manage { GroupRolesSection(panel: panel, me: page.me) }
+                    if panel.me.manage || panel.me.remove { panelMembersSection(page, panel) }
+                    if panel.me.rules { GroupRightsSection(groupID: groupID, panel: panel) }
+                    if panel.me.manage { entrySection(panel) }
+                } else {
+                    if page.canSetRules {
+                        GroupRulesSection(page: page, save: saveRules, saveInvite: page.manage && !page.group.system ? saveMembersInvite : nil)
+                    }
+                    if page.manage { membersSection(page) }
                 }
-                if page.manage { membersSection(page) }
                 if page.manage { GroupLinksSection(groupID: groupID) }
                 dangerSection(page)
             } else if let loadError {
@@ -47,6 +63,7 @@ struct GroupSettingsView: View {
         .navigationTitle("Réglages du groupe")
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
+        .onAppear { if page != nil { Task { await load() } } }  // retour d'un droit enregistré
         .motion(Motion.smooth, value: page?.members.map(\.id))
         .sheet(isPresented: Binding(get: { askTerms != nil }, set: { if !$0 { askTerms = nil } })) {
             if let people {
@@ -55,6 +72,20 @@ struct GroupSettingsView: View {
                     askTerms = nil
                     if accepted { retry?() }
                 }
+            }
+        }
+        .sheet(item: $roleOf) { m in
+            GroupRoleSheet(member: m, manage: panel?.me.manage == true,
+                           setRole: { role in run(ok: "\(m.name) : \(GroupRightsText.roleTitle(role))") { try await $0.setRole(groupID, member: m.id, role: role) } },
+                           profile: routes.miniProfile == nil ? nil : {  // après la fermeture de la feuille du rôle
+                               Task { try? await Task.sleep(for: .milliseconds(450)); person = PersonRef(id: m.id) }
+                           },
+                           remove: { run(ok: "\(m.name) a quitté le groupe") { try await $0.removeMember(groupID, m.id) } })
+        }
+        .sheet(item: $person) { p in routes.miniProfile?(p.id) }
+        .sheet(isPresented: $handing) {
+            GroupHandOverSheet(members: panel?.members.filter { $0.role != "creator" } ?? []) { m in
+                run(ok: "\(m.name) est maintenant l’admin du groupe") { try await $0.transfer(groupID, to: m.id) }
             }
         }
         .confirmationDialog(removing.map { "Retirer \($0.name) du groupe ?" } ?? "", isPresented: Binding(get: { removing != nil },
@@ -67,6 +98,9 @@ struct GroupSettingsView: View {
         .confirmationDialog("Supprimer le groupe ?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Supprimer le groupe", role: .destructive) { run(gone: true) { try await $0.delete(groupID) } }
         } message: { Text("Les invités qui ont déjà répondu gardent l’accès à leurs événements. On ne peut pas revenir en arrière.") }
+        .confirmationDialog("L’ancien lien ne marchera plus.", isPresented: $confirmRenew, titleVisibility: .visible) {
+            Button("Renouveler le lien", role: .destructive) { run(ok: "Nouveau lien créé : l’ancien ne marche plus") { _ = try await $0.link(groupID, renew: true) } }
+        }
         .overlay(alignment: .bottom) {
             if let note {
                 Text(note).font(.subheadline.weight(.semibold)).foregroundStyle(PronoTheme.t1)
@@ -84,8 +118,24 @@ struct GroupSettingsView: View {
 
     // MARK: Sections
 
+    private func headerSection(_ page: GroupPage) -> some View {
+        Section {
+            HStack(spacing: 14) {
+                GroupTile(emoji: page.group.emoji, color: page.group.color, photo: page.group.photo, system: page.group.system, size: 64)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(page.group.title).font(.title2.weight(.heavy)).foregroundStyle(PronoTheme.t1)
+                    Text([GroupText.members(page.members.count), GroupRightsText.myRole(panel?.me.role ?? (page.creator ? "creator" : page.member ? "member" : nil))]
+                        .filter { !$0.isEmpty }.joined(separator: " · "))
+                        .font(.subheadline).foregroundStyle(PronoTheme.t2)
+                }
+            }
+            .accessibilityElement(children: .combine)
+        }
+        .listRowBackground(Color.clear)
+    }
+
     @ViewBuilder private func lookSection(_ page: GroupPage) -> some View {
-        if page.manage {
+        if !page.group.system && (panel?.me.edit ?? page.manage) {
             Section {
                 HStack(spacing: 12) {
                     GroupTile(emoji: emoji, color: color, photo: page.group.photo, size: 56)
@@ -116,15 +166,10 @@ struct GroupSettingsView: View {
             .listRowBackground(ConvNeon.surface)
         } else {
             Section {
-                HStack(spacing: 12) {
-                    GroupTile(emoji: page.group.emoji, color: page.group.color, photo: page.group.photo, system: page.group.system, size: 56)
-                    Text(page.group.system
-                         ? "Tous les Membres VIP et au-dessus, tenu à jour tout seul : passer quelqu’un Membre VIP l’ajoute, le remettre Guest le retire (Administration → Membres)."
-                         : "Seul le créateur du groupe change son nom, son emoji, sa couleur et sa photo.")
-                        .font(.footnote).foregroundStyle(PronoTheme.t2)
-                }
-            } header: {
-                Text(page.group.title)
+                Text(page.group.system
+                     ? "Tous les Membres VIP et au-dessus, tenu à jour tout seul : passer quelqu’un Membre VIP l’ajoute, le remettre Guest le retire (Administration → Membres)."
+                     : GroupRightsText.editLine(panel?.level("edit") ?? "admins"))
+                    .font(.footnote).foregroundStyle(PronoTheme.t2)
             }
             .listRowBackground(ConvNeon.surface)
         }
@@ -148,6 +193,88 @@ struct GroupSettingsView: View {
         .listRowBackground(ConvNeon.surface)
     }
 
+    /// Membres avec leur rôle (réglages du 23.11) : un toucher ouvre son rôle (qui gère) ou « Retirer » (droit de retirer).
+    private func panelMembersSection(_ page: GroupPage, _ panel: GroupPanel) -> some View {
+        Section {
+            if page.showsInvite {
+                NavigationLink(value: GroupScreen.invite(groupID)) {
+                    Label("Inviter des gens", systemImage: "hand.wave.fill").foregroundStyle(PronoTheme.lav)
+                }
+            }
+            ForEach(panel.members) { m in
+                let touchable = m.id != page.me && m.role != "creator" && (panel.me.manage || (panel.me.remove && m.role == "member"))
+                Button { roleOf = m } label: {
+                    HStack(spacing: 10) {
+                        PronoAvatar(face: m.face, size: 34)
+                        PersonName(id: m.id, pseudo: m.name).foregroundStyle(PronoTheme.t1).lineLimit(1)
+                        if m.id == page.me { Text("(toi)").font(.footnote).foregroundStyle(PronoTheme.t2) }
+                        Spacer()
+                        Text(m.role == "creator" ? "Admin · créateur" : GroupRightsText.roleTitle(m.role))
+                            .font(.footnote).foregroundStyle(PronoTheme.t2)
+                        if touchable { Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(PronoTheme.t3) }
+                    }
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())  // toute la ligne se touche (style plain : sinon seulement le texte)
+                }
+                .buttonStyle(.plain)
+                .disabled(!touchable)
+                .accessibilityLabel("\(m.name), \(GroupRightsText.roleTitle(m.role))")
+                .accessibilityIdentifier("group-member-\(m.id)")
+            }
+        } header: {
+            Text("Membres · \(panel.members.count)")
+        }
+        .listRowBackground(ConvNeon.surface)
+    }
+
+    /// « Entrée dans le groupe » : accepter chaque nouveau membre, demandes en attente, lien (Renouveler).
+    private func entrySection(_ panel: GroupPanel) -> some View {
+        Section {
+            Toggle(isOn: Binding(get: { panel.joinApproval }, set: { on in
+                Haptics.selection()
+                self.panel?.joinApproval = on
+                run(ok: on ? "Chaque nouveau membre attend ton accord" : "Le lien fait entrer directement") {
+                    try await $0.setJoinApproval(groupID, on: on)
+                }
+            })) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Accepter chaque nouveau membre").font(.body.weight(.semibold))
+                    Text("Qui ouvre le lien du groupe attend ton accord (ou celui d’un co-admin).").font(.footnote).foregroundStyle(PronoTheme.t2)
+                }
+            }
+            .tint(PronoTheme.mint)
+            .disabled(busy)
+            .accessibilityIdentifier("group-join-approval")
+            ForEach(panel.requests) { r in
+                HStack(spacing: 10) {
+                    PronoAvatar(face: r.face, size: 34)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(r.name).foregroundStyle(PronoTheme.t1).lineLimit(1)
+                        Text("demande à entrer").font(.footnote).foregroundStyle(PronoTheme.t2)
+                    }
+                    Spacer()
+                    Button("Refuser") { run(ok: "Demande refusée") { try await $0.decideJoin(groupID, member: r.id, accept: false) } }
+                        .buttonStyle(.bordered).tint(PronoTheme.t2)
+                    Button("Accepter") { run(ok: "\(r.name) est dans le groupe") { try await $0.decideJoin(groupID, member: r.id, accept: true) } }
+                        .buttonStyle(.borderedProminent).tint(PronoTheme.pinkFill)
+                        .accessibilityIdentifier("group-join-accept-\(r.id)")
+                }
+            }
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Lien d’invitation").font(.body.weight(.semibold))
+                    Text(panel.linkActive ? "Actif · le renouveler coupe l’ancien" : "Pas encore créé").font(.footnote).foregroundStyle(PronoTheme.t2)
+                }
+                Spacer()
+                Button("Renouveler") { confirmRenew = true }.buttonStyle(.bordered).tint(PronoTheme.lavA).disabled(busy)
+            }
+        } header: {
+            Text("Entrée dans le groupe")
+        }
+        .listRowBackground(ConvNeon.surface)
+    }
+
+    /// Base d'avant le 23.11 : la liste d'avant (« Retirer », créateur ou Admin du site).
     private func membersSection(_ page: GroupPage) -> some View {
         Section {
             NavigationLink(value: GroupScreen.invite(groupID)) {
@@ -174,20 +301,28 @@ struct GroupSettingsView: View {
     }
 
     @ViewBuilder private func dangerSection(_ page: GroupPage) -> some View {
-        if page.canLeave || page.manage {
+        let owner = !page.group.system && (panel?.me.owner ?? page.manage)
+        if page.canLeave || owner {
             Section {
                 if page.canLeave {
                     Button("Quitter le groupe", role: .destructive) { confirmLeave = true }
                         .frame(minHeight: 44)
                         .accessibilityIdentifier("group-settings-leave")
                 }
-                if page.manage {
+                if owner && panel != nil {
+                    Button { handing = true } label: {
+                        Text("Transmettre le groupe à un autre admin").font(.body.weight(.bold)).foregroundStyle(PronoTheme.fixed(0xFF8FB8))
+                    }
+                    .frame(minHeight: 44)
+                    .accessibilityIdentifier("group-settings-handover")
+                }
+                if owner {
                     Button("Supprimer le groupe", role: .destructive) { confirmDelete = true }
                         .frame(minHeight: 44)
                         .accessibilityIdentifier("group-settings-delete")
                 }
             } footer: {
-                if page.manage { Text("Les invités qui ont déjà répondu gardent l’accès à leurs événements.") }
+                if owner { Text("Les invités qui ont déjà répondu gardent l’accès à leurs événements.") }
             }
             .listRowBackground(ConvNeon.surface)
         }
@@ -202,12 +337,14 @@ struct GroupSettingsView: View {
     private func load() async {
         guard let api else { loadError = "Connecte-toi à Party pour voir tes groupes."; return }
         do {
+            async let freshPanel = api.panel(groupID)
             let fresh = try await api.page(groupID)
             if page == nil || !changed(page!) {  // garde une saisie en cours
                 name = fresh.group.name
                 emoji = fresh.group.emoji
                 color = fresh.group.color ?? "pink"
             }
+            panel = try await freshPanel
             page = fresh
             loadError = nil
         } catch {

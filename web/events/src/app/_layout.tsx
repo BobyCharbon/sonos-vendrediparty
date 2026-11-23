@@ -226,6 +226,7 @@ function Gate() {
         <Stack.Screen name="group/new" options={{ title: 'Nouveau groupe', presentation: 'modal' }} />
         <Stack.Screen name="group/[id]/index" options={{ headerShown: false, title: 'Groupe' }} />
         <Stack.Screen name="group/[id]/settings" options={{ title: 'Réglages du groupe' }} />
+        <Stack.Screen name="group/[id]/right" options={{ title: 'Qui peut…' }} />
         <Stack.Screen name="group/[id]/invite" options={{ title: 'Inviter' }} />
         {/* Agenda (17.11, maquettes A validées) : semaine, jour, mois ; calendriers ; partage ; qui est libre ; liens ; demandes. */}
         <Stack.Screen name="agenda/index" options={{ headerShown: false, title: 'Agenda' }} />

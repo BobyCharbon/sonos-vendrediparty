@@ -399,6 +399,34 @@ struct GroupsAPI {
         let _: GroupAnyReply? = try await people.call("set_group_event_rules", ["grp": id, "need_approval": needApproval, "mode": mode])
     }
 
+    // Réglages du groupe pour son admin (23.11) : la base vérifie chaque droit.
+
+    /// L'écran des réglages ; nil sur une base d'avant le 23.11 (l'écran garde alors l'ancienne forme).
+    func panel(_ id: String) async throws -> GroupPanel? {
+        // Fonction absente (base d'avant) ou panne passagère : l'écran se lit comme avant (la page du groupe, elle, dit l'erreur).
+        try? await people.call("group_admin_panel", ["grp": id], as: GroupPanel?.self)
+    }
+
+    func setRight(_ id: String, key: String, level: String) async throws {
+        let _: GroupAnyReply? = try await people.call("set_group_right", ["grp": id, "k": key, "level": level])
+    }
+
+    func setRole(_ id: String, member: String, role: String) async throws {
+        let _: GroupAnyReply? = try await people.call("set_group_role", ["grp": id, "member": member, "role": role])
+    }
+
+    func setJoinApproval(_ id: String, on: Bool) async throws {
+        let _: GroupAnyReply? = try await people.call("set_group_join_approval", ["grp": id, "approval": on])
+    }
+
+    func decideJoin(_ id: String, member: String, accept: Bool) async throws {
+        let _: GroupAnyReply? = try await people.call("decide_group_join", ["grp": id, "member": member, "accept": accept])
+    }
+
+    func transfer(_ id: String, to member: String) async throws {
+        let _: GroupAnyReply? = try await people.call("transfer_group", ["grp": id, "member": member])
+    }
+
     func answer(_ invitation: String, accept: Bool) async throws {
         let _: GroupAnyReply? = try await people.call("answer_group_invitation", ["inv": invitation, "accept": accept])
     }

@@ -382,6 +382,8 @@ struct Conversation: Codable, Equatable {
     var writeMode: String? = nil
     var description: String? = nil
     var canWrite: Bool? = nil
+    /// Groupe (23.11, « Qui peut… épingler ») : je peux épingler ; nil sur un serveur d'avant (admins seulement).
+    var canPin: Bool? = nil
     /// En-tête et infos de la discussion : l'événement lui-même.
     var eventCard: EventCard? = nil
 
@@ -406,7 +408,7 @@ struct Conversation: Codable, Equatable {
         case id, name, member, admin, notify, reactions, members, messages, me, highlights, organizer, everyone, direct, photo, blocked
         case event, tags, taggable, realtime, extras, level, unread, description, joinNote = "join_note"
         case canNameAdmins = "can_name_admins", userID = "user_id", mutedUntil = "muted_until", writeMode = "write_mode"
-        case canWrite = "can_write", eventCard = "event_card"
+        case canWrite = "can_write", canPin = "can_pin", eventCard = "event_card"
     }
 
     /// Sourdine en cours (date à venir ou "infinity").

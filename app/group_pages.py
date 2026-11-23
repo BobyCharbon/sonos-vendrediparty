@@ -48,6 +48,11 @@ def group_id(args: dict, key: str = "grp") -> str:
     return value.lower()
 
 
+def missing_function(e: "Refused") -> bool:
+    """Fonction absente de la base (migration du 23.11 pas encore appliquée) : PostgREST PGRST202 (404)."""
+    return e.status == 404 or (isinstance(e.body, dict) and e.body.get("code") == "PGRST202")
+
+
 def clean_name(value: Any) -> str:
     """« Soirées   du  vendredi » → « Soirées du vendredi » (60 caractères au plus, comme l'écran web)."""
     return " ".join(str(value or "").split())[:NAME_MAX]
@@ -145,7 +150,9 @@ class GroupPages:
         member = uid in ids
         # Mêmes droits que les pages web : gérer = créateur ou Admin du site (jamais Membres Vendredi Party) ;
         # règles des événements = qui gère, ou Co-admin et plus pour Membres Vendredi Party (set_group_event_rules).
-        manage = not system and (creator == uid or bool(access.get("full")))
+        overview = next((o for o in got["overview"] or [] if o.get("id") == grp), {})
+        # Gérer (23.11) : créateur, co-admins du groupe, Admin du site → la base (my_groups_overview.manage) ; sinon comme avant.
+        manage = not system and bool(overview.get("manage", creator == uid or bool(access.get("full"))))
         # Surnoms et photos (group_chat_people : un Guest ne lit pas le profil d'un admin) ; sinon la table profiles.
         people = {p["id"]: p for p in got["people"] or [] if p.get("id") in ids}
         missing = [i for i in ids if i not in people]
@@ -156,7 +163,6 @@ class GroupPages:
         members = member_order([{"id": i, "name": (people.get(i) or {}).get("display_name") or "Membre du groupe",
                                  "avatar_url": (people.get(i) or {}).get("avatar_url"), "creator": i == creator, "me": i == uid}
                                 for i in ids], creator)
-        overview = next((o for o in got["overview"] or [] if o.get("id") == grp), {})
         listed = [e for e in got["events"] or [] if isinstance(e, dict) and e.get("id")][:EVENT_CARDS_MAX]
         cards = self._quiet(lambda: self._rpc(token, "chat_event_cards", {"ids": [e["id"] for e in listed]}), []) if listed else []
         by_id = {c["id"]: c for c in cards or [] if isinstance(c, dict) and c.get("id")}
@@ -172,7 +178,8 @@ class GroupPages:
             "me": uid, "member": member, "manage": manage, "creator": creator == uid,
             # Inviter (« Tous les membres peuvent inviter », 22.11) : la base décide (my_groups_overview.invite).
             "can_invite": bool(overview.get("invite", manage)) and not system,
-            "can_create_event": member and "events.create" in perms,
+            # « Créer un événement pour le groupe » : son droit dans le groupe aussi (23.11, my_groups_overview.events).
+            "can_create_event": member and "events.create" in perms and bool(overview.get("events", True)),
             "can_set_rules": manage or (system and bool(access.get("site_admin"))),
             "phone_shared": grp in set((got["privacy"] or {}).get("phone_groups") or []),
             "unread": int(overview.get("unread") or 0),
@@ -206,13 +213,35 @@ class GroupPages:
         return {"group": created}
 
     def update(self, token: str, args: dict) -> dict:
-        """Modifier le groupe : nom, emoji, couleur (son créateur ou un Admin du site ; jamais Membres Vendredi Party)."""
+        """Modifier le groupe : nom, emoji, couleur (« Modifier le nom, l'emoji et la photo », 23.11 : update_group_look, la
+        base vérifie le droit ; base d'avant : la table, son créateur ou un Admin du site). Jamais Membres Vendredi Party."""
         grp = group_id(args)
-        rows = self._req("PATCH", f"/rest/v1/member_groups?id=eq.{grp}", token, json=self._look(args),
+        look = self._look(args)
+        try:
+            self._rpc(token, "update_group_look", {"grp": grp, "group_name": look["name"], "group_emoji": look["emoji"],
+                                                   "group_color": look["color"]})
+            return {"ok": True}
+        except Refused as e:
+            if not missing_function(e):
+                raise
+        rows = self._req("PATCH", f"/rest/v1/member_groups?id=eq.{grp}", token, json=look,
                          headers={"Prefer": "return=representation"})
         if not rows:
             raise refused("forbidden", "Seul le créateur du groupe change son nom, son emoji, sa couleur et sa photo.")
         return {"ok": True}
+
+    def _set_photo_path(self, token: str, grp: str, path: str | None) -> None:
+        """Photo posée sur le groupe : set_group_photo (droit « Modifier… », 23.11) ; base d'avant : la table."""
+        try:
+            self._rpc(token, "set_group_photo", {"grp": grp, "path": path})
+            return
+        except Refused as e:
+            if not missing_function(e):
+                raise
+        rows = self._req("PATCH", f"/rest/v1/member_groups?id=eq.{grp}", token, json={"photo_path": path},
+                         headers={"Prefer": "return=representation"})
+        if not rows:
+            raise refused("forbidden", "Seul le créateur du groupe change sa photo.")
 
     def remove_member(self, token: str, args: dict) -> dict:
         grp, who = group_id(args), group_id(args, "member")
@@ -255,10 +284,7 @@ class GroupPages:
     def remove_photo(self, token: str, args: dict) -> dict:
         grp = group_id(args)
         old = self._photo_of(token, grp)
-        rows = self._req("PATCH", f"/rest/v1/member_groups?id=eq.{grp}", token, json={"photo_path": None},
-                         headers={"Prefer": "return=representation"})
-        if not rows:
-            raise refused("forbidden", "Seul le créateur du groupe change sa photo.")
+        self._set_photo_path(token, grp, None)
         self._drop_file(token, old)
         return {"photo": None}
 
@@ -283,10 +309,7 @@ class GroupPages:
                 raise refused("forbidden", "Seul le créateur du groupe change sa photo.") from None
             raise refused("error", "La photo n'a pas pu être envoyée. Vérifie ta connexion puis réessaie.", 400) from None
         try:
-            rows = self._req("PATCH", f"/rest/v1/member_groups?id=eq.{grp}", token, json={"photo_path": path},
-                             headers={"Prefer": "return=representation"})
-            if not rows:
-                raise refused("forbidden", "Seul le créateur du groupe change sa photo.")
+            self._set_photo_path(token, grp, path)
         except Refused:
             self._drop_file(token, path)
             raise

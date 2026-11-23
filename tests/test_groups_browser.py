@@ -84,6 +84,27 @@ def group_row(gid, created_by=USER, members=(USER, CHLOE, MALIK, INES)):
             'announce_mode': 'request', 'members_invite': True, 'member_group_members': [{'user_id': u, 'added_at': None} for u in members]}
 
 
+def panel_of(row, state):
+    """group_admin_panel (23.11) d'après la ligne du groupe : le créateur gère tout, un membre n'a que les droits des membres."""
+    if not row:
+        return None
+    system = row['system_key'] is not None
+    owner = not system and row['created_by'] == USER
+    names = {p['id']: p['display_name'] for p in PEOPLE}
+    members = [{'id': m['user_id'], 'name': names.get(m['user_id'], 'Membre'), 'photo': None, 'since': '2026-11-04T10:00:00Z',
+                'role': 'creator' if m['user_id'] == row['created_by'] else 'member'} for m in row['member_group_members']]
+    return {'group': {'id': row['id'], 'name': row['name'], 'emoji': row['emoji'], 'color': row['color'], 'photo': None,
+                      'system': system, 'created_by': row['created_by']},
+            'me': {'role': 'creator' if owner else 'member', 'manage': owner, 'rules': owner, 'owner': owner,
+                   'invite': owner or row.get('members_invite', True), 'events': True, 'announce': True, 'write': True,
+                   'pin': owner, 'edit': owner, 'remove': owner},
+            'rights': {'invite': 'members' if row.get('members_invite', True) else 'staff', 'events': 'members', 'announce': 'members',
+                       'write': 'members', 'pin': 'admins', 'edit': 'admins', 'remove': 'admins'},
+            'events_need_approval': row['events_need_approval'], 'announce_mode': row['announce_mode'],
+            'join_approval': False, 'link_active': True, 'members': members,
+            'requests': state.get('requests', []) if owner else []}
+
+
 def group_services(page, groups=GROUPS, row_for=group_row, rank=None):
     """Base simulée des groupes, posée par-dessus mock_services (les routes posées après passent d'abord)."""
     calls = mock_services(page)
@@ -113,6 +134,12 @@ def group_services(page, groups=GROUPS, row_for=group_row, rank=None):
             state['searches'].append(body['q'])
             q = body['q'].lower()
             result = [] if q.startswith('+') else [p for p in FOUND if q in p['display_name'].lower()]
+        elif path.endswith('/rpc/group_admin_panel'):
+            result = None if state.get('legacy') else panel_of(row_for(body['grp']), state)
+        elif any(path.endswith('/rpc/' + f) for f in ('set_group_right', 'set_group_role', 'set_group_join_approval',
+                                                       'decide_group_join', 'transfer_group', 'update_group_look')):
+            state['rules'].append((path.rsplit('/', 1)[1], body))
+            result = None
         elif path.endswith('/rpc/set_group_members_invite') or path.endswith('/rpc/set_group_event_rules'):
             state['rules'].append((path.rsplit('/', 1)[1], body))
             result = None
@@ -303,7 +330,8 @@ def test_members_leave_from_the_settings_never_vendredi_party(phone, events_orig
     pw.expect(page.get_by_role('heading', name='Soirées du vendredi')).to_be_visible(timeout=15000)
     pw.expect(page.get_by_role('button', name='Inviter', exact=True)).to_have_count(0)  # seul le créateur invite
     page.get_by_test_id('group-settings').click()
-    pw.expect(page.get_by_text('Seul le créateur du groupe change son nom', exact=False)).to_be_visible()
+    pw.expect(page.get_by_text('Seuls l’admin et les co-admins du groupe changent son nom', exact=False)).to_be_visible()
+    pw.expect(page.get_by_test_id('group-rights')).to_have_count(0)  # un simple membre ne règle pas le groupe
     page.get_by_role('button', name='Quitter le groupe').click()
     page.get_by_role('button', name='Confirmer : quitter le groupe').click()
     page.wait_for_url('**/events/groups')
@@ -350,15 +378,80 @@ def test_a_simple_member_invites_when_the_group_allows_it(phone, events_origin):
     pw.expect(page.get_by_label('Chercher une personne')).to_be_visible()
     # Simple membre : pas de réglages du groupe.
     page.goto(f'{events_origin}/events/group/{DISCO}/settings', wait_until='domcontentloaded')
-    pw.expect(page.get_by_text('Seul le créateur du groupe change son nom', exact=False)).to_be_visible(timeout=15000)
-    pw.expect(page.get_by_role('switch', name='Tous les membres peuvent inviter')).to_have_count(0)
-    pw.expect(page.get_by_role('switch', name='Événements à valider')).to_have_count(0)
+    pw.expect(page.get_by_text('Seuls l’admin et les co-admins du groupe changent son nom', exact=False)).to_be_visible(timeout=15000)
+    pw.expect(page.get_by_test_id('group-rights')).to_have_count(0)
+    pw.expect(page.get_by_test_id('group-roles')).to_have_count(0)
     assert not errors, errors
 
 
-def test_the_creator_sets_who_invites_and_events_to_approve(phone, events_origin):
+def test_the_group_admin_panel_roles_rights_entry_and_hand_over(phone, events_origin):
+    """Réglages du groupe pour son admin (maquette du 23.11) : rôles, « Qui peut… » (un écran par droit), entrée, transmettre."""
     page, errors = phone
     state = group_services(page)
+    state['requests'] = [{'id': INES, 'name': 'Inès', 'photo': None, 'at': '2026-11-23T08:00:00Z', 'via': 'link'}]
+    signed_in(page, events_origin, f'/group/{FOOT}/settings')
+    pw.expect(page.get_by_text('RÔLES DANS LE GROUPE', exact=True)).to_be_visible(timeout=15000)
+    pw.expect(page.get_by_text('Toi (créateur)', exact=True)).to_be_visible()
+    pw.expect(page.get_by_text('4 membres · tu es l’admin du groupe', exact=True)).to_be_visible()
+    rights = page.get_by_test_id('group-rights')
+    for label, who in (('Inviter des personnes', 'Tous les membres'), ('Créer un événement pour le groupe', 'Tous les membres'),
+                       ('Écrire dans la discussion', 'Tous les membres'), ('Épingler un message', 'Admins seulement'),
+                       ('Modifier le nom, l’emoji et la photo', 'Admins seulement'), ('Retirer un membre', 'Admins seulement')):
+        pw.expect(rights.get_by_role('button', name=f'{label} : {who}')).to_be_visible()
+    pw.expect(page.get_by_role('switch', name='Accepter chaque nouveau membre')).not_to_be_checked()
+    shot(page, 'groupes-reglages-admin.png')
+    rights.scroll_into_view_if_needed()
+    shot(page, 'groupes-reglages-qui-peut.png')
+
+    # Un droit : « Créer un événement pour le groupe » → Tous les membres + « À valider par un admin ».
+    rights.get_by_role('button', name='Créer un événement pour le groupe : Tous les membres').click()
+    pw.expect(page.get_by_text('L’événement est réservé au groupe et apparaît sur sa page.')).to_be_visible(timeout=15000)
+    pw.expect(page.get_by_role('radio', name='Tous les membres')).to_be_checked()
+    pw.expect(page.get_by_text('Un événement PUBLIC passe toujours par l’équipe de Vendredi Party', exact=False)).to_be_visible()
+    page.get_by_role('switch', name='À valider par un admin').click()
+    shot(page, 'groupes-reglages-droit.png')
+    page.get_by_role('button', name='Enregistrer').click()
+    pw.expect(page.get_by_text('RÔLES DANS LE GROUPE', exact=True)).to_be_visible(timeout=15000)
+    assert ('set_group_event_rules', {'grp': FOOT, 'need_approval': True, 'mode': 'request'}) in state['rules']
+
+    # « Inviter des personnes » → Organisateurs et admins.
+    page.get_by_test_id('group-rights').get_by_role('button', name='Inviter des personnes : Tous les membres').click()
+    page.get_by_role('radio', name='Organisateurs et admins').click(timeout=15000)
+    page.get_by_role('button', name='Enregistrer').click()
+    pw.expect(page.get_by_text('RÔLES DANS LE GROUPE', exact=True)).to_be_visible(timeout=15000)
+    assert ('set_group_right', {'grp': FOOT, 'k': 'invite', 'level': 'staff'}) in state['rules']
+
+    # Rôle d'un membre : Chloé devient Co-admin.
+    page.get_by_role('button', name='Chloé, Membre').click()
+    pw.expect(page.get_by_text('Dans le groupe depuis le 4 novembre')).to_be_visible()
+    pw.expect(page.get_by_role('button', name='Voir sa fiche')).to_be_visible()
+    shot(page, 'groupes-reglages-role.png')
+    page.get_by_role('radio', name='Co-admin').click()
+    page.wait_for_timeout(500)
+    assert ('set_group_role', {'grp': FOOT, 'member': CHLOE, 'role': 'coadmin'}) in state['rules']
+
+    # Entrée : accepter chaque nouveau membre, et la demande d'Inès.
+    page.get_by_role('switch', name='Accepter chaque nouveau membre').click()
+    page.get_by_role('button', name='Accepter', exact=True).click()
+    page.wait_for_timeout(500)
+    assert ('set_group_join_approval', {'grp': FOOT, 'approval': True}) in state['rules']
+    assert ('decide_group_join', {'grp': FOOT, 'member': INES, 'accept': True}) in state['rules']
+
+    # Transmettre le groupe à Malik.
+    page.get_by_role('button', name='Transmettre le groupe à un autre admin').click()
+    page.get_by_role('radio', name='Malik').click()
+    shot(page, 'groupes-reglages-transmettre.png')
+    page.get_by_role('button', name='Transmettre à Malik').click()
+    page.wait_for_timeout(500)
+    assert ('transfer_group', {'grp': FOOT, 'member': MALIK}) in state['rules']
+    assert not errors, errors
+
+
+def test_a_base_before_the_23_11_keeps_the_old_rules_screen(phone, events_origin):
+    """Web mis en ligne avant la migration du 23.11 : l'ancien écran des règles, sans rôles ni « Qui peut… »."""
+    page, errors = phone
+    state = group_services(page)
+    state['legacy'] = True
     signed_in(page, events_origin, f'/group/{FOOT}/settings')
     invite = page.get_by_role('switch', name='Tous les membres peuvent inviter')
     pw.expect(invite).to_be_visible(timeout=15000)

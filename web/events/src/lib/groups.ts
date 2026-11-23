@@ -57,6 +57,8 @@ export type GroupOverview = {
   creator: boolean; manage: boolean; member: boolean;
   /** invite : je peux inviter (qui gère, ou tout membre si « Tous les membres peuvent inviter »). */
   invite?: boolean;
+  /** events : je peux créer un événement pour le groupe (23.11, « Qui peut… »). */
+  events?: boolean;
   created_by_name: string | null; members: number; faces: GroupFace[];
   last: string | null; last_by: string | null; last_at: string | null; unread: number;
   next_event: { id: string; title: string; starts_at: string | null; date_mode: 'fixed' | 'poll' } | null;
@@ -125,7 +127,9 @@ export async function saveGroupPhoto(groupId: string, uri: string | null, old: s
     const { error } = await supabase.storage.from(GROUP_PHOTOS).upload(path, blob, { contentType: 'image/jpeg', upsert: false });
     if (error) throw new Error('La photo n’a pas pu être envoyée. Vérifie ta connexion puis réessaie.');
   }
-  const { error } = await supabase.from('member_groups').update({ photo_path: path }).eq('id', groupId);
+  // « Modifier le nom, l'emoji et la photo » (23.11) : la base vérifie le droit (set_group_photo) ; base d'avant : la table.
+  let { error } = await supabase.rpc('set_group_photo', { grp: groupId, path });
+  if (error?.code === 'PGRST202') ({ error } = await supabase.from('member_groups').update({ photo_path: path }).eq('id', groupId));
   if (error) {
     if (path) void supabase.storage.from(GROUP_PHOTOS).remove([path]);
     throw error;

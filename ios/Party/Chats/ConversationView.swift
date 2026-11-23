@@ -178,7 +178,10 @@ struct ConversationView: View {
                 } else if chat.member && chat.canWrite == false {
                     // « Qui peut écrire : Organisation seulement » (réglage de l'organisation de l'événement) : on lit,
                     // on réagit et on signale.
-                    footNote("Seule l'organisation peut écrire dans cette discussion").accessibilityIdentifier("chat-read-only")
+                    // Groupe (23.11, « Qui peut… écrire dans la discussion ») : réglé par l'admin du groupe.
+                    footNote(chat.isEvent ? "Seule l'organisation peut écrire dans cette discussion"
+                             : "Dans ce groupe, l'admin a réservé l'écriture. Tu lis, tu réagis et tu signales.")
+                        .accessibilityIdentifier("chat-read-only")
                 } else if chat.member {
                     composer(chat, textOnly: request == .outgoing)
                 } else if chat.isEvent {
@@ -650,7 +653,7 @@ struct ConversationView: View {
             } else {
                 ChatBubble(message: m, first: first, last: last, showAuthor: !chat.isDirect, names: names,
                            reactions: chat.reactions, canWrite: chat.member && v2.request(in: chat) == nil, isAdmin: chat.admin,
-                           isStaff: chat.isStaff, canPin: chat.admin || chat.isDirect, canReply: canReply, player: player,
+                           isStaff: chat.isStaff, canPin: chat.admin || chat.isDirect || chat.canPin == true, canReply: canReply, player: player,
                            quote: extra?.quote, eventID: extra?.eventID, card: extra?.eventID.flatMap { v2.cards[$0] } ?? extra?.eventCard,
                            seen: seen,
                            onReact: { emoji in Haptics.tap(); Task { await store.react(m, emoji) } },

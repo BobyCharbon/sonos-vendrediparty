@@ -176,6 +176,14 @@ class GroupChats:
             return None
         return note if isinstance(note, dict) else None
 
+    def _rights(self, token: str, group_id: str) -> dict | None:
+        """Mes droits dans le groupe (« Qui peut… », 23.11 : écrire, épingler) ; base sans la migration : None (comme avant)."""
+        try:
+            rights = self.admin._rpc(token, "group_my_rights", {"grp": group_id})
+        except AccountError:
+            return None
+        return rights if isinstance(rights, dict) else None
+
     def _people(self, token: str, group_id: str, ids: set[str] | None) -> dict[str, dict]:
         """Membres du groupe (ids=None) ou personnes choisies : surnom et photo, via group_chat_people."""
         rows = self.admin._rpc(token, "group_chat_people", {"grp": group_id}, "Les membres n'ont pas pu être lus.") or []
@@ -266,6 +274,7 @@ class GroupChats:
             "admins": POOL.submit(self._rows, f"/rest/v1/group_admins?select=user_id&group_id=eq.{group_id}", token),
             "organizers": POOL.submit(self._organizers, token, group_id),
             "join_note": POOL.submit(self._join_note, token, group_id) if take_note else None,
+            "rights": POOL.submit(self._rights, token, group_id),
             # Annonces (@annonce) et messages épinglés : le bandeau du haut, même au-delà des derniers messages.
             "highlights": POOL.submit(self._rows, f"/rest/v1/group_messages?select=*&group_id=eq.{group_id}&pinned=is.true"
                                                   f"&deleted_at=is.null&order=created_at.desc&limit={HIGHLIGHTS}", token),
@@ -322,6 +331,7 @@ class GroupChats:
                        "announcement": bool(m.get("announcement"))}
                       for m in reversed(got["highlights"] or []) if m.get("pinned") and not m.get("deleted_at")]
         admin = bool(chat.get("admin"))
+        rights = got["rights"] if bool(chat.get("member")) else None
         return {
             "id": group_id, "name": group[0].get("name") or "Groupe", "me": me["me"],
             "member": bool(chat.get("member")), "admin": admin, "notify": chat.get("notify") or "mentions",
@@ -335,6 +345,8 @@ class GroupChats:
             "messages": out,
             "highlights": highlights,
             "join_note": got["join_note"],
+            # « Qui peut… » du groupe (23.11) : écrire et épingler ; absents sur une base d'avant (l'app fait comme avant).
+            **({"can_write": bool(rights.get("write")), "can_pin": bool(rights.get("pin"))} if rights else {}),
         }
 
     @staticmethod

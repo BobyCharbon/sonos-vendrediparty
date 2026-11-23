@@ -106,7 +106,8 @@ export default function GroupPage() {
   const members = memberIds.map((uid) => people.get(uid)).filter((m): m is Person => !!m)
     .sort((a, b) => Number(b.id === group.created_by) - Number(a.id === group.created_by) || a.display_name.localeCompare(b.display_name, 'fr'));
   const faces = members.filter((m) => m.id !== me.id).slice(0, 5).map((m) => ({ id: m.id, name: m.display_name, avatar_url: m.avatar_url }));
-  const canCreate = member && can('events.create');
+  // « Créer un événement pour le groupe » (23.11) : le droit du groupe aussi (my_groups_overview.events, la base décide).
+  const canCreate = member && can('events.create') && (overview?.events ?? true);
   const back = () => (router.canGoBack() ? router.back() : router.replace('/groups'));
 
   return (

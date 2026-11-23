@@ -39,6 +39,9 @@ RELAY = {
     "member_note_get", "member_note_set",  # note privée sur un profil (avis ede29a5bb24e), lue par son auteur seul
     # Groupes plus simples (22.11) : recherche « numéro exact ou nom », « Tous les membres peuvent inviter ».
     "group_people_search", "set_group_members_invite",
+    # Réglages du groupe pour son admin (23.11) : rôles, « Qui peut… », entrée, transmettre (la base vérifie chaque droit).
+    "group_admin_panel", "group_my_rights", "set_group_right", "set_group_role", "set_group_join_approval",
+    "decide_group_join", "transfer_group",
 } | set(LOCAL)  # + lectures composées et écritures dans les tables, faites par le serveur (app/group_pages.py)
 # Signaler depuis les Discussions : messages, profils, photos ; le reste a ses propres écrans.
 REPORT_KINDS = {"group_message", "direct_message", "event_message", "profile", "profile_photo", "group_photo"}

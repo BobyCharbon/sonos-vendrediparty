@@ -535,6 +535,19 @@ réglage de prod :
   `RecetteGroupesNatifsUITests` (Release + serveur local + base de TEST).
 - Tests : `tests/test_groups_browser.py`, `tests/supabase_live/test_groupes_graphisme_live.py`,
   `test_groupes_graphisme_browser_live.py`, `GroupLookTests`.
+- Réglages du groupe pour son admin (demande du 23.11, migration 20261123110000, maquette « Réglages du groupe ») : rôles
+  Admin du groupe (créateur) / Co-admin (`group_admins` : comme l'admin SAUF supprimer et transmettre) / Organisateur
+  (`group_organizers`) / Membre (`set_group_role`) ; « Qui peut… » une colonne par droit `member_groups.who_*` (invite,
+  events, announce, write, pin, edit, remove ; 'admins' | 'staff' | 'members', `set_group_right`), défauts = comportement
+  d'avant (`members_invite` / `everyone_tag` gardés en accord par `guard_group_rights`) ; la BASE fait respecter chaque
+  droit (`private.group_may` : may_invite_group, guard_event_group, guard_group_message, politique d'écriture de
+  group_messages, pin_group_message, `update_group_look` / `set_group_photo`, politique « retirer du groupe » →
+  `may_remove_member`). « Accepter chaque nouveau membre » (`join_approval`, éteint) : le lien du groupe (ou l'invitation
+  d'un simple membre) crée une demande (`private.group_join_requests`, `decide_group_join`). `transfer_group` : l'ancien
+  créateur reste co-admin. Écrans : `group_admin_panel` (web settings.tsx + right.tsx, lib/groupRights.ts ; iPhone
+  GroupSettingsView + GroupRights.swift) ; base d'avant : l'ancien écran (repli). Un événement PUBLIC passe toujours par
+  l'équipe ; jamais Membres Vendredi Party ; les admins du site gardent l'accès. Tests : `test_reglages_groupe_admin_live.py`,
+  `test_groups_browser.py`, `test_group_pages.py`, `GroupRightsTests`, recette `RecetteReglagesGroupeUITests`.
 - Ajouter quelqu'un (avis f0e9bf158133, 22.11, migration 20261122134000) : JAMAIS de liste des membres de Party, seulement
   « numéro exact ou nom » (`group_people_search` : numéro complet, ou 3 lettres d'un nom / prénom / surnom → 5 au plus ;
   surnom, photo, initiale du nom, jamais le numéro ; ni blocages, ni profils incomplets, ni comptes non actifs, ni membres,

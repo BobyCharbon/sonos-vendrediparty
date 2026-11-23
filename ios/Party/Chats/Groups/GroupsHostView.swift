@@ -103,6 +103,8 @@ enum GroupScreen: Hashable {
     case invite(String)
     case pronos(String)
     case create
+    /// « Qui peut… » un droit du groupe (réglages de son admin, 23.11).
+    case right(String, String)
 
     /// created : groupe créé depuis la liste, sa page remplace la création.
     @MainActor @ViewBuilder func view(onGone: @escaping () -> Void, created: @escaping (String) -> Void = { _ in }) -> some View {
@@ -112,6 +114,7 @@ enum GroupScreen: Hashable {
         case .settings(let id): GroupSettingsView(groupID: id, onGone: onGone)
         case .invite(let id): GroupInviteView(groupID: id)
         case .pronos(let id): GroupPronosView(groupID: id)
+        case .right(let id, let key): GroupRightView(groupID: id, key: key)
         }
     }
 }
