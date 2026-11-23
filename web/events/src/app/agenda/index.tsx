@@ -2,11 +2,12 @@ import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Badge, PillButton, TopBar } from '@/components/agenda/Bits';
+import { ast, Badge, PillButton, TopBar } from '@/components/agenda/Bits';
+import { AgendaTutorial, CheckLine, loadSetup, setupHref, sharedLabel } from '@/components/agenda/Tutorial';
 import { DayStrip, DayTimeline, MonthView, WeekView } from '@/components/agenda/Views';
 import { Button, ErrorText, Screen, Segmented, Skeleton, T } from '@/components/ui';
 import {
-  addDays, addMonths, dayKey, isoWeekNumber, loadPeriod, longDay, monthStart, monthTitle, nativeAgenda, rpc, savePrefs, shortDay, syncBusyOnOpen, useAgendaBadge,
+  addDays, addMonths, dayKey, isoWeekNumber, loadPeriod, longDay, monthStart, monthTitle, rpc, savePrefs, shortDay, syncBusyOnOpen, useAgendaBadge,
   weekSpoken, weekStart, weekTitle, zdate, type DayKey, type Prefs, type View as AgendaView,
 } from '@/lib/agenda';
 import { useMe } from '@/lib/auth';
@@ -34,7 +35,10 @@ export default function AgendaScreen() {
   const saved = prefs.data?.view && ['day', 'week', 'month'].includes(prefs.data.view) ? prefs.data.view : 'week';
   const view: AgendaView = picked ?? saved;
   const [anchor, setAnchor] = useState<DayKey>(typeof params.day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(params.day) ? params.day : today);
-  const [welcomeHidden, setWelcomeHidden] = useState(false);
+  // Tutoriel (23.11) : à chaque arrivée tant que « Ne plus me le rappeler » n'est pas touché ; ✕ / Passer : pour cette fois.
+  // `welcome_seen` (ancienne carte « Bienvenue ») ne compte plus : elle n'expliquait rien, chacun voit le tutoriel une fois au moins.
+  const [tutorial, setTutorial] = useState<'auto' | 'open' | 'closed'>('auto');
+  const setup = useQuery(loadSetup, []);
   const pending = useAgendaBadge(me.id);
 
   // Période chargée : la semaine (vue Semaine et Jour, pour les points de la bande), ou les 6 semaines du mois.
@@ -64,12 +68,22 @@ export default function AgendaScreen() {
   const spoken = view === 'month' ? monthTitle(anchor, today) : view === 'week' ? weekSpoken(ws) : longDay(anchor);
   const weekEntries = data ? data.entries.filter((e) => e.end > zdate(ws) && e.start < zdate(addDays(ws, 7))) : [];
   const emptyWeek = !!data && view === 'week' && !weekEntries.length;
-  const welcome = !!data && !data.prefs.welcome_seen && !welcomeHidden;
-  const native = nativeAgenda();
+  const tutorialOpen = !booking && !!prefs.data && (tutorial === 'open' || (tutorial === 'auto' && !prefs.data.tutorial_off));
+  const [setupHidden, setSetupHidden] = useState(false);
+  const setupDone = !!setup.data && setup.data.linked && setup.data.shared.length > 0;
+  const showSetup = !!data && !!setup.data && !setupDone && !data.prefs.setup_off && !setupHidden;
 
-  function closeWelcome() {
-    setWelcomeHidden(true);
-    void savePrefs({ welcome_seen: true });
+  function never() {
+    setTutorial('closed');
+    void savePrefs({ tutorial_off: true, welcome_seen: true });
+  }
+  function startSetup() {
+    setTutorial('closed');
+    router.push(setupHref(setup.data?.linked ? 2 : 1));
+  }
+  function hideSetup() {
+    setSetupHidden(true);
+    void savePrefs({ setup_off: true });
   }
 
   return (
@@ -110,18 +124,17 @@ export default function AgendaScreen() {
       <ErrorText error={error} />
       {error ? <Button label="Réessayer" variant="secondary" onPress={reload} /> : null}
 
-      {welcome ? (
-        <View style={[st.welcome, enter('rise')]} testID="agenda-welcome">
-          <T size={20} weight="bold">👋 Bienvenue dans ton agenda</T>
-          <T size={15} color={colors.textSoft}>Tes soirées Party y sont déjà. Ajoute tes rendez-vous avec « + Ajouter ».</T>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            {native ? (
-              <Button label="📱 Voir mon iPhone" style={{ flex: 1 }} onPress={() => { closeWelcome(); router.push('/agenda/calendars?iphone=1'); }} />
-            ) : (
-              <Button label="🔗 Ajouter un agenda" style={{ flex: 1 }} onPress={() => { closeWelcome(); router.push('/agenda/calendars?add=1'); }} />
-            )}
-            <Button label="Plus tard" variant="secondary" onPress={closeWelcome} />
+      {showSetup && setup.data ? (
+        <View style={[ast.neonCard, enter('rise')]} testID="agenda-setup-card">
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+            <T size={18} weight="bold" style={{ flex: 1 }}>⚙️ Configurer mon agenda en 3 étapes</T>
+            <Pressable accessibilityRole="button" accessibilityLabel="Masquer la configuration" onPress={hideSetup} style={st.hide}>
+              <T size={18} color={colors.muted}>✕</T>
+            </Pressable>
           </View>
+          <CheckLine done={setup.data.linked} label={setup.data.linked ? 'Agendas reliés' : 'Relier mes agendas'} />
+          <CheckLine done={!!setup.data.shared.length} label={sharedLabel(setup.data.shared.length)} />
+          <Button label={setup.data.linked || setup.data.shared.length ? 'Continuer' : 'Commencer'} onPress={startSetup} />
         </View>
       ) : null}
 
@@ -151,6 +164,13 @@ export default function AgendaScreen() {
           </View>
         </View>
       ) : null}
+
+      {data ? (
+        <Pressable accessibilityRole="button" testID="agenda-tutorial-again" onPress={() => setTutorial('open')} style={st.again}>
+          <T size={14} weight="semibold" color={colors.muted}>❓ Revoir le tutoriel</T>
+        </Pressable>
+      ) : null}
+      {tutorialOpen ? <AgendaTutorial onSkip={() => setTutorial('closed')} onNever={never} onSetup={startSetup} /> : null}
     </Screen>
   );
 }
@@ -172,7 +192,7 @@ const st = StyleSheet.create({
   arrow: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
   chev: { width: 11, height: 11, borderLeftWidth: 2.5, borderBottomWidth: 2.5, borderColor: colors.text, transform: [{ rotate: '45deg' }], marginLeft: 4 },
   today: { minHeight: 40, paddingHorizontal: 16, borderRadius: radius.pill, backgroundColor: colors.surface2, justifyContent: 'center' },
-  welcome: { gap: 10, padding: 16, borderRadius: radius.lg, borderWidth: 1.5, borderColor: 'rgba(255,79,154,0.55)', backgroundColor: '#2C1840',
-    shadowColor: colors.accent, shadowOpacity: 0.3, shadowRadius: 20 },
+  hide: { width: 44, height: 44, marginTop: -10, marginRight: -10, alignItems: 'center', justifyContent: 'center' },
+  again: { alignSelf: 'center', minHeight: 44, paddingHorizontal: 14, justifyContent: 'center' },
   emptyCard: { gap: 10, padding: 16, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
 });

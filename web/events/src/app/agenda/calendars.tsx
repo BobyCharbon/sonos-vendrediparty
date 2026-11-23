@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { ast, Badge, Divider, Group, Label, Note, TopBar } from '@/components/agenda/Bits';
+import { SetupBar } from '@/components/agenda/Tutorial';
 import { GroupTile } from '@/components/GroupBits';
 import { Button, ErrorText, Field, Screen, Segmented, T, Toast } from '@/components/ui';
 import {
@@ -24,7 +25,8 @@ type Tab = 'see' | 'share';
  */
 export default function CalendarsScreen() {
   const me = useMe();
-  const p = useLocalSearchParams<{ tab?: string; iphone?: string; add?: string; done?: string }>();
+  const p = useLocalSearchParams<{ tab?: string; iphone?: string; add?: string; done?: string; setup?: string }>();
+  const setup = p.setup === '1';
   const [tab, setTab] = useState<Tab>(p.tab === 'share' || p.done ? 'share' : 'see');
   const pending = useAgendaBadge(me.id);
   const { data, error, reload } = useQuery(async () => {
@@ -45,6 +47,11 @@ export default function CalendarsScreen() {
     <Screen>
       <TopBar back="Agenda" fallback="/agenda" title="Calendriers"
         right={<Pressable accessibilityRole="button" onPress={() => router.navigate('/agenda')} style={st.ok}><Text style={st.okText}>OK</Text></Pressable>} />
+      {setup ? (
+        <SetupBar step={1} next hint={nativeAgenda()
+          ? 'Touche « Relier » sous « Sur ton iPhone » : Party saura quand tu es pris. Rien n’est envoyé.'
+          : 'Colle le lien de ton agenda Google, iCloud ou Outlook (« Où trouver ce lien ? » t’aide). Ou passe : ça marche sans.'} />
+      ) : null}
       <Segmented<Tab> value={tab} onChange={setTab} options={[{ key: 'see', label: '👁️ Voir ici' }, { key: 'share', label: '📤 Partager' }]} />
       <ErrorText error={error} />
       {data && tab === 'see' ? <SeeHere data={data} reload={reload} openIphone={p.iphone === '1'} openAdd={p.add === '1'} /> : null}

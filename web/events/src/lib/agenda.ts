@@ -227,6 +227,10 @@ export type DeviceEvent = { id: string; calendarId: string; title: string; locat
 export type Prefs = {
   welcome_seen?: boolean; view?: View; week_numbers?: boolean; show_declined?: boolean; show_polls?: boolean;
   free_group?: string; free_mode?: 'evening' | 'day'; share_hint_dismissed?: boolean; native_denied_seen?: boolean;
+  /** Tutoriel (23.11) : « Ne plus me le rappeler ». `welcome_seen` (ancienne carte) ne cache plus rien. */
+  tutorial_off?: boolean;
+  /** Carte « Configurer mon agenda en 3 étapes » masquée par la personne. */
+  setup_off?: boolean;
 };
 export type View = 'day' | 'week' | 'month';
 

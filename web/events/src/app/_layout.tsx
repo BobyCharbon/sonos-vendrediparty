@@ -56,7 +56,7 @@ function inPartyShell(): boolean {
   return typeof window !== 'undefined' && window.parent !== window;
 }
 
-const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit|\/invite|\/gifts|\/scan(?:\/[a-f0-9]{64})?|\/bar(?:\/scan|\/manage|\/person\/[a-f0-9-]{36})?)?|share\/[a-f0-9-]{36}|invite\/[a-f0-9-]{36}|group-invite\/[a-f0-9-]{36}|prono-invite\/[A-Za-z0-9_-]{20,40}|pronos|prono\/(?:new|[a-f0-9-]{36})|join\/[a-f0-9-]{36}|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|group\/(?:new|[a-f0-9-]{36}(?:\/settings|\/invite|\/pronos)?)|chats(?:\/(?:new|[a-f0-9-]{36}|requests|archived))?|agenda(?:\/(?:calendars|share|free|links(?:\/(?:new|[a-f0-9-]{36}))?|requests(?:\/[a-f0-9-]{36})?))?|activity|announcements|account|admin\/reports|terms|settings\/(?:notifications|subscriptions|profile|privacy))$/i;
+const validDestination = /^\/(?:event\/[a-f0-9-]{36}(?:\/chat|\/edit|\/invite|\/gifts|\/scan(?:\/[a-f0-9]{64})?|\/bar(?:\/scan|\/manage|\/person\/[a-f0-9-]{36})?)?|share\/[a-f0-9-]{36}|invite\/[a-f0-9-]{36}|group-invite\/[a-f0-9-]{36}|prono-invite\/[A-Za-z0-9_-]{20,40}|pronos|prono\/(?:new|[a-f0-9-]{36})|join\/[a-f0-9-]{36}|admin(?:\/members|\/journal|\/users|\/roles|\/taxonomy|\/announcements)?|groups|group\/(?:new|[a-f0-9-]{36}(?:\/settings|\/invite|\/pronos)?)|chats(?:\/(?:new|[a-f0-9-]{36}|requests|archived))?|agenda(?:\/(?:calendars|share|free|setup|links(?:\/(?:new|[a-f0-9-]{36}))?|requests(?:\/[a-f0-9-]{36})?))?|activity|announcements|account|admin\/reports|terms|settings\/(?:notifications|subscriptions|profile|privacy))$/i;
 const LINK_INTENT = /^\/(?:(?:group-|prono-)?invite|join|share)\//;
 /** Pages de passage (accueil du module, connexion, « Faisons connaissance ») : seules à reprendre l'intention gardée. */
 const transitPath = /^\/?(?:sign-in|welcome)?$/i;
@@ -234,6 +234,7 @@ function Gate() {
         <Stack.Screen name="agenda/calendars" options={{ headerShown: false, title: 'Calendriers' }} />
         <Stack.Screen name="agenda/share" options={{ headerShown: false, title: 'Partager mes dispos' }} />
         <Stack.Screen name="agenda/free" options={{ headerShown: false, title: 'Qui est libre ?' }} />
+        <Stack.Screen name="agenda/setup" options={{ headerShown: false, title: 'Configurer mon agenda' }} />
         <Stack.Screen name="agenda/links/index" options={{ headerShown: false, title: 'Mes liens de dispo' }} />
         <Stack.Screen name="agenda/links/new" options={{ headerShown: false, title: 'Nouveau lien', presentation: 'modal' }} />
         <Stack.Screen name="agenda/links/[id]" options={{ headerShown: false, title: 'Lien de dispo' }} />

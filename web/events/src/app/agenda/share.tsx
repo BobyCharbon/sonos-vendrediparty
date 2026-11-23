@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { CheckRow, Divider, goBack, Group, Label, Note, hatched, TopBar } from '@/components/agenda/Bits';
+import { SetupBar } from '@/components/agenda/Tutorial';
 import { GroupTile } from '@/components/GroupBits';
 import { Avatar, Button, ErrorText, Screen, T } from '@/components/ui';
 import {
@@ -20,7 +21,9 @@ import { colors, font, radius } from '@/lib/theme';
  */
 export default function ShareScreen() {
   const me = useMe();
-  const p = useLocalSearchParams<{ group?: string }>();
+  const p = useLocalSearchParams<{ group?: string; setup?: string }>();
+  // Assistant « Configurer mon agenda » (étape 2/3) : même écran, même règle (tout décoché) ; ensuite « C'est prêt ».
+  const setup = p.setup === '1';
   const first = typeof p.group === 'string' ? p.group : null;
   const native = nativeAgenda();
   const { data, error } = useQuery(async () => {
@@ -58,7 +61,7 @@ export default function ShareScreen() {
     try {
       if (!n) {
         await rpc('agenda_stop_sharing');
-        router.replace('/agenda/calendars?tab=share' as Href);
+        router.replace((setup ? '/agenda/setup' : '/agenda/calendars?tab=share') as Href);
         return;
       }
       // Agendas comptés : un réglage de chaque calendrier (iPhone : gardé sur l'iPhone, jamais envoyé).
@@ -71,7 +74,7 @@ export default function ShareScreen() {
       await rpc('agenda_set_sharing', { groups: [...groups], share_party: party, share_manual: manual });
       if (native) await native.syncBusy().catch(() => undefined);
       else if (cals.some((c) => c.counts_busy)) await syncWebBusy(cals);
-      router.replace('/agenda/calendars?tab=share&done=1' as Href);
+      router.replace((setup ? '/agenda/setup' : '/agenda/calendars?tab=share&done=1') as Href);
     } catch (e) {
       setErr(errorText(e));
     } finally {
@@ -84,6 +87,7 @@ export default function ShareScreen() {
     <Screen>
       <TopBar back="Calendriers" fallback="/agenda/calendars" title="Partager mes dispos"
         subtitle={<T size={15} color={colors.textSoft}>Tes groupes voient tes heures occupées. <Text style={{ ...font.bold }}>Jamais pourquoi.</Text></T>} />
+      {setup ? <SetupBar step={2} hint="Coche les groupes qui verront quand tu es occupé. Rien n’est coché d’office ; tu arrêtes quand tu veux." /> : null}
       <ErrorText error={error} />
 
       <View style={st.example}>
@@ -150,7 +154,7 @@ export default function ShareScreen() {
         {!n && !wasSharing ? <T muted size={13} style={{ textAlign: 'center' }}>Coche au moins un groupe</T> : null}
         <ErrorText error={err} />
         <Button label={label} variant={!n && wasSharing ? 'dangerSolid' : 'primary'} disabled={!data || (!n && !wasSharing)} loading={busy} onPress={() => void save()} />
-        <Button label="Pas maintenant" variant="ghost" onPress={() => goBack('/agenda/calendars')} />
+        <Button label="Pas maintenant" variant="ghost" onPress={() => (setup ? router.replace('/agenda/setup' as Href) : goBack('/agenda/calendars'))} />
       </View>
     </Screen>
   );

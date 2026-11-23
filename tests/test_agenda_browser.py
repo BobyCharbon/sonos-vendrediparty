@@ -41,13 +41,14 @@ def iso(d: datetime) -> str:
 
 
 def agenda_services(page, links=None, pending=1, welcome_seen=False):
-    """Base simulée de l'Agenda, posée par-dessus mock_services (les routes posées après passent d'abord)."""
+    """Base simulée de l'Agenda, posée par-dessus mock_services (les routes posées après passent d'abord).
+    welcome_seen : personne déjà accueillie (tutoriel « Ne plus me le rappeler » touché)."""
     calls = mock_services(page)
     state = {'calls': [], 'items': [{
         'id': '8a000000-0000-4000-8000-000000000001', 'calendar_id': PERSONAL_CAL, 'title': 'Dentiste', 'place': None, 'notes': None,
         'starts_at': iso(at(0, 12, 15)), 'ends_at': iso(at(0, 13, 0)), 'all_day': False, 'repeat': 'none', 'repeat_until': None,
         'alert_minutes': None, 'busy': True, 'series_start': iso(at(0, 12, 15)), 'booking': None}],
-        'prefs': {'welcome_seen': welcome_seen}, 'shared': [], 'links': links if links is not None else [], 'pending': pending, 'handle': None,
+        'prefs': {'welcome_seen': welcome_seen, 'tutorial_off': welcome_seen}, 'shared': [], 'links': links if links is not None else [], 'pending': pending, 'handle': None,
         'bookings': [{
             'id': BOOKING, 'link_id': LINK, 'link_name': 'Rendez-vous pro', 'link_emoji': '💼', 'starts_at': iso(at(3, 10)),
             'ends_at': iso(at(3, 11)), 'status': 'pending', 'created_at': iso(at(0, 0)), 'expires_at': iso(at(2, 0)), 'decided_at': None,
@@ -195,8 +196,10 @@ def test_the_events_header_opens_the_week_with_party_evenings_free_evenings_and_
     button.click()
     pw.expect(page.get_by_test_id('agenda-week')).to_be_visible(timeout=15000)
     pw.expect(page.get_by_role('button', name='Retour : Événements')).to_be_visible()
-    # Premier lancement : une seule carte, sans demande d'iOS ni partage.
-    pw.expect(page.get_by_test_id('agenda-welcome')).to_contain_text('Bienvenue dans ton agenda')
+    # Premier lancement : le tutoriel, sans demande d'iOS ni partage ; « Passer » le ferme pour cette fois.
+    pw.expect(page.get_by_test_id('agenda-tutorial')).to_contain_text('Ton agenda Party')
+    page.get_by_role('button', name='Passer', exact=True).click()
+    pw.expect(page.get_by_test_id('agenda-tutorial')).to_have_count(0)
     # Le rendez-vous dit sa source en mots ; la soirée Party dit la réponse.
     today = page.get_by_test_id(f"week-day-{at(0, 0).date().isoformat()}")
     pw.expect(today.get_by_text('Dentiste')).to_be_visible()
@@ -206,8 +209,6 @@ def test_the_events_header_opens_the_week_with_party_evenings_free_evenings_and_
     pw.expect(page.get_by_text('🌙 Soirée libre').first).to_be_visible()
     pw.expect(page.get_by_role('button', name='Calendriers, 1 demande de rendez-vous')).to_be_visible()
     shot(page, 'agenda-01-semaine.png')
-    page.get_by_role('button', name='Plus tard').click()
-    pw.expect(page.get_by_test_id('agenda-welcome')).to_have_count(0)
     page.get_by_role('tab', name='Mois').click()
     pw.expect(page.get_by_test_id('agenda-month')).to_be_visible()
     pw.expect(page.get_by_test_id('month-day').get_by_text('Dentiste')).to_be_visible()
@@ -495,3 +496,90 @@ def test_narrow_phones_keep_the_headers_on_screen(browser, events_origin, width)
         shot(page, f'agenda-19-semaine-{width}.png')
     finally:
         context.close()
+
+
+def test_the_tutorial_opens_on_arrival_skip_comes_back_never_stays_closed_and_can_be_seen_again(phone, events_origin):
+    """Tutoriel (demande du 23.11) : à chaque arrivée ; « Passer » le ferme pour cette fois (il revient au rechargement) ;
+    « Ne plus me le rappeler » enregistre la préférence (il ne revient plus) ; « Revoir le tutoriel » le rouvre."""
+    page, errors = phone
+    state = agenda_services(page, welcome_seen=False)
+    state['prefs']['welcome_seen'] = True   # a fermé l'ancienne carte « Bienvenue » : voit quand même le tutoriel une fois
+    signed_in(page, events_origin, '/agenda')
+    tuto = page.get_by_test_id('agenda-tutorial')
+    pw.expect(tuto).to_be_visible(timeout=15000)
+    pw.expect(tuto.get_by_role('heading', name='Ton agenda Party')).to_be_visible()
+    pw.expect(tuto).to_contain_text('1 / 5')
+    shot(page, 'agenda-tuto-1-ton-agenda.png')
+    titles = ['Relie tes agendas', 'Partage tes dispos', 'Qui est libre ?', 'Liens de dispo (si tu veux)']
+    for n, title in enumerate(titles, start=2):
+        tuto.get_by_role('button', name='Suivant').click()
+        pw.expect(tuto.get_by_role('heading', name=title)).to_be_visible()
+        pw.expect(tuto).to_contain_text(f'{n} / 5')
+        shot(page, f'agenda-tuto-{n}.png')
+    pw.expect(tuto.get_by_role('button', name='⚙️ Configurer mon agenda en 3 étapes')).to_be_visible()
+    # ✕ : pour cette fois seulement.
+    tuto.get_by_role('button', name='Passer le tutoriel').click()
+    pw.expect(tuto).to_have_count(0)
+    assert not rpc_calls(state, 'agenda_prefs_save') or all('tutorial_off' not in b['prefs'] for b in rpc_calls(state, 'agenda_prefs_save'))
+    page.reload(wait_until='domcontentloaded')
+    pw.expect(page.get_by_test_id('agenda-tutorial')).to_be_visible(timeout=15000)
+    # « Ne plus me le rappeler » : enregistré, et plus jamais à l'arrivée.
+    page.get_by_role('button', name='Ne plus me le rappeler').click()
+    pw.expect(page.get_by_test_id('agenda-tutorial')).to_have_count(0)
+    assert state['prefs']['tutorial_off'] is True
+    page.reload(wait_until='domcontentloaded')
+    pw.expect(page.get_by_test_id('agenda-week')).to_be_visible(timeout=15000)
+    page.wait_for_timeout(800)
+    pw.expect(page.get_by_test_id('agenda-tutorial')).to_have_count(0)
+    shot(page, 'agenda-tuto-6-accueil-checklist.png')
+    # « Revoir le tutoriel » le rouvre au début.
+    page.get_by_test_id('agenda-tutorial-again').click()
+    pw.expect(page.get_by_test_id('agenda-tutorial').get_by_role('heading', name='Ton agenda Party')).to_be_visible()
+    assert errors == [], errors
+
+
+def test_the_setup_wizard_leads_through_the_three_steps(phone, events_origin):
+    """Assistant « Configurer mon agenda en 3 étapes » : 1 relier (navigateur : agenda avec un lien), 2 groupes (tout
+    décoché, même écran et même fonction que Partager), 3 « C'est prêt » → « Voir qui est libre » ; l'accueil montre la
+    checklist tant que tout n'est pas fait."""
+    page, errors = phone
+    state = agenda_services(page, welcome_seen=False)
+    signed_in(page, events_origin, '/agenda')
+    tuto = page.get_by_test_id('agenda-tutorial')
+    pw.expect(tuto).to_be_visible(timeout=15000)
+    for _ in range(4):
+        tuto.get_by_role('button', name='Suivant').click()
+    tuto.get_by_role('button', name='⚙️ Configurer mon agenda en 3 étapes').click()
+    bar = page.get_by_test_id('setup-bar')
+    pw.expect(bar).to_contain_text('ÉTAPE 1/3', timeout=15000)
+    pw.expect(bar).to_contain_text('Relie tes agendas')
+    pw.expect(page.get_by_label('Lien de l’agenda')).to_be_visible()   # le formulaire « agenda avec un lien » est ouvert
+    shot(page, 'agenda-setup-1-relier.png')
+    bar.get_by_role('button', name='Passer cette étape').click()
+    pw.expect(page.get_by_test_id('setup-bar')).to_contain_text('ÉTAPE 2/3', timeout=15000)
+    boxes = page.get_by_role('checkbox')
+    pw.expect(boxes.first).to_be_visible()
+    assert all(boxes.nth(i).get_attribute('aria-checked') == 'false' for i in range(boxes.count()))   # tout décoché
+    page.get_by_test_id(f'share-group-{FOOT}').click()
+    shot(page, 'agenda-setup-2-groupes.png')
+    page.get_by_role('button', name='Partager avec 1 groupe').click()
+    done = page.get_by_test_id('setup-done')
+    pw.expect(page.get_by_test_id('setup-bar')).to_contain_text('ÉTAPE 3/3', timeout=15000)
+    pw.expect(done).to_contain_text('Partagé avec 1 groupe (Potes du foot)')
+    pw.expect(done).to_contain_text('Agendas pas encore reliés')
+    assert rpc_calls(state, 'agenda_set_sharing')[-1]['groups'] == [FOOT]
+    shot(page, 'agenda-setup-3-pret.png')
+    page.get_by_role('button', name='Retour à l’agenda').click()
+    card = page.get_by_test_id('agenda-setup-card')
+    pw.expect(card).to_be_visible(timeout=15000)
+    pw.expect(card.get_by_label('Partagé avec 1 groupe, fait')).to_be_visible()
+    pw.expect(card.get_by_label('Relier mes agendas, à faire')).to_be_visible()
+    pw.expect(page.get_by_test_id('agenda-tutorial')).to_have_count(0)   # pas rouvert au retour
+    shot(page, 'agenda-setup-4-checklist.png')
+    card.get_by_role('button', name='Continuer').click()
+    pw.expect(page.get_by_test_id('setup-bar')).to_contain_text('ÉTAPE 1/3', timeout=15000)
+    page.goto(f'{events_origin}/events/agenda/setup', wait_until='domcontentloaded')
+    page.get_by_role('button', name='👥 Voir qui est libre').click(timeout=15000)
+    pw.expect(page.get_by_test_id('free-best')).to_be_visible(timeout=15000)
+    assert f'group={FOOT}' in page.url
+    assert errors == [], errors

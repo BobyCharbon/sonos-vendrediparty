@@ -640,6 +640,12 @@ réglage de prod :
   l'en-tête d'Événements et Réglages › Autres apps › Agenda (web : Settings.tsx), pastille `useAgendaBadge` (signal
   `user:<id>`). Web : plages des agendas .ics cochés → `agenda_set_busy('web')` (jamais de titre). Tests :
   `tests/test_agenda_browser.py` (base simulée), `tests/supabase_live/test_agenda_web_browser_live.py` (recette réelle).
+- Tutoriel et assistant (23.11, `components/agenda/Tutorial.tsx`) : 5 cartes à CHAQUE arrivée sur l'Agenda tant que
+  « Ne plus me le rappeler » n'est pas touché (`prefs.tutorial_off`, jsonb, sans migration) ; ✕ / Passer = pour cette fois ;
+  « ❓ Revoir le tutoriel » en bas de l'accueil. `welcome_seen` (ancienne carte « Bienvenue ») ne cache plus rien. Assistant
+  « Configurer mon agenda en 3 étapes » = les écrans existants avec `?setup=1` (Calendriers, Partager : tout décoché) puis
+  `/agenda/setup` ; carte checklist sur l'accueil tant que relié + partagé ne sont pas faits (✕ = `prefs.setup_off`).
+  Tests : `test_the_tutorial_opens_on_arrival_*`, `test_the_setup_wizard_leads_through_the_three_steps`.
 - Avant la prod : privacy.tsx (section publique des demandes), CGU, App Privacy (e-mail), phrase EventKit, notes de revue.
 
 ## Agenda et Pronos gardés en test (décision de l'admin du 19.11)
