@@ -60,11 +60,12 @@ def test_the_calendar_sentence_says_what_leaves_the_iphone():
     project = read("ios/project.yml")
     lines = [line for line in project.splitlines() if "NSCalendars" in line]
     assert len(lines) == 2
-    # 19.11 : l'Agenda est éteint dans la version envoyée à Apple (AGENDA_ENABLED absent en prod) : la phrase ne décrit que
-    # l'usage réel (dates d'un sondage), Apple 5.1.1. Le jour où l'Agenda ouvre, elle dira aussi le partage des dispos.
+    # 24.11 : l'Agenda ouvre ; la phrase dit l'usage réel (Apple 5.1.1) : lecture des rendez-vous de l'iPhone, dates d'un
+    # sondage, et, seulement si on partage ses dispos, les heures prises arrondies, jamais titre, lieu ni notes.
     for line in lines:
-        assert "sondage" in line and "ne lit que les entrées qu'elle a ajoutées" in line and "ne quitte ton iPhone" in line
-        assert "dispo" not in line and "Agenda" not in line
+        assert "sondage" in line and "Agenda" in line and "dispos" in line
+        assert "arrondies" in line and "jamais le titre, le lieu ni les notes" in line
+        assert "ne quitte ton iPhone" not in line
 
 
 @pytest.mark.skipif(not shutil.which("node"), reason="Node absent")

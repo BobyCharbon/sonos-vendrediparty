@@ -111,7 +111,8 @@ final class RecetteAgendaUITests: XCTestCase {
             XCTAssertTrue(code.waitForExistence(timeout: 20), "champ du code")
             code.tap()
             app.typeText("123456")
-            XCTAssertTrue(app.staticTexts["Testeur 1"].waitForExistence(timeout: 30), "connecté en Testeur 1")
+            // Le prénom du compte de recette change sur la base de TEST (« Agenda Léa ») : on attend la ligne « Mon profil ».
+            XCTAssertTrue(app.descendants(matching: .any).matching(NSPredicate(format: "label CONTAINS 'Mon profil'")).firstMatch.waitForExistence(timeout: 30), "connecté (Testeur 1)")
             sleep(3)
             // Relancée une fois connectée : les drapeaux (/api/features, Agenda) et la session de la page sont relus.
             app.terminate()
