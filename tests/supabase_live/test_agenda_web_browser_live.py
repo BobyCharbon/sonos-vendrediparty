@@ -61,7 +61,7 @@ def party(tmp_path_factory):
     env = {'PATH': os.environ['PATH'], 'HOME': os.environ.get('HOME', '/tmp'), 'LANG': 'C.UTF-8',
            'DATA_DIR': str(tmp_path_factory.mktemp('party-agenda-web')), 'EVENTS_WEB_DIR': str(DIST),
            'ADMIN_PIN': '8462', 'SPOTIFY_CLIENT_ID': '', 'SPOTIFY_CLIENT_SECRET': '', 'INVITES_V2_ENABLED': '1',
-           'COMPAGNON_ENABLED': '0', 'DISCUSSIONS_ENABLED': '1', 'BAR_ENABLED': '1',
+           'COMPAGNON_ENABLED': '0', 'AGENDA_ENABLED': '1', 'DISCUSSIONS_ENABLED': '1', 'BAR_ENABLED': '1',
            'PARTY_PUBLIC_URL': f'http://127.0.0.1:{port}',
            'SUPABASE_URL': TEST_URL, 'SUPABASE_ANON_KEY': KEY_FILE.read_text().strip(), 'PYTHONDONTWRITEBYTECODE': '1'}
     process = subprocess.Popen([sys.executable, '-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', str(port),
@@ -141,6 +141,10 @@ def test_the_agenda_in_party_for_real(browser, party, people):
         agenda.click()
         pw.expect(page.get_by_test_id('agenda-week')).to_be_visible(timeout=30000)
         shot(page, '02-semaine')
+        # Le tutoriel (23.11) s'ouvre à l'arrivée : « Ne plus me le rappeler » le ferme pour de bon.
+        pw.expect(page.get_by_test_id('agenda-tutorial')).to_be_visible(timeout=15000)
+        page.get_by_role('button', name='Ne plus me le rappeler').click()
+        pw.expect(page.get_by_test_id('agenda-tutorial')).to_have_count(0)
         page.get_by_role('button', name='Nouveau rendez-vous').click()
         page.get_by_label('Titre du rendez-vous').fill(ITEM)
         page.get_by_role('button', name='Demain', exact=True).click()
@@ -186,13 +190,14 @@ def test_the_agenda_in_party_for_real(browser, party, people):
         page.get_by_test_id('empty-model-week').click(timeout=30000)
         page.get_by_role('button', name='J’ai compris, continuer').click()
         page.get_by_role('switch', name='Demandes de rendez-vous').click()
-        pw.expect(page.get_by_test_id('link-preview')).to_contain_text('Aujourd’hui n’est jamais montré', timeout=15000)
+        pw.expect(page.get_by_test_id('link-preview')).to_contain_text('Au plus tôt 12 h avant', timeout=15000)
         shot(page, '09-lien-reglage')
         page.get_by_role('button', name='Créer le lien').click()
         address = page.get_by_test_id('link-address')
-        pw.expect(address).to_contain_text('/d/', timeout=30000)
+        # Adresse lisible par défaut (17.11) : <site>/agenda/<nom>/<lien>, jamais le jeton ; /d/<jeton> marche toujours.
+        pw.expect(address).to_contain_text(f'{party}/agenda/', timeout=30000)
         token = sql(f"select token from private.agenda_links where user_id = '{owner.uid}'")[0]['token']
-        pw.expect(address).to_contain_text(f'{party}/d/{token}')
+        assert token not in address.inner_text()
         shot(page, '10-lien-cree')
 
         # 5. Un inconnu demande un rendez-vous par la page publique ; la pastille arrive en temps réel.

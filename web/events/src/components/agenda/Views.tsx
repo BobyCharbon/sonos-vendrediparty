@@ -94,11 +94,11 @@ export function WeekView({ start, entries, today, empty }: { start: DayKey; entr
               {free ? (
                 <Pressable accessibilityRole="button" accessibilityLabel={`${longDay(key)} : soirée libre. Ajouter un rendez-vous`}
                   onPress={() => router.push(`/agenda/item?day=${key}&from=19:00` as Href)}
-                  style={({ pressed }) => [st.freeChip, pressed && { opacity: 0.7 }]}>
+                  style={({ pressed }) => [st.freeChip, pressed && { opacity: 0.7 }]} hitSlop={4}>
                   <Text style={{ color: colors.lavender, fontSize: 14, ...font.semibold }}>🌙 {empty ? 'Libre' : 'Soirée libre'}</Text>
                 </Pressable>
               ) : null}
-              {!list.length && !free ? <T muted size={14} style={{ paddingVertical: 8 }}>—</T> : null}
+              {!list.length && !free ? <T muted size={14} style={{ paddingVertical: 8 }}>{past ? 'Rien de noté' : 'Rien de prévu'}</T> : null}
             </View>
           </View>
         );
@@ -238,7 +238,8 @@ export function DayTimeline({ day, entries, today }: { day: DayKey; entries: Ent
             </Pressable>
           );
         })}
-        {day === today && now >= dayStart && now < dayEnd ? (
+        {/* Avant le début de la grille (la nuit, avant 8 h) : pas de trait, il sortait au-dessus de l'agenda (audit du 24.11). */}
+        {day === today && now >= dayStart + startH * 3_600_000 && now < dayEnd ? (
           <View pointerEvents="none" style={[st.nowLine, { top: y(now) }]} accessibilityLabel={`Maintenant, ${hm(new Date(now))}`}>
             <View style={st.nowDot} />
           </View>

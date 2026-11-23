@@ -61,7 +61,9 @@ export default function FreeScreen() {
   const ranked = useMemo(() => (data ? rankDays(data, mode) : []), [data, mode]);
   const byKey = useMemo(() => new Map(ranked.map((c) => [c.key, c])), [ranked]);
   const best: Candidate | undefined = ranked[0]?.free ? ranked[0] : undefined;
-  const need = Math.max(2, Math.ceil(sharing.length * 0.6));
+  // Seuil d'un « bon » jour : 60 % de ceux qui partagent, 2 au moins, mais jamais plus qu'eux (sinon « 0 soir où au moins 1
+  // sur 1 est libre » alors que la grille est verte : audit du 24.11).
+  const need = Math.max(1, Math.min(sharing.length, Math.max(2, Math.ceil(sharing.length * 0.6))));
   const goodCount = ranked.filter((c) => c.free >= need).length;
   const lastKey = data ? dayKey(new Date(new Date(data.to).getTime() - 1)) : today;
   const months: string[] = [];
@@ -168,7 +170,7 @@ export default function FreeScreen() {
               <View style={st.summary} testID="free-summary">
                 <T size={30} weight="bold" color={colors.mint} style={{ fontVariant: ['tabular-nums'] }}>{goodCount}</T>
                 <T size={14} color={colors.textSoft} style={{ flex: 1 }}>
-                  {word}{goodCount > 1 ? 's' : ''} où <Text style={{ color: colors.text, ...font.bold }}>au moins {Math.min(need, sharing.length)}</Text> sur {sharing.length} {Math.min(need, sharing.length) > 1 ? 'sont libres' : 'est libre'} d’ici le {tinyDay(lastKey)} {monthTitle(lastKey, lastKey).toLowerCase()}
+                  {word}{goodCount > 1 ? 's' : ''} où <Text style={{ color: colors.text, ...font.bold }}>{need === sharing.length ? (need > 1 ? `tous les ${need}` : '1 sur 1') : `au moins ${need} sur ${sharing.length}`}</Text> {need > 1 ? 'sont libres' : 'est libre'} d’ici le {tinyDay(lastKey)} {monthTitle(lastKey, lastKey).toLowerCase()}
                 </T>
               </View>
               {best ? (
@@ -272,7 +274,7 @@ function MonthGrid({ month, today, last, byKey, best, need, word, picks, onTap }
     <View style={{ gap: 8 }} testID={`free-month-${month.slice(0, 7)}`}>
       <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
         <T size={20} weight="bold">{monthTitle(month, today)}</T>
-        <T muted size={13}>{good} {word}{good > 1 ? 's' : ''} ≥ {need}</T>
+        <T muted size={13}>{good} {word}{good > 1 ? 's' : ''} · {need} libre{need > 1 ? 's' : ''} ou plus</T>
       </View>
       <View style={st.weekRow}>
         {WEEK_HEAD.map((d, i) => <T key={d} size={12} weight="semibold" color={i >= 5 ? colors.lavender : colors.muted} style={st.head}>{d}</T>)}
@@ -338,7 +340,7 @@ function DaySheet({ onClose, title, sub, isBest, free, total, children }: {
               <T muted size={13}>{sub}</T>
             </View>
             <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-              <View style={st.sumFree}><T size={14} weight="bold" color={colors.mint}>✓ {free} / {total} disponible{free > 1 ? 's' : ''}</T></View>
+              <View style={[st.sumFree, !free && { backgroundColor: colors.surface2 }]}><T size={14} weight="bold" color={free ? colors.mint : colors.textSoft}>{free ? '✓ ' : ''}{free} / {total} disponible{free > 1 ? 's' : ''}</T></View>
               {isBest ? <View style={st.sumBest}><T size={14} weight="bold" color={colors.accentSoft}>★ Le mieux</T></View> : null}
             </View>
             {children}

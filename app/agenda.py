@@ -188,7 +188,7 @@ button,input,textarea,select{font:inherit;color:inherit}a{color:var(--acc)}
 .slot{position:absolute;left:5px;right:5px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:0;padding:0 10px;
 border:1px solid color-mix(in srgb,var(--slotb) 35%,transparent);border-left:4px solid var(--slotb);border-radius:6px 10px 10px 6px;background:var(--slot);text-align:left;overflow:hidden}
 button.slot{cursor:pointer}
-.slot .st{font-size:14.5px;font-weight:650;line-height:1.2;white-space:nowrap}.slot .sa{font-size:12px;color:var(--acc);font-weight:600;line-height:1.2}
+.slot .st{font-size:14.5px;font-weight:650;line-height:1.2;white-space:nowrap}.slot.short{flex-direction:row;align-items:center}.slot.short .sa{display:none}.slot.short .st{font-size:13px}.slot .sa{font-size:12px;color:var(--acc);font-weight:600;line-height:1.2}
 .slot[aria-pressed="true"]{background:var(--acc);border-color:var(--acc);color:var(--onacc)}.slot[aria-pressed="true"] .sa{color:var(--onacc)}
 .none{position:absolute;left:4px;right:4px;top:38%;text-align:center;color:var(--mut);margin:0;font-size:14px}
 .ldays{display:flex;flex-direction:column;margin-top:8px}
@@ -203,7 +203,7 @@ button.ls{cursor:pointer}.ls .t{font-size:15.5px;font-weight:650}.ls .go{font-si
 .ew-a{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
 .note{margin:14px 0 0;font-size:13.5px;color:var(--mut)}
 .full{margin:12px 0 0;padding:10px 12px;border-radius:12px;background:var(--waitsoft);color:var(--fg);border-left:4px solid var(--wait)}
-.ft{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:4px 8px;font-size:12.5px;color:var(--mut);padding:22px 0;margin-top:auto}
+.ft{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:0;font-size:12.5px;color:var(--mut);padding:22px 0;margin-top:auto}
 .ft button,.ft a{color:var(--mut);background:none;border:0;min-height:44px;cursor:pointer;text-decoration:underline;text-underline-offset:3px;font-size:12.5px}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:48px;padding:0 18px;border-radius:12px;background:var(--acc);color:var(--onacc);border:0;text-decoration:none;font-weight:650;cursor:pointer;font-size:15.5px}
 .btn.wide{width:100%;min-height:52px}.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
@@ -308,7 +308,7 @@ function column(k,axis,head){var c=el('div','gc');if(head){var h=el('p','gh');h.
  gaps.forEach(function(g){if(g[1]-g[0]<30)return;var z=el('div','hz');z.style.top=((g[0]/60-h0)*H)+'px';z.style.height=((g[1]-g[0])/60*H)+'px';
   if(g[1]-g[0]>=90)z.appendChild(el('span',null,'Hors des heures de ce lien'));z.setAttribute('aria-hidden','true');tl.appendChild(z);});
  var list=el('div');list.setAttribute('role','list');
- days[k].s.forEach(function(s){var b=slotEl(s,'slot',true);var m0=mins(s[0]),m1=key(s[1])!==k?1440:mins(s[1]);b.style.top=((m0/60-h0)*H+2)+'px';b.style.height=Math.max(((m1-m0)/60*H)-4,26)+'px';
+ days[k].s.forEach(function(s){var b=slotEl(s,'slot',true);var m0=mins(s[0]),m1=key(s[1])!==k?1440:mins(s[1]);b.style.top=((m0/60-h0)*H+2)+'px';b.style.height=Math.max(((m1-m0)/60*H)-4,26)+'px';if(m1-m0<45)b.classList.add('short');
   if(!booking)b.setAttribute('role','listitem');list.appendChild(b);});
  tl.appendChild(list);if(!days[k].s.length)tl.appendChild(el('p','none','Pas de disponibilité ce jour'));c.appendChild(tl);return c;}
 function axisOf(w){var a=24,b=0;w.d.forEach(function(k){days[k].w.forEach(function(x){a=Math.min(a,Math.floor(mins(x[0])/60));b=Math.max(b,key(x[1])!==k?24:Math.ceil(mins(x[1])/60));});});
@@ -400,7 +400,7 @@ def _shell(title: str, body: str, nonce: str, meta: str = "", script: str = "") 
 
 
 def _footer(report: bool) -> str:
-    rep = '<span aria-hidden="true">·</span><button type="button" id="repbtn">Signaler cette page</button>' if report else ""
+    rep = '<button type="button" id="repbtn">Signaler cette page</button>' if report else ""
     return f'<footer class="ft"><span>Agenda partagé avec Vendredi Party</span>{rep}</footer>'
 
 

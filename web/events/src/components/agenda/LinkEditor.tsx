@@ -66,9 +66,9 @@ export function QrModal({ link, onClose }: { link: Link | null; onClose: () => v
 export function LinkIntro({ onGo, onCancel }: { onGo: () => void; onCancel: () => void }) {
   const lines = [
     { icon: '👁️', title: 'Seulement Disponible ou Occupé', text: 'Dans les jours et heures que tu choisis. Jamais le titre, le lieu ni avec qui.' },
-    { icon: '🕒', title: 'À partir de demain', text: 'Jamais aujourd’hui. 60 jours au plus.' },
-    { icon: '↥', title: 'Il peut être transféré', text: 'Donne-le seulement à qui tu veux.' },
-    { icon: '⏹', title: 'Tu l’arrêtes quand tu veux', text: 'Permanent, ou 90 jours si tu préfères : tu choisis.' },
+    { icon: '🕒', title: 'Jamais au dernier moment', text: 'Dès demain, ou plus tôt si tu acceptes les demandes : tu choisis le délai. 60 jours au plus.' },
+    { icon: '📤', title: 'Il peut être transféré', text: 'Donne-le seulement à qui tu veux.' },
+    { icon: '✋', title: 'Tu l’arrêtes quand tu veux', text: 'Permanent, ou 90 jours si tu préfères : tu choisis.' },
   ];
   return (
     <View style={[st.intro, enter('rise')]} testID="link-intro">
@@ -116,6 +116,8 @@ export function LinkEditor({ link, model: startModel, onSaved }: { link: Link | 
   const [durations, setDurations] = useState<number[]>(link?.durations?.length ? link.durations : [link?.duration_min ?? 60]);
   const durationMin = Math.min(...durations);
   const [notice, setNotice] = useState(link?.min_notice_min ?? 720);
+  // Moins de 24 h de délai avec les demandes : la base montre aussi aujourd'hui (migration 20261117200000).
+  const soon = booking && notice < 1440;
   function toggleDuration(d: number) {
     setDurations((all) => (all.includes(d) ? (all.length > 1 ? all.filter((x) => x !== d) : all) : [...all, d].sort((a, b) => a - b)));
   }
@@ -370,7 +372,7 @@ export function LinkEditor({ link, model: startModel, onSaved }: { link: Link | 
             </Group>
             <Note>« Non » : le champ n’apparaît pas. Le prénom est toujours demandé.</Note>
             {fields.message !== 'off' ? (
-              <Input accessibilityLabel="Question posée à la personne (facultatif)" placeholder="Question posée (facultatif) : « Votre message »" value={label}
+              <Input accessibilityLabel="Question posée à la personne (facultatif)" placeholder="Question (facultatif) : « Votre message »" value={label}
                 onChangeText={setLabel} maxLength={60} />
             ) : null}
             <ToggleRow label="Me prévenir des demandes" hint="Aussi dans Réglages › Notifications" value={notify} onChange={(v) => void setNotifyPref(v)} />
@@ -468,10 +470,10 @@ export function LinkEditor({ link, model: startModel, onSaved }: { link: Link | 
           <View style={st.pvAvatar}><Text style={{ color: '#3A3550', fontSize: 13, ...font.bold }}>{shownName.slice(0, 2).toUpperCase()}</Text></View>
           <View style={{ flex: 1 }}>
             <Text style={st.pvTitle}>{booking ? `Prendre rendez-vous avec ${shownName}` : `Disponibilités de ${shownName}`}</Text>
-            <Text style={st.pvSub}>À partir de demain · {HORIZONS.find((h) => h.days === horizon)?.label}</Text>
+            <Text style={st.pvSub}>{soon ? (notice ? `Au plus tôt ${noticeText(notice)} avant` : 'Dès maintenant') : 'À partir de demain'} · {HORIZONS.find((h) => h.days === horizon)?.label}</Text>
           </View>
         </View>
-        <Text style={st.pvToday}>{tinyDay(dayKey(new Date()))} · Aujourd’hui n’est jamais montré</Text>
+        {soon ? null : <Text style={st.pvToday}>{tinyDay(dayKey(new Date()))} · Aujourd’hui n’est jamais montré</Text>}
         {preview === null ? <Text style={st.pvSub}>Calcul…</Text> : null}
         {preview && !shownDays.length ? <Text style={st.pvSub}>Aucun moment libre dans ces heures pour l’instant.</Text> : null}
         {shownDays.map((k) => (
@@ -546,7 +548,7 @@ export function LinkCard({ link, onChanged, index = 0 }: { link: Link; onChanged
       {live && !link.permanent && link.expires_at ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
           <T muted size={13}>S’arrête seul le {dateShort(link.expires_at)} ·</T>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Prolonger ${link.name} de 90 jours`} onPress={() => void act('extend')} style={{ minHeight: 32, justifyContent: 'center' }}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Prolonger ${link.name} de 90 jours`} onPress={() => void act('extend')} hitSlop={8} style={{ minHeight: 32, justifyContent: 'center' }}>
             <T size={13} weight="bold" color={colors.accent}>Prolonger</T>
           </Pressable>
         </View>

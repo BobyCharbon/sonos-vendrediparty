@@ -22,7 +22,7 @@ function steps(iphone: boolean): Step[] {
   return [
     {
       key: 'agenda', title: 'Ton agenda Party',
-      text: <>Tes soirées Party s’y mettent <B>toutes seules</B> (Présent, Peut-être, ce que tu organises). Tu ajoutes tes rendez-vous avec « + Ajouter ». Ici, c’est à toi seul.</>,
+      text: <>Ton agenda dans Party, <B>visible par toi seul</B>. Tes soirées s’y mettent toutes seules (Présent, Peut-être, ce que tu organises). Tes autres rendez-vous : « + Ajouter ».</>,
       art: (
         <View style={{ gap: 6, width: '100%' }}>
           <Row dot={colors.accent} label="🎉 Apéro de la bande" when="ven. 20 h" />
@@ -33,8 +33,8 @@ function steps(iphone: boolean): Step[] {
     {
       key: 'relier', title: 'Relie tes agendas',
       text: iphone
-        ? <>Relie ton iPhone pour que Party sache quand tu es <B>pris</B>. Tes rendez-vous restent sur ton iPhone : si tu partages, seul « occupé » part, <B>jamais le titre ni le lieu</B>.</>
-        : <>Ajoute ton agenda Google, iCloud ou Outlook avec son lien pour que Party sache quand tu es <B>pris</B>. Si tu partages, seul « occupé » part, <B>jamais le titre ni le lieu</B>.</>,
+        ? <>Relie ton iPhone : Party voit quand tu es <B>pris</B>. Tes rendez-vous restent sur ton iPhone, <B>rien n’est envoyé</B> tant que tu ne partages pas. Et même là, seul « occupé » part : jamais le titre ni le lieu.</>
+        : <>Ajoute ton agenda Google, iCloud ou Outlook avec son lien : Party voit quand tu es <B>pris</B>. <B>Rien n’est envoyé</B> tant que tu ne partages pas. Et même là, seul « occupé » part : jamais le titre ni le lieu.</>,
       art: (
         <View style={{ alignItems: 'center', gap: 8 }}>
           <View style={st.flow}>
@@ -50,7 +50,7 @@ function steps(iphone: boolean): Step[] {
     },
     {
       key: 'partager', title: 'Partage tes dispos',
-      text: <>Tu choisis <B>groupe par groupe</B> : rien n’est partagé d’office. Le groupe voit « Disponible » ou « Occupé », jamais pourquoi. Tu arrêtes quand tu veux, tout est effacé.</>,
+      text: <>Tu choisis <B>groupe par groupe</B>, rien n’est partagé d’office. Le groupe voit seulement « Disponible » ou « Occupé » : <B>jamais le titre ni le lieu</B>. Tu arrêtes quand tu veux, tout est effacé.</>,
       art: (
         <View style={{ gap: 6, width: '100%' }}>
           <Check on label="⚽ Potes du foot" />
@@ -60,7 +60,7 @@ function steps(iphone: boolean): Step[] {
     },
     {
       key: 'libre', title: 'Qui est libre ?',
-      text: <>Choisis un groupe : <B>plus un jour est vert</B>, plus il y a de monde libre. Le meilleur jour est encadré. Touche-le, puis « Organiser » ou « Faire voter ». Seuls ceux qui partagent comptent.</>,
+      text: <>Choisis un groupe : <B>plus un jour est vert</B>, plus il y a de monde libre. Le meilleur jour est encadré. Touche un jour pour voir qui est libre, puis « Organiser » ou « Faire voter ». Seuls ceux qui partagent leurs dispos comptent.</>,
       art: (
         <View style={st.cells}>
           {[0.15, 0.35, 0.9, 0.5, 0.2, 0.65, 0.3].map((a, i) => (
@@ -73,7 +73,7 @@ function steps(iphone: boolean): Step[] {
     },
     {
       key: 'liens', title: 'Liens de dispo (si tu veux)',
-      text: <>Pour quelqu’un <B>hors de Party</B> (un client, ton coach…) : un lien montre tes créneaux libres. Si tu l’autorises, la personne te demande un rendez-vous, et tu acceptes ou refuses.</>,
+      text: <>Pour quelqu’un <B>hors de Party</B> (un client, ton coach…) : envoie-lui un lien qui montre tes créneaux libres, rien d’autre. Si tu l’autorises, la personne te demande un rendez-vous, et tu acceptes ou refuses.</>,
       art: (
         <View style={{ alignItems: 'center', gap: 8 }}>
           <View style={st.link}><T size={14} weight="semibold" color={colors.accentSoft}>🔗 …/agenda/toi/cafe</T></View>

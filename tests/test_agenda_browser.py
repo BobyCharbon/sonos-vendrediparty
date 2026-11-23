@@ -215,6 +215,10 @@ def test_the_events_header_opens_the_week_with_party_evenings_free_evenings_and_
     shot(page, 'agenda-02-mois.png')
     page.get_by_role('tab', name='Jour').click()
     pw.expect(page.get_by_test_id('agenda-day')).to_be_visible()
+    # Audit du 24.11 : la nuit (avant le début de la grille), le trait « Maintenant » sortait au-dessus de l'agenda.
+    now_line = page.get_by_label(re.compile('^Maintenant, '))
+    if now_line.count():
+        assert now_line.bounding_box()['y'] >= page.get_by_test_id('agenda-day').bounding_box()['y']
     shot(page, 'agenda-03-jour.png')
     assert errors == [], errors
 
@@ -298,6 +302,11 @@ def test_who_is_free_shows_the_month_in_order_the_best_day_framed_and_organises(
     assert keys == sorted(keys) and len(keys) >= 25, keys  # jour par jour, dans l'ordre
     assert keys[0] in (at(0, 0).date().isoformat(), at(1, 0).date().isoformat())  # en commençant aujourd'hui
     pw.expect(page.get_by_test_id(f"free-month-{at(0, 0).strftime('%Y-%m')}")).to_be_visible()
+    # Audit du 24.11 : le résumé et l'en-tête des mois comptent avec le même seuil, en mots (jamais « ≥ »).
+    pw.expect(page.get_by_test_id('free-summary')).to_contain_text('au moins 3 sur 4 sont libres')
+    month_head = page.get_by_test_id(f"free-month-{at(0, 0).strftime('%Y-%m')}")
+    pw.expect(month_head).to_contain_text(re.compile(r'\d+ soirs? · 3 libres ou plus'))
+    pw.expect(month_head).not_to_contain_text('≥')
     others = page.get_by_test_id('free-others')
     pw.expect(others).to_contain_text('Sam')
     # Ceux qui ne partagent pas : grisés, aucun texte de refus.
@@ -354,6 +363,9 @@ def test_links_empty_state_model_explainer_settings_and_preview(phone, events_or
     # Demandes éteintes au départ ; allumées : durée et champs, le prénom toujours obligatoire.
     page.get_by_role('switch', name='Demandes de rendez-vous').click()
     pw.expect(page.get_by_role('radio', name='Prénom : Obligatoire')).to_have_attribute('aria-checked', 'true')
+    # Demandes allumées, délai de 12 h : la base montre aussi aujourd'hui ; l'aperçu le dit (audit du 24.11).
+    pw.expect(page.get_by_test_id('link-preview')).to_contain_text('Au plus tôt 12 h avant')
+    pw.expect(page.get_by_test_id('link-preview')).not_to_contain_text('Aujourd’hui n’est jamais montré')
     page.get_by_role('radio', name='Téléphone : Facultatif').click()
     # Plusieurs durées (17.11) : 1 h au départ, on ajoute 30 min ; la personne qui réserve choisit. Délai : 2 h avant.
     durations = page.get_by_test_id('link-durations')
@@ -509,12 +521,16 @@ def test_the_tutorial_opens_on_arrival_skip_comes_back_never_stays_closed_and_ca
     pw.expect(tuto).to_be_visible(timeout=15000)
     pw.expect(tuto.get_by_role('heading', name='Ton agenda Party')).to_be_visible()
     pw.expect(tuto).to_contain_text('1 / 5')
+    pw.expect(tuto).to_contain_text('visible par toi seul')
     shot(page, 'agenda-tuto-1-ton-agenda.png')
-    titles = ['Relie tes agendas', 'Partage tes dispos', 'Qui est libre ?', 'Liens de dispo (si tu veux)']
-    for n, title in enumerate(titles, start=2):
+    # Ce que chaque carte doit dire (audit du 24.11) : rien n'est envoyé, groupe par groupe sans titre ni lieu, etc.
+    titles = [('Relie tes agendas', 'Rien n’est envoyé'), ('Partage tes dispos', 'jamais le titre ni le lieu'),
+              ('Qui est libre ?', 'Touche un jour pour voir qui est libre'), ('Liens de dispo (si tu veux)', 'hors de Party')]
+    for n, (title, says) in enumerate(titles, start=2):
         tuto.get_by_role('button', name='Suivant').click()
         pw.expect(tuto.get_by_role('heading', name=title)).to_be_visible()
         pw.expect(tuto).to_contain_text(f'{n} / 5')
+        pw.expect(tuto).to_contain_text(says)
         shot(page, f'agenda-tuto-{n}.png')
     pw.expect(tuto.get_by_role('button', name='⚙️ Configurer mon agenda en 3 étapes')).to_be_visible()
     # ✕ : pour cette fois seulement.

@@ -67,6 +67,10 @@ def test_the_public_page_is_self_contained_and_never_indexed(db, client):
     assert 'name="site"' in page                                                        # champ piège
     assert "obligatoire pour ce rendez-vous" in page and 'name="phone"' not in page     # champs choisis seulement
     assert "Disponible de 9 h – 10 h" in page                                           # sans JavaScript : la liste
+    # Audit du 24.11 : un créneau de 30 min de la grille (26 px) n'a que ses heures, sur une ligne (le texte débordait),
+    # et le pied de page s'empile (plus de « · » orphelin en fin de ligne sur téléphone).
+    assert "if(m1-m0<45)b.classList.add('short')" in page and ".slot.short .sa{display:none}" in page
+    assert '<span aria-hidden="true">·</span>' not in page
     assert calls[-1][:2] == ("agenda_public_page", {"t": TOKEN, "count_view": True})
     og = re.search(r'property="og:image" content="([^"]+)"', page).group(1)
     assert og == f"{main.configured_public_url()}/d/{TOKEN}/apercu.png"                 # adresse depuis PARTY_PUBLIC_URL

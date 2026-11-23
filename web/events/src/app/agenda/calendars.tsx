@@ -50,7 +50,7 @@ export default function CalendarsScreen() {
       {setup ? (
         <SetupBar step={1} next hint={nativeAgenda()
           ? 'Touche « Relier » sous « Sur ton iPhone » : Party saura quand tu es pris. Rien n’est envoyé.'
-          : 'Colle le lien de ton agenda Google, iCloud ou Outlook (« Où trouver ce lien ? » t’aide). Ou passe : ça marche sans.'} />
+          : 'Colle le lien de ton agenda Google, iCloud ou Outlook : « Où trouver ce lien ? », plus bas, t’explique comment. Rien n’est envoyé. Pas d’agenda à relier ? Passe cette étape.'} />
       ) : null}
       <Segmented<Tab> value={tab} onChange={setTab} options={[{ key: 'see', label: '👁️ Voir ici' }, { key: 'share', label: '📤 Partager' }]} />
       <ErrorText error={error} />
