@@ -151,6 +151,6 @@ def test_touching_someone_in_my_group_sends_an_invitation_instead_of_adding_him(
     page.get_by_label('Chercher une personne').fill('mal', timeout=15000)  # 22.11 : recherche, jamais de liste
     page.get_by_role('checkbox', name='Ajouter Malik').click(timeout=15000)
     page.get_by_role('button', name='Inviter Malik').click()
-    pw.expect(page.get_by_text('Malik : invitation envoyée', exact=False)).to_be_visible(timeout=10000)
+    pw.expect(page.get_by_text('Invitation envoyée à Malik', exact=False)).to_be_visible(timeout=10000)
     assert [i['member'] for i in state['invites']] == [MALIK] and not inserts, (state['invites'], inserts)
     assert not errors, errors

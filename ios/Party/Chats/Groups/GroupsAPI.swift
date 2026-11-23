@@ -320,8 +320,11 @@ enum GroupText {
         let t = typed.trimmingCharacters(in: .whitespaces)
         let digits = t.filter(\.isNumber)
         guard t.range(of: #"^(\+|00)?[0-9][0-9 .()/\-]{6,}$"#, options: .regularExpression) != nil, digits.count >= 8 else { return nil }
-        if digits.hasPrefix("00") { return String(digits.dropFirst(2)) }
-        return digits.hasPrefix("0") && digits.count == 10 ? "41" + digits.dropFirst() : String(digits)
+        let intl: String? = digits.hasPrefix("00") ? String(digits.dropFirst(2)) : t.hasPrefix("+") ? digits : nil
+        // « +41 (0)79… », « +41 079… » : le 0 après l'indicatif tombe (comme private.search_phone).
+        if let intl { return intl.hasPrefix("410") && intl.count == 12 ? "41" + intl.dropFirst(3) : intl }
+        if digits.hasPrefix("0") && digits.count == 10 { return "41" + digits.dropFirst() }
+        return digits.count == 9 && !digits.hasPrefix("0") ? "41" + digits : digits  // « 79 123 45 67 »
     }
 
     /// Nom tapé assez long pour chercher (comme la base).

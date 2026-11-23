@@ -66,6 +66,10 @@ def test_search_by_full_number_only(world):
     assert '41790000002' not in whole.text
     assert search(vip, gid, '079 000 00 02').json()[0]['id'] == gb.uid  # format suisse, comme la connexion SMS
     assert search(vip, gid, '+41 79 000').json() == []  # numéro incomplet : rien
+    # Tous les formats suisses courants (avis de l'admin du 23.11, migration 20261123090000).
+    for typed in ('+41790000002', '0041 79 000 00 02', '+41 (0)79 000 00 02', '+41 079 000 00 02', '0041 079 000 00 02',
+                  '79 000 00 02', '079.000.00.02'):
+        assert [p['id'] for p in search(vip, gid, typed).json()] == [gb.uid], typed
 
 
 def test_blocked_people_are_never_found(world):

@@ -108,11 +108,12 @@ final class RecetteGroupes2211UITests: XCTestCase {
         shot("04-A-inviter")
         XCTAssertFalse(app.staticTexts["group-new-error"].exists, "aucune erreur à la création")
 
-        // 2. Ajouter quelqu'un : le numéro exact de Guest B → proposé, sans son numéro affiché.
+        // 2. Ajouter quelqu'un : le numéro de Guest B, tapé « +41 (0)79… » (formats suisses, avis du 23.11) → proposé,
+        // sans son numéro affiché.
         scrollTo(search)
         search.tap()
-        app.typeText("0790000002")
-        let add = any("label BEGINSWITH 'Ajouter ' AND label CONTAINS 'Guest'")
+        app.typeText("+41 (0)79 000 00 02")
+        let add = any("label BEGINSWITH 'Ajouter '")
         XCTAssertTrue(add.waitForExistence(timeout: 20), "Guest B proposé pour le numéro tapé")
         sleep(1)
         shot("05-A-guestB-propose")
@@ -127,7 +128,9 @@ final class RecetteGroupes2211UITests: XCTestCase {
         scrollTo(send)
         shot("06-A-guestB-choisi")
         send.tap()
-        XCTAssertTrue(any("label BEGINSWITH 'Déjà invité' OR label == 'Invitation envoyée'").waitForExistence(timeout: 20), "invitation envoyée")
+        // Confirmation visible sous la recherche, clavier fermé (avis du 23.11 : rien ne confirmait l'envoi).
+        XCTAssertTrue(any("label BEGINSWITH 'Invitation envoyée à '").waitForExistence(timeout: 20), "« Invitation envoyée à Guest B ✓ »")
+        XCTAssertFalse(app.keyboards.firstMatch.exists, "clavier fermé après l'envoi")
         shot("07-A-invitation-envoyee")
 
         // Recherche par nom (3 lettres) : 5 résultats au plus, jamais d'annuaire.

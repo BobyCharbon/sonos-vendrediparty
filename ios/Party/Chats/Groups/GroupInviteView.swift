@@ -25,6 +25,9 @@ struct GroupInviteView: View {
     @State private var busy = false
     @State private var error: String?
     @State private var note: String?
+    /// « Invitation envoyée à … ✓ » sous la recherche, jusqu'à la recherche suivante (le message du bas restait caché
+    /// sous le clavier : avis de l'admin du 23.11).
+    @State private var lastSent: String?
 
     struct Picked: Equatable, Identifiable {
         let id: String
@@ -191,7 +194,10 @@ struct GroupInviteView: View {
                     .autocorrectionDisabled()
                     .submitLabel(.done)
                     .onSubmit { if typedPhone != nil, found?.isEmpty == true { addPhone() } }
-                    .onChange(of: search) { _ in error = nil }
+                    .onChange(of: search) { _ in
+                        error = nil
+                        if !search.isEmpty { lastSent = nil }
+                    }
                     .accessibilityLabel("Chercher une personne")
                     .accessibilityIdentifier("group-invite-search")
             }
@@ -200,8 +206,14 @@ struct GroupInviteView: View {
             .background(PronoTheme.s1, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(PronoTheme.line2, lineWidth: 1))
             .task(id: search) { await runSearch() }
+            if let lastSent {
+                Label(lastSent, systemImage: "checkmark.circle.fill")
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(PronoTheme.fixed(0x34C759))
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .accessibilityIdentifier("group-invite-sent")
+            }
             if !ready {
-                Text("Tape son numéro complet (+41 79…) ou au moins 3 lettres de son nom, prénom ou surnom.")
+                Text("Tape son numéro (079…, +41 79… ou 0041 79…) ou au moins 3 lettres de son nom, prénom ou surnom.")
                     .font(.footnote).foregroundStyle(PronoTheme.t2)
             } else if searching && found == nil {
                 Text("Recherche…").font(.footnote).foregroundStyle(PronoTheme.t3)
@@ -213,7 +225,7 @@ struct GroupInviteView: View {
                         addPhone()
                     }
                 } else {
-                    Text("Personne trouvé. Vérifie l’orthographe, ou tape son numéro complet.")
+                    Text("Aucune personne trouvée. Vérifie l’orthographe, ou tape son numéro.")
                         .font(.footnote).foregroundStyle(PronoTheme.t2)
                 }
             }
@@ -345,8 +357,9 @@ struct GroupInviteView: View {
         busy = false
         if !done.isEmpty {
             Haptics.success()
-            Motion.animate(Motion.smooth) { note = "\(GroupText.names(done.map(\.name))) : invitation envoyée" }
             search = ""
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            Motion.animate(Motion.smooth) { lastSent = "Invitation envoyée à \(GroupText.names(done.map(\.name)))" }
         }
     }
 }

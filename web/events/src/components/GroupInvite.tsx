@@ -16,13 +16,16 @@ import { colors, font, radius } from '@/lib/theme';
 
 type Picked = { id: string | null; name: string; phone?: string };
 
-/** Numéro tapé (« 079 123 45 67 », « +41 79… », « 0041… ») → chiffres au format international, comme la connexion SMS
+/** Numéro tapé (« 079 123 45 67 », « +41 79… », « +41 (0)79… », « 0041… », « 79 123 45 67 ») → chiffres au format international, comme la connexion SMS
  * (même règle que la base : private.search_phone). */
 export function phoneOf(typed: string): string | null {
   const digits = typed.replace(/\D/g, '');
   if (!/^(\+|00)?[0-9][0-9 .()/-]{6,}$/.test(typed.trim()) || digits.length < 8) return null;
-  if (digits.startsWith('00')) return digits.slice(2);
-  return /^0[1-9]/.test(digits) && digits.length === 10 ? `41${digits.slice(1)}` : digits;
+  const intl = digits.startsWith('00') ? digits.slice(2) : typed.trim().startsWith('+') ? digits : null;
+  // « +41 (0)79… », « +41 079… » : le 0 après l'indicatif tombe.
+  if (intl !== null) return /^410/.test(intl) && intl.length === 12 ? `41${intl.slice(3)}` : intl;
+  if (/^0[1-9]/.test(digits) && digits.length === 10) return `41${digits.slice(1)}`;
+  return /^[1-9]/.test(digits) && digits.length === 9 ? `41${digits}` : digits;  // « 79 123 45 67 »
 }
 
 /** Nom tapé assez long pour chercher (3 lettres), comme la base. */
@@ -53,6 +56,9 @@ export function GroupInvitePanel({ group, fresh = false, onInvited }: {
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [sent, setSent] = useState<Set<string>>(new Set());
+  /** « Invitation envoyée à … ✓ » sous la recherche, jusqu'à la recherche suivante (avis de l'admin du 23.11 : le message
+   * du bas passait inaperçu, caché par le clavier). */
+  const [lastSent, setLastSent] = useState<string | null>(null);
   const inviting = useRef(false);
 
   const { data: url, error: linkError } = useQuery(async () => {
@@ -118,7 +124,7 @@ export function GroupInvitePanel({ group, fresh = false, onInvited }: {
         if (failed) throw new Error(`${p.name} : ${failed.message.replace(/^\w+: /, '')}`);
         done.push(p);
       }
-      setNote(`${namesLine(done.map((p) => p.name))} : invitation envoyée`);
+      setLastSent(`Invitation envoyée à ${namesLine(done.map((p) => p.name))} ✓`);
       setSearch('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'L’invitation n’a pas pu partir. Réessaie.');
@@ -174,9 +180,10 @@ export function GroupInvitePanel({ group, fresh = false, onInvited }: {
         <T size={13} weight="bold" color={colors.muted} style={st.label}>AJOUTER QUELQU’UN</T>
         <Input accessibilityLabel="Chercher une personne" placeholder="🔍 Numéro, nom, prénom ou surnom" value={search}
           autoCapitalize="none" autoCorrect={false}
-          onChangeText={(v) => { setSearch(v); setError(null); setFound(null); setSearching(readyFor(v)); }} onSubmitEditing={() => { if (phone && found && !found.length) addPhone(); }} />
+          onChangeText={(v) => { setSearch(v); setError(null); if (v) setLastSent(null); setFound(null); setSearching(readyFor(v)); }} onSubmitEditing={() => { if (phone && found && !found.length) addPhone(); }} />
+        {lastSent ? <T size={14} weight="bold" color={colors.mint}>{lastSent}</T> : null}
         {!ready ? (
-          <T muted size={13}>Tape son numéro complet (+41 79…) ou au moins 3 lettres de son nom, prénom ou surnom.</T>
+          <T muted size={13}>Tape son numéro (079…, +41 79… ou 0041 79…) ou au moins 3 lettres de son nom, prénom ou surnom.</T>
         ) : searching && !found ? (
           <T muted size={13}>Recherche…</T>
         ) : !searching && found && !found.length ? (
@@ -185,7 +192,7 @@ export function GroupInvitePanel({ group, fresh = false, onInvited }: {
               <T muted size={13}>Pas trouvé sur Party : la personne trouvera l’invitation en s’inscrivant avec ce numéro.</T>
               <Button small variant="secondary" label={`Inviter le numéro ${search.trim()}`} onPress={addPhone} />
             </View>
-          ) : <T muted size={13}>Personne trouvé. Vérifie l’orthographe, ou tape son numéro complet.</T>
+          ) : <T muted size={13}>Aucune personne trouvée. Vérifie l’orthographe, ou tape son numéro.</T>
         ) : null}
         {picked.filter((p) => !p.id).map((p) => (
           <View key={p.phone} style={st.person}>

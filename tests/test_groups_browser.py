@@ -239,7 +239,7 @@ def test_creating_a_group_in_two_steps_then_inviting_people_found_by_the_search(
     for name in ('WhatsApp', 'Copier', 'Autre'):
         pw.expect(panel.get_by_role('button', name=name, exact=True)).to_be_visible()
     pw.expect(panel.get_by_label('Code QR du lien du groupe')).to_be_visible()
-    pw.expect(panel.get_by_text('Tape son numéro complet', exact=False)).to_be_visible()
+    pw.expect(panel.get_by_text('Tape son numéro (079…', exact=False)).to_be_visible()
     pw.expect(panel.get_by_role('checkbox')).to_have_count(0)
     search = panel.get_by_label('Chercher une personne')
     search.fill('ch')  # 2 lettres : on ne cherche pas encore
@@ -260,7 +260,7 @@ def test_creating_a_group_in_two_steps_then_inviting_people_found_by_the_search(
     pw.expect(panel.get_by_role('button', name='Inviter Chloé, Malik et 079 123 45 67')).to_be_visible()
     shot(page, 'groupes-creer-etape2-inviter.png')
     panel.get_by_role('button', name='Inviter Chloé, Malik et 079 123 45 67').click()
-    pw.expect(page.get_by_text('Chloé, Malik et 079 123 45 67 : invitation envoyée')).to_be_visible()
+    pw.expect(page.get_by_text('Invitation envoyée à Chloé, Malik et 079 123 45 67 ✓')).to_be_visible()
     assert [(i['member'], i['phone']) for i in state['invites']] == [(CHLOE, None), (MALIK, None), (None, '41791234567')]
     assert all(i['grp'] == NEW for i in state['invites'])
     assert 'chl' in state['searches'] and '+41791234567' in state['searches'] and 'ch' not in state['searches']
