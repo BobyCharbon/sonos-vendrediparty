@@ -681,8 +681,10 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
   // Créateur sans « Modifier ses événements déjà publiés » (22.11) : il modifie, l'événement repasse en validation.
   const revalidate = siteReview && !widened && !!eventId && ctx.status === 'published' && ctx.createdBy === me.id
     && !can('events.edit_own_published');
-  // Réservé à ses groupes : un groupe « Événements à valider » qu'il ne gère pas revalide la modification.
-  const recheckGroups = eventId && ctx.status === 'published' && onlyGroups(d.who)
+  // Réservé à ses groupes : un groupe « Événements à valider » qu'il ne gère pas valide la création (prévenu avant,
+  // recette iPhone du 22.11) et revalide la modification.
+  const groupEdit = !!eventId && ctx.status === 'published';
+  const recheckGroups = (groupEdit || !eventId || ['draft', 'rejected'].includes(ctx.status ?? '')) && onlyGroups(d.who)
     ? ctx.groups.filter((g) => d.who.group_ids.includes(g.id) && g.events_need_approval && g.created_by !== me.id) : [];
   const submitLabel = eventId && !['draft', 'rejected'].includes(ctx.status ?? '')
     ? 'Enregistrer'
@@ -983,7 +985,9 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
       {recheckGroups.length ? (
         <View style={{ backgroundColor: colors.lavenderDim, padding: 14, borderRadius: 16 }} testID="group-recheck">
           <T size={13} color={colors.textSoft}>
-            {recheckGroups.map((g) => `« ${g.name} »`).join(', ')} {recheckGroups.length > 1 ? 'font' : 'fait'} valider les événements de ses membres : une fois enregistrée, ta modification y repasse en validation (sauf si tu gères le groupe).
+            {recheckGroups.map((g) => `« ${g.name} »`).join(', ')} {recheckGroups.length > 1 ? 'font' : 'fait'} valider les événements de ses membres : {groupEdit
+              ? 'une fois enregistrée, ta modification y repasse en validation (sauf si tu gères le groupe).'
+              : 'ton événement y sera visible une fois accepté par qui gère le groupe.'}
           </T>
         </View>
       ) : null}

@@ -57,3 +57,33 @@ def test_a_member_without_the_right_publishes_in_his_group_and_is_told_before_a_
         assert not errors, errors
     finally:
         context.close()
+
+
+def test_a_member_is_told_before_publishing_that_the_group_must_accept_it(browser, v2_origin):  # noqa: F811
+    """Recette iPhone du 22.11 : dans un groupe « Événements à valider » qu'il ne gère pas, un membre est prévenu AVANT
+    de publier que l'événement n'y sera visible qu'une fois accepté (le bandeau ne valait que pour une modification)."""
+    from tests.test_annonces_groupe_browser import BASE, new_page
+    from tests.test_events_browser import USER, login
+    context, page, errors = new_page(browser)
+    try:
+        mock_services(page)
+        group = {'id': SKI, 'name': 'Ski', 'created_by': 'bbbbbbbb-0000-4000-8000-000000000009', 'system_key': None,
+                 'events_need_approval': True, 'announce_mode': 'request', 'member_group_members': [{'user_id': USER}]}
+        single = lambda r: 'vnd.pgrst.object' in (r.request.headers.get('accept') or '')  # noqa: E731
+        page.route(f'{BASE}/member_groups*', lambda r: r.fulfill(status=204, headers=CORS) if r.request.method == 'OPTIONS' else r.fulfill(
+            status=200, content_type='application/json', headers=CORS, body=json.dumps(group if single(r) else [group])))
+        perms = ['events.view', 'events.rsvp', 'events.create', 'chat.write']
+        page.route(f'{BASE}/rpc/my_permissions*', lambda route: route.fulfill(status=204, headers=CORS) if route.request.method == 'OPTIONS'
+                   else route.fulfill(status=200, content_type='application/json', headers=CORS, body=json.dumps(perms)))
+        page.goto(f'{v2_origin}/events/', wait_until='domcontentloaded')
+        login(page)
+        pw.expect(page.get_by_role('button', name='Rechercher', exact=True)).to_be_visible(timeout=15000)
+        page.goto(f'{v2_origin}/events/event/new?group={SKI}', wait_until='domcontentloaded')
+        note = page.get_by_test_id('group-recheck')
+        pw.expect(note).to_be_visible(timeout=15000)
+        pw.expect(note).to_contain_text('« Ski » fait valider les événements de ses membres')
+        pw.expect(note).to_contain_text('visible une fois accepté par qui gère le groupe')
+        pw.expect(note).not_to_contain_text('repasse en validation')
+        assert not errors, errors
+    finally:
+        context.close()

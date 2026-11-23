@@ -410,7 +410,7 @@ extension View {
     func personSheet(_ person: Binding<PersonRef?>, store: ChatsStore, routes: ConversationRoutes, canWrite: Bool = true) -> some View {
         sheet(item: person) { p in
             if let make = routes.miniProfile {
-                make(p.id)
+                if canWrite { make(p.id) } else { make(p.id).environment(\.writeDirect, nil) }
             } else if canWrite {
                 MemberCardView(store: store.privacy, memberID: p.id)
             } else {

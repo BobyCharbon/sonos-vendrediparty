@@ -284,6 +284,10 @@ struct ContentView: View {
             ? ChatsRoutes(newMessage: { AnyView(NewMessageView(eventID: $0)) },
                           miniProfile: { AnyView(MiniProfileSheet(userID: $0)) })
             : ChatsRoutes())
+        // Dans une discussion, toucher une personne ouvre son mini-profil (note privée, « À venir ensemble »), plus
+        // l'ancienne fiche (recette iPhone du 22.11) ; « Voir » ouvre la fiche de l'événement.
+        .environment(\.conversationRoutes, ConversationRoutes(miniProfile: { AnyView(MiniProfileSheet(userID: $0)) },
+                                                              openEvent: { model.openEvent($0) }))
     }
 }
 

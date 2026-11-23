@@ -34,7 +34,9 @@ struct PrivateNoteCard: View {
     private var dirty: Bool { draft.trimmingCharacters(in: .whitespacesAndNewlines) != (saved ?? "") }
 
     var body: some View {
-        Group {
+        // Un VStack, pas un Group : un Group vide n'a aucune vue où accrocher .task, la note ne se chargeait jamais
+        // (carte absente du mini-profil natif, recette iPhone du 23.11).
+        VStack(spacing: 0) {
             if saved != nil { card }
         }
         .task(id: userID) { await load() }
