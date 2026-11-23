@@ -91,7 +91,7 @@ final class RecetteReglagesGroupeUITests: XCTestCase {
     // MARK: 1. Guest A, admin de son groupe : rôles, « Qui peut… », un droit, rôle d'un membre, entrée, transmettre
 
     func test1TheGroupAdminSetsRightsRolesAndEntry() {
-        launchAndSignIn("0790000001", "Guest A")
+        launchAndSignIn("0790000001", "Testeur 1")
         openGroup()
         shot("01-page-du-groupe")
         app.buttons["group-settings"].tap()
@@ -190,5 +190,28 @@ final class RecetteReglagesGroupeUITests: XCTestCase {
         XCTAssertFalse(app.buttons["group-right-write"].exists, "pas de « Qui peut… » pour un organisateur")
         XCTAssertTrue(any("label BEGINSWITH 'Seuls l’admin et les co-admins du groupe changent son nom'").exists, "qui change le nom")
         shot("21-reglages-organisateur")
+    }
+
+    // MARK: 3. Avis du 23.11 : depuis la discussion du groupe, ••• mène aux mêmes réglages du groupe
+
+    func test3FromTheGroupChatTheAdminReachesTheSameSettings() {
+        launchAndSignIn("0790000001", "Testeur 1")
+        openGroup()
+        app.buttons["group-chat"].tap()
+        let later = app.buttons["Plus tard"]
+        if later.waitForExistence(timeout: 6) { later.tap() }
+        let info = app.buttons["Infos du groupe"]
+        XCTAssertTrue(info.waitForExistence(timeout: 30), "bouton ••• de la discussion")
+        info.tap()
+        let go = app.buttons["chat-group-settings"]
+        XCTAssertTrue(go.waitForExistence(timeout: 20), "« Réglages du groupe » dans les infos de la discussion")
+        XCTAssertFalse(app.segmentedControls["chat-everyone"].exists, "plus de choix @tout en double")
+        shot("30-infos-discussion")
+        go.tap()
+        XCTAssertTrue(any("label CONTAINS 'tu es l’admin du groupe'").waitForExistence(timeout: 20), "les mêmes réglages du groupe")
+        let write = app.buttons["group-right-write"]
+        scrollTo(write)
+        XCTAssertTrue(write.exists, "« Qui peut… » depuis la discussion")
+        shot("31-reglages-depuis-discussion")
     }
 }

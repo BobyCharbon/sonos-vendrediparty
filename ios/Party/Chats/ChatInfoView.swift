@@ -44,36 +44,45 @@ struct ChatInfoView: View {
                         }
                         .listRowBackground(ConvNeon.surface)
                     }
-                    Section {
-                        if chat.admin {
-                            Picker("@tout", selection: Binding(get: { chat.everyone ?? "all" }, set: { who in
-                                Haptics.selection()
-                                Task { await store.setEveryone(who) }
-                            })) {
-                                Text("Tous les membres").tag("all")
-                                Text("Admins et organisateurs").tag("staff")
+                    if people == nil {
+                        Section {
+                            if chat.admin {
+                                Picker("@tout", selection: Binding(get: { chat.everyone ?? "all" }, set: { who in
+                                    Haptics.selection()
+                                    Task { await store.setEveryone(who) }
+                                })) {
+                                    Text("Tous les membres").tag("all")
+                                    Text("Admins et organisateurs").tag("staff")
+                                }
+                                .pickerStyle(.segmented)
+                                .accessibilityIdentifier("chat-everyone")
+                            } else {
+                                Text(chat.everyone == "staff" ? "Admins et organisateurs" : "Tous les membres").foregroundStyle(ConvNeon.t1)
                             }
-                            .pickerStyle(.segmented)
-                            .accessibilityIdentifier("chat-everyone")
-                        } else {
-                            Text(chat.everyone == "staff" ? "Admins et organisateurs" : "Tous les membres").foregroundStyle(ConvNeon.t1)
+                        } header: {
+                            Text("Qui peut écrire @tout")
+                        } footer: {
+                            Text("@tout prévient tout le groupe. @annonce (message épinglé en haut, envoyé à tous) est réservé aux admins et organisateurs."
+                                 + (chat.admin ? "" : " Les admins du groupe choisissent."))
                         }
-                    } header: {
-                        Text("Qui peut écrire @tout")
-                    } footer: {
-                        Text("@tout prévient tout le groupe. @annonce (message épinglé en haut, envoyé à tous) est réservé aux admins et organisateurs."
-                             + (chat.admin ? "" : " Les admins du groupe choisissent."))
+                        .listRowBackground(ConvNeon.surface)
                     }
-                    .listRowBackground(ConvNeon.surface)
                     if chat.member, people != nil {
                         // Page du groupe en natif (18.11, « tout en natif ») : couverture, membres, événements, Inviter, réglages.
+                        // Un seul endroit pour les réglages du groupe (avis du 23.11) : le même écran que Réglages › Groupes.
                         Section {
+                            NavigationLink(value: GroupScreen.settings(chat.id)) {
+                                Label(chat.admin ? "Réglages du groupe (rôles, droits, membres)" : "Réglages du groupe", systemImage: "gearshape.fill")
+                                    .foregroundStyle(ConvNeon.lav)
+                            }
+                            .accessibilityIdentifier("chat-group-settings")
                             NavigationLink(value: GroupScreen.page(chat.id)) {
-                                Label("Gérer le groupe", systemImage: "person.2.badge.gearshape").foregroundStyle(ConvNeon.lav)
+                                Label("Page du groupe (événements, inviter)", systemImage: "person.2.fill").foregroundStyle(ConvNeon.lav)
                             }
                             .accessibilityIdentifier("chat-manage-group")
                         } footer: {
-                            Text("La page du groupe : membres, événements, invitations et réglages.")
+                            Text(chat.admin ? "Rôles, « Qui peut… », @tout, entrée dans le groupe et membres : tout se règle ici, comme depuis Réglages › Groupes."
+                                 : "Ce que chacun peut faire dans ce groupe, choisi par ses admins.")
                         }
                         .listRowBackground(ConvNeon.surface)
                     } else if chat.member {
@@ -93,11 +102,12 @@ struct ChatInfoView: View {
                         .listRowBackground(ConvNeon.surface)
                     }
                     Section {
-                        ForEach(chat.members) { m in member(m, canName: chat.canNameAdmins) }
+                        ForEach(chat.members) { m in member(m, canName: people == nil && chat.canNameAdmins) }
                     } header: {
                         Text("\(chat.members.count) membre\(chat.members.count > 1 ? "s" : "")")
                     } footer: {
-                        Text("Les admins du groupe épinglent et suppriment les messages ; admins et organisateurs font et retirent les annonces. "
+                        Text(people != nil ? "Les rôles se changent dans Réglages du groupe."
+                             : "Les admins du groupe épinglent et suppriment les messages ; admins et organisateurs font et retirent les annonces. "
                              + (chat.canNameAdmins ? "Tu les nommes ici." : "Le créateur du groupe les nomme."))
                     }
                     .listRowBackground(ConvNeon.surface)
@@ -147,7 +157,7 @@ struct ChatInfoView: View {
                     .font(.subheadline).tint(ConvNeon.lavDeep)
                     .accessibilityLabel("\(m.name), admin du groupe")
             }
-            if isAdmin && !m.creator && !m.admin {
+            if isAdmin && people == nil && !m.creator && !m.admin {
                 Toggle("Organisateur (annonces)", isOn: Binding(get: { m.organizer == true }, set: { on in Task { await store.setOrganizer(m, on) } }))
                     .font(.subheadline).tint(ConvNeon.lavDeep)
                     .accessibilityLabel("\(m.name), organisateur du groupe")

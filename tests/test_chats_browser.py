@@ -244,17 +244,18 @@ def test_everyone_tag_reserved_by_the_group_hides_it_and_warns(phone, events_ori
     assert not errors, errors
 
 
-def test_group_admin_names_an_organizer_and_chooses_who_writes_everyone(phone, events_origin):
+def test_group_info_leads_to_the_same_group_settings(phone, events_origin):
+    """Avis du 23.11 : depuis la discussion, l'admin trouve les mêmes réglages du groupe (rôles, « Qui peut… »)."""
     page, errors = phone
     frame, state = open_chats(page, events_origin, admin=True)
     frame.get_by_role('button', name='Discussion Les amis').click()
     frame.get_by_role('button', name='Infos du groupe').click()
-    pw.expect(frame.get_by_text('@tout dans ce groupe', exact=True)).to_be_visible(timeout=15000)
-    frame.get_by_text('Admins et organisateurs', exact=True).click()
-    frame.get_by_label('Organisateur', exact=True).first.click()
-    page.wait_for_timeout(500)
-    assert ('set_group_everyone_tag', {'grp': GROUP, 'who': 'staff'}) in state['rpc']
-    assert any(k == 'set_group_organizer' and b['organizer'] is True for k, b in state['rpc'])
+    go = frame.get_by_role('button', name='Réglages du groupe (rôles, droits, membres)')
+    pw.expect(go).to_be_visible(timeout=15000)
+    pw.expect(frame.get_by_text('@tout dans ce groupe', exact=True)).to_have_count(0)
+    pw.expect(frame.get_by_label('Organisateur', exact=True)).to_have_count(0)
+    go.click()
+    page.wait_for_function("(g) => [...document.querySelectorAll('iframe')].some((f) => { try { return f.contentWindow.location.pathname.endsWith('/group/' + g + '/settings'); } catch (e) { return false; } })", arg=GROUP, timeout=15000)
     assert not errors, errors
 
 

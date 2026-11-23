@@ -2,8 +2,8 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Linking, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 
-import { Avatar, Button, ErrorText, Rows, Section, Segmented, T, ToggleRow } from './ui';
-import { dialable, type EveryoneBy, type NotifyLevel } from '@/lib/chats';
+import { Avatar, Button, ErrorText, Rows, Section, Segmented, T } from './ui';
+import { dialable, type NotifyLevel } from '@/lib/chats';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
 
@@ -13,10 +13,8 @@ type Props = {
   groupId: string;
   notify: NotifyLevel;
   member: boolean;
-  canNameAdmins: boolean;
-  /** Admin du groupe : nomme les organisateurs et choisit qui peut écrire @tout. */
+  /** Admin ou co-admin du groupe : le bouton dit ce qu'il règle. */
   isAdmin?: boolean;
-  everyone?: EveryoneBy;
   members: Member[];
   onChanged: () => void;
 };
@@ -33,15 +31,9 @@ const LEVEL_HINT: Record<NotifyLevel, string> = {
   none: 'Aucune notification de ce groupe, même citée.',
 };
 
-const EVERYONE: { key: EveryoneBy; label: string }[] = [
-  { key: 'all', label: 'Tous les membres' },
-  { key: 'staff', label: 'Admins et organisateurs' },
-];
-
-/** Infos du groupe : notifications (par défaut : mentions seulement), membres et admins. */
-export function GroupChatSettings({ groupId, notify, member, canNameAdmins, isAdmin = false, everyone = 'all', members, onChanged }: Props) {
+/** Infos du groupe : notifications (par défaut : mentions seulement), accès aux réglages du groupe, membres et leur rôle. */
+export function GroupChatSettings({ groupId, notify, member, isAdmin = false, members, onChanged }: Props) {
   const [level, setLevel] = useState<NotifyLevel>(notify);
-  const [everyoneBy, setEveryoneBy] = useState<EveryoneBy>(everyone);
   const [error, setError] = useState<string | null>(null);
 
   async function changeLevel(next: NotifyLevel) {
@@ -56,32 +48,6 @@ export function GroupChatSettings({ groupId, notify, member, canNameAdmins, isAd
     onChanged();
   }
 
-  async function changeEveryone(next: EveryoneBy) {
-    const previous = everyoneBy;
-    setEveryoneBy(next);
-    setError(null);
-    const { error } = await supabase.rpc('set_group_everyone_tag', { grp: groupId, who: next });
-    if (error) {
-      setEveryoneBy(previous);
-      return setError('Seuls les admins du groupe choisissent qui peut écrire @tout.');
-    }
-    onChanged();
-  }
-
-  async function toggleOrganizer(m: Member, organizer: boolean) {
-    setError(null);
-    const { error } = await supabase.rpc('set_group_organizer', { grp: groupId, member: m.id, organizer });
-    if (error) setError('Seuls les admins du groupe nomment les organisateurs.');
-    onChanged();
-  }
-
-  async function toggleAdmin(m: Member, admin: boolean) {
-    setError(null);
-    const { error } = await supabase.rpc('set_group_admin', { grp: groupId, member: m.id, admin });
-    if (error) setError('Seul le créateur du groupe nomme les admins.');
-    onChanged();
-  }
-
   return (
     <ScrollView contentContainerStyle={{ padding: 16, gap: 18 }}>
       {member ? (
@@ -90,11 +56,16 @@ export function GroupChatSettings({ groupId, notify, member, canNameAdmins, isAd
           <T muted size={13}>{LEVEL_HINT[level]}</T>
         </Section>
       ) : null}
-      <Section title="@tout dans ce groupe">
-        {isAdmin ? <Segmented options={EVERYONE} value={everyoneBy} onChange={(k) => void changeEveryone(k)} />
-          : <T>{EVERYONE.find((e) => e.key === everyoneBy)?.label}</T>}
-        <T muted size={13}>Qui peut écrire @tout pour prévenir tout le groupe. @annonce (message épinglé en haut, envoyé à tous) est réservé aux admins et organisateurs.{isAdmin ? '' : ' Les admins du groupe choisissent.'}</T>
-      </Section>
+      {member ? (
+        // Un seul endroit pour les réglages du groupe (avis du 23.11) : rôles, « Qui peut… », entrée, membres.
+        <Section title="Le groupe">
+          <Button label={isAdmin ? 'Réglages du groupe (rôles, droits, membres)' : 'Réglages du groupe'}
+            onPress={() => router.push(`/group/${groupId}/settings`)} />
+          <Button small variant="secondary" label="Page du groupe (événements, inviter)" onPress={() => router.push(`/group/${groupId}`)} />
+          <T muted size={13}>{isAdmin ? 'Rôles, « Qui peut… », @tout, entrée dans le groupe et membres : tout se règle ici, comme depuis Réglages › Groupes.'
+            : 'Ce que chacun peut faire dans ce groupe, choisi par ses admins.'}</T>
+        </Section>
+      ) : null}
       <Section title={`${members.length} membre${members.length > 1 ? 's' : ''}`}>
         <Rows>
           {members.map((m) => (
@@ -107,20 +78,10 @@ export function GroupChatSettings({ groupId, notify, member, canNameAdmins, isAd
                 </View>
                 {m.creator ? <T muted size={12}>Créateur · Admin</T> : m.admin ? <T muted size={12}>Admin</T> : m.organizer ? <T muted size={12}>Organisateur</T> : null}
               </View>
-              {canNameAdmins && !m.creator ? (
-                <ToggleRow label="Admin du groupe" hint="Épingle et supprime les messages, fait et retire les annonces"
-                  value={m.admin} onChange={(v) => void toggleAdmin(m, v)} />
-              ) : null}
-              {isAdmin && !m.creator && !m.admin ? (
-                <ToggleRow label="Organisateur" hint="Fait des annonces (@annonce) et les retire"
-                  value={Boolean(m.organizer)} onChange={(v) => void toggleOrganizer(m, v)} />
-              ) : null}
             </View>
           ))}
         </Rows>
         <T muted size={12}>Les numéros affichés sont ceux que chacun montre dans ce groupe (Réglages › Groupes). Touche un numéro pour appeler.</T>
-        {/* Même écran que Réglages › Groupes : ajouter ou inviter des membres, liens d'invitation. */}
-        {member ? <Button small variant="secondary" label="Gérer le groupe (membres, invitations)" onPress={() => router.push(`/group/${groupId}`)} /> : null}
       </Section>
       <ErrorText error={error} />
     </ScrollView>

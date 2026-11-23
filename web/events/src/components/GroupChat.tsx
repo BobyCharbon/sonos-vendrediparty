@@ -39,7 +39,6 @@ import { useMiniProfile } from '@/lib/miniProfile';
 import { openNativeDirect } from '@/lib/nativeChat';
 import { saveRsvp } from '@/lib/rsvp';
 import { must, supabase } from '@/lib/supabase';
-import { roleRank, siteAdminRank } from '@/lib/roles';
 import { enter, pressTransition } from '@/lib/motion';
 import { dbMessage, type ReportTarget } from '@/lib/moderation';
 
@@ -953,8 +952,7 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
       <SafeAreaView style={[s.screen, { backgroundColor: C.bg }]} edges={['top', 'bottom']}>
         {header}
         <GroupChatSettings groupId={id} notify={data.chat?.notify ?? 'mentions'} member={member}
-          canNameAdmins={data.group.created_by === me.id || roleRank(me.role) >= siteAdminRank()}
-          isAdmin={isAdmin} everyone={everyone}
+          isAdmin={isAdmin}
           members={inside.map((u) => ({ id: u, name: shownName(u), photo: people.get(u)?.avatar_url ?? null,
             admin: data.admins.has(u), organizer: data.organizers.has(u), creator: u === data.group.created_by, phone: data.phones.get(u) ?? null }))}
           onChanged={reload} />
