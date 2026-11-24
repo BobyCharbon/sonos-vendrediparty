@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Album photos · Maquettes</title>
+<style>
+:root { --bg:#15102A; --surface:#221A3D; --line:#2F2752; --text:#F5F0FF; --soft:#B1A8CF; --neon:#FF4F9A; --mint:#2BD4A4; --film:#FFB547; color-scheme: dark; }
+body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif; margin: 0; }
+.wrap { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 20px 32px; display: grid; gap: 16px; max-width: 1800px; margin: 0 auto; }
+h1 { margin: 0; font-size: 22px; text-wrap: balance; }
+h2 { margin: 8px 0 0; font-size: 17px; }
+p, li { color: var(--soft); max-width: 75ch; line-height: 1.5; }
+p { margin: 0; }
+ul { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+b { color: var(--text); }
+.tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.tabs button { font: inherit; font-weight: 600; color: var(--soft); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 10px 16px; cursor: pointer; min-height: 44px; }
+.tabs button[aria-selected="true"] { color: var(--text); border-color: var(--neon); box-shadow: 0 0 0 1px var(--neon) inset; }
+.tabs button:focus-visible { outline: 2px solid var(--neon); outline-offset: 2px; }
+.pitch { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px 16px; }
+.pitch p + p { margin-top: 6px; }
+.frame { border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--bg); }
+iframe { display: block; width: 100%; height: 1180px; border: 0; }
+.cards { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: grid; gap: 8px; align-content: start; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 7px 8px; border-top: 1px solid var(--line); color: var(--soft); vertical-align: top; }
+th { color: var(--text); font-weight: 600; }
+td:nth-child(2) { color: var(--mint); } td:nth-child(3) { color: var(--film); }
+.scroll { overflow-x: auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🖼️ Album photos : les maquettes</h1>
+  <p>Ta demande : une boîte de dépôt dans un groupe, où chacun ajoute ses photos depuis la pellicule, <b>en qualité originale (jamais floue)</b>, photos seulement. Voici trois directions. Les règles sont les mêmes partout : choix multiple dans la pellicule, file d'envoi avec une barre par photo, reprise après une coupure, envoi qui continue Party fermée, visionneuse plein écran (glisser, zoomer, ⬇️ original, ⋯ Signaler dont « Je suis sur la photo », Supprimer ma photo), « Tout télécharger », réglages de l'organisation, didacticiel. Tout est cliquable : fais défiler les écrans vers la droite, puis dis-moi laquelle tu préfères. On peut aussi en mélanger deux.</p>
+  <div class="tabs" role="tablist">
+    <button role="tab" id="t-a" aria-selected="true" data-src="A-boite.html" data-pitch="a">A · La boîte de dépôt</button>
+    <button role="tab" id="t-b" aria-selected="false" data-src="B-mur.html" data-pitch="b">B · Le mur de la soirée</button>
+    <button role="tab" id="t-c" aria-selected="false" data-src="C-frise.html" data-pitch="c">C · La frise de la soirée</button>
+  </div>
+  <div class="pitch" id="pitch"></div>
+  <div class="frame"><iframe id="view" title="Maquette" src="A-boite.html"></iframe></div>
+
+  <div class="cards">
+    <div class="card">
+      <h2>🧭 Un album ou deux ? Ma proposition : un seul</h2>
+      <ul>
+        <li><b>Un album par soirée</b>, sur sa fiche. Si la soirée appartient à un groupe, le même album s'affiche aussi dans le groupe. Rien n'est copié : une photo supprimée disparaît des deux endroits.</li>
+        <li><b>La boîte du groupe</b> garde les photos hors soirée (un week-end, un souvenir).</li>
+        <li><b>Qui voit :</b> ceux qui voient la fiche. Pour un événement public, seulement les participants et l'organisation, pour qu'aucun inconnu ne voie les photos. Dans un groupe : ses membres.</li>
+        <li><b>Qui ajoute (par défaut) :</b> les participants (Présent, Peut-être) et l'organisation ; dans un groupe, tous les membres.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2>📸 Différence avec les Souvenirs</h2>
+      <div class="scroll"><table>
+        <tr><th></th><th>🖼️ Album</th><th>📸 Souvenirs</th></tr>
+        <tr><td>Quand on voit</td><td>Tout de suite</td><td>24 h après la fin</td></tr>
+        <tr><td>D'où</td><td>La pellicule</td><td>L'appareil de Party</td></tr>
+        <tr><td>Combien</td><td>Autant qu'on veut</td><td>3 poses</td></tr>
+        <tr><td>Revoir sa photo</td><td>Oui</td><td>Non, c'est la surprise</td></tr>
+        <tr><td>Qualité</td><td>Fichier original</td><td>Photo de l'appareil</td></tr>
+      </table></div>
+      <p>Sur la fiche, les deux cartes se suivent avec cette différence en deux colonnes (écran 3 de chaque maquette).</p>
+    </div>
+    <div class="card">
+      <h2>✨ « Qualité originale » : ce qu'il faut côté technique</h2>
+      <ul>
+        <li><b>iPhone :</b> le sélecteur d'iOS en mode « actuel », sans conversion. Le fichier HEIC ou JPG part tel quel. Aucune autorisation d'accès à toute la pellicule.</li>
+        <li><b>Envoi par morceaux qui reprend</b> après une coupure (le stockage Supabase sait le faire) et <b>se poursuit en arrière-plan</b> : c'est iOS qui termine l'envoi.</li>
+        <li><b>Affichage :</b> des aperçus légers dans la grille. Le bouton ⬇️ donne toujours le fichier d'origine.</li>
+        <li><b>Position GPS retirée</b> du fichier, sans toucher aux pixels. C'est à décider avec toi, car le fichier n'est alors plus identique à 100 %.</li>
+        <li><b>À vérifier sur le web iPhone :</b> Safari peut convertir les photos en JPEG au moment du choix. L'app iPhone, elle, garde l'original à coup sûr.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2>🛡️ Conformité (à faire confirmer par Exigence Apple)</h2>
+      <ul>
+        <li><b>Contenu des membres :</b> CGU acceptées avant la première photo, « Signaler », « Bloquer » et retrait par l'organisation. Une photo signalée est masquée tout de suite.</li>
+        <li><b>Droit à l'image :</b> le motif « Je suis sur la photo », et chacun supprime ses propres photos. À ajouter aussi aux CGU et à la page de confidentialité.</li>
+        <li><b>App Privacy :</b> photos envoyées par les membres. iOS demande « Ajouter à Photos » seulement pour « Tout télécharger ». Tout part avec la suppression du compte.</li>
+        <li><b>Notification de fin d'envoi :</b> elle a son interrupteur. L'activité en direct ne dure que le temps de l'envoi.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h2>❓ À décider ensemble</h2>
+      <ul>
+        <li><b>Place disque :</b> une photo pèse environ 3 Mo, donc une soirée de 500 photos fait environ 1,5 Go. Combien de temps on les garde (13 mois comme les Souvenirs ?), et une limite par album ?</li>
+        <li><b>Fermeture automatique</b> de l'album : 7 jours après la fin par défaut ?</li>
+        <li><b>Live Photos :</b> on envoie la photo fixe seulement (pas de vidéo, comme tu l'as demandé).</li>
+        <li><b>Web :</b> ajouter et télécharger (en .zip) dès la première version, ou seulement regarder ?</li>
+      </ul>
+    </div>
+  </div>
+</div>
+<script>
+const PITCH = {
+  a: '<p><b>A · La boîte de dépôt.</b> La plus simple et la plus proche de l\'app Photos : un grand bouton « Dépose tes photos » et une grille carrée, la plus récente en haut. On peut filtrer : les miennes, ou celles d\'une personne. Le groupe a son onglet « Photos » : la boîte du groupe et l\'album de chaque soirée. Rien à apprendre, facile à faire, mais moins de vie pendant la soirée.</p>',
+  b: '<p><b>B · Le mur de la soirée.</b> Une mosaïque vivante : de grandes et de petites tuiles qui suivent le format de chaque photo. On range par moment (l\'apéro, le dancefloor, la fin de soirée, trouvés d\'après l\'heure des photos et renommables) ou par personne (une rangée chacun). Pendant l\'envoi, tes photos se posent sur le mur une à une. Le plus festif, mais une mise en page plus complexe à coder.</p>',
+  c: '<p><b>C · La frise de la soirée (mon idée).</b> Les photos se rangent à l\'heure où elles ont été prises, pas à l\'heure d\'envoi. On voyage dans la soirée avec une réglette des heures. La frise montre les trous (« rien entre 21:02 et 22:10, tu en as ? »), ce qui pousse chacun à compléter, et les nouvelles photos depuis ta visite. Dans le groupe, une seule frise dont chaque soirée est un chapitre. Le plus original, mais il dépend de l\'heure enregistrée dans les photos.</p>'
+};
+const tabs = document.querySelectorAll('.tabs button');
+const view = document.getElementById('view');
+function pick(b) {
+  tabs.forEach(t => t.setAttribute('aria-selected', String(t === b)));
+  view.src = b.dataset.src;
+  document.getElementById('pitch').innerHTML = PITCH[b.dataset.pitch];
+  try { history.replaceState(null, '', '#' + b.id); } catch (e) {}
+}
+tabs.forEach(b => b.addEventListener('click', () => pick(b)));
+let start = null;
+try { start = document.getElementById(location.hash.slice(1)); } catch (e) {}
+pick(start && start.dataset.src ? start : tabs[0]);
+</script>
+</body>
+</html>

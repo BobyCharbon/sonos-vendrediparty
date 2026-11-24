@@ -1,0 +1,751 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Album B · Le mur</title>
+<style>
+@property --p{syntax:"<number>";inherits:false;initial-value:0}
+:root{
+  --bg:#15102A; --surface:#221A3D; --surface2:#2C2350; --line:#3A2F63;
+  --text:#F5F0FF; --muted:#B1A8CF; --neon:#FF4F9A; --violet:#9B6BFF; --film:#FFB547;
+  --mint:#2BD4A4; --orange:#FF9F43; --red:#FF6B7A; --ios:#0A84FF;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+html,body{background:#0E0A1E}
+body{color:var(--text);font:15px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;text-align:inherit;-webkit-tap-highlight-color:transparent}
+button:focus-visible{outline:2px solid var(--neon);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+
+/* présentation */
+.intro{max-width:920px;padding:28px 16px 4px;margin-left:24px}
+.intro h1{font-size:26px;letter-spacing:-.02em;text-wrap:balance}
+.intro h1 span{color:var(--neon)}
+.intro p{color:var(--muted);margin-top:10px;line-height:1.5}
+.intro p b{color:var(--text)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.chips span{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:5px 10px;font-size:13px;color:var(--muted)}
+.chips span b{color:var(--text)}
+.howto{font-size:13px;color:var(--muted);margin-top:12px}
+.rail{display:flex;gap:24px;overflow-x:auto;padding:20px 40px 40px;scroll-snap-type:x mandatory;scroll-padding:0 40px}
+.slot{flex:0 0 auto;scroll-snap-align:center;width:412px}
+.slot h2{font-size:14px;font-weight:700;margin:0 0 4px 4px}
+.slot h2 b{color:var(--neon);margin-right:6px}
+.slot .note{font-size:12.5px;color:var(--muted);margin:0 0 10px 4px;min-height:52px;max-width:400px;line-height:1.4}
+.phone{width:390px;height:844px;border-radius:52px;background:var(--bg);position:relative;overflow:hidden;margin:11px;
+  box-shadow:0 0 0 10px #05030C,0 0 0 11px #2a2245,0 30px 60px rgba(0,0,0,.5);user-select:none;-webkit-user-select:none}
+@media (max-width:480px){
+  .intro{margin-left:0}
+  .rail{padding:16px 16px 32px;gap:16px;scroll-padding:0 16px}
+  .slot{width:calc(100vw - 32px)}
+  .phone{width:calc(100vw - 54px)}
+}
+.status{height:50px;display:flex;align-items:center;justify-content:space-between;padding:6px 30px 0 34px;font-size:15px;font-weight:600;position:relative;z-index:30}
+.status::after{content:"";position:absolute;left:50%;top:10px;width:122px;height:34px;border-radius:20px;background:#000;transform:translateX(-50%)}
+.status i{font-style:normal;font-size:12px;letter-spacing:1px}
+.home-ind{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:134px;height:5px;border-radius:3px;background:rgba(255,255,255,.6);z-index:60;pointer-events:none}
+.scr{position:absolute;top:50px;left:0;right:0;bottom:0;overflow-y:auto;scrollbar-width:none;padding-bottom:110px}
+.scr::-webkit-scrollbar{display:none}
+.nav{display:flex;align-items:center;gap:4px;padding:4px 10px 8px;min-height:52px}
+.nav .back{min-width:44px;height:44px;display:grid;place-items:center;font-size:26px;color:var(--neon);border-radius:22px}
+.nav .ttl{font-weight:700;font-size:17px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.nav .ttl small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+.nav .act{min-width:44px;height:44px;border-radius:22px;display:grid;place-items:center;font-size:18px;color:var(--text);background:var(--surface)}
+.pad{padding:0 16px}
+.card{background:var(--surface);border-radius:18px;padding:14px 16px}
+.card+.card,.mt{margin-top:12px}
+.muted{color:var(--muted)}
+.small{font-size:13px}
+.sec{font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:18px 4px 8px;display:flex;justify-content:space-between;align-items:baseline}
+.sec em{font-style:normal;text-transform:none;letter-spacing:0;font-weight:400}
+.btn{min-height:50px;border-radius:25px;padding:0 22px;font-weight:600;font-size:16px;display:flex;align-items:center;justify-content:center;gap:8px;width:100%}
+.btn.primary{background:var(--neon);color:#fff;box-shadow:0 6px 20px -6px rgba(255,79,154,.7)}
+.btn.ghost{background:var(--surface2)}
+.btn.sm{min-height:44px;font-size:14px;padding:0 16px;width:auto}
+.btn:active{transform:scale(.98)}
+.tabbar{position:absolute;left:0;right:0;bottom:0;height:84px;background:rgba(21,16,42,.95);border-top:1px solid var(--line);display:flex;justify-content:space-around;padding-top:8px;font-size:10px;color:var(--muted);z-index:20}
+.tabbar div{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:56px}
+.tabbar div b{font-size:21px;font-weight:400;filter:grayscale(.3)}
+.tabbar .on{color:var(--neon)}
+
+/* interrupteurs, lignes */
+.row{display:flex;align-items:center;gap:12px;min-height:56px;padding:8px 0}
+.row .lbl{flex:1;min-width:0}
+.row .lbl small{display:block;color:var(--muted);font-size:13px;margin-top:1px;line-height:1.35}
+.sw{width:66px;height:44px;flex:0 0 auto;display:grid;place-items:center;margin-right:-6px}
+.sw i{width:51px;height:31px;border-radius:16px;background:#4A4170;position:relative;transition:background .2s}
+.sw i::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;transition:left .2s;box-shadow:0 2px 4px rgba(0,0,0,.3)}
+.sw[aria-checked=true] i{background:var(--neon)}
+.sw[aria-checked=true] i::after{left:22px}
+.sepl{height:1px;background:var(--line)}
+.radio{display:flex;align-items:center;gap:12px;min-height:52px;width:100%;padding:6px 0}
+.radio .lbl{flex:1}
+.radio .lbl small{display:block;color:var(--muted);font-size:12.5px}
+.radio .dot{width:24px;height:24px;border-radius:50%;border:2px solid #5d5480;flex:0 0 auto;display:grid;place-items:center}
+.radio[aria-checked=true] .dot{border-color:var(--neon)}
+.radio[aria-checked=true] .dot::after{content:"";width:12px;height:12px;border-radius:50%;background:var(--neon)}
+.state{display:flex;gap:10px;align-items:flex-start;border-radius:14px;padding:12px 14px;font-size:13.5px;line-height:1.45;margin:6px 0 4px}
+.state.open{background:rgba(43,212,164,.12);border:1px solid rgba(43,212,164,.5)}
+.state.closed{background:rgba(255,159,67,.13);border:1.5px solid var(--orange)}
+.state b{display:block}
+.state.open b{color:var(--mint)}
+.state.closed b{color:var(--orange)}
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:4px 10px;font-size:12.5px;font-weight:600}
+.pill.ok{background:rgba(43,212,164,.15);color:var(--mint)}
+.pill.live{background:rgba(255,79,154,.15);color:var(--neon)}
+.pill.film{background:rgba(255,181,71,.15);color:var(--film)}
+.dotlive{width:8px;height:8px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor;animation:blink 1.6s infinite}
+@keyframes blink{50%{opacity:.35}}
+@keyframes pop{from{transform:scale(.96);opacity:0}}
+@keyframes rise{from{transform:translateY(10px);opacity:0}}
+
+/* photos factices : dégradés + emojis, jamais d'image externe */
+.ph{position:relative;overflow:hidden;display:grid;place-items:center;border-radius:4px;letter-spacing:-.1em;font-size:30px;background:#140b26;padding:0}
+.ph .em{pointer-events:none;filter:drop-shadow(0 4px 10px rgba(0,0,0,.35))}
+.ph.new::after{content:"";position:absolute;top:6px;right:6px;width:9px;height:9px;border-radius:50%;background:var(--neon);box-shadow:0 0 8px var(--neon)}
+.ph.in{animation:pop .4s ease-out}
+.ph .who{position:absolute;left:5px;bottom:5px;width:22px;height:22px;border-radius:50%;font-size:12px;letter-spacing:0;display:grid;place-items:center;background:rgba(0,0,0,.45);border:1.5px solid rgba(255,255,255,.7)}
+.ph.masked .em{filter:blur(14px)}
+.ph.masked::before{content:"🚩";position:absolute;font-size:20px;z-index:2;letter-spacing:0}
+
+/* sélecteur d'iOS */
+.picker{position:absolute;inset:0;background:#1C1C1E;color:#fff;z-index:5}
+.pkhead{position:absolute;top:50px;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:0 8px;height:52px;font-size:17px}
+.pkhead button{min-height:44px;padding:0 10px;color:var(--ios);font-size:17px}
+.pkhead button.add{font-weight:600}
+.pkhead button.add:disabled{color:#555;cursor:default}
+.pkhead b{font-weight:600}
+.pkseg{position:absolute;top:104px;left:16px;right:16px;display:flex;background:#2C2C2E;border-radius:9px;padding:2px}
+.pkseg span{flex:1;text-align:center;font-size:13px;font-weight:600;padding:6px 0;border-radius:7px}
+.pkseg span:first-child{background:#636366}
+.pkgrid{position:absolute;top:146px;left:0;right:0;bottom:80px;overflow-y:auto;display:grid;grid-template-columns:repeat(4,1fr);gap:2px;align-content:start;scrollbar-width:none}
+.pkgrid::-webkit-scrollbar{display:none}
+.pkgrid .ph{aspect-ratio:1;border-radius:0;font-size:24px}
+.pkgrid .ph .sel{position:absolute;right:5px;bottom:5px;width:24px;height:24px;border-radius:50%;border:1.5px solid #fff;background:rgba(0,0,0,.2);font-size:13px;font-weight:700;letter-spacing:0;display:grid;place-items:center;transition:transform .15s}
+.pkgrid .ph[aria-pressed=true] .sel{background:var(--ios);border-color:var(--ios);transform:scale(1.08)}
+.pkgrid .ph[aria-pressed=true]::after{content:"";position:absolute;inset:0;background:rgba(255,255,255,.18);pointer-events:none}
+.pkgrid .day{grid-column:1/-1;font-size:13px;font-weight:600;padding:12px 10px 6px;color:#ebebf5cc;background:#1C1C1E}
+.pkfoot{position:absolute;left:0;right:0;bottom:0;height:80px;background:rgba(28,28,30,.96);border-top:1px solid #38383A;display:flex;flex-direction:column;align-items:center;padding-top:10px;font-size:13px;color:#ebebf599;gap:2px}
+.pkfoot b{color:#fff;font-weight:600}
+
+/* file d'envoi */
+.qtop{display:flex;align-items:center;gap:14px}
+.ring{--p:0;width:64px;height:64px;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;background:conic-gradient(var(--neon) calc(var(--p)*1%),#3A2F63 0);position:relative;transition:--p .3s}
+.ring::before{content:"";position:absolute;inset:6px;border-radius:50%;background:var(--surface)}
+.ring span{position:relative;font-weight:800;font-size:15px;font-variant-numeric:tabular-nums}
+.quality{display:flex;gap:10px;align-items:flex-start;background:rgba(43,212,164,.1);border:1px solid rgba(43,212,164,.45);border-radius:14px;padding:11px 13px;font-size:13px;line-height:1.45;margin-top:12px}
+.quality b{color:var(--mint);display:block;font-size:14px}
+.qrow{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)}
+.qrow:last-child{border-bottom:0}
+.qrow .ph{width:52px;height:52px;border-radius:10px;flex:0 0 auto;font-size:22px}
+.qrow .inf{flex:1;min-width:0;font-size:13px}
+.qrow .inf b{display:flex;justify-content:space-between;font-size:14px;font-weight:600}
+.qrow .inf b small{font-weight:500;color:var(--muted);font-variant-numeric:tabular-nums}
+.qrow .bar{height:5px;border-radius:3px;background:#3A2F63;margin:6px 0 3px;overflow:hidden}
+.qrow .bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--violet),var(--neon));border-radius:3px;transition:width .3s linear}
+.qrow .st{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+.qrow.done .bar i{background:var(--mint)}
+.qrow.done .st{color:var(--mint)}
+.qrow.paused .bar i{background:var(--orange)}
+.qrow.paused .st{color:var(--orange)}
+.netbar{display:none;gap:10px;align-items:flex-start;border:1.5px solid var(--orange);background:rgba(255,159,67,.13);border-radius:14px;padding:11px 13px;font-size:13px;line-height:1.45;margin-top:12px}
+.netbar.show{display:flex;animation:pop .3s}
+.netbar b{color:var(--orange);display:block;font-size:14px}
+.netbar.back{border-color:var(--mint);background:rgba(43,212,164,.1)}
+.netbar.back b{color:var(--mint)}
+.demo{display:flex;gap:8px;margin-top:12px}
+.demo button{flex:1;min-height:44px;border-radius:14px;border:1px dashed #5d5480;font-size:13px;font-weight:600;color:var(--muted);text-align:center;padding:0 8px}
+
+/* écran verrouillé */
+.lock{position:absolute;inset:0;background:radial-gradient(circle at 30% 20%,#5B2E8C,transparent 55%),radial-gradient(circle at 80% 80%,#8C2E6A,transparent 55%),#0b0716;color:#fff}
+.lock .time{text-align:center;margin-top:70px;font-size:84px;font-weight:600;letter-spacing:-.03em;line-height:1}
+.lock .date{text-align:center;font-size:19px;font-weight:500;margin-top:8px;opacity:.9}
+.la{margin:28px 12px 0;border-radius:24px;background:rgba(20,14,36,.82);backdrop-filter:blur(20px);padding:14px 16px;display:flex;gap:12px;align-items:center}
+.la .ico{width:44px;height:44px;border-radius:11px;background:linear-gradient(135deg,var(--neon),var(--violet));display:grid;place-items:center;font-size:22px;flex:0 0 auto}
+.la .t{flex:1;min-width:0;font-size:14px}
+.la .t b{display:block;font-size:15px}
+.la .bar{height:6px;border-radius:3px;background:rgba(255,255,255,.18);margin-top:8px;overflow:hidden}
+.la .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--violet),var(--neon));width:40%;transition:width .4s}
+.la .n{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.notif{margin:10px 12px 0;background:rgba(44,35,80,.92);backdrop-filter:blur(20px);border-radius:22px;padding:12px 14px;display:flex;gap:12px;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+.notif.drop{animation:drop .6s ease-out}
+@keyframes drop{from{transform:translateY(-30px);opacity:0}}
+.notif .ico{width:38px;height:38px;border-radius:9px;background:linear-gradient(135deg,#FF4F9A,#9B6BFF);display:grid;place-items:center;font-size:20px;flex:0 0 auto}
+.notif b{font-size:14px;display:flex;justify-content:space-between}
+.notif b small{font-weight:400;color:var(--muted)}
+.notif p{font-size:14px;margin-top:2px}
+.lockfoot{position:absolute;bottom:40px;left:0;right:0;text-align:center;font-size:13px;opacity:.75;padding:0 30px}
+
+/* visionneuse */
+.viewer{position:absolute;inset:0;background:#000;color:#fff;overflow:hidden;touch-action:none}
+.track{position:absolute;inset:0;display:flex;transition:transform .32s cubic-bezier(.2,.8,.2,1)}
+.track.drag{transition:none}
+.slide{flex:0 0 100%;height:100%;display:grid;place-items:center;overflow:hidden}
+.slide .ph{width:100%;border-radius:0;font-size:96px;transition:transform .25s ease-out;transform-origin:center}
+.slide .ph.l{aspect-ratio:4/3}.slide .ph.p{aspect-ratio:3/4}.slide .ph.s{aspect-ratio:1}
+.zoomed .slide .ph{transition:none}
+.vtop{position:absolute;top:50px;left:0;right:0;display:flex;align-items:center;gap:8px;padding:6px 8px 20px;z-index:5;background:linear-gradient(rgba(0,0,0,.7),transparent);transition:opacity .2s}
+.vtop .av{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-size:18px;border:2px solid rgba(255,255,255,.85);flex:0 0 auto}
+.vtop .who{flex:1;font-size:15px;font-weight:600;min-width:0}
+.vtop .who small{display:block;font-weight:400;font-size:12.5px;opacity:.85}
+.vb{width:44px;height:44px;border-radius:22px;display:grid;place-items:center;font-size:20px;color:#fff;flex:0 0 auto;background:rgba(255,255,255,.12)}
+.vfoot{position:absolute;bottom:0;left:0;right:0;z-index:5;padding:28px 14px 30px;background:linear-gradient(transparent,rgba(0,0,0,.8));transition:opacity .2s}
+.vfoot .meta{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;opacity:.9;margin-bottom:10px;font-variant-numeric:tabular-nums}
+.vfoot .acts{display:flex;gap:8px}
+.vfoot .acts button{min-height:48px;border-radius:24px;background:rgba(255,255,255,.14);font-weight:600;font-size:15px;display:flex;align-items:center;justify-content:center;gap:6px;padding:0 16px}
+.vfoot .acts .dl{flex:1;background:#fff;color:#15102A}
+.viewer.chromeless .vtop,.viewer.chromeless .vfoot{opacity:0;pointer-events:none}
+.zhint{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:6;background:rgba(0,0,0,.6);border-radius:14px;padding:8px 12px;font-size:13px;font-weight:600;opacity:0;transition:opacity .2s;pointer-events:none}
+.zhint.show{opacity:1}
+.maskmsg{position:absolute;left:30px;right:30px;top:42%;z-index:4;text-align:center;background:rgba(0,0,0,.7);border-radius:16px;padding:14px;font-size:14px;display:none}
+.maskmsg.show{display:block}
+
+/* feuilles */
+.shade{position:absolute;inset:0;background:rgba(0,0,0,.5);z-index:40;opacity:0;pointer-events:none;transition:.25s}
+.shade.open{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--surface);border-radius:22px 22px 0 0;padding:8px 14px 30px;z-index:41;transform:translateY(110%);transition:transform .28s cubic-bezier(.2,.8,.2,1);color:var(--text);max-height:86%;overflow-y:auto;scrollbar-width:none}
+.sheet.open{transform:none}
+.sheet .grab{width:40px;height:5px;border-radius:3px;background:#5d5480;margin:0 auto 10px}
+.sheet h3{font-size:18px;padding:4px 6px 2px}
+.sheet .sub{font-size:13px;color:var(--muted);padding:0 6px 8px;line-height:1.45}
+.sheet .x{position:absolute;top:8px;right:10px;width:44px;height:44px;border-radius:22px;display:grid;place-items:center;font-size:16px;background:var(--surface2)}
+.opt{display:flex;align-items:center;gap:12px;min-height:56px;padding:6px 8px;width:100%;border-radius:14px;font-size:16px}
+.opt:hover{background:var(--surface2)}
+.opt>span:first-child{font-size:20px;width:28px;text-align:center;flex:0 0 auto}
+.opt small{display:block;color:var(--muted);font-size:12.5px;line-height:1.35}
+.opt.red{color:var(--red)}
+.opt.sel{background:var(--surface2);box-shadow:inset 0 0 0 1.5px var(--neon)}
+.toast{position:absolute;left:18px;right:18px;bottom:110px;z-index:50;background:rgba(44,35,80,.97);border:1px solid var(--line);border-radius:16px;padding:12px 14px;font-size:14px;text-align:center;opacity:0;transform:translateY(8px);transition:.25s;pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,.4);line-height:1.4}
+.toast.show{opacity:1;transform:none}
+
+/* didacticiel */
+.tuto{position:absolute;inset:0;z-index:45;background:radial-gradient(circle at 50% 18%,#3a1d55,#120a24 65%);display:flex;flex-direction:column}
+.tuto .skip{position:absolute;top:54px;right:12px;min-height:44px;padding:0 14px;border-radius:22px;color:var(--muted);font-weight:600;z-index:2}
+.tcards{flex:1;display:flex;transition:transform .35s cubic-bezier(.2,.8,.2,1);margin-top:110px}
+.tcard{flex:0 0 100%;padding:0 30px;text-align:center;display:flex;flex-direction:column;align-items:center}
+.tcard .ill{width:210px;height:210px;border-radius:40px;margin-bottom:28px;position:relative;display:grid;place-items:center;font-size:76px;background:var(--surface);box-shadow:0 0 60px -10px rgba(255,79,154,.5);overflow:hidden}
+.tcard h3{font-size:24px;letter-spacing:-.02em;line-height:1.2;text-wrap:balance}
+.tcard p{color:var(--muted);margin-top:10px;font-size:15px;line-height:1.5}
+.tdots{display:flex;gap:7px;justify-content:center;margin-bottom:18px}
+.tdots i{width:7px;height:7px;border-radius:4px;background:#5d5480;transition:.25s}
+.tdots i.on{width:22px;background:var(--neon)}
+.tfoot{padding:0 20px 40px;display:flex;flex-direction:column;gap:4px}
+.tfoot .never{min-height:44px;color:var(--muted);font-size:14px;text-align:center}
+.tdone{position:absolute;inset:0;z-index:44;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px;gap:12px;background:var(--bg)}
+.tdone.show{display:flex;animation:pop .3s}
+
+/* Souvenirs à côté */
+.souv{display:flex;gap:12px;align-items:center;background:linear-gradient(135deg,#2C2350,#221A3D);border:1px dashed rgba(255,181,71,.55);border-radius:18px;padding:12px 14px}
+.souv .disp{width:46px;height:36px;border-radius:8px;background:linear-gradient(180deg,#FFB547,#ff8a3d);position:relative;flex:0 0 auto}
+.souv .disp::before{content:"";position:absolute;width:18px;height:18px;border-radius:50%;background:#1a0f33;border:2px solid #fff3;left:14px;top:9px}
+.souv .t{flex:1;font-size:13px;color:var(--muted);line-height:1.4}
+.souv .t b{color:var(--text);display:block;font-size:14px}
+.vs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px;font-size:12.5px;line-height:1.4}
+.vs div{background:var(--bg);border-radius:12px;padding:9px 10px;color:var(--muted)}
+.vs div b{display:block;color:var(--text);font-size:13px;margin-bottom:2px}
+.vs .a b{color:var(--mint)}
+.vs .s b{color:var(--film)}
+
+/* fiche */
+.hero{height:140px;margin:0 16px;border-radius:20px;background:radial-gradient(circle at 25% 30%,rgba(255,181,71,.6),transparent 40%),radial-gradient(circle at 80% 60%,rgba(255,79,154,.6),transparent 45%),linear-gradient(135deg,#3b1d66,#1a0f33);display:flex;align-items:flex-end;padding:14px 16px;font-size:13px;position:relative}
+.hero h3{font-size:22px;letter-spacing:-.02em}
+.hero .e{position:absolute;right:16px;top:12px;font-size:40px}
+.cover{height:150px;margin:0 16px;border-radius:22px;position:relative;overflow:hidden;display:flex;align-items:flex-end;padding:14px 16px;background:radial-gradient(circle at 80% 20%,rgba(43,212,164,.55),transparent 45%),linear-gradient(135deg,#1d6b5a,#132a3d)}
+.cover .e{position:absolute;right:18px;top:14px;font-size:44px}
+.cover h3{font-size:22px;letter-spacing:-.02em}
+.cover small{display:block;font-size:13px;opacity:.85}
+.gtabs{display:flex;gap:6px;padding:12px 16px 0;overflow-x:auto;scrollbar-width:none}
+.gtabs::-webkit-scrollbar{display:none}
+.gtabs button{min-height:40px;padding:0 14px;border-radius:20px;background:var(--surface);font-size:14px;font-weight:600;color:var(--muted);white-space:nowrap;flex:0 0 auto}
+.gtabs button[aria-selected=true]{background:var(--text);color:var(--bg)}
+.chipsrow{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px 16px 10px}
+.chipsrow::-webkit-scrollbar{display:none}
+.chipsrow button{min-height:44px;padding:0 14px;border-radius:22px;border:1px solid var(--line);font-size:13.5px;font-weight:600;color:var(--muted);white-space:nowrap;flex:0 0 auto}
+.chipsrow button[aria-pressed=true]{border-color:var(--neon);color:var(--text);background:rgba(255,79,154,.12)}
+.fab{position:absolute;right:16px;bottom:100px;z-index:15;min-height:56px;border-radius:28px;padding:0 20px 0 16px;background:var(--neon);color:#fff;font-weight:700;font-size:16px;display:flex;align-items:center;gap:8px;box-shadow:0 10px 30px -8px rgba(255,79,154,.9)}
+.fab b{font-size:22px;font-weight:400}
+
+/* téléchargement */
+.dlbig{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:10px 0 4px}
+.dlbig .ring{width:120px;height:120px}
+.dlbig .ring::before{inset:9px;background:var(--surface)}
+.dlbig .ring span{font-size:26px}
+.check{display:flex;gap:12px;align-items:center;min-height:52px;width:100%;padding:4px 0}
+.check .bx{width:26px;height:26px;border-radius:8px;border:2px solid #5d5480;display:grid;place-items:center;flex:0 0 auto;font-size:15px;font-weight:800;color:transparent}
+.check[aria-checked=true] .bx{background:var(--neon);border-color:var(--neon);color:#fff}
+.check .lbl{flex:1}
+.check .lbl small{display:block;color:var(--muted);font-size:12.5px}
+
+/* sélecteur présenté en feuille au-dessus de l'app */
+.pkback{position:absolute;inset:0;background:var(--bg);filter:brightness(.45)}
+.picker{top:58px;border-radius:12px 12px 0 0;box-shadow:0 -10px 30px rgba(0,0,0,.5)}
+.pkhead{top:4px}
+.pkseg{top:58px}
+.pkgrid{top:100px}
+.vb.side{position:absolute;top:50%;margin-top:-22px;z-index:5;background:rgba(0,0,0,.35);transition:opacity .2s}
+.vb.side.l{left:6px}.vb.side.r{right:6px}
+.viewer.chromeless .vb.side{opacity:0;pointer-events:none}
+.viewer .status{position:absolute;top:0;left:0;right:0}
+.vtag{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.14);border-radius:14px;padding:5px 10px;font-size:12.5px;margin-bottom:10px}
+
+
+.seg{display:flex;background:var(--surface);border-radius:14px;padding:3px;margin:0 16px 12px}
+.seg button{flex:1;min-height:44px;border-radius:11px;font-weight:600;font-size:14px;color:var(--muted);text-align:center}
+.seg button[aria-selected=true]{background:var(--surface2);color:var(--text);box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.mos{display:grid;grid-template-columns:repeat(3,1fr);grid-auto-rows:104px;grid-auto-flow:dense;gap:4px}
+.mos .ph{border-radius:12px;font-size:28px;width:100%;height:100%}
+.mos .ph.p{grid-row:span 2}
+.mos .ph.l{grid-column:span 2}
+.mos .ph.big{grid-column:span 2;grid-row:span 2;font-size:44px}
+.mhead{display:flex;align-items:center;gap:10px;margin:18px 0 8px;min-height:44px}
+.mhead .ic{width:40px;height:40px;border-radius:12px;background:var(--surface);display:grid;place-items:center;font-size:20px;flex:0 0 auto}
+.mhead b{font-size:17px;display:block}
+.mhead small{color:var(--muted);font-size:12.5px}
+.mhead .avs{margin-left:auto;display:flex}
+.mhead .avs i{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-style:normal;border:2px solid var(--bg);margin-left:-8px}
+.pers{margin-top:16px}
+.pers .ph{flex:0 0 auto;height:132px;border-radius:12px;font-size:30px}
+.pers .ph.p{width:99px}.pers .ph.l{width:176px}.pers .ph.s{width:132px}
+.hstrip{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;margin:0 -16px;padding:0 16px}
+.hstrip::-webkit-scrollbar{display:none}
+.phead{display:flex;align-items:center;gap:10px;margin-bottom:8px;min-height:44px}
+.phead .av{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;font-size:20px;flex:0 0 auto}
+.phead b{flex:1;font-size:16px}
+.phead b small{display:block;font-weight:400;color:var(--muted);font-size:12.5px}
+.addtile{flex:0 0 auto;width:99px;height:132px;border-radius:12px;border:2px dashed rgba(255,79,154,.6);display:grid;place-items:center;text-align:center;font-size:12.5px;font-weight:600;color:var(--neon);padding:6px;background:rgba(255,79,154,.07)}
+.addtile b{display:block;font-size:26px;font-weight:400}
+.livebar{display:flex;align-items:center;gap:10px;font-size:13.5px;margin:0 16px 4px;background:rgba(255,79,154,.1);border:1px solid rgba(255,79,154,.4);border-radius:14px;padding:10px 12px}
+.livebar span:first-child{color:var(--neon)}
+.wcard{display:block;width:100%;background:var(--surface);border-radius:20px;padding:10px;margin-top:12px}
+.wcard .mos{grid-auto-rows:62px}
+.wcard .mos .ph{font-size:20px;border-radius:9px}
+.wcard .mos .ph.big{font-size:30px}
+.wcard .t{display:flex;align-items:center;gap:8px;padding:10px 4px 2px}
+.wcard .t b{flex:1;font-size:16px}
+.wcard .t b small{display:block;font-weight:400;font-size:12.5px;color:var(--muted)}
+.dock{position:absolute;left:0;right:0;bottom:0;z-index:25;background:var(--surface);border-radius:22px 22px 0 0;padding:8px 16px 30px;box-shadow:0 -12px 30px rgba(0,0,0,.5);max-height:58%;overflow-y:auto;scrollbar-width:none}
+.dock::-webkit-scrollbar{display:none}
+.dock .grab{width:40px;height:5px;border-radius:3px;background:#5d5480;margin:0 auto 10px}
+.dock .quality{margin-top:10px}
+.dock #qlist{padding:0;background:none;margin-top:6px;max-height:190px;overflow-y:auto;scrollbar-width:none}
+.illmos{display:grid;grid-template-columns:repeat(3,44px);grid-auto-rows:44px;gap:5px}
+.illmos i{border-radius:8px;animation:pop .6s backwards}
+.illmos i.b{grid-column:span 2;grid-row:span 2}
+.illmos i.t{grid-row:span 2}
+.rename{display:flex;align-items:center;gap:10px;min-height:52px;width:100%}
+.rename span:first-child{font-size:20px;width:28px;text-align:center}
+.rename div{flex:1}
+.rename small{display:block;color:var(--muted);font-size:12.5px}
+.rename i{font-style:normal;color:var(--neon);font-size:14px;font-weight:600;min-width:44px;min-height:44px;display:grid;place-items:center}
+
+</style>
+</head>
+<body>
+
+<header class="intro">
+  <h1>🖼️ Album photos <span>· B · Le mur de la soirée</span></h1>
+  <p>Une <b>mosaïque vivante</b> : grandes et petites tuiles qui suivent le format des photos, rangées <b>par moment</b> (faits tout seuls d'après l'heure de prise de vue) ou <b>par personne</b>. On voit les photos arriver pendant la soirée, et les tiennes se poser sur le mur pendant l'envoi. Un mur par soirée ; le groupe montre les murs de ses soirées.</p>
+  <div class="chips"><span>🕰️ <b>Par moment</b> · 👥 <b>par personne</b></span><span>✨ Qualité originale</span><span>📶 Reprise après coupure</span><span>📱 Arrière-plan</span><span>⬇️ Tout ou un moment</span><span>🚩 « Je suis sur la photo »</span></div>
+  <p class="howto">Tout se touche : « Par moment / Par personne », tuiles, pellicule, file d'envoi, visionneuse (glisse, double-touche ou pince, ⋯), interrupteurs. Fais défiler les écrans de côté.</p>
+</header>
+<main class="rail">
+<section class="slot" id="sTuto">
+  <h2><b>1</b>Le didacticiel</h2>
+  <p class="note">À la première ouverture d'un mur. « Passer » ou « Ne plus me le rappeler ».</p>
+  <div class="phone"><div class="status"><span>21:10</span><i>●●● ▮</i></div><div class="scr" style="padding:0"><div class="tuto" id="tuto">
+      <button class="skip" id="tSkip">Passer</button>
+      <div class="tcards"><div class="tcard"><div class="ill"><div class="illmos"><i class="b" style="background:linear-gradient(135deg,#FFB547,#FF4F9A)"></i><i class="t" style="animation-delay:.15s;background:linear-gradient(135deg,#9B6BFF,#2BD4A4)"></i><i style="animation-delay:.3s;background:#3d7bff"></i><i style="animation-delay:.45s;background:#ff6b7a"></i><i style="animation-delay:.6s;background:#2BD4A4"></i></div></div><h3>Le mur de la soirée</h3><p>Les photos de tout le monde, en direct, rangées par moment ou par personne.</p></div><div class="tcard"><div class="ill">✨</div><h3>En qualité originale</h3><p>Tes photos partent telles quelles, sans compression. Les télécharger donne le même fichier.</p></div><div class="tcard"><div class="ill">📶</div><h3>Ajoute et retourne danser</h3><p>L'envoi continue Party fermée, et reprend tout seul après une coupure.</p></div><div class="tcard"><div class="ill">🙋</div><h3>Tu gardes la main</h3><p>Supprime tes photos quand tu veux. « Je suis sur la photo » la masque aussitôt.</p></div></div>
+      <div class="tdots"><i></i><i></i><i></i><i></i></div>
+      <div class="tfoot"><button class="btn primary" id="tNext">Suivant</button><button class="never" id="tNever">Ne plus me le rappeler</button></div>
+    </div>
+    <div class="tdone" id="tdone"><div style="font-size:54px">🖼️</div><h3 style="font-size:22px">C'est prêt</h3><p class="muted" id="tdoneTxt" style="line-height:1.5"></p><button class="btn ghost sm mt" id="tAgain">Revoir le didacticiel</button></div></div><div class="home-ind"></div></div>
+</section>
+<section class="slot" id="sGroup">
+  <h2><b>2</b>Les murs dans le groupe</h2>
+  <p class="note">Le groupe montre le mur de chaque soirée (en direct, fermé) et son propre mur pour le hors-soirée. Même album, montré à deux endroits.</p>
+  <div class="phone"><div class="status"><span>23:24</span><i>●●● ▮</i></div><div class="scr">
+  <div class="nav"><button class="back" aria-label="Retour">‹</button><div class="ttl">Les Loustics</div><button class="act" aria-label="Plus">⋯</button></div>
+  <div class="cover"><span class="e">🎳</span><div><h3>Les Loustics</h3><small>14 membres</small></div></div>
+  <div class="gtabs"><button aria-selected="false" data-keep>💬 Discussion</button><button aria-selected="false" data-keep>🎉 Événements</button><button aria-selected="true" data-keep>🖼️ Les murs</button></div>
+  <div class="pad">
+    <button class="wcard" data-go="sMur"><div class="mos" data-fill="first:5" data-cls="" id="gMos"></div>
+      <div class="t"><b>🎂 Vendredi chez Maé<small>Ce soir · <span data-count="all"></span> photos · 6 personnes</small></b><span class="pill live"><span class="dotlive"></span>En direct</span></div></button>
+    <button class="wcard fake"><div class="mos" id="gMos2"></div>
+      <div class="t"><b>🎯 Paintball<small>Sam. 7 nov. · 42 photos · 9 personnes</small></b><span class="pill film">🔒 Fermé</span></div></button>
+    <button class="wcard fake"><div class="mos" id="gMos3"></div>
+      <div class="t"><b>📥 Le mur du groupe<small>Hors soirée · 11 photos · tous les membres ajoutent</small></b></div></button>
+    <p class="muted small" style="margin-top:14px;line-height:1.45">Chaque soirée du groupe a son mur, et le groupe les montre tous ici. Une photo n'existe qu'une fois.</p>
+  </div></div><div class="tabbar"><div><b>🎵</b>Musique</div><div class="on"><b>🎉</b>Événements</div><div><b>🎮</b>Jeux</div><div><b>💬</b>Discussions</div><div><b>⚙️</b>Réglages</div></div><div class="toast"></div><div class="home-ind"></div></div>
+</section>
+<section class="slot" id="sFiche">
+  <h2><b>3</b>Le mur sur la fiche, à côté des Souvenirs</h2>
+  <p class="note">Le mur est en direct, les Souvenirs sous cadenas jusqu'au dévoilement. Les deux cartes se suivent, avec leur différence en clair.</p>
+  <div class="phone"><div class="status"><span>23:20</span><i>●●● ▮</i></div><div class="scr">
+  <div class="nav"><button class="back" data-go="sGroup" aria-label="Retour">‹</button><div class="ttl">Événement</div><button class="act" aria-label="Plus">⋯</button></div>
+  <div class="hero"><span class="e">🎂</span><div><h3>Vendredi chez Maé</h3>Ven. 20.11 · 19 h 30 → 2 h · Lausanne</div></div>
+  <div class="pad">
+    <div class="card mt">
+      <div style="display:flex;align-items:center;gap:8px"><b style="font-size:17px;flex:1">🧱 Le mur de la soirée</b><span class="pill openpill ok"></span></div>
+      <p class="small" style="margin:6px 0 10px"><span style="color:var(--neon)">●</span> Inès vient d'ajouter 3 photos · <span class="muted"><span data-count="all"></span> en tout</span></p>
+      <button style="display:block;width:100%" data-go="sMur"><div class="mos" data-fill="first:5" id="fMos" style="grid-auto-rows:74px"></div></button>
+      <div style="display:flex;gap:8px;margin-top:12px"><button class="btn primary sm addbtn" style="flex:1" data-go="sPick">＋ Ajouter mes photos</button><button class="btn ghost sm" data-go="sMur">Voir le mur</button></div>
+    </div>
+    <div class="souv mt"><span class="disp"></span><div class="t"><b>📸 Souvenirs</b>3 poses prises · dévoilées sam. 21.11 à 23 h 🔒</div></div>
+    <div class="vs"><div class="a"><b>🧱 Le mur · maintenant</b>Les photos de ta pellicule, visibles dès qu'elles arrivent, en qualité originale</div><div class="s"><b>📸 Souvenirs · plus tard</b>L'appareil jetable de Party : 3 poses sans les revoir, la surprise 24 h après la fin</div></div>
+  </div></div><div class="tabbar"><div><b>🎵</b>Musique</div><div class="on"><b>🎉</b>Événements</div><div><b>🎮</b>Jeux</div><div><b>💬</b>Discussions</div><div><b>⚙️</b>Réglages</div></div><div class="home-ind"></div></div>
+</section>
+<section class="slot" id="sMur">
+  <h2><b>4</b>Le mur · par moment</h2>
+  <p class="note">Les moments sont faits d'après l'heure de prise de vue. La première photo de chaque moment prend la grande tuile.</p>
+  <div class="phone"><div class="status"><span>23:26</span><i>●●● ▮</i></div><div class="scr">
+  <div class="nav"><button class="back" data-go="sFiche" aria-label="Retour">‹</button><div class="ttl">Le mur de la soirée<small>Vendredi chez Maé · <span data-count="all"></span> photos</small></div>
+    <button class="act" data-go="sDl" aria-label="Tout télécharger">⬇️</button><button class="act" data-go="sSet" aria-label="Options" style="margin-left:6px">⚙️</button></div>
+  <div class="seg" role="tablist"><button role="tab" data-mode="moment" aria-selected="true">🕰️ Par moment</button><button role="tab" data-mode="person" aria-selected="false">👥 Par personne</button></div>
+  <div class="livebar"><span class="dotlive"></span><span style="flex:1"><b>En direct</b> · les photos arrivent au fil de la soirée</span><span class="pill openpill ok"></span></div>
+  <div class="pad" data-mur="moment"></div>
+</div>
+<button class="fab addbtn" data-go="sPick"><b>＋</b>Ajouter</button><div class="tabbar"><div><b>🎵</b>Musique</div><div class="on"><b>🎉</b>Événements</div><div><b>🎮</b>Jeux</div><div><b>💬</b>Discussions</div><div><b>⚙️</b>Réglages</div></div><div class="home-ind"></div></div>
+</section>
+<section class="slot" id="sMurP">
+  <h2><b>5</b>Le mur · par personne</h2>
+  <p class="note">Une rangée par personne, à faire glisser de côté. Ta rangée d'abord, avec « Ajouter » au bout.</p>
+  <div class="phone"><div class="status"><span>23:26</span><i>●●● ▮</i></div><div class="scr">
+  <div class="nav"><button class="back" data-go="sFiche" aria-label="Retour">‹</button><div class="ttl">Le mur de la soirée<small>Vendredi chez Maé · <span data-count="all"></span> photos</small></div>
+    <button class="act" data-go="sDl" aria-label="Tout télécharger">⬇️</button><button class="act" data-go="sSet" aria-label="Options" style="margin-left:6px">⚙️</button></div>
+  <div class="seg" role="tablist"><button role="tab" data-mode="moment" aria-selected="false">🕰️ Par moment</button><button role="tab" data-mode="person" aria-selected="true">👥 Par personne</button></div>
+  <div class="livebar"><span class="dotlive"></span><span style="flex:1"><b>En direct</b> · les photos arrivent au fil de la soirée</span><span class="pill openpill ok"></span></div>
+  <div class="pad" data-mur="person"></div>
+</div>
+<button class="fab addbtn" data-go="sPick"><b>＋</b>Ajouter</button><div class="tabbar"><div><b>🎵</b>Musique</div><div class="on"><b>🎉</b>Événements</div><div><b>🎮</b>Jeux</div><div><b>💬</b>Discussions</div><div><b>⚙️</b>Réglages</div></div><div class="home-ind"></div></div>
+</section>
+<section class="slot" id="sPick">
+  <h2><b>6</b>« Ajouter des photos » : la pellicule</h2>
+  <p class="note">Le sélecteur d'iOS, en choix multiple (touche pour cocher ou décocher, le numéro suit l'ordre). Les vidéos n'y sont pas. Party ne voit que les photos choisies : aucune autorisation d'accès à toute la pellicule.</p>
+  <div class="phone"><div class="status"><span>23:28</span><i>●●● ▮</i></div><div class="pkback"><div style="height:100%"></div></div>
+  <div class="picker">
+    <div class="pkhead"><button id="pkCancel">Annuler</button><b>Photos</b><button class="add" id="pkAdd" data-next="sQ">Ajouter</button></div>
+    <div class="pkseg"><span>Photos</span><span>Collections</span></div>
+    <div class="pkgrid" id="pkgrid"></div>
+    <div class="pkfoot"><span id="pkCount"></span><span>Photos seulement · aucune vidéo</span></div>
+  </div><div class="home-ind"></div></div>
+</section>
+<section class="slot" id="sQ">
+  <h2><b>7</b>L'envoi : les photos se posent sur le mur</h2>
+  <p class="note">Le panneau montre chaque photo avec sa barre. Au-dessus, le moment « Dancefloor » : tes photos y apparaissent une à une. Teste la coupure.</p>
+  <div class="phone"><div class="status"><span>23:29</span><i>●●● ▮</i></div><div class="scr" style="padding-bottom:0">
+  <div class="nav"><button class="back" data-go="sMur" aria-label="Retour">‹</button><div class="ttl">Le mur de la soirée<small>Tes photos s'y posent une à une</small></div></div>
+  <div class="pad" data-mur="moment" data-only="b"></div></div>
+  <div class="dock"><div class="grab"></div>
+    <div class="qtop"><div class="ring qring" style="width:56px;height:56px"><span style="font-size:13px">0 %</span></div><div style="flex:1"><b class="qtitle" style="font-size:16px">Envoi en cours</b><div class="muted small"><span class="qcount">0 / 8</span> · <span class="qmo"></span></div></div><span class="pill ok">✨ Originale ✓</span></div>
+    <div class="quality"><span>✨</span><div><b>Qualité originale ✓</b>Le fichier part tel quel, sans compression : 4032 × 3024 comme dans ta pellicule. Seule la position GPS est retirée.</div></div>
+    <div class="netbar"></div>
+    <div id="qlist"></div>
+    <div class="demo"><button onclick="netCut()">📶 Simuler une coupure</button><button onclick="netBack()">✅ Le réseau revient</button></div>
+    <p class="muted small" style="margin-top:10px;line-height:1.45">Tu peux fermer Party : l'envoi continue en arrière-plan.</p>
+    <button class="btn ghost mt" data-go="sLock">Fermer Party</button>
+  </div><div class="home-ind"></div></div>
+</section>
+<section class="slot" id="sLock">
+  <h2><b>8</b>L'envoi continue en arrière-plan</h2>
+  <p class="note">Écran verrouillé pendant l'envoi : une activité en direct (épisode court, moins de 8 h) montre où on en est, puis une seule notification à la fin.</p>
+  <div class="phone"><div class="lock"><div class="status"><span></span><i>●●● ▮</i></div>
+    <div class="time">23:31</div><div class="date">vendredi 20 novembre</div>
+    <div class="la" id="laWrap"><span class="ico">🖼️</span><div class="t"><b>Envoi vers l'album</b>Vendredi chez Maé · qualité originale<div class="bar"><i id="laBar"></i></div></div><span class="n" id="laN">0/8</span></div>
+    <div class="notif" id="lockNotif" hidden><span class="ico">🖼️</span><div><b>Party<small>maintenant</small></b><p><b style="display:inline">Vendredi chez Maé</b><br><span id="lockNotifTxt"></span></p></div></div>
+    <div class="lockfoot">Party est fermée : iOS termine l'envoi tout seul. L'activité en direct disparaît à la fin, puis une notification (qu'on peut couper dans Réglages › Notifications › « Album photos »).</div>
+  </div><div class="home-ind"></div></div>
+</section>
+<section class="slot" id="sV">
+  <h2><b>9</b>La visionneuse plein écran</h2>
+  <p class="note">Glisse, double-touche ou pince pour zoomer. Le moment s'affiche en bas. ⋯ : Signaler, Bloquer, ou Supprimer ta photo.</p>
+  <div class="phone"><div class="viewer" id="viewer"><div class="status"><span>23:41</span><i>●●● ▮</i></div>
+    <div class="track" id="vtrack"></div>
+    <div class="vtop"><button class="vb" data-go="sMur" aria-label="Fermer">✕</button><span class="av" id="vAv"></span><div class="who" id="vWho"></div><button class="vb" id="vMore" aria-label="Plus d'options">⋯</button></div>
+    <button class="vb side l" id="vPrev" aria-label="Photo précédente">‹</button><button class="vb side r" id="vNext" aria-label="Photo suivante">›</button>
+    <div class="zhint" id="zhint"></div>
+    <div class="maskmsg" id="vMask">🚩 Photo signalée<br><span class="small muted">Masquée pour tout le monde en attendant la décision.</span></div>
+    <div class="vfoot"><span class="vtag" id="vMoment"></span><div class="meta"><span id="vPos"></span><span id="vDim"></span></div>
+      <div class="acts"><button class="dl" id="vDl">⬇️ Télécharger l'original</button><button id="vZoom" aria-label="Zoomer">🔍</button></div></div>
+    <div class="shade"></div>
+    <div class="sheet" id="vMenu"><div class="grab"></div><div id="vMenuList"></div><button class="btn ghost mt" data-close>Annuler</button></div>
+    <div class="sheet" id="vReport"><div class="grab"></div><h3>Signaler cette photo</h3><p class="sub">L'auteur ne sait pas qui a signalé. La photo est masquée tout de suite, pour tout le monde.</p>
+      <button class="opt" data-motif="me"><span>🙋</span><div>Je suis sur la photo<small>Et je ne veux pas qu'elle soit dans l'album</small></div></button>
+      <button class="opt" data-motif="nu"><span>🔞</span><div>Nudité ou contenu sexuel</div></button>
+      <button class="opt" data-motif="har"><span>😠</span><div>Moquerie ou harcèlement</div></button>
+      <button class="opt" data-motif="vio"><span>⚠️</span><div>Violent ou choquant</div></button>
+      <button class="opt" data-motif="autre"><span>💬</span><div>Autre chose</div></button>
+      <button class="btn ghost mt" data-close>Annuler</button></div>
+    <div class="sheet" id="vDelete"><div class="grab"></div><h3>Supprimer ta photo ?</h3><p class="sub">Elle disparaît de l'album pour tout le monde, tout de suite, original compris. Ceux qui l'ont déjà téléchargée gardent leur copie.</p>
+      <button class="btn mt" style="background:var(--red);color:#fff" id="vDelYes">Supprimer ma photo</button><button class="btn ghost mt" data-close>Annuler</button></div>
+    <div class="toast"></div>
+  </div><div class="home-ind"></div></div>
+</section>
+<section class="slot" id="sDl">
+  <h2><b>10</b>« Tout télécharger »</h2>
+  <p class="note">Tout l'album, en originaux, dans Photos ou Fichiers. Touche « Télécharger ».</p>
+  <div class="phone"><div class="status"><span>23:52</span><i>●●● ▮</i></div><div class="scr">
+    <div class="nav"><button class="back" data-go="sMur" aria-label="Retour">‹</button><div class="ttl">Tout télécharger<small>Album · Vendredi chez Maé</small></div></div>
+    <div class="pad">
+      <div id="dlChoose">
+        <div class="card"><div class="dlbig"><div style="font-size:44px">⬇️</div><b style="font-size:20px"><span data-count="all">18</span> photos en qualité originale</b><span class="muted small">Les fichiers d'origine, exactement ceux qui ont été envoyés (HEIC ou JPG).</span></div></div>
+        <div class="sec">Quoi</div>
+        <div class="card" style="padding:4px 16px"><button class="radio" aria-checked="true"><div class="lbl">Tout le mur<small><span data-count="all"></span> photos</small></div><span class="dot"></span></button><div class="sepl"></div><button class="radio" aria-checked="false"><div class="lbl">Un moment<small>🍕 Apéro · 🪩 Dancefloor · 🌙 Fin de soirée</small></div><span class="dot"></span></button><div class="sepl"></div><button class="radio" aria-checked="false"><div class="lbl">Les photos d'une personne<small>Par exemple toutes celles d'Inès</small></div><span class="dot"></span></button></div>
+        <div class="sec">Où</div>
+        <div class="card" style="padding:4px 16px">
+          <button class="radio" aria-checked="true"><div class="lbl">Dans Photos<small>Un album « Vendredi chez Maé » est créé dans ta pellicule</small></div><span class="dot"></span></button><div class="sepl"></div>
+          <button class="radio" aria-checked="false"><div class="lbl">Dans Fichiers<small>Un dossier, sans toucher à ta pellicule</small></div><span class="dot"></span></button>
+        </div>
+        <p class="muted small" style="margin:10px 4px 0;line-height:1.45">≈ 3 Mo par photo. Mieux en Wi-Fi. iOS te demandera une fois l'autorisation « Ajouter à Photos » (ajout seulement : Party ne lit pas ta pellicule). Sur le web : un fichier .zip.</p>
+        <button class="btn primary mt" id="dlStart">⬇️ Télécharger</button>
+      </div>
+      <div id="dlRun" hidden><div class="card"><div class="dlbig"><div class="ring" id="dlRing"><span>0 %</span></div><b id="dlRunT" style="font-size:18px;margin-top:8px">Téléchargement des originaux</b><span class="muted small" id="dlTxt"></span></div>
+        <p class="muted small" style="margin-top:10px;text-align:center">Continue même si tu fermes Party.</p></div>
+        <button class="btn ghost mt" id="dlAgain" hidden>Recommencer la démo</button></div>
+    </div></div><div class="home-ind"></div></div>
+</section>
+<section class="slot" id="sSet">
+  <h2><b>11</b>Le réglage de l'organisation</h2>
+  <p class="note">Vue de Maé. Coupe « Mur ouvert » : le bouton Ajouter s'éteint partout. Les moments se renomment.</p>
+  <div class="phone"><div class="status"><span>18:05</span><i>●●● ▮</i></div><div class="scr">
+  <div class="nav"><button class="back" data-go="sMur" aria-label="Retour">‹</button><div class="ttl">Le mur<small>Options · Vendredi chez Maé</small></div></div>
+  <div class="pad">
+    <div class="card">
+      <div class="row"><div class="lbl"><b>🧱 Mur ouvert</b><small>Fermé : plus d'ajout, tout reste visible et téléchargeable.</small></div><button class="sw" role="switch" aria-checked="true" id="swOpen" aria-label="Mur ouvert"><i></i></button></div>
+      <div class="state openstate open"></div>
+    </div>
+    <div class="sec">Qui peut ajouter</div>
+    <div class="card" style="padding:4px 16px">
+      <button class="radio" aria-checked="true"><div class="lbl">Les participants<small>Présent, Peut-être et l'organisation</small></div><span class="dot"></span></button><div class="sepl"></div>
+      <button class="radio" aria-checked="false"><div class="lbl">Tous les invités</div><span class="dot"></span></button><div class="sepl"></div>
+      <button class="radio" aria-checked="false"><div class="lbl">Seulement l'organisation</div><span class="dot"></span></button>
+    </div>
+    <div class="sec">Les moments <em>faits d'après l'heure des photos</em></div>
+    <div class="card" style="padding:4px 16px">
+      <button class="rename"><span>🍕</span><div>L'apéro<small>19:30 – 21:05</small></div><i>Renommer</i></button><div class="sepl"></div>
+      <button class="rename"><span>🪩</span><div>Le dancefloor<small>22:10 – 23:20</small></div><i>Renommer</i></button><div class="sepl"></div>
+      <button class="rename"><span>🌙</span><div>La fin de soirée<small>00:40 – 01:40</small></div><i>Renommer</i></button>
+    </div>
+    <p class="muted small" style="margin:8px 4px 0;line-height:1.45">Un trou de plus de 45 min sans photo commence un nouveau moment. Les noms sont proposés, tu les changes d'un toucher.</p>
+    <div class="sec">Fermer tout seul</div>
+    <div class="card" style="padding:4px 16px">
+      <button class="radio" aria-checked="false"><div class="lbl">Jamais</div><span class="dot"></span></button><div class="sepl"></div>
+      <button class="radio" aria-checked="true"><div class="lbl">7 jours après la fin</div><span class="dot"></span></button>
+    </div>
+    <button class="btn primary mt" data-go="sMur">Enregistrer</button>
+  </div></div><div class="toast"></div><div class="home-ind"></div></div>
+</section>
+</main>
+
+<script>
+/* ===== Données factices : aucune image externe, des dégradés + emojis ===== */
+const $=s=>document.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const PEOPLE={toi:['Toi','😎','#5B2E8C'],mae:['Maé','🦊','#8C3B2E'],leo:['Léo','🐻','#2E5B8C'],ines:['Inès','🌸','#8C2E6A'],sam:['Sam','🎧','#1f6b57'],noa:['Noa','🐙','#6A2E8C']};
+const COL=['#FFB547','#FF4F9A','#9B6BFF','#2BD4A4','#3d7bff','#ff8a3d','#ff6b7a','#5B2E8C'];
+/* [emoji, couleur1, couleur2, auteur, heure de prise, orientation, moment] */
+const RAW=[
+ ['🥂✨',0,1,'mae','19:34','p','a'],['🍕🍕',5,2,'leo','19:41','l','a'],['😂😂',1,3,'toi','19:52','s','a'],
+ ['🎂🕯️',1,7,'ines','20:05','p','a'],['🎶🔊',3,7,'sam','20:18','l','a'],['🥳🎈',2,3,'toi','20:26','p','a'],
+ ['🃏🎲',4,2,'noa','20:44','l','a'],['🍹🍋',0,3,'mae','21:02','s','a'],
+ ['💃🕺',1,0,'ines','22:10','p','b'],['🪩✨',7,3,'sam','22:18','p','b'],['🤳😂',2,1,'leo','22:31','l','b'],
+ ['🎤🎶',1,4,'toi','22:47','p','b'],['🙌🎉',6,2,'noa','23:05','l','b'],['🎸🔥',5,1,'leo','23:20','p','b'],
+ ['🌙🚕',7,2,'mae','00:42','l','c'],['👋💖',1,2,'ines','00:51','s','c'],['🍟🌭',0,5,'sam','01:15','l','c'],['🛋️😴',2,7,'noa','01:38','p','c']];
+const MOMENTS={a:['🍕','L\'apéro','19:30 – 21:05'],b:['🪩','Le dancefloor','22:10 – 23:20'],c:['🌙','La fin de soirée','00:40 – 01:40']};
+let P=RAW.map((r,i)=>({id:i,e:r[0],c1:COL[r[1]],c2:COL[r[2]],who:r[3],t:r[4],o:r[5],m:r[6],
+  added:addT(r[4],7+(i*13)%40),mo:(2.3+((i*37)%17)/10).toFixed(1),fmt:i%5===4?'JPG':'HEIC',n:'IMG_'+(4810+i*7)}));
+function addT(t,d){let[h,m]=t.split(':').map(Number);m+=d;h=(h+Math.floor(m/60))%24;m%=60;return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0')}
+const DIM={p:'3024 × 4032',l:'4032 × 3024',s:'3024 × 3024'};
+const bg=p=>`radial-gradient(circle at 28% 24%,${p.c1}d0,transparent 56%),radial-gradient(circle at 76% 78%,${p.c2}d0,transparent 56%),radial-gradient(circle at 60% 30%,#ffffff22,transparent 30%),#140b26`;
+const live=()=>P.filter(p=>!p.gone);
+const tmin=t=>{let[h,m]=t.split(':').map(Number);if(h<6)h+=24;return h*60+m};
+const byTime=a=>a.slice().sort((x,y)=>tmin(x.t)-tmin(y.t));
+function ph(p,cls='',who=false){
+  return `<button class="ph ${p.o} ${cls}${p.masked?' masked':''}${p.fresh?' in new':''}" data-ph="${p.id}" style="background:${bg(p)}" aria-label="Photo de ${PEOPLE[p.who][0]}, ${p.t}"><span class="em">${p.e}</span>${who?`<span class="who" style="background:${PEOPLE[p.who][2]}">${PEOPLE[p.who][1]}</span>`:''}</button>`}
+
+/* rendus : chaque direction ajoute les siens */
+const hooks=[];
+function fillSpec(spec){
+  if(spec==='all')return byTime(live()).reverse();
+  if(spec==='chrono')return byTime(live());
+  if(spec.startsWith('who:'))return byTime(live().filter(p=>p.who===spec.slice(4)));
+  if(spec.startsWith('m:'))return byTime(live().filter(p=>p.m===spec.slice(2)));
+  if(spec.startsWith('first:'))return byTime(live()).reverse().slice(0,+spec.slice(6));
+  return spec.split(',').map(Number).map(i=>P[i]).filter(p=>p&&!p.gone)}
+function renderAll(){
+  $$('[data-fill]').forEach(el=>{const list=fillSpec(el.dataset.fill);el.innerHTML=list.map(p=>ph(p,el.dataset.cls||'',el.hasAttribute('data-who'))).join('')});
+  $$('[data-count]').forEach(el=>{const s=el.dataset.count;const n=s==='all'?live().length:fillSpec(s).length;el.textContent=n});
+  hooks.forEach(f=>f());buildViewer();}
+
+/* ===== navigation dans le rail ===== */
+function go(id){const el=document.getElementById(id);if(el)el.scrollIntoView({behavior:'smooth',inline:'center',block:'nearest'})}
+document.addEventListener('click',e=>{
+  const g=e.target.closest('[data-go]');if(g){go(g.dataset.go)}
+  const t=e.target.closest('[data-ph]');
+  if(t&&!t.closest('.picker')&&!t.closest('.viewer')){openViewer(+t.dataset.ph)}
+  const sw=e.target.closest('.sw');if(sw){const v=sw.getAttribute('aria-checked')!=='true';sw.setAttribute('aria-checked',v);sw.dispatchEvent(new CustomEvent('toggle',{detail:v,bubbles:true}))}
+  const r=e.target.closest('.radio');if(r){$$('.radio',r.parentElement).forEach(x=>x.setAttribute('aria-checked',x===r));r.dispatchEvent(new CustomEvent('pick',{bubbles:true}))}
+  const c=e.target.closest('.check');if(c){c.setAttribute('aria-checked',c.getAttribute('aria-checked')!=='true');c.dispatchEvent(new CustomEvent('toggle',{bubbles:true}))}
+  const ch=e.target.closest('.chipsrow button,.gtabs button');if(ch&&!ch.hasAttribute('data-keep')){const row=ch.parentElement,attr=row.classList.contains('gtabs')?'aria-selected':'aria-pressed';$$('button',row).forEach(b=>b.setAttribute(attr,b===ch));ch.dispatchEvent(new CustomEvent('chip',{bubbles:true}))}
+  const o=e.target.closest('[data-sheet]');if(o)openSheet(o.dataset.sheet);
+  if(e.target.closest('[data-close]')||e.target.classList.contains('shade'))closeSheets(e.target.closest('.phone'));
+});
+
+/* ===== feuilles et messages ===== */
+function openSheet(id){const s=document.getElementById(id),ph=s.closest('.phone');closeSheets(ph);s.classList.add('open');$('.shade',ph)?.classList.add('open')}
+function closeSheets(ph){if(!ph)return;$$('.sheet.open',ph).forEach(s=>s.classList.remove('open'));$$('.shade',ph).forEach(s=>s.classList.remove('open'))}
+function toast(ph,msg,ms=3200){const t=$('.toast',ph);if(!t)return;t.innerHTML=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),ms)}
+
+/* ===== sélecteur d'iOS : la pellicule, photos seulement ===== */
+const ROLL=[['🥳🎈',2,3,'p'],['😂😂',1,3,'s'],['🎤🎶',1,4,'p'],['🪩💜',7,1,'p'],['🍾🥂',0,2,'l'],['🕺💡',4,1,'p'],['🎊🎉',6,3,'l'],['🤪📸',2,0,'s'],
+  ['🌃🏙️',4,7,'l'],['🎆✨',1,0,'p'],['🍔🍟',5,6,'s'],['😎🕶️',3,2,'p'],
+  ['🐶🌳',3,0,'l'],['☕🥐',0,5,'s'],['🚲🌄',5,4,'l'],['🧾📄',7,7,'p']];
+let pickOrder=[];
+function buildPicker(){const g=$('#pkgrid');if(!g)return;
+  g.innerHTML='<div class="day">Aujourd\'hui · ven. 20 nov.</div>'+ROLL.map((r,i)=>(i===12?'<div class="day">Hier</div>':'')+
+   `<button class="ph" data-roll="${i}" aria-pressed="false" aria-label="Photo ${i+1}" style="background:${bg({c1:COL[r[1]],c2:COL[r[2]]})}"><span class="em">${r[0]}</span><span class="sel"></span></button>`).join('');
+  g.onclick=e=>{const b=e.target.closest('[data-roll]');if(!b)return;const i=+b.dataset.roll,k=pickOrder.indexOf(i);
+    if(k>=0)pickOrder.splice(k,1);else pickOrder.push(i);paintPicker()};
+  [0,1,2,3,4,5,6,7].forEach(i=>pickOrder.push(i));paintPicker();
+  $('#pkAdd').onclick=()=>{if(!pickOrder.length)return;startQueue(pickOrder.slice());go($('#pkAdd').dataset.next||'sQ')};
+  $('#pkCancel').onclick=()=>{pickOrder=[];paintPicker()};}
+function paintPicker(){$$('#pkgrid [data-roll]').forEach(b=>{const k=pickOrder.indexOf(+b.dataset.roll);b.setAttribute('aria-pressed',k>=0);b.querySelector('.sel').textContent=k>=0?k+1:''});
+  const n=pickOrder.length;$('#pkAdd').textContent=n?`Ajouter (${n})`:'Ajouter';$('#pkAdd').disabled=!n;
+  $('#pkCount').innerHTML=n?`<b>${n} photo${n>1?'s':''} sélectionnée${n>1?'s':''}</b>`:'<b>Choisis tes photos</b>'}
+
+/* ===== file d'envoi : progression, coupure, reprise, arrière-plan ===== */
+let Q=[],qTimer=null,offline=false,qTotal=0;
+function startQueue(idx){
+  Q=idx.map((ri,k)=>{const r=ROLL[ri];const mo=+(2.2+((ri*29)%19)/10).toFixed(1);return{ri,e:r[0],c1:COL[r[1]],c2:COL[r[2]],o:r[3],mo,done:0,state:'wait',n:'IMG_'+(5120+ri*3)+'.HEIC'}});
+  qTotal=Q.reduce((s,q)=>s+q.mo,0);offline=false;$$('.netbar').forEach(n=>n.className='netbar');paintQueue();clearInterval(qTimer);qTimer=setInterval(tickQueue,260);}
+function tickQueue(){if(offline)return;let active=0;
+  for(const q of Q){if(q.state==='done')continue;if(active>=2)break;active++;q.state='up';q.done=Math.min(q.mo,q.done+0.16+Math.random()*0.2);
+    if(q.done>=q.mo){q.state='done';arrive(q)}}
+  paintQueue();if(Q.every(q=>q.state==='done')){clearInterval(qTimer);finishQueue()}}
+function arrive(q){const id=P.length;P.push({id,e:q.e,c1:q.c1,c2:q.c2,who:'toi',t:addT('23:30',Q.indexOf(q)*3),o:q.o,m:'b',added:'maintenant',mo:q.mo.toFixed(1),fmt:'HEIC',n:q.n.replace('.HEIC',''),fresh:true});renderAll();setTimeout(()=>{P[id].fresh=false},1600)}
+function paintQueue(){const L=$('#qlist');if(!L)return;if(!Q.length){L.innerHTML='<div class="muted small" style="text-align:center;padding:14px 6px;line-height:1.5">📥 Rien en cours.<br>Touche « Ajouter » dans la pellicule (écran d\'avant), ou « Simuler une coupure » ci-dessous.</div>';return}
+  const sent=Q.reduce((s,q)=>s+q.done,0),pc=qTotal?Math.round(sent/qTotal*100):0,ndone=Q.filter(q=>q.state==='done').length;
+  L.innerHTML=Q.map(q=>{const p=Math.round(q.done/q.mo*100);const cls=q.state==='done'?'done':(offline&&q.state==='up'?'paused':'');
+    const st=q.state==='done'?`✓ Envoyée · ${q.mo.toFixed(1).replace('.',',')} Mo · originale`:q.state==='up'?(offline?`⏸ En pause · ${q.done.toFixed(1).replace('.',',')} / ${q.mo.toFixed(1).replace('.',',')} Mo gardés`:`${p} % · ${q.done.toFixed(1).replace('.',',')} / ${q.mo.toFixed(1).replace('.',',')} Mo`):'En attente';
+    return `<div class="qrow ${cls}"><span class="ph" style="background:${bg(q)}"><span class="em">${q.e}</span></span><div class="inf"><b>${q.n}<small>${q.o==='l'?'4032 × 3024':q.o==='s'?'3024 × 3024':'3024 × 4032'}</small></b><div class="bar"><i style="width:${p}%"></i></div><div class="st">${st}</div></div></div>`}).join('');
+  $$('.qring').forEach(r=>{r.style.setProperty('--p',pc);r.querySelector('span').textContent=pc+' %'});
+  $$('.qcount').forEach(e=>e.textContent=`${ndone} / ${Q.length}`);
+  $$('.qmo').forEach(e=>e.textContent=`${sent.toFixed(1).replace('.',',')} / ${qTotal.toFixed(1).replace('.',',')} Mo`);
+  const la=$('#laBar');if(la){la.style.width=pc+'%';$('#laN').textContent=`${ndone}/${Q.length}`}}
+function finishQueue(){$$('.qtitle').forEach(e=>e.textContent='Tout est envoyé ✓');const n=$('#lockNotif');if(n){n.hidden=false;n.classList.remove('drop');void n.offsetWidth;n.classList.add('drop');$('#laWrap').hidden=true;
+  $('#lockNotifTxt').textContent=`${Q.length} photos ajoutées à l'album en qualité originale ✓`}}
+function netCut(){if(!Q.length||Q.every(q=>q.state==='done'))startQueue([0,1,2,3,4,5,6,7]);offline=true;$$('.netbar').forEach(n=>{n.className='netbar show';n.innerHTML='<span>📶</span><div><b>Plus de réseau · envoi en pause</b>Rien n\'est perdu : chaque photo reprendra là où elle s\'est arrêtée, toute seule, dès que le réseau revient.</div>'});paintQueue()}
+function netBack(){if(!offline)return;offline=false;$$('.netbar').forEach(n=>{n.className='netbar show back';n.innerHTML='<span>✅</span><div><b>Réseau revenu · ça reprend</b>Reprise au morceau près, rien n\'est renvoyé depuis le début.</div>'});setTimeout(()=>$$('.netbar').forEach(n=>n.className='netbar'),3500);paintQueue()}
+
+/* ===== visionneuse : glisser, zoomer, auteur et heure, télécharger, ⋯ ===== */
+let V={i:0,list:[],s:1,x:0,y:0};
+function buildViewer(){const v=$('#viewer');if(!v)return;const cur=V.list[V.i]?.id;
+  V.list=(window.viewerOrder||(()=>byTime(live())))();
+  $('#vtrack').innerHTML=V.list.map(p=>`<div class="slide"><div class="ph ${p.o}${p.masked?' masked':''}" style="background:${bg(p)}"><span class="em">${p.e}</span></div></div>`).join('');
+  const k=V.list.findIndex(p=>p.id===cur);V.i=k>=0?k:Math.min(V.i,V.list.length-1);showSlide(false)}
+function openViewer(id){const k=V.list.findIndex(p=>p.id===id);if(k>=0)V.i=k;resetZoom();showSlide(false);closeSheets($('#viewer').closest('.phone'));$('#viewer').classList.remove('chromeless');go('sV')}
+function showSlide(anim=true){const tr=$('#vtrack');if(!tr)return;tr.classList.toggle('drag',!anim);tr.style.transform=`translateX(${-V.i*100}%)`;
+  const p=V.list[V.i];if(!p)return;const w=PEOPLE[p.who];
+  $('#vAv').textContent=w[1];$('#vAv').style.background=w[2];$('#vWho').innerHTML=`${p.who==='toi'?'Toi':w[0]}<small>Prise à ${p.t} · ajoutée à ${p.added}</small>`;
+  $('#vPos').textContent=`${V.i+1} / ${V.list.length}`;$('#vDim').textContent=`${DIM[p.o]} · ${p.mo.replace('.',',')} Mo · ${p.fmt}`;
+  $('#vMask').classList.toggle('show',!!p.masked);if(window.onSlide)window.onSlide(p)}
+function curSlidePh(){return $$('#vtrack .slide')[V.i]?.querySelector('.ph')}
+function applyZoom(){const el=curSlidePh();if(el)el.style.transform=`translate(${V.x}px,${V.y}px) scale(${V.s})`;$('#viewer').classList.toggle('zoomed',V.s>1)}
+function resetZoom(){V.s=1;V.x=V.y=0;$$('#vtrack .ph').forEach(e=>e.style.transform='');$('#viewer')?.classList.remove('zoomed')}
+function zhint(t){const h=$('#zhint');h.textContent=t;h.classList.add('show');clearTimeout(h._t);h._t=setTimeout(()=>h.classList.remove('show'),700)}
+function initViewer(){const v=$('#viewer');if(!v)return;const ptr=new Map();let st=null,lastTap=0;
+  v.addEventListener('pointerdown',e=>{if(e.target.closest('button'))return;v.setPointerCapture(e.pointerId);ptr.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(ptr.size===2){const[a,b]=[...ptr.values()];st={pinch:Math.hypot(a.x-b.x,a.y-b.y),s0:V.s}}else st={x0:e.clientX,y0:e.clientY,t:Date.now(),px:V.x,py:V.y,dx:0}});
+  v.addEventListener('pointermove',e=>{if(!ptr.has(e.pointerId)||!st)return;ptr.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(st.pinch&&ptr.size===2){const[a,b]=[...ptr.values()];V.s=Math.min(4,Math.max(1,st.s0*Math.hypot(a.x-b.x,a.y-b.y)/st.pinch));if(V.s===1){V.x=V.y=0}applyZoom();return}
+    const dx=e.clientX-st.x0,dy=e.clientY-st.y0;st.dx=dx;
+    if(V.s>1){V.x=st.px+dx;V.y=st.py+dy;applyZoom()}
+    else{const tr=$('#vtrack');tr.classList.add('drag');tr.style.transform=`translateX(calc(${-V.i*100}% + ${dx}px))`}});
+  const up=e=>{if(!ptr.has(e.pointerId))return;ptr.delete(e.pointerId);if(!st)return;
+    if(st.pinch){if(ptr.size===0)st=null;zhint(V.s>1?'Zoom ×'+V.s.toFixed(1).replace('.',','):'Taille réelle');return}
+    const W=v.clientWidth,dx=st.dx||0,quick=Date.now()-st.t<260&&Math.abs(dx)<8;
+    if(V.s===1){if(dx<-W*.16&&V.i<V.list.length-1)V.i++;else if(dx>W*.16&&V.i>0)V.i--;if(Math.abs(dx)>8)resetZoom();showSlide(true)}
+    if(quick){const now=Date.now();if(now-lastTap<300){if(V.s>1)resetZoom();else{V.s=2.5;applyZoom()}zhint(V.s>1?'Zoom ×2,5 · glisse pour te déplacer':'Taille réelle');lastTap=0}
+      else{lastTap=now;setTimeout(()=>{if(lastTap===now)v.classList.toggle('chromeless')},300)}}
+    st=null};
+  v.addEventListener('pointerup',up);v.addEventListener('pointercancel',up);
+  v.addEventListener('wheel',e=>{if(!e.ctrlKey)return;e.preventDefault();V.s=Math.min(4,Math.max(1,V.s*(1-e.deltaY/200)));if(V.s===1)V.x=V.y=0;applyZoom()},{passive:false});
+  $('#vPrev').onclick=()=>{if(V.i>0){V.i--;resetZoom();showSlide()}};$('#vNext').onclick=()=>{if(V.i<V.list.length-1){V.i++;resetZoom();showSlide()}};
+  $('#vZoom').onclick=()=>{if(V.s>1)resetZoom();else{V.s=2.5;applyZoom()}zhint(V.s>1?'Zoom ×2,5':'Taille réelle')};
+  $('#vDl').onclick=()=>{const p=V.list[V.i];toast(v.closest('.phone'),`⬇️ Original enregistré dans Photos<br><span class="muted small">${p.n}.${p.fmt} · ${DIM[p.o]} · ${p.mo.replace('.',',')} Mo · identique au fichier envoyé</span>`)};
+  $('#vMore').onclick=()=>{const p=V.list[V.i],mine=p.who==='toi',w=PEOPLE[p.who][0];
+    $('#vMenuList').innerHTML=`<button class="opt" data-do="dl"><span>⬇️</span><div>Télécharger l'original<small>${DIM[p.o]} · ${p.mo.replace('.',',')} Mo · ${p.fmt}</small></div></button>
+     <button class="opt" data-do="share"><span>↗️</span><div>Partager<small>Envoie le fichier original</small></div></button>
+     ${mine?`<button class="opt red" data-do="del"><span>🗑️</span><div>Supprimer ma photo<small>Elle disparaît de l'album pour tout le monde</small></div></button>`:
+     `<button class="opt red" data-sheet="vReport"><span>🚩</span><div>Signaler<small>Dont « Je suis sur la photo »</small></div></button>
+      <button class="opt red" data-do="block"><span>🚫</span><div>Bloquer ${w}<small>Tu ne verras plus ses photos, ni ses messages</small></div></button>`}
+     ${window.orgMenu?window.orgMenu(p):''}`;openSheet('vMenu')};
+  $('#vMenu').addEventListener('click',e=>{const d=e.target.closest('[data-do]')?.dataset.do;if(!d)return;const ph=v.closest('.phone'),p=V.list[V.i];
+    if(d==='dl'){closeSheets(ph);$('#vDl').click()}
+    if(d==='share'){closeSheets(ph);toast(ph,'↗️ Feuille de partage d\'iOS · fichier original')}
+    if(d==='del')openSheet('vDelete');
+    if(d==='block'){closeSheets(ph);toast(ph,`🚫 ${PEOPLE[p.who][0]} est bloqué·e : ses photos sont masquées pour toi, et la modération est prévenue.`,4200)}
+    if(d==='orgrm'){closeSheets(ph);p.gone=true;renderAll();toast(ph,'Photo retirée par l\'organisation. L\'auteur est prévenu.')}});
+  $('#vReport').addEventListener('click',e=>{const m=e.target.closest('[data-motif]');if(!m)return;const ph=v.closest('.phone'),p=V.list[V.i];
+    closeSheets(ph);p.masked=true;renderAll();
+    toast(ph,m.dataset.motif==='me'?'🚩 Merci. Photo masquée pour tout le monde tout de suite. L\'auteur, l\'organisation et la modération sont prévenus ; elle sera retirée si c\'est bien toi.':'🚩 Merci. Photo masquée en attendant la décision de l\'organisation et de la modération.',5200)});
+  $('#vDelYes').onclick=()=>{const ph=v.closest('.phone'),p=V.list[V.i];closeSheets(ph);p.gone=true;renderAll();toast(ph,'🗑️ Ta photo est supprimée de l\'album.')};
+  document.addEventListener('keydown',e=>{if(e.key==='ArrowRight')$('#vNext').click();if(e.key==='ArrowLeft')$('#vPrev').click()});}
+
+/* ===== didacticiel ===== */
+function initTuto(){const t=$('#tuto');if(!t)return;let k=0;const cards=$$('.tcard',t),n=cards.length;
+  const paint=()=>{$('.tcards',t).style.transform=`translateX(${-k*100}%)`;$$('.tdots i',t).forEach((d,j)=>d.classList.toggle('on',j===k));$('#tNext').textContent=k===n-1?'C\'est parti':'Suivant';
+    cards.forEach((c,j)=>c.setAttribute('aria-hidden',j!==k))};
+  const end=msg=>{t.hidden=true;$('#tdone').classList.add('show');$('#tdoneTxt').innerHTML=msg};
+  $('#tNext').onclick=()=>{if(k<n-1){k++;paint()}else end('Bonne soirée ! L\'album t\'attend.')};
+  $('#tSkip').onclick=()=>end('Didacticiel passé. Il reviendra à ta prochaine visite d\'un album, sauf si tu touches « Ne plus me le rappeler ».');
+  $('#tNever').onclick=()=>end('C\'est noté, on ne te le montrera plus.<br>Tu le retrouves dans ⋯ › « Comment ça marche ».');
+  $('#tAgain').onclick=()=>{k=0;paint();t.hidden=false;$('#tdone').classList.remove('show')};
+  let sx=null;t.addEventListener('pointerdown',e=>sx=e.clientX);t.addEventListener('pointerup',e=>{if(sx===null)return;const d=e.clientX-sx;sx=null;if(d<-40&&k<n-1){k++;paint()}if(d>40&&k>0){k--;paint()}});paint()}
+
+/* ===== tout télécharger ===== */
+function initDl(){const b=$('#dlStart');if(!b)return;let tm=null;
+  b.onclick=()=>{const n=live().length,total=(n*2.9).toFixed(0);$('#dlChoose').hidden=true;$('#dlRun').hidden=false;let p=0;clearInterval(tm);
+    tm=setInterval(()=>{p=Math.min(100,p+3+Math.random()*4);const r=$('#dlRing');r.style.setProperty('--p',p);r.querySelector('span').textContent=Math.round(p)+' %';
+      $('#dlTxt').textContent=`${Math.round(n*p/100)} / ${n} photos · ${Math.round(total*p/100)} / ${total} Mo`;
+      if(p>=100){clearInterval(tm);$('#dlRunT').textContent='Tout est dans Photos ✓';$('#dlTxt').innerHTML=`${n} originaux dans <b>Photos › Albums › Vendredi chez Maé</b>`;$('#dlAgain').hidden=false}},180)};
+  $('#dlAgain').onclick=()=>{$('#dlChoose').hidden=false;$('#dlRun').hidden=true;$('#dlAgain').hidden=true;$('#dlRunT').textContent='Téléchargement des originaux';const r=$('#dlRing');r.style.setProperty('--p',0)}}
+
+/* ===== réglages : ouvert / fermé ===== */
+function setOpen(v){$$('.openstate').forEach(e=>{e.className='state openstate '+(v?'open':'closed');e.innerHTML=v?'<span>🟢</span><div><b>Album ouvert</b>Les personnes choisies ci-dessous ajoutent leurs photos, visibles aussitôt.</div>':'<span>🔒</span><div><b>Album fermé</b>Plus personne n\'ajoute de photo. Tout le monde peut toujours regarder et télécharger les originaux.</div>'});
+  $$('.openpill').forEach(e=>{e.className='pill openpill '+(v?'ok':'film');e.innerHTML=v?'<span class="dotlive"></span>Ouvert':'🔒 Fermé'});
+  $$('.addbtn').forEach(e=>{e.style.opacity=v?1:.35;e.style.pointerEvents=v?'':'none'})}
+document.addEventListener('toggle',e=>{if(e.target.id==='swOpen')setOpen(e.detail)});
+
+function boot(){renderAll();paintQueue();buildPicker();initViewer();initTuto();initDl();setOpen(true)}
+
+
+const ORD=['toi','ines','leo','mae','sam','noa'];
+function mosaic(list){return list.map((p,k)=>ph(p,k===0?'big':'')).join('')}
+function renderMur(){
+  document.querySelectorAll('[data-mur]').forEach(el=>{
+    if(el.dataset.mur==='moment'){
+      const ms=el.dataset.only?[el.dataset.only]:['a','b','c'],rev=!!el.dataset.only;
+      el.innerHTML=ms.map(m=>{let l=fillSpec('m:'+m);if(rev)l=l.reverse();const who=[...new Set(l.map(p=>p.who))];const M=MOMENTS[m];
+        return `<div class="mhead"><span class="ic">${M[0]}</span><div><b>${M[1]}</b><small>${M[2]} · ${l.length} photos</small></div><span class="avs">${who.slice(0,4).map(w=>`<i style="background:${PEOPLE[w][2]}">${PEOPLE[w][1]}</i>`).join('')}</span></div><div class="mos">${mosaic(l)}</div>`}).join('');
+    } else {
+      el.innerHTML=ORD.map(w=>{const l=fillSpec('who:'+w);const P_=PEOPLE[w];
+        return `<div class="pers"><div class="phead"><span class="av" style="background:${P_[2]}">${P_[1]}</span><b>${w==='toi'?'Toi':P_[0]}<small>${l.length} photo${l.length>1?'s':''}${w==='toi'?' · les tiennes d\'abord':''}</small></b></div><div class="hstrip">${l.map(p=>ph(p)).join('')}${w==='toi'?'<button class="addtile addbtn" data-go="sPick"><span><b>＋</b>Ajouter</span></button>':''}</div></div>`}).join('');
+    }});
+  ['fMos','gMos'].forEach(id=>{const g=document.getElementById(id);if(g)g.innerHTML=mosaic(fillSpec('first:5'))});
+  const fk=(s)=>{const em=['🎯🟢','🔫🎨','😂🎯','🏆🎉','🍻🌭','🌲🏃','🎳🎳','☀️🏖️'];return [0,1,2,3,4].map(k=>{const i=s+k;return `<span class="ph fake ${k===0?'big':''}" style="background:${bg({c1:COL[(i*3)%8],c2:COL[(i*5+2)%8]})}"><span class="em">${em[i%8]}</span></span>`}).join('')};
+  if(document.getElementById('gMos2')){gMos2.innerHTML=fk(0);gMos3.innerHTML=fk(3)}
+}
+hooks.push(renderMur);
+document.addEventListener('click',e=>{
+  const b=e.target.closest('.seg [data-mode]');if(b){const ph=b.closest('.phone');ph.querySelectorAll('.seg button').forEach(x=>x.setAttribute('aria-selected',x===b));ph.querySelector('[data-mur]').dataset.mur=b.dataset.mode;renderMur()}
+  if(e.target.closest('.fake'))toast(e.target.closest('.phone'),'Maquette : seul le mur « Vendredi chez Maé » s\'ouvre.');
+  if(e.target.closest('.rename'))toast(e.target.closest('.phone')||document.body,'Maquette : un champ s\'ouvrirait ici.');
+});
+window.onSlide=p=>{const m=MOMENTS[p.m];document.getElementById('vMoment').textContent=m[0]+' '+m[1]};
+
+boot();
+</script>
+</body>
+</html>
