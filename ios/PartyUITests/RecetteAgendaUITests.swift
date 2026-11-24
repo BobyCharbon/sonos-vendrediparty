@@ -151,12 +151,14 @@ final class RecetteAgendaUITests: XCTestCase {
         XCTAssertTrue(any("label CONTAINS 'Liens de dispo'").exists, "carte 5")
         // L'assistant : 3 étapes, chacune peut être passée.
         app.buttons.matching(NSPredicate(format: "label CONTAINS %@", "Configurer mon agenda en 3 étapes")).firstMatch.tap()
-        XCTAssertTrue(any("label CONTAINS 'étape 1 sur 3'").waitForExistence(timeout: 20), "étape 1/3")
+        // Accès au calendrier déjà donné (simctl privacy grant, avant la recette) : l'iPhone est relié, l'assistant passe
+        // directement à l'étape 2. Sinon l'étape 1 explique d'abord l'accès (« Rien n'est envoyé »), puis iOS demande.
+        let stepOne = any("label CONTAINS 'étape 1 sur 3'"), stepTwo = any("label CONTAINS 'étape 2 sur 3'")
+        XCTAssertTrue(stepOne.waitForExistence(timeout: 20) || stepTwo.exists, "étape 1/3 (ou 2/3, iPhone déjà relié)")
         sleep(2)
         shot("assistant-1")
-        // Sur l'iPhone, l'étape 1 explique d'abord l'accès au calendrier (« Rien n'est envoyé »), puis iOS demande.
         let go = app.buttons["Continuer"]
-        if go.waitForExistence(timeout: 5) {
+        if stepOne.exists, go.waitForExistence(timeout: 5) {
             go.tap()
             let allow = springboard.buttons.matching(NSPredicate(format: "label CONTAINS 'Autoriser' OR label CONTAINS 'Allow'")).firstMatch
             if allow.waitForExistence(timeout: 10) {
@@ -166,8 +168,8 @@ final class RecetteAgendaUITests: XCTestCase {
             sleep(3)
             shot("assistant-1-iphone-relie")
         }
-        app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Suivant'")).firstMatch.tap()
-        XCTAssertTrue(any("label CONTAINS 'étape 2 sur 3'").waitForExistence(timeout: 20), "étape 2/3")
+        if stepOne.exists { app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Suivant'")).firstMatch.tap() }
+        XCTAssertTrue(stepTwo.waitForExistence(timeout: 20), "étape 2/3")
         sleep(2)
         shot("assistant-2")
         any("label == 'Passer cette étape'").tap()
@@ -212,9 +214,16 @@ final class RecetteAgendaUITests: XCTestCase {
         // Toucher le meilleur jour : la feuille, qui est libre en mots, Organiser.
         let best = any("label BEGINSWITH 'Le mieux : '")
         XCTAssertTrue(best.waitForExistence(timeout: 10), "case du meilleur jour")
+        // La feuille redit les chiffres de la case (« 3 disponibles sur 4 » → « 3 / 4 disponibles ») : la recette ne dépend
+        // plus du nombre de comptes qui partagent ce jour-là (données de TEST : ios/PartyUITests/recette-agenda-qui-est-libre.sql).
+        let counts = best.label.split(separator: ",").last.map { $0.split(separator: " ").compactMap { Int($0) } } ?? []
         best.tap()
         XCTAssertTrue(any("label BEGINSWITH 'Organiser le'").waitForExistence(timeout: 15), "feuille du jour")
-        XCTAssertTrue(any("label CONTAINS '4 / 4 disponibles'").exists, "4 / 4 disponibles")
+        XCTAssertEqual(counts.count, 2, "chiffres de la case : \(best.label)")
+        if counts.count == 2 {
+            XCTAssertTrue(counts[0] >= 2 && counts[1] >= 3, "au moins 2 libres sur 3 qui partagent : \(counts)")
+            XCTAssertTrue(any("label CONTAINS %@", "\(counts[0]) / \(counts[1]) disponible").exists, "\(counts[0]) / \(counts[1]) disponibles")
+        }
         sleep(1)
         shot("qui-est-libre-jour")
         any("label == 'Fermer la fenêtre'").tap()

@@ -6,7 +6,7 @@ import { CheckRow, Divider, FieldChoice, Group, Label, Note, StatusPill } from '
 import { useTermsGate } from '@/components/TermsSheet';
 import { Button, Chip, ConfirmButton, ErrorText, Input, Segmented, T, Toast, ToggleRow } from '@/components/ui';
 import {
-  addDays, agoText, calColor, dateShort, DEFAULT_FIELDS, durationText, errorText, FIELD_LABELS, noticeText, iosKey, isProfile, isTerms, linkUrl, MODELS,
+  addDays, agoText, deName, calColor, dateShort, DEFAULT_FIELDS, durationText, errorText, FIELD_LABELS, noticeText, iosKey, isProfile, isTerms, linkUrl, MODELS,
   nativeAgenda, rpc, rulesText, slugify, spanText, syncBusyNow, tinyDay, dayKey, WEEK_LETTERS, type BookingFields, type Calendar, type Link, type Model,
   type Links, type NativeCalendar, type Rule,
 } from '@/lib/agenda';
@@ -176,11 +176,11 @@ export function LinkEditor({ link, model: startModel, onSaved }: { link: Link | 
     const n = ++ask.current;
     const t = setTimeout(() => {
       void rpc<{ slots: [string, string][] }>('agenda_link_preview', { link: { rules, horizon_days: horizon, duration_min: durationMin, booking_enabled: booking,
-        calendars: picked ? [...picked] : null, buffer_before_min: before, buffer_after_min: after } })
+        calendars: picked ? [...picked] : null, buffer_before_min: before, buffer_after_min: after, min_notice_min: notice } })
         .then((r) => { if (n === ask.current) setPreview(r.slots ?? []); }).catch(() => { if (n === ask.current) setPreview([]); });
     }, 350);
     return () => clearTimeout(t);
-  }, [rules, horizon, durationMin, booking, picked, before, after]);
+  }, [rules, horizon, durationMin, booking, picked, before, after, notice]);
 
   function pickModel(m: Model) {
     setModel(m);
@@ -469,7 +469,7 @@ export function LinkEditor({ link, model: startModel, onSaved }: { link: Link | 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <View style={st.pvAvatar}><Text style={{ color: '#3A3550', fontSize: 13, ...font.bold }}>{shownName.slice(0, 2).toUpperCase()}</Text></View>
           <View style={{ flex: 1 }}>
-            <Text style={st.pvTitle}>{booking ? `Prendre rendez-vous avec ${shownName}` : `Disponibilités de ${shownName}`}</Text>
+            <Text style={st.pvTitle}>{booking ? `Prendre rendez-vous avec ${shownName}` : `Disponibilités ${deName(shownName)}`}</Text>
             <Text style={st.pvSub}>{soon ? (notice ? `Au plus tôt ${noticeText(notice)} avant` : 'Dès maintenant') : 'À partir de demain'} · {HORIZONS.find((h) => h.days === horizon)?.label}</Text>
           </View>
         </View>
@@ -487,7 +487,7 @@ export function LinkEditor({ link, model: startModel, onSaved }: { link: Link | 
             </View>
           </View>
         ))}
-        <Text style={st.pvFoot}>Jamais le titre, le lieu ni avec qui. Dès le {tinyDay(tomorrow)}.</Text>
+        <Text style={st.pvFoot}>Jamais le titre, le lieu ni avec qui.{soon || !shownDays.length ? '' : ` Dès le ${tinyDay(tomorrow)}.`}</Text>
       </View>
 
       <ErrorText error={error} />
@@ -564,10 +564,10 @@ export function LinkCard({ link, onChanged, index = 0 }: { link: Link; onChanged
       ) : null}
       {live ? (
         <View style={st.actions}>
-          <Action icon="⧉" label="Copier" onPress={async () => setToast((await copyText(linkUrl(link))) ? 'Lien copié.' : linkUrl(link))} />
-          <Action icon="↥" label="Partager" onPress={async () => { const r = await shareLink(link); if (r === 'copied') setToast('Lien copié.'); }} />
-          <Action icon="▦" label="Code QR" onPress={() => setQr(true)} />
-          <Action icon="◉" label="Arrêter" danger onPress={() => void act('stop')} />
+          <Action icon="📋" label="Copier" onPress={async () => setToast((await copyText(linkUrl(link))) ? 'Lien copié.' : linkUrl(link))} />
+          <Action icon="📤" label="Partager" onPress={async () => { const r = await shareLink(link); if (r === 'copied') setToast('Lien copié.'); }} />
+          <Action icon="🔳" label="Code QR" onPress={() => setQr(true)} />
+          <Action icon="✋" label="Arrêter" danger onPress={() => void act('stop')} />
         </View>
       ) : (
         <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -586,7 +586,7 @@ function Action({ icon, label, onPress, danger }: { icon: string; label: string;
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={() => void onPress()}
       style={({ pressed }) => [st.action, pressTransition, pressed && { opacity: 0.8, transform: [{ scale: 0.96 }] }]}>
-      <Text style={{ fontSize: 16, color: danger ? colors.redSoft : colors.text }}>{icon}</Text>
+      <Text style={{ fontSize: 20 }}>{icon}</Text>
       <Text style={{ fontSize: 13, color: danger ? colors.redSoft : colors.text, ...font.semibold }}>{label}</Text>
     </Pressable>
   );

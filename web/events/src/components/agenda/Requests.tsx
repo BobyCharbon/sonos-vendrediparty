@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ReportSheet } from '@/components/ReportSheet';
 import { Button, ErrorText, T } from '@/components/ui';
-import { agoText, dateDots, dayAbbr, dayKey, dayOfMonth, durationText, errorText, hoursLeft, longDay, rpc, shortDay, spanText, type Booking } from '@/lib/agenda';
+import { agoText, dateDots, dayAbbr, dayKey, dayOfMonth, deName, durationText, errorText, hoursLeft, longDay, rpc, shortDay, spanText, type Booking } from '@/lib/agenda';
 import { enter, pressTransition } from '@/lib/motion';
 import type { ReportReason } from '@/lib/moderation';
 import { colors, font, radius } from '@/lib/theme';
@@ -49,13 +49,13 @@ export function RequestActions({ b, full, onDone }: { b: Booking; full?: boolean
   return (
     <View style={{ gap: 8 }}>
       <View style={{ flexDirection: 'row', gap: 8 }}>
-        <Button label="✓ Accepter" accessibilityLabel={`Accepter la demande de ${name}`} style={{ flex: 1 }} loading={busy === 'accept'}
+        <Button label="✓ Accepter" accessibilityLabel={`Accepter la demande ${deName(name)}`} style={{ flex: 1 }} loading={busy === 'accept'}
           onPress={() => void run('accept', () => rpc('agenda_booking_decide', { id: b.id, accept: true }))} />
-        <Button label="✕ Refuser" accessibilityLabel={`Refuser la demande de ${name}`} variant="secondary" style={{ flex: 1 }} loading={busy === 'refuse'}
+        <Button label="✕ Refuser" accessibilityLabel={`Refuser la demande ${deName(name)}`} variant="secondary" style={{ flex: 1 }} loading={busy === 'refuse'}
           onPress={() => void run('refuse', () => rpc('agenda_booking_decide', { id: b.id, accept: false }))} />
       </View>
       <View style={{ flexDirection: 'row', gap: 8 }}>
-        <Button small variant="danger" label="⚑ Signaler" accessibilityLabel={`Signaler la demande de ${name}`} style={{ flex: 1 }} onPress={() => setReport(true)} />
+        <Button small variant="danger" label="⚑ Signaler" accessibilityLabel={`Signaler la demande ${deName(name)}`} style={{ flex: 1 }} onPress={() => setReport(true)} />
         {full ? <Button small variant="danger" label="⊘ Bloquer l’expéditeur" style={{ flex: 1.4 }} onPress={() => setBlockAsk(true)} /> : null}
       </View>
       {blockAsk ? (
@@ -81,7 +81,7 @@ export function RequestCard({ b, onDone, index = 0 }: { b: Booking; onDone: (wha
   const s = STATUS[b.status];
   return (
     <View style={[st.card, b.status === 'pending' && st.cardPending, enter('rise', index)]} testID={`request-${b.id}`}>
-      <Pressable accessibilityRole="link" accessibilityLabel={`Demande de ${whoOf(b)}, ${longDay(dayKey(new Date(b.starts_at)))}, ${spanText(new Date(b.starts_at), new Date(b.ends_at))}`}
+      <Pressable accessibilityRole="link" accessibilityLabel={`Demande ${deName(whoOf(b))}, ${longDay(dayKey(new Date(b.starts_at)))}, ${spanText(new Date(b.starts_at), new Date(b.ends_at))}`}
         onPress={() => router.push(`/agenda/requests/${b.id}` as Href)} style={({ pressed }) => [{ gap: 6 }, pressTransition, pressed && { opacity: 0.85 }]}>
         <T size={17} weight="bold">{bookingSpan(b)}</T>
         {b.first_name ? <T muted size={13}>« {whoOf(b)} » · nom écrit par la personne</T> : null}

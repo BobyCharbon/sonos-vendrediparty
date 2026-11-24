@@ -474,3 +474,14 @@ def test_a_party_evening_answered_not_coming_never_makes_me_busy(people):
     finally:
         sql(f"delete from public.events where id = '{eid}'")
         sql(f"delete from private.agenda_links where user_id = '{owner.uid}'")
+
+
+def test_the_link_preview_with_requests_follows_the_notice(people):
+    """Recette iPhone du 24.11 : demandes allumées, l'aperçu ne recevait pas le délai (null) et n'avait AUCUN créneau
+    (« Aucun moment libre » au-dessus de « Dès le … »). Délai absent : 12 h ; délai court : on voit plus tôt."""
+    owner, _, _ = people
+    draft = {'rules': [WEEKDAYS_ALL], 'horizon_days': 14, 'duration_min': 60, 'booking_enabled': True}
+    default = ok(owner.rpc('agenda_link_preview', link=draft))['slots']
+    soon = ok(owner.rpc('agenda_link_preview', link={**draft, 'min_notice_min': 0}))['slots']
+    assert default and soon and len(soon) >= len(default)
+    assert min(at(s) for s, _ in default) >= datetime.now(timezone.utc) + timedelta(hours=12) - timedelta(minutes=1)

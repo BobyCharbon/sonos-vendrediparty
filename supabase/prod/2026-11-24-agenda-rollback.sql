@@ -93,6 +93,7 @@ begin
   end loop;
 end $$;
 
+delete from supabase_migrations.schema_migrations where version = '20261124090000';
 delete from supabase_migrations.schema_migrations where version = '20261117210000';
 delete from supabase_migrations.schema_migrations where version = '20261117200000';
 delete from supabase_migrations.schema_migrations where version = '20261117170000';

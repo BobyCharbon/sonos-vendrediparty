@@ -339,7 +339,7 @@ const st = StyleSheet.create({
     borderStyle: 'dashed', borderColor: 'rgba(255,79,154,0.6)', backgroundColor: 'rgba(255,79,154,0.05)' },
   icon: { width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   vote: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 3, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.accent },
-  freeChip: { alignSelf: 'flex-start', minHeight: 40, paddingHorizontal: 12, justifyContent: 'center', borderRadius: 12, borderWidth: 1,
+  freeChip: { alignSelf: 'flex-start', minHeight: 44, paddingHorizontal: 12, justifyContent: 'center', borderRadius: 12, borderWidth: 1,
     borderStyle: 'dashed', borderColor: 'rgba(185,167,255,0.5)' },
   strip: { flexDirection: 'row', justifyContent: 'space-between' },
   stripDay: { flex: 1, alignItems: 'center', gap: 4, minHeight: 64, paddingVertical: 2 },
@@ -364,6 +364,6 @@ const st = StyleSheet.create({
   monthCell: { flex: 1, minHeight: 52, alignItems: 'center', paddingTop: 6, gap: 3 },
   monthNum: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   monthSel: { borderWidth: 2, borderColor: colors.accent },
-  monthIcon: { position: 'absolute', top: 0, right: 2, fontSize: 12 },
+  monthIcon: { position: 'absolute', top: 4, right: 5, fontSize: 12, lineHeight: 16 },
   moment: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, backgroundColor: colors.surface, borderLeftWidth: 3 },
 });

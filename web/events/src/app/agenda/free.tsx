@@ -57,7 +57,7 @@ export default function FreeScreen() {
 
   const data = free.data;
   const sharing = data?.members.filter((m) => m.shares) ?? [];
-  const others = data?.members.filter((m) => !m.shares) ?? [];
+  const others = data?.members.filter((m) => !m.shares && !m.me) ?? [];
   const ranked = useMemo(() => (data ? rankDays(data, mode) : []), [data, mode]);
   const byKey = useMemo(() => new Map(ranked.map((c) => [c.key, c])), [ranked]);
   const best: Candidate | undefined = ranked[0]?.free ? ranked[0] : undefined;
@@ -388,7 +388,7 @@ function PeopleSection({ title, rows, day, mode }: { title: string; rows: { m: F
 }
 
 const st = StyleSheet.create({
-  bubble: { width: 76, alignItems: 'center', gap: 6 },
+  bubble: { width: 84, alignItems: 'center', gap: 6 },
   ring: { padding: 3, borderRadius: 40, borderWidth: 2.5, borderColor: 'transparent' },
   ringOn: { borderColor: colors.accent },
   seg: { flexDirection: 'row', padding: 3, gap: 2, borderRadius: 14, backgroundColor: colors.surface },

@@ -5,7 +5,10 @@ import XCTest
 ///   TEST_RUNNER_RECETTE_DIR=<captures> xcodebuild test-without-building … -only-testing:PartyUITests/RecetteAgendaParcoursUITests
 /// Chaque écran est capturé (agenda-parcours-NN-<nom>.png) pour être relu à l'œil : rien sous la barre d'état ni sous la
 /// barre d'onglets, aucun texte coupé, aucun mot technique ou anglais.
-/// Préparer avant (base de TEST) : prefs de l'agenda de Testeur 1 sans `tutorial_off` ni `setup_off`.
+/// Préparer avant (base de TEST) : prefs de l'agenda de Testeur 1 sans `tutorial_off` ni `setup_off` ; groupe et partages de
+/// « Qui est libre ? » par ios/PartyUITests/recette-agenda-qui-est-libre.sql ; accès au calendrier déjà donné
+/// (`xcrun simctl privacy <appareil> grant calendar ch.bobycharbon.party`, après l'installation) : la demande d'iOS
+/// juste après l'installation se fermait parfois seule (« Pas d'accès à ton iPhone ? »).
 final class RecetteAgendaParcoursUITests: XCTestCase {
     private let env = ProcessInfo.processInfo.environment
     private var dir: URL!
@@ -61,9 +64,12 @@ final class RecetteAgendaParcoursUITests: XCTestCase {
         launch()
         let tab = app.tabBars.buttons.matching(NSPredicate(format: "label IN {'Réglages', 'Se connecter'}")).firstMatch
         XCTAssertTrue(tab.waitForExistence(timeout: 40), "onglet Réglages")
+        // Onglet « Se connecter » = pas encore connecté (app réinstallée) : on attend la page, qui peut tarder plus de 2 s.
+        let needsLogin = tab.label == "Se connecter"
         tab.tap()
         sleep(2)
-        guard app.staticTexts["Se connecter"].exists else { return }
+        guard needsLogin || app.staticTexts["Se connecter"].exists else { return }
+        XCTAssertTrue(app.staticTexts["Se connecter"].firstMatch.waitForExistence(timeout: 20), "page de connexion")
         app.staticTexts["Se connecter"].firstMatch.tap()
         let field = app.textFields["login-phone"]
         XCTAssertTrue(field.waitForExistence(timeout: 10), "champ du numéro")
@@ -236,6 +242,17 @@ final class RecetteAgendaParcoursUITests: XCTestCase {
         reach(button("J’ai compris, continuer"), "J'ai compris, continuer")
         sleep(2)
         shot("lien-reglages-haut")
+        // Un nom (et donc une adresse) neuf à chaque passage : « jours-de-semaine » existe déjà après le premier.
+        let linkName = any("label == 'Nom du lien (pour toi)' AND elementType IN {49, 50}")
+        if reach(linkName, "Nom du lien") {
+            linkName.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.5)).tap()  // curseur après le texte
+            let stamp = DateFormatter()
+            stamp.dateFormat = "HHmmss"
+            app.typeText(" \(stamp.string(from: Date()))")
+            let done = app.buttons.matching(NSPredicate(format: "label IN {'Terminé', 'Done', 'OK'}")).firstMatch
+            if done.exists { done.tap() }
+            sleep(1)
+        }
         reach(any("label BEGINSWITH 'Demandes de rendez-vous'"), "Demandes de rendez-vous")
         sleep(1)
         shot("lien-demandes")

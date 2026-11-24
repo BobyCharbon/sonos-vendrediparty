@@ -126,8 +126,8 @@ export default function AgendaScreen() {
 
       {showSetup && setup.data ? (
         <View style={[ast.neonCard, enter('rise')]} testID="agenda-setup-card">
-          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
-            <T size={18} weight="bold" style={{ flex: 1 }}>⚙️ Configurer mon agenda en 3 étapes</T>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 4 }}>
+            <T size={15} weight="bold" style={{ flex: 1 }}>⚙️ Configurer mon agenda en 3{'\u00A0'}étapes</T>
             <Pressable accessibilityRole="button" accessibilityLabel="Masquer la configuration" onPress={hideSetup} style={st.hide}>
               <T size={18} color={colors.muted}>✕</T>
             </Pressable>

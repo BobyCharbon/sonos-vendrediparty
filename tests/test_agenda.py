@@ -251,3 +251,15 @@ def test_a_readable_address_serves_the_same_page_without_showing_the_token(db, c
     assert client.post("/agenda/ludovic/autre/demande", json={"starts_at": "2026-11-23T08:00:00Z", "answers": {}, "site": "", "elapsed": 9}).status_code == 404
     assert client.get("/agenda/ludovic/semaine/apercu.png").headers["content-type"] == "image/png"
     assert "agenda_handle_set" in agenda.RELAY and "agenda_link_set_slug" in agenda.RELAY
+
+
+def test_names_after_de_are_elided_and_the_days_read_as_a_range(db, client):
+    """Recette du 24.11 : « Disponibilités d’Agenda » (jamais « de Agenda »), « Créneaux du lundi au vendredi »."""
+    assert agenda.de("Agenda") == "d’Agenda" and agenda.de("Hugo") == "d’Hugo" and agenda.de("Léa") == "de Léa"
+    assert agenda.rules_text([{"days": [1, 2, 3, 4, 5, 6, 7]}]) == "Créneaux du lundi au dimanche"
+    assert agenda.rules_text([{"days": [6, 7]}]) == "Créneaux : samedi, dimanche"
+    calls, answers = db
+    answers["agenda_public_page"] = (200, {**PAGE, "name": "Agenda", "booking": None})
+    page = client.get(f"/d/{TOKEN}", headers={"user-agent": "Mozilla/5.0"}).text
+    assert "<title>Disponibilités d’Agenda" in page and "agenda d’Agenda" in page and "de Agenda" not in page
+    assert "Créneaux du lundi au vendredi" in page

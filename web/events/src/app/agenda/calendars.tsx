@@ -298,7 +298,7 @@ function ShareTab({ sharing, links, pending, reload, justDone }: { sharing: Shar
   }
   return (
     <View style={{ gap: 12 }} testID="share-tab">
-      <Note icon="↥" color={colors.accentSoft}>Ce que d’autres voient : seulement <Text style={{ ...font.bold }}>Disponible</Text> ou <Text style={{ ...font.bold }}>Occupé</Text>. Jamais le titre, le lieu ni avec qui.</Note>
+      <Note icon="📤" color={colors.accentSoft}>Ce que d’autres voient : seulement <Text style={{ ...font.bold }}>Disponible</Text> ou <Text style={{ ...font.bold }}>Occupé</Text>. Jamais le titre, le lieu ni avec qui.</Note>
       {justDone && shared.length ? (
         <View style={[ast.okCard, enter('pop')]} testID="share-done">
           <T size={16} weight="bold">✓ C’est fait.</T>

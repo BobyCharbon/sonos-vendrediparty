@@ -336,22 +336,24 @@ export function ToggleRow({
   disabled?: boolean;
 }) {
   return (
-    <View style={s.toggleRow}>
+    // Toute la ligne se touche (52 px de haut) : l'interrupteur seul ne faisait que 40 × 20.
+    <Pressable accessibilityRole="switch" aria-checked={value} accessibilityState={{ checked: value, disabled }} accessibilityLabel={label}
+      disabled={disabled} onPress={() => onChange(!value)} style={s.toggleRow}>
       <View style={{ flex: 1, gap: 2 }}>
         <T>{label}</T>
         {hint ? <T muted size={12}>{hint}</T> : null}
       </View>
-      <Switch
-        accessibilityLabel={label}
-        value={value}
-        disabled={disabled}
-        onValueChange={onChange}
-        trackColor={{ false: colors.fillStrong, true: colors.mint }}
-        thumbColor="#FFFFFF"
-        {...{ activeThumbColor: '#FFFFFF' }}
-        ios_backgroundColor={colors.fillStrong}
-      />
-    </View>
+      <View pointerEvents="none" accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+        <Switch
+          value={value}
+          disabled={disabled}
+          trackColor={{ false: colors.fillStrong, true: colors.mint }}
+          thumbColor="#FFFFFF"
+          {...{ activeThumbColor: '#FFFFFF' }}
+          ios_backgroundColor={colors.fillStrong}
+        />
+      </View>
+    </Pressable>
   );
 }
 

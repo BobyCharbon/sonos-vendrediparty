@@ -242,6 +242,7 @@ dialog::backdrop{background:rgba(10,12,11,.45)}
 .mine summary{min-height:48px;display:flex;align-items:center;font-weight:600;cursor:pointer}
 .mine dl{margin:0}.mine dl div{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid var(--line);font-size:14px}
 .mine dt{color:var(--mut)}.mine dd{margin:0;text-align:right;word-break:break-word}
+.mine>.fine{margin-bottom:14px}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}.two form{display:contents}
 .fine{font-size:12.5px;color:var(--mut);line-height:1.45;margin:10px 0 0}
 @media (max-width:759px){.grid.week{display:none}.vt{min-width:0;width:100%}.top>.vt{order:3;flex:1 1 100%}}
@@ -449,12 +450,12 @@ def notice(name: str, contact: str | None, base: str) -> str:
 
 
 def rules_text(rules: list) -> str:
-    """« Lundi à vendredi » ; sinon les jours abrégés."""
+    """Les jours du lien : « Créneaux du lundi au vendredi » ; sinon « Créneaux : samedi, dimanche »."""
     days = sorted({d for r in rules for d in r.get("days", [])})
     names = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
     if len(days) > 2 and days == list(range(days[0], days[-1] + 1)):
-        return f"{names[days[0] - 1].capitalize()} à {names[days[-1] - 1]}"
-    return ", ".join(names[d - 1] for d in days).capitalize()
+        return f"Créneaux du {names[days[0] - 1]} au {names[days[-1] - 1]}"
+    return "Créneaux : " + ", ".join(names[d - 1] for d in days)
 
 
 def noscript_list(data: dict) -> str:
@@ -468,11 +469,16 @@ def noscript_list(data: dict) -> str:
                    + "".join(f"<li>Disponible de {esc(x)}</li>" for x in xs) + "</ul></section>" for day, xs in by_day.items())
 
 
+def de(name: str) -> str:
+    """« de Léa », « d’Agenda » : élision devant une voyelle ou un h (muet le plus souvent)."""
+    return ("d’" if re.match(r"[aeiouyhàâäéèêëîïôöùûü]", name.strip(), re.I) else "de ") + name
+
+
 def link_page(data: dict, path: str, base: str, nonce: str) -> str:
     """path : adresse de la page (/d/<jeton> ou /agenda/<nom>/<lien>) ; l'adresse lisible ne montre jamais le jeton."""
     name, booking = data["name"], data.get("booking")
-    over = "Prendre rendez-vous avec" if booking else "Disponibilités de"
-    title = f"{over} {name}"
+    over = "Prendre rendez-vous avec" if booking else ("Disponibilités d’" if de(name).startswith("d’") else "Disponibilités de")
+    title = f"Prendre rendez-vous avec {name}" if booking else f"Disponibilités {de(name)}"
     def minutes(n: int) -> str:
         h, m = divmod(int(n), 60)
         return (f"{h} h" if h else "") + (f" {m:02d}" if h and m else f"{m} min" if m else "")
@@ -502,7 +508,7 @@ def link_page(data: dict, path: str, base: str, nonce: str) -> str:
     full = (f'<p class="full" role="status">Ce lien ne prend plus de demandes pour le moment. Les disponibilités restent affichées.</p>'
             if booking and booking.get("full") else "")
     tail = ("" if booking else
-            f'<p class="note">Les heures affichées sont libres dans l’agenda de {esc(name)}. Pour convenir d’un moment, '
+            f'<p class="note">Les heures affichées sont libres dans l’agenda {esc(de(name))}. Pour convenir d’un moment, '
             f'répondez-lui là où vous avez reçu ce lien.</p>')
     report = (f'<dialog id="rep" aria-labelledby="rept"><div class="dl"><div class="dh"><h2 id="rept">Signaler cette page</h2>'
               f'<button type="button" class="x" data-close aria-label="Fermer">✕</button></div>'
@@ -575,7 +581,7 @@ def status_page(data: dict, secret: str, base: str, nonce: str) -> str:
         labels = {**FIELD_LABELS, "message": data.get("message_label") or "Message"}
         rows = "".join(f"<div><dt>{esc(labels[k])}</dt><dd>{esc(answers[k])}</dd></div>" for k in labels if answers.get(k))
         parts.append(f'<details class="mine" open><summary>Ce que vous avez envoyé</summary><dl>{rows}</dl>'
-                     f'<p class="fine">« Effacer mes données » retire aussi la demande ; dans l’agenda de {esc(name)}, il ne reste que '
+                     f'<p class="fine">« Effacer mes données » retire aussi la demande ; dans l’agenda {esc(de(name))}, il ne reste que '
                      f'« Rendez-vous ».</p></details>')
     actions = []
     if data.get("can_cancel"):

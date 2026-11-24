@@ -120,6 +120,9 @@ export function shortDay(key: DayKey): string {
   return `${cap(DAYS_SHORT[isoWeekday(key) - 1])} ${d} ${MONTHS_SHORT[m - 1]}`;
 }
 /** « sam. 28 » */
+/** « de Léa », « d’Agenda » : élision devant une voyelle ou un h (muet le plus souvent). */
+export const deName = (name: string) => (/^[aeiouyhàâäéèêëîïôöùûü]/i.test(name.trim()) ? `d’${name}` : `de ${name}`);
+
 export function tinyDay(key: DayKey): string {
   return `${DAYS_SHORT[isoWeekday(key) - 1]} ${splitKey(key).d}`;
 }
