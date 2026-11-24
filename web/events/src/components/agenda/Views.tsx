@@ -94,11 +94,11 @@ export function WeekView({ start, entries, today, empty }: { start: DayKey; entr
               {free ? (
                 <Pressable accessibilityRole="button" accessibilityLabel={`${longDay(key)} : soirée libre. Ajouter un rendez-vous`}
                   onPress={() => router.push(`/agenda/item?day=${key}&from=19:00` as Href)}
-                  style={({ pressed }) => [st.freeChip, pressed && { opacity: 0.7 }]}>
+                  style={({ pressed }) => [st.freeChip, pressed && { opacity: 0.7 }]} hitSlop={4}>
                   <Text style={{ color: colors.lavender, fontSize: 14, ...font.semibold }}>🌙 {empty ? 'Libre' : 'Soirée libre'}</Text>
                 </Pressable>
               ) : null}
-              {!list.length && !free ? <T muted size={14} style={{ paddingVertical: 8 }}>—</T> : null}
+              {!list.length && !free ? <T muted size={14} style={{ paddingVertical: 8 }}>{past ? 'Rien de noté' : 'Rien de prévu'}</T> : null}
             </View>
           </View>
         );
@@ -238,7 +238,8 @@ export function DayTimeline({ day, entries, today }: { day: DayKey; entries: Ent
             </Pressable>
           );
         })}
-        {day === today && now >= dayStart && now < dayEnd ? (
+        {/* Avant le début de la grille (la nuit, avant 8 h) : pas de trait, il sortait au-dessus de l'agenda (audit du 24.11). */}
+        {day === today && now >= dayStart + startH * 3_600_000 && now < dayEnd ? (
           <View pointerEvents="none" style={[st.nowLine, { top: y(now) }]} accessibilityLabel={`Maintenant, ${hm(new Date(now))}`}>
             <View style={st.nowDot} />
           </View>
@@ -338,7 +339,7 @@ const st = StyleSheet.create({
     borderStyle: 'dashed', borderColor: 'rgba(255,79,154,0.6)', backgroundColor: 'rgba(255,79,154,0.05)' },
   icon: { width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   vote: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 3, borderRadius: radius.pill, borderWidth: 1, borderColor: colors.accent },
-  freeChip: { alignSelf: 'flex-start', minHeight: 40, paddingHorizontal: 12, justifyContent: 'center', borderRadius: 12, borderWidth: 1,
+  freeChip: { alignSelf: 'flex-start', minHeight: 44, paddingHorizontal: 12, justifyContent: 'center', borderRadius: 12, borderWidth: 1,
     borderStyle: 'dashed', borderColor: 'rgba(185,167,255,0.5)' },
   strip: { flexDirection: 'row', justifyContent: 'space-between' },
   stripDay: { flex: 1, alignItems: 'center', gap: 4, minHeight: 64, paddingVertical: 2 },
@@ -363,6 +364,6 @@ const st = StyleSheet.create({
   monthCell: { flex: 1, minHeight: 52, alignItems: 'center', paddingTop: 6, gap: 3 },
   monthNum: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
   monthSel: { borderWidth: 2, borderColor: colors.accent },
-  monthIcon: { position: 'absolute', top: 0, right: 2, fontSize: 12 },
+  monthIcon: { position: 'absolute', top: 4, right: 5, fontSize: 12, lineHeight: 16 },
   moment: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 14, backgroundColor: colors.surface, borderLeftWidth: 3 },
 });

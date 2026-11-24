@@ -188,7 +188,7 @@ button,input,textarea,select{font:inherit;color:inherit}a{color:var(--acc)}
 .slot{position:absolute;left:5px;right:5px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:0;padding:0 10px;
 border:1px solid color-mix(in srgb,var(--slotb) 35%,transparent);border-left:4px solid var(--slotb);border-radius:6px 10px 10px 6px;background:var(--slot);text-align:left;overflow:hidden}
 button.slot{cursor:pointer}
-.slot .st{font-size:14.5px;font-weight:650;line-height:1.2;white-space:nowrap}.slot .sa{font-size:12px;color:var(--acc);font-weight:600;line-height:1.2}
+.slot .st{font-size:14.5px;font-weight:650;line-height:1.2;white-space:nowrap}.slot.short{flex-direction:row;align-items:center}.slot.short .sa{display:none}.slot.short .st{font-size:13px}.slot .sa{font-size:12px;color:var(--acc);font-weight:600;line-height:1.2}
 .slot[aria-pressed="true"]{background:var(--acc);border-color:var(--acc);color:var(--onacc)}.slot[aria-pressed="true"] .sa{color:var(--onacc)}
 .none{position:absolute;left:4px;right:4px;top:38%;text-align:center;color:var(--mut);margin:0;font-size:14px}
 .ldays{display:flex;flex-direction:column;margin-top:8px}
@@ -203,7 +203,7 @@ button.ls{cursor:pointer}.ls .t{font-size:15.5px;font-weight:650}.ls .go{font-si
 .ew-a{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
 .note{margin:14px 0 0;font-size:13.5px;color:var(--mut)}
 .full{margin:12px 0 0;padding:10px 12px;border-radius:12px;background:var(--waitsoft);color:var(--fg);border-left:4px solid var(--wait)}
-.ft{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:4px 8px;font-size:12.5px;color:var(--mut);padding:22px 0;margin-top:auto}
+.ft{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:0;font-size:12.5px;color:var(--mut);padding:22px 0;margin-top:auto}
 .ft button,.ft a{color:var(--mut);background:none;border:0;min-height:44px;cursor:pointer;text-decoration:underline;text-underline-offset:3px;font-size:12.5px}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:48px;padding:0 18px;border-radius:12px;background:var(--acc);color:var(--onacc);border:0;text-decoration:none;font-weight:650;cursor:pointer;font-size:15.5px}
 .btn.wide{width:100%;min-height:52px}.btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
@@ -242,6 +242,7 @@ dialog::backdrop{background:rgba(10,12,11,.45)}
 .mine summary{min-height:48px;display:flex;align-items:center;font-weight:600;cursor:pointer}
 .mine dl{margin:0}.mine dl div{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-top:1px solid var(--line);font-size:14px}
 .mine dt{color:var(--mut)}.mine dd{margin:0;text-align:right;word-break:break-word}
+.mine>.fine{margin-bottom:14px}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}.two form{display:contents}
 .fine{font-size:12.5px;color:var(--mut);line-height:1.45;margin:10px 0 0}
 @media (max-width:759px){.grid.week{display:none}.vt{min-width:0;width:100%}.top>.vt{order:3;flex:1 1 100%}}
@@ -308,7 +309,7 @@ function column(k,axis,head){var c=el('div','gc');if(head){var h=el('p','gh');h.
  gaps.forEach(function(g){if(g[1]-g[0]<30)return;var z=el('div','hz');z.style.top=((g[0]/60-h0)*H)+'px';z.style.height=((g[1]-g[0])/60*H)+'px';
   if(g[1]-g[0]>=90)z.appendChild(el('span',null,'Hors des heures de ce lien'));z.setAttribute('aria-hidden','true');tl.appendChild(z);});
  var list=el('div');list.setAttribute('role','list');
- days[k].s.forEach(function(s){var b=slotEl(s,'slot',true);var m0=mins(s[0]),m1=key(s[1])!==k?1440:mins(s[1]);b.style.top=((m0/60-h0)*H+2)+'px';b.style.height=Math.max(((m1-m0)/60*H)-4,26)+'px';
+ days[k].s.forEach(function(s){var b=slotEl(s,'slot',true);var m0=mins(s[0]),m1=key(s[1])!==k?1440:mins(s[1]);b.style.top=((m0/60-h0)*H+2)+'px';b.style.height=Math.max(((m1-m0)/60*H)-4,26)+'px';if(m1-m0<45)b.classList.add('short');
   if(!booking)b.setAttribute('role','listitem');list.appendChild(b);});
  tl.appendChild(list);if(!days[k].s.length)tl.appendChild(el('p','none','Pas de disponibilité ce jour'));c.appendChild(tl);return c;}
 function axisOf(w){var a=24,b=0;w.d.forEach(function(k){days[k].w.forEach(function(x){a=Math.min(a,Math.floor(mins(x[0])/60));b=Math.max(b,key(x[1])!==k?24:Math.ceil(mins(x[1])/60));});});
@@ -400,7 +401,7 @@ def _shell(title: str, body: str, nonce: str, meta: str = "", script: str = "") 
 
 
 def _footer(report: bool) -> str:
-    rep = '<span aria-hidden="true">·</span><button type="button" id="repbtn">Signaler cette page</button>' if report else ""
+    rep = '<button type="button" id="repbtn">Signaler cette page</button>' if report else ""
     return f'<footer class="ft"><span>Agenda partagé avec Vendredi Party</span>{rep}</footer>'
 
 
@@ -449,12 +450,12 @@ def notice(name: str, contact: str | None, base: str) -> str:
 
 
 def rules_text(rules: list) -> str:
-    """« Lundi à vendredi » ; sinon les jours abrégés."""
+    """Les jours du lien : « Créneaux du lundi au vendredi » ; sinon « Créneaux : samedi, dimanche »."""
     days = sorted({d for r in rules for d in r.get("days", [])})
     names = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
     if len(days) > 2 and days == list(range(days[0], days[-1] + 1)):
-        return f"{names[days[0] - 1].capitalize()} à {names[days[-1] - 1]}"
-    return ", ".join(names[d - 1] for d in days).capitalize()
+        return f"Créneaux du {names[days[0] - 1]} au {names[days[-1] - 1]}"
+    return "Créneaux : " + ", ".join(names[d - 1] for d in days)
 
 
 def noscript_list(data: dict) -> str:
@@ -468,11 +469,16 @@ def noscript_list(data: dict) -> str:
                    + "".join(f"<li>Disponible de {esc(x)}</li>" for x in xs) + "</ul></section>" for day, xs in by_day.items())
 
 
+def de(name: str) -> str:
+    """« de Léa », « d’Agenda » : élision devant une voyelle ou un h (muet le plus souvent)."""
+    return ("d’" if re.match(r"[aeiouyhàâäéèêëîïôöùûü]", name.strip(), re.I) else "de ") + name
+
+
 def link_page(data: dict, path: str, base: str, nonce: str) -> str:
     """path : adresse de la page (/d/<jeton> ou /agenda/<nom>/<lien>) ; l'adresse lisible ne montre jamais le jeton."""
     name, booking = data["name"], data.get("booking")
-    over = "Prendre rendez-vous avec" if booking else "Disponibilités de"
-    title = f"{over} {name}"
+    over = "Prendre rendez-vous avec" if booking else ("Disponibilités d’" if de(name).startswith("d’") else "Disponibilités de")
+    title = f"Prendre rendez-vous avec {name}" if booking else f"Disponibilités {de(name)}"
     def minutes(n: int) -> str:
         h, m = divmod(int(n), 60)
         return (f"{h} h" if h else "") + (f" {m:02d}" if h and m else f"{m} min" if m else "")
@@ -502,7 +508,7 @@ def link_page(data: dict, path: str, base: str, nonce: str) -> str:
     full = (f'<p class="full" role="status">Ce lien ne prend plus de demandes pour le moment. Les disponibilités restent affichées.</p>'
             if booking and booking.get("full") else "")
     tail = ("" if booking else
-            f'<p class="note">Les heures affichées sont libres dans l’agenda de {esc(name)}. Pour convenir d’un moment, '
+            f'<p class="note">Les heures affichées sont libres dans l’agenda {esc(de(name))}. Pour convenir d’un moment, '
             f'répondez-lui là où vous avez reçu ce lien.</p>')
     report = (f'<dialog id="rep" aria-labelledby="rept"><div class="dl"><div class="dh"><h2 id="rept">Signaler cette page</h2>'
               f'<button type="button" class="x" data-close aria-label="Fermer">✕</button></div>'
@@ -575,7 +581,7 @@ def status_page(data: dict, secret: str, base: str, nonce: str) -> str:
         labels = {**FIELD_LABELS, "message": data.get("message_label") or "Message"}
         rows = "".join(f"<div><dt>{esc(labels[k])}</dt><dd>{esc(answers[k])}</dd></div>" for k in labels if answers.get(k))
         parts.append(f'<details class="mine" open><summary>Ce que vous avez envoyé</summary><dl>{rows}</dl>'
-                     f'<p class="fine">« Effacer mes données » retire aussi la demande ; dans l’agenda de {esc(name)}, il ne reste que '
+                     f'<p class="fine">« Effacer mes données » retire aussi la demande ; dans l’agenda {esc(de(name))}, il ne reste que '
                      f'« Rendez-vous ».</p></details>')
     actions = []
     if data.get("can_cancel"):

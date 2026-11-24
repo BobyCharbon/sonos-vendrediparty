@@ -6,7 +6,7 @@ import { CheckRow, Divider, FieldChoice, Group, Label, Note, StatusPill } from '
 import { useTermsGate } from '@/components/TermsSheet';
 import { Button, Chip, ConfirmButton, ErrorText, Input, Segmented, T, Toast, ToggleRow } from '@/components/ui';
 import {
-  addDays, agoText, calColor, dateShort, DEFAULT_FIELDS, durationText, errorText, FIELD_LABELS, noticeText, iosKey, isProfile, isTerms, linkUrl, MODELS,
+  addDays, agoText, deName, calColor, dateShort, DEFAULT_FIELDS, durationText, errorText, FIELD_LABELS, noticeText, iosKey, isProfile, isTerms, linkUrl, MODELS,
   nativeAgenda, rpc, rulesText, slugify, spanText, syncBusyNow, tinyDay, dayKey, WEEK_LETTERS, type BookingFields, type Calendar, type Link, type Model,
   type Links, type NativeCalendar, type Rule,
 } from '@/lib/agenda';
@@ -66,9 +66,9 @@ export function QrModal({ link, onClose }: { link: Link | null; onClose: () => v
 export function LinkIntro({ onGo, onCancel }: { onGo: () => void; onCancel: () => void }) {
   const lines = [
     { icon: '👁️', title: 'Seulement Disponible ou Occupé', text: 'Dans les jours et heures que tu choisis. Jamais le titre, le lieu ni avec qui.' },
-    { icon: '🕒', title: 'À partir de demain', text: 'Jamais aujourd’hui. 60 jours au plus.' },
-    { icon: '↥', title: 'Il peut être transféré', text: 'Donne-le seulement à qui tu veux.' },
-    { icon: '⏹', title: 'Tu l’arrêtes quand tu veux', text: 'Permanent, ou 90 jours si tu préfères : tu choisis.' },
+    { icon: '🕒', title: 'Jamais au dernier moment', text: 'Dès demain, ou plus tôt si tu acceptes les demandes : tu choisis le délai. 60 jours au plus.' },
+    { icon: '📤', title: 'Il peut être transféré', text: 'Donne-le seulement à qui tu veux.' },
+    { icon: '✋', title: 'Tu l’arrêtes quand tu veux', text: 'Permanent, ou 90 jours si tu préfères : tu choisis.' },
   ];
   return (
     <View style={[st.intro, enter('rise')]} testID="link-intro">
@@ -116,6 +116,8 @@ export function LinkEditor({ link, model: startModel, onSaved }: { link: Link | 
   const [durations, setDurations] = useState<number[]>(link?.durations?.length ? link.durations : [link?.duration_min ?? 60]);
   const durationMin = Math.min(...durations);
   const [notice, setNotice] = useState(link?.min_notice_min ?? 720);
+  // Moins de 24 h de délai avec les demandes : la base montre aussi aujourd'hui (migration 20261117200000).
+  const soon = booking && notice < 1440;
   function toggleDuration(d: number) {
     setDurations((all) => (all.includes(d) ? (all.length > 1 ? all.filter((x) => x !== d) : all) : [...all, d].sort((a, b) => a - b)));
   }
@@ -174,11 +176,11 @@ export function LinkEditor({ link, model: startModel, onSaved }: { link: Link | 
     const n = ++ask.current;
     const t = setTimeout(() => {
       void rpc<{ slots: [string, string][] }>('agenda_link_preview', { link: { rules, horizon_days: horizon, duration_min: durationMin, booking_enabled: booking,
-        calendars: picked ? [...picked] : null, buffer_before_min: before, buffer_after_min: after } })
+        calendars: picked ? [...picked] : null, buffer_before_min: before, buffer_after_min: after, min_notice_min: notice } })
         .then((r) => { if (n === ask.current) setPreview(r.slots ?? []); }).catch(() => { if (n === ask.current) setPreview([]); });
     }, 350);
     return () => clearTimeout(t);
-  }, [rules, horizon, durationMin, booking, picked, before, after]);
+  }, [rules, horizon, durationMin, booking, picked, before, after, notice]);
 
   function pickModel(m: Model) {
     setModel(m);
@@ -370,7 +372,7 @@ export function LinkEditor({ link, model: startModel, onSaved }: { link: Link | 
             </Group>
             <Note>« Non » : le champ n’apparaît pas. Le prénom est toujours demandé.</Note>
             {fields.message !== 'off' ? (
-              <Input accessibilityLabel="Question posée à la personne (facultatif)" placeholder="Question posée (facultatif) : « Votre message »" value={label}
+              <Input accessibilityLabel="Question posée à la personne (facultatif)" placeholder="Question (facultatif) : « Votre message »" value={label}
                 onChangeText={setLabel} maxLength={60} />
             ) : null}
             <ToggleRow label="Me prévenir des demandes" hint="Aussi dans Réglages › Notifications" value={notify} onChange={(v) => void setNotifyPref(v)} />
@@ -467,11 +469,11 @@ export function LinkEditor({ link, model: startModel, onSaved }: { link: Link | 
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <View style={st.pvAvatar}><Text style={{ color: '#3A3550', fontSize: 13, ...font.bold }}>{shownName.slice(0, 2).toUpperCase()}</Text></View>
           <View style={{ flex: 1 }}>
-            <Text style={st.pvTitle}>{booking ? `Prendre rendez-vous avec ${shownName}` : `Disponibilités de ${shownName}`}</Text>
-            <Text style={st.pvSub}>À partir de demain · {HORIZONS.find((h) => h.days === horizon)?.label}</Text>
+            <Text style={st.pvTitle}>{booking ? `Prendre rendez-vous avec ${shownName}` : `Disponibilités ${deName(shownName)}`}</Text>
+            <Text style={st.pvSub}>{soon ? (notice ? `Au plus tôt ${noticeText(notice)} avant` : 'Dès maintenant') : 'À partir de demain'} · {HORIZONS.find((h) => h.days === horizon)?.label}</Text>
           </View>
         </View>
-        <Text style={st.pvToday}>{tinyDay(dayKey(new Date()))} · Aujourd’hui n’est jamais montré</Text>
+        {soon ? null : <Text style={st.pvToday}>{tinyDay(dayKey(new Date()))} · Aujourd’hui n’est jamais montré</Text>}
         {preview === null ? <Text style={st.pvSub}>Calcul…</Text> : null}
         {preview && !shownDays.length ? <Text style={st.pvSub}>Aucun moment libre dans ces heures pour l’instant.</Text> : null}
         {shownDays.map((k) => (
@@ -485,7 +487,7 @@ export function LinkEditor({ link, model: startModel, onSaved }: { link: Link | 
             </View>
           </View>
         ))}
-        <Text style={st.pvFoot}>Jamais le titre, le lieu ni avec qui. Dès le {tinyDay(tomorrow)}.</Text>
+        <Text style={st.pvFoot}>Jamais le titre, le lieu ni avec qui.{soon || !shownDays.length ? '' : ` Dès le ${tinyDay(tomorrow)}.`}</Text>
       </View>
 
       <ErrorText error={error} />
@@ -546,7 +548,7 @@ export function LinkCard({ link, onChanged, index = 0 }: { link: Link; onChanged
       {live && !link.permanent && link.expires_at ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
           <T muted size={13}>S’arrête seul le {dateShort(link.expires_at)} ·</T>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Prolonger ${link.name} de 90 jours`} onPress={() => void act('extend')} style={{ minHeight: 32, justifyContent: 'center' }}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Prolonger ${link.name} de 90 jours`} onPress={() => void act('extend')} hitSlop={8} style={{ minHeight: 32, justifyContent: 'center' }}>
             <T size={13} weight="bold" color={colors.accent}>Prolonger</T>
           </Pressable>
         </View>
@@ -562,10 +564,10 @@ export function LinkCard({ link, onChanged, index = 0 }: { link: Link; onChanged
       ) : null}
       {live ? (
         <View style={st.actions}>
-          <Action icon="⧉" label="Copier" onPress={async () => setToast((await copyText(linkUrl(link))) ? 'Lien copié.' : linkUrl(link))} />
-          <Action icon="↥" label="Partager" onPress={async () => { const r = await shareLink(link); if (r === 'copied') setToast('Lien copié.'); }} />
-          <Action icon="▦" label="Code QR" onPress={() => setQr(true)} />
-          <Action icon="◉" label="Arrêter" danger onPress={() => void act('stop')} />
+          <Action icon="📋" label="Copier" onPress={async () => setToast((await copyText(linkUrl(link))) ? 'Lien copié.' : linkUrl(link))} />
+          <Action icon="📤" label="Partager" onPress={async () => { const r = await shareLink(link); if (r === 'copied') setToast('Lien copié.'); }} />
+          <Action icon="🔳" label="Code QR" onPress={() => setQr(true)} />
+          <Action icon="✋" label="Arrêter" danger onPress={() => void act('stop')} />
         </View>
       ) : (
         <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -584,7 +586,7 @@ function Action({ icon, label, onPress, danger }: { icon: string; label: string;
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={() => void onPress()}
       style={({ pressed }) => [st.action, pressTransition, pressed && { opacity: 0.8, transform: [{ scale: 0.96 }] }]}>
-      <Text style={{ fontSize: 16, color: danger ? colors.redSoft : colors.text }}>{icon}</Text>
+      <Text style={{ fontSize: 20 }}>{icon}</Text>
       <Text style={{ fontSize: 13, color: danger ? colors.redSoft : colors.text, ...font.semibold }}>{label}</Text>
     </Pressable>
   );

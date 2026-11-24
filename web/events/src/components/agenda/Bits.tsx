@@ -203,7 +203,7 @@ const st = StyleSheet.create({
   boxOn: { backgroundColor: colors.accent, borderColor: colors.accent },
   fieldRow: { gap: 6, paddingHorizontal: 14, paddingVertical: 10 },
   seg: { flexDirection: 'row', padding: 3, borderRadius: 12, backgroundColor: colors.fill, gap: 2 },
-  segItem: { flex: 1, minHeight: 40, borderRadius: 9, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2,
+  segItem: { flex: 1, minHeight: 44, borderRadius: 9, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2,
     borderBottomWidth: 2, borderBottomColor: 'transparent' },
   segOn: { backgroundColor: colors.surface2, borderBottomColor: colors.accent },
   tag: { alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.pill },

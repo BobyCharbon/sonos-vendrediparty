@@ -67,6 +67,10 @@ def test_the_public_page_is_self_contained_and_never_indexed(db, client):
     assert 'name="site"' in page                                                        # champ piège
     assert "obligatoire pour ce rendez-vous" in page and 'name="phone"' not in page     # champs choisis seulement
     assert "Disponible de 9 h – 10 h" in page                                           # sans JavaScript : la liste
+    # Audit du 24.11 : un créneau de 30 min de la grille (26 px) n'a que ses heures, sur une ligne (le texte débordait),
+    # et le pied de page s'empile (plus de « · » orphelin en fin de ligne sur téléphone).
+    assert "if(m1-m0<45)b.classList.add('short')" in page and ".slot.short .sa{display:none}" in page
+    assert '<span aria-hidden="true">·</span>' not in page
     assert calls[-1][:2] == ("agenda_public_page", {"t": TOKEN, "count_view": True})
     og = re.search(r'property="og:image" content="([^"]+)"', page).group(1)
     assert og == f"{main.configured_public_url()}/d/{TOKEN}/apercu.png"                 # adresse depuis PARTY_PUBLIC_URL
@@ -247,3 +251,15 @@ def test_a_readable_address_serves_the_same_page_without_showing_the_token(db, c
     assert client.post("/agenda/ludovic/autre/demande", json={"starts_at": "2026-11-23T08:00:00Z", "answers": {}, "site": "", "elapsed": 9}).status_code == 404
     assert client.get("/agenda/ludovic/semaine/apercu.png").headers["content-type"] == "image/png"
     assert "agenda_handle_set" in agenda.RELAY and "agenda_link_set_slug" in agenda.RELAY
+
+
+def test_names_after_de_are_elided_and_the_days_read_as_a_range(db, client):
+    """Recette du 24.11 : « Disponibilités d’Agenda » (jamais « de Agenda »), « Créneaux du lundi au vendredi »."""
+    assert agenda.de("Agenda") == "d’Agenda" and agenda.de("Hugo") == "d’Hugo" and agenda.de("Léa") == "de Léa"
+    assert agenda.rules_text([{"days": [1, 2, 3, 4, 5, 6, 7]}]) == "Créneaux du lundi au dimanche"
+    assert agenda.rules_text([{"days": [6, 7]}]) == "Créneaux : samedi, dimanche"
+    calls, answers = db
+    answers["agenda_public_page"] = (200, {**PAGE, "name": "Agenda", "booking": None})
+    page = client.get(f"/d/{TOKEN}", headers={"user-agent": "Mozilla/5.0"}).text
+    assert "<title>Disponibilités d’Agenda" in page and "agenda d’Agenda" in page and "de Agenda" not in page
+    assert "Créneaux du lundi au vendredi" in page
