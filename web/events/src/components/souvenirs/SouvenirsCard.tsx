@@ -44,7 +44,7 @@ export function SouvenirsCard({ eventId, title, open }: { eventId: string; title
   const opened = useRef(false);
   const mineRef = useRef<View>(null);
   const gate = useTermsGate('Avant ta première photo');
-  const tutorial = useSouvenirsTutorial(!open);   // ouvert par un lien (story, relecture) : pas d'office
+  const tutorial = useSouvenirsTutorial(!open);   // ouvert par un lien (story, relecture, « native » : story de l'app iPhone) : pas d'office
 
   const load = useCallback(() => fetchCounter(eventId).then((x) => setC(x), () => setC((old) => old)), [eventId]);
   useEffect(() => { void load(); }, [load]);

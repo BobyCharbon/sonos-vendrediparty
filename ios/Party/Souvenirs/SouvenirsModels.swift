@@ -144,10 +144,11 @@ enum SouvenirLinks {
         return id.uuidString.lowercased()
     }
 
-    /// L'adresse sans « souvenirs=1 » : la fiche derrière la story, sans qu'elle la redemande.
+    /// « souvenirs=1 » devient « souvenirs=native » : la fiche derrière la story native, sans qu'elle la redemande ni
+    /// n'ouvre d'office le didacticiel par-dessus (ouverte par un lien).
     static func withoutStory(_ url: URL) -> URL {
         guard var parts = URLComponents(url: url, resolvingAgainstBaseURL: true) else { return url }
-        parts.queryItems = parts.queryItems?.filter { !($0.name == "souvenirs" && $0.value == "1") }
+        parts.queryItems = parts.queryItems?.map { $0.name == "souvenirs" && $0.value == "1" ? URLQueryItem(name: "souvenirs", value: "native") : $0 }
         return parts.url ?? url
     }
 

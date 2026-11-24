@@ -22,6 +22,7 @@ import { LinkedText } from '@/components/LinkedText';
 import { NameLinks } from '@/components/NameLinks';
 import { CarpoolCard } from '@/components/CarpoolCard';
 import { EventPronos } from '@/components/pronos/EventPronos';
+import { MySouvenirs } from '@/components/souvenirs/MySouvenirs';
 import { SouvenirsCard } from '@/components/souvenirs/SouvenirsCard';
 import { EventChatButton, EventChatEntry, useEventChatPrefs } from '@/components/EventChatEntry';
 import { NotifyBanner } from '@/components/NotifyBanner';
@@ -450,6 +451,8 @@ export default function EventScreen() {
       ) : null}
       {/* Souvenirs (24.11) : appareil jetable de la soirée, dévoilé en story ; l'état vient de souvenir_counter. */}
       {published && ev.souvenirs_enabled ? <SouvenirsCard eventId={ev.id} title={ev.title} open={souvenirs} /> : null}
+      {/* Annulé : ni dévoilement ni story, mais mes photos restent (souvenir_mine) : les retrouver ou les supprimer ici. */}
+      {ev.status === 'cancelled' && ev.souvenirs_enabled ? <MySouvenirs eventId={ev.id} hideWhenEmpty /> : null}
       {/* Sondages juste après « Présent / Absent » (demande de l'admin, 17.11) : ils étaient trop bas. */}
       {ev.polls
         .sort((a, b) => a.sort - b.sort)

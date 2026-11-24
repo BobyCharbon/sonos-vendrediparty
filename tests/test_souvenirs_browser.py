@@ -147,6 +147,8 @@ def souvenir_services(page, phase='open', keep=True, staff=True, event_extra=Non
             result = {'kept': False}
         elif fn == 'souvenir_restore':
             back = [p for p in state['reported'] if p['id'] == args['id']]
+            if back and back[0].get('refuse'):  # refus de la base (ex. signalement « my_image » arrivé entre-temps)
+                return route.fulfill(status=403, content_type='application/json', body=json.dumps({'code': 'forbidden', 'detail': back[0]['refuse']}))
             state['reported'] = [p for p in state['reported'] if p['id'] != args['id']]
             state['review'] += [{**p, 'hidden_at': None} for p in back]
             result = {'restored': True}
@@ -263,6 +265,26 @@ def test_the_organization_reviews_reported_photos_first_with_the_reason(phone, e
     assert not errors, errors
 
 
+def test_put_back_is_hidden_when_the_base_forbids_it_and_a_refusal_is_said_plainly(phone, events_origin):
+    page, errors = phone
+    state = souvenir_services(page, phase='waiting')
+    refusal = 'La personne sur la photo ne veut pas qu’elle soit montrée : la modération de Party décide'
+    state['reported'] = [photo(5, LEO_A, 70, hidden_at=iso(NOW), reasons=['my_image'], can_restore=False),
+                         photo(6, MAE_A, 80, hidden_at=iso(NOW), reasons=['spam'], can_restore=True, refuse=refusal)]
+    open_event(page, events_origin)
+    page.get_by_role('button', name='Relire les photos', exact=False).first.click()
+    pw.expect(page.get_by_test_id('review-reported')).to_have_count(2)
+    pw.expect(page.get_by_role('button', name='Remettre la photo de Léo', exact=True)).to_have_count(0)
+    pw.expect(page.get_by_test_id('review-moderation-decides')).to_have_count(1)
+    pw.expect(page.get_by_role('button', name='Retirer la photo de Léo', exact=True)).to_be_visible()
+    shot(page, 'souvenirs-relecture-moderation-decide.png')
+    page.get_by_role('button', name='Remettre la photo de Maé').click()
+    pw.expect(page.get_by_text(refusal, exact=True)).to_be_visible()
+    pw.expect(page.get_by_test_id('review-reported')).to_have_count(2)
+    shot(page, 'souvenirs-relecture-refus.png')
+    assert not [e for e in errors if '403' not in e], errors
+
+
 def test_the_story_link_opens_the_player_keeps_a_photo_and_reports_my_image(phone, events_origin):
     page, errors = phone
     state = souvenir_services(page, phase='story')
@@ -372,6 +394,17 @@ def test_someone_now_not_coming_still_sees_his_own_photos(phone, events_origin):
     pw.expect(page.get_by_test_id('souvenirs')).to_be_visible(timeout=15000)
     page.wait_for_timeout(800)
     pw.expect(page.get_by_text('📸 Mes souvenirs', exact=True)).to_have_count(0)
+    assert not errors, errors
+
+
+def test_a_cancelled_event_keeps_my_souvenirs_on_its_page(phone, events_origin):
+    """Annulé : ni appareil ni story (carte absente), mais mes photos restent (souvenir_mine) : « Mes souvenirs » sur la fiche."""
+    page, errors = phone
+    souvenir_services(page, phase='after', event_extra={'status': 'cancelled'})
+    signed_in(page, events_origin, f'/event/{EVENT}')
+    pw.expect(page.get_by_text('📸 Mes souvenirs', exact=True)).to_be_visible(timeout=15000)
+    pw.expect(page.get_by_test_id('souvenir-item')).to_have_count(3)
+    pw.expect(page.get_by_test_id('souvenirs')).to_have_count(0)
     assert not errors, errors
 
 
@@ -562,6 +595,21 @@ def test_a_story_link_does_not_open_the_tutorial_over_the_story(phone, events_or
     pw.expect(page.get_by_test_id('story-photo').first).to_be_visible(timeout=15000)
     page.wait_for_timeout(600)
     pw.expect(page.get_by_test_id('souvenirs-tutorial')).to_have_count(0)
+    assert not errors, errors
+
+
+def test_in_the_iphone_app_the_page_behind_the_native_story_opens_no_tutorial(phone, events_origin):
+    """App iPhone : la notification ouvre la story NATIVE et la fiche derrière avec ?souvenirs=native (WebModel) : ni story
+    web, ni nouvel appel à la story native, ni didacticiel d'office par-dessus (vu en recette simulateur, 24.11)."""
+    page, errors = phone
+    page.add_init_script("""window.__native = []; window.PartyNative = { souvenirs: {
+      camera: (id) => window.__native.push(['camera', id]), story: (id) => window.__native.push(['story', id]) } };""")
+    souvenir_services(page, phase='story', tutorial=True)
+    open_event(page, events_origin, '?souvenirs=native')
+    page.wait_for_timeout(1200)
+    pw.expect(page.get_by_test_id('souvenirs-tutorial')).to_have_count(0)
+    pw.expect(page.get_by_test_id('story-photo')).to_have_count(0)
+    assert page.evaluate('window.__native') == []
     assert not errors, errors
 
 

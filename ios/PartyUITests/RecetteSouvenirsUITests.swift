@@ -25,25 +25,33 @@ final class RecetteSouvenirsUITests: XCTestCase {
         event = e
         event2 = e2
         continueAfterFailure = true
-        addUIInterruptionMonitor(withDescription: "Alertes d'iOS") { alert in
-            for label in ["Autoriser l'accès complet", "Autoriser", "Allow", "OK"] where alert.buttons[label].exists {
-                alert.buttons[label].tap()
+        addUIInterruptionMonitor(withDescription: "Alertes d'iOS") { [unowned self] alert in
+            // test0 : l'appareil photo REFUSÉ (comme un invité qui dit non) ; sinon on autorise.
+            if self.denyAlerts, alert.buttons["Ne pas autoriser"].firstMatch.exists {
+                alert.buttons["Ne pas autoriser"].firstMatch.tap()
+                return true
+            }
+            for label in ["Autoriser l'accès complet", "Autoriser", "Allow", "OK"] where alert.buttons[label].firstMatch.exists {
+                alert.buttons[label].firstMatch.tap()
                 return true
             }
             return false
         }
     }
 
+    private var denyAlerts = false
+
     private func shot(_ name: String) {
         step += 1
-        let prefix = name.hasPrefix("story") || name.hasPrefix("bulles") || name.hasPrefix("reglages") || name.hasPrefix("notif") ? "b" : "a"
+        let prefix = name.hasPrefix("story") || name.hasPrefix("bulles") || name.hasPrefix("reglages") || name.hasPrefix("notif") ? "b"
+            : name.hasPrefix("discussion") ? "c" : name.hasPrefix("refus") ? "0" : "a"
         try? app.screenshot().pngRepresentation.write(to: dir.appendingPathComponent(String(format: "souvenirs-%@%02d-%@.png", prefix, step, name)))
     }
 
-    private func launch(_ js: String = "") {
+    private func launch(_ js: String = "", fakeCamera: Bool = true) {
         app = XCUIApplication()
         app.launchEnvironment["PARTY_DEBUG_JS"] = "localStorage.setItem('vp_install_dismissed','1');" + js
-        app.launchEnvironment["PARTY_E2E_SOUVENIR_CAMERA"] = "1"
+        if fakeCamera { app.launchEnvironment["PARTY_E2E_SOUVENIR_CAMERA"] = "1" }
         app.launch()
     }
 
@@ -87,6 +95,34 @@ final class RecetteSouvenirsUITests: XCTestCase {
         shot(name)
     }
 
+    /// Appareil photo refusé (run.sh : `simctl privacy reset camera`, vrai capteur, « Ne pas autoriser ») : message et « Ouvrir Réglages ».
+    func test0CameraDenied() {
+        denyAlerts = true
+        launch()
+        signInAdminIfNeeded()
+        app.terminate()
+        launch(once("PartyNative.souvenirs.camera('\(event)')"), fakeCamera: false)
+        // Première demande d'iOS : « Ne pas autoriser » (comme un invité qui refuse), puis le message de Party.
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let deny = springboard.buttons["Ne pas autoriser"].firstMatch
+        if deny.waitForExistence(timeout: 45) {
+            shot("refus-demande-ios")
+            deny.tap()
+        } else {
+            app.tap()  // déclenche le moniteur d'alertes (« Ne pas autoriser »)
+        }
+        let open = app.buttons["souvenir-open-settings"]
+        XCTAssertTrue(open.waitForExistence(timeout: 20), "« Ouvrir Réglages »")
+        XCTAssertTrue(any("label CONTAINS %@", "Autorise l'appareil photo pour Party").exists, "message du refus")
+        shot("refus-appareil-ouvrir-reglages")
+        open.tap()
+        let settings = XCUIApplication(bundleIdentifier: "com.apple.Preferences")
+        XCTAssertTrue(settings.wait(for: .runningForeground, timeout: 15), "Réglages d'iOS ouverts")
+        sleep(5)
+        try? XCUIScreen.main.screenshot().pngRepresentation.write(to: dir.appendingPathComponent("souvenirs-002-refus-reglages-ios.png"))
+        settings.terminate()
+    }
+
     func test1Camera() {
         launch()
         signInAdminIfNeeded()
@@ -102,8 +138,7 @@ final class RecetteSouvenirsUITests: XCTestCase {
 
         // 1re photo puis « Annuler » : la pose est rendue.
         shoot("labo-annuler-5s")
-        XCTAssertTrue(any("identifier == 'souvenir-poses' AND label == '2 poses'").exists, "2 poses")
-        app.buttons["souvenir-cancel"].tap()
+        app.buttons["souvenir-cancel"].tap()  // aussitôt : la capture d'écran prend déjà 1 à 3 s des 5 s
         XCTAssertTrue(any("identifier == 'souvenir-problem' AND label CONTAINS 'Photo annulée'").waitForExistence(timeout: 15), "annulée")
         XCTAssertTrue(any("identifier == 'souvenir-poses' AND label == '3 poses'").waitForExistence(timeout: 5), "pose rendue")
         shot("annulee-pose-rendue")
@@ -240,5 +275,23 @@ final class RecetteSouvenirsUITests: XCTestCase {
             XCTAssertTrue(saved.exists && saved.label.contains("PHOTO ENREGISTREE"), saved.exists ? saved.label : "rien")
             shot("notif-save-photos")
         }
+    }
+
+    /// La discussion de l'événement (écran natif) pendant la story : bandeau « Les souvenirs sont arrivés » → la story.
+    func test3ChatBanner() {
+        launch(once("PartyNative.chat.openEvent('\(event)')", after: 6000))
+        let banner = app.buttons["souvenir-chat-banner"]
+        XCTAssertTrue(any("identifier == 'souvenir-chat-banner'").waitForExistence(timeout: 45), "bandeau des souvenirs")
+        XCTAssertTrue(any("identifier == 'souvenir-chat-banner' AND label BEGINSWITH 'Les souvenirs sont arrivés'").exists)
+        sleep(1)
+        shot("discussion-bandeau-souvenirs")
+        (banner.exists ? banner : any("identifier == 'souvenir-chat-banner'")).tap()
+        XCTAssertTrue(any("identifier == 'souvenir-story-close'").waitForExistence(timeout: 20), "story ouverte depuis le bandeau")
+        sleep(1)
+        shot("discussion-story-ouverte")
+        app.buttons["souvenir-story-close"].firstMatch.tap()
+        XCTAssertTrue(any("identifier == 'souvenir-chat-banner'").waitForExistence(timeout: 15), "retour à la discussion")
+        sleep(1)
+        shot("discussion-bandeau-revoir")
     }
 }

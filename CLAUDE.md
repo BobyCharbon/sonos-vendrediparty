@@ -803,7 +803,7 @@ réglage de prod :
 - Option par événement `events.souvenirs_enabled` (éteinte par défaut, jamais allumée par l'IA : hors du schéma de
   ai_events.py / ai_event_edit.py) et `souvenirs_keep` (« Garder les photos après la story », ALLUMÉ par défaut) ; réglés
   par l'organisation seule (`souvenir_settings`, garde `souvenirs_guard`), FIGÉS dès la 1re photo (`souvenirs_locked`).
-- Prise de vue : Présent, Peut-être et organisation (`private.souvenir_circle`), profil complet, CGU ; du début à la fin + 2 h
+- Prise de vue : Présent (jamais en liste d'attente : migration 20261124140000), Peut-être et organisation (`private.souvenir_circle`), profil complet, CGU ; du début à la fin + 2 h
   (sans fin : début + 12 h), avant le dévoilement ; 3 photos par personne (plusieurs jours : 3 en tout), jamais revues,
   annulables 5 s (`souvenir_cancel`, 8 s en base). Envoi par le serveur seulement : `POST /api/account/souvenirs/photo`
   (app/souvenirs.py : EXIF / GPS retirés, 1600 px, JPEG ; compartiment privé `souvenirs/<événement>/<auteur>/<id>.jpg`, puis
@@ -841,6 +841,8 @@ réglage de prod :
   ni notification ni story ; date déplacée : dévoilement posé avant la nouvelle fin retiré, notification réarmée ; 5 photos
   masquées au plus par signaleur et par soirée (au-delà : modération seule) ; story refusée à qui a dit Présent lui-même après
   la fin (`private.souvenir_late`, `souvenir_viewer`), sauf s'il a pris une photo. Tests : `test_souvenirs_live.py` (bloc « bon sens »).
+  Écran : `can_restore` faux → pas de « Remettre », « La modération décide » ; un refus de `souvenir_restore` s'affiche tel quel
+  puis la liste est relue. Événement annulé : la fiche garde « Mes souvenirs » (sans appareil ni story) s'il reste des photos.
 - Avant la prod : CGU, privacy.tsx (13 mois, EXIF retirés), notes de revue + démo déjà dévoilée, NSCameraUsageDescription,
   anti-capture iPhone de la story (comme `SecretCardsView`), story réservée à l'app iPhone.
 - Écrans web (maquette souvenirs-v2, module Événements, `components/souvenirs/`, `lib/souvenirs.ts`) : tout par le relais
@@ -862,6 +864,9 @@ réglage de prod :
   Bandeau « 📸 Les souvenirs sont arrivés » en haut de la discussion de l'événement pendant la story (`souvenir_counter`,
   aucune migration) : web `SouvenirsChatBanner` (GroupChat mode event → fiche `?souvenirs=1` ou story native), iPhone
   `SouvenirChatBanner` (ConversationView, `openStory`). Test : `test_the_event_chat_shows_the_arrived_souvenirs_and_opens_the_story`.
+  iPhone : le bandeau est un VStack (un Group vide ne lançait jamais son `.task` : bandeau jamais affiché, recette du 24.11) ;
+  échec de lecture → nouvel essai 5 s. Story native ouverte par une notification : la fiche derrière reçoit `?souvenirs=native`
+  (WebModel, events-shell.js) : ni story web ni didacticiel d'office par-dessus.
 - Tests : `tests/test_souvenirs.py`, `tests/supabase_live/test_souvenirs_live.py`, `tests/test_souvenirs_browser.py`,
   `tests/supabase_live/test_souvenirs_browser_live.py` (recette réelle).
 - App iPhone (24.11, contrat pont-ios.md) : `PartyNative.souvenirs.camera(id)` (appareil NATIF AVFoundation, jamais la

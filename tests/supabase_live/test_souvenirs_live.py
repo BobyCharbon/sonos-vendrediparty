@@ -434,6 +434,23 @@ def test_a_yes_given_after_the_end_does_not_open_the_story_unless_a_photo_was_ta
                            "notif_come=1"), out
 
 
+def test_a_yes_on_the_waitlist_is_not_in_the_circle_until_a_place_frees_up():
+    """Événement complet (1 place, prise par Victor) : Violette dit Présent → liste d'attente → ni photo ni story ; la place
+    se libère (Victor : Pas présent) → elle entre dans le cercle."""
+    out = run(event() + "s := '';" + as_postgres() + """
+      update public.events set max_participants = 1 where id = e;
+      perform public.apply_waitlist(e);""" + as_bot("violette") + """
+      insert into public.rsvps (event_id, user_id, status) values (e, violette, 'yes');""" + as_postgres() + """
+      s := s || ' attente=' || (select waitlisted from public.rsvps where event_id = e and user_id = violette);
+      """ + SERVER_KEY + as_bot("violette") + attempt("tk := public.souvenir_upload_ticket(e, k);", "photo") + move(STORY)
+              + as_bot("violette") + attempt("perform public.souvenir_story(e);", "story") + move(OPEN) + as_postgres() + """
+      update public.rsvps set status = 'no' where event_id = e and user_id = victor;
+      s := s || ' liberee=' || not (select waitlisted from public.rsvps where event_id = e and user_id = violette);"""
+              + take("violette") + """
+      raise exception 'résultat:% photos=%', s, public.souvenir_counter(e)->>'count';""")
+    assert result(out) == "attente=true photo=forbidden story=forbidden liberee=true photos=1", out
+
+
 def test_the_ai_never_turns_souvenirs_on():
     from app import ai_events as ev
     schema = ev.schema({"categories": [], "tags": [], "audiences": ["Vendredi Party"], "people": []})
@@ -442,7 +459,8 @@ def test_the_ai_never_turns_souvenirs_on():
 
 def test_the_migration_replays_without_change():
     sql = "\n".join((ROOT / f"supabase/migrations/{f}").read_text() for f in (
-        "20261124090000_souvenirs.sql", "20261124120000_souvenirs_bulles_attente.sql", "20261124130000_souvenirs_bon_sens.sql"))
+        "20261124090000_souvenirs.sql", "20261124120000_souvenirs_bulles_attente.sql", "20261124130000_souvenirs_bon_sens.sql",
+        "20261124140000_souvenirs_liste_attente.sql"))
     out = sql_test("begin;\n" + sql + "\nrollback;")
     assert "HTTP" not in str(out) and "ERROR" not in str(out), out
     check = sql_test("""select (select count(*) from cron.job where jobname = 'souvenirs-tick') jobs,

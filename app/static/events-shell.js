@@ -9,9 +9,10 @@ window.PartyEvents = {
     if (validId && /^[a-f0-9]{64}$/i.test(ticket)) return '/events/event/' + id + '/scan/' + ticket.toLowerCase();
     // Notification d'un message de la discussion (?chat=1) : la discussion de l'événement.
     if (validId && params.get('chat') === '1') return '/events/event/' + id + '/chat';
-    // Souvenirs (24.11) : notification du dévoilement (?souvenirs=1) → la story ; photo signalée (?souvenirs=review) → relecture.
+    // Souvenirs (24.11) : notification du dévoilement (?souvenirs=1) → la story ; photo signalée (?souvenirs=review) → relecture ;
+    // « native » (app iPhone) : la story native est déjà ouverte, la fiche ne fait rien de plus (pas de didacticiel d'office).
     const souvenirs = params.get('souvenirs') || '';
-    if (validId && (souvenirs === '1' || souvenirs === 'review')) return '/events/event/' + id + '?souvenirs=' + souvenirs;
+    if (validId && (souvenirs === '1' || souvenirs === 'review' || souvenirs === 'native')) return '/events/event/' + id + '?souvenirs=' + souvenirs;
     if (validId) return '/events/event/' + id;
     // Agenda (17.11) : notification d'une demande de rendez-vous (?booking=<id>) → la demande dans l'Agenda.
     const booking = params.get('booking') || '';

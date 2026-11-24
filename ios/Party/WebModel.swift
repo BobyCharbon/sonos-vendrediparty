@@ -511,10 +511,12 @@ final class WebModel: ObservableObject {
     }
 
     /// Événement créé par l'assistant IA : l'onglet Événements l'ouvre.
-    func openEvent(_ id: String) {
+    /// souvenirsNative : la story native s'ouvre par-dessus ; la fiche le sait (pas de didacticiel d'office).
+    func openEvent(_ id: String, souvenirsNative: Bool = false) {
         guard id.range(of: "^[0-9a-fA-F-]{36}$", options: .regularExpression) != nil else { return }
         selectTab("events")
-        webView?.evaluateJavaScript("window.PartyEvents && PartyEvents.open('/events/event/\(id)')")
+        let query = souvenirsNative ? "?souvenirs=native" : ""
+        webView?.evaluateJavaScript("window.PartyEvents && PartyEvents.open('/events/event/\(id)\(query)')")
     }
 
     /// « Créer avec l'IA », étape 2 : le brouillon vient d'être enregistré, la page « Qui est invité » s'ouvre dans
@@ -586,7 +588,7 @@ final class WebModel: ObservableObject {
         }
         // Souvenirs dévoilés (?tab=events&event=<id>&souvenirs=1) suivi dans la page : la fiche derrière, la story native.
         if tabs != nil, souvenirs != nil, let event = SouvenirLinks.storyRequested(in: url) {
-            openEvent(event)
+            openEvent(event, souvenirsNative: true)
             openSouvenirs(.story(event))
             return true
         }

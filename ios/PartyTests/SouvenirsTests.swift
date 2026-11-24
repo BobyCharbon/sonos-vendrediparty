@@ -34,7 +34,7 @@ final class SouvenirsTests: XCTestCase {
     func testRevealedNotificationOpensTheStoryAndReviewStaysInThePage() throws {
         let revealed = try XCTUnwrap(URL(string: "https://party.test/?tab=events&event=\(Self.event)&souvenirs=1"))
         XCTAssertEqual(SouvenirLinks.storyRequested(in: revealed), Self.event)
-        XCTAssertEqual(SouvenirLinks.withoutStory(revealed).absoluteString, "https://party.test/?tab=events&event=\(Self.event)")
+        XCTAssertEqual(SouvenirLinks.withoutStory(revealed).absoluteString, "https://party.test/?tab=events&event=\(Self.event)&souvenirs=native")
         let review = try XCTUnwrap(URL(string: "https://party.test/?tab=events&event=\(Self.event)&souvenirs=review"))
         XCTAssertNil(SouvenirLinks.storyRequested(in: review))
         XCTAssertEqual(SouvenirLinks.withoutStory(review), review)  // la fiche s'ouvre en relecture (page)

@@ -26,6 +26,8 @@ export type Photo = {
   origin?: 'taken' | 'kept'; kept?: boolean; can_keep?: boolean; hidden_at?: string | null;
   /** Relecture : motifs des signalements ouverts (jamais qui a signalé). */
   reasons?: string[] | null;
+  /** Relecture : false = « Remettre » refusé par la base (ma photo, ou « Je suis sur la photo » : la modération décide). */
+  can_restore?: boolean;
 };
 export type Story = { event_id: string; title: string; keep: boolean; until: string; photos: Photo[] };
 export type Mine = { keep: boolean; phase: Phase; photos: Photo[] };

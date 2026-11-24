@@ -122,7 +122,8 @@ struct SouvenirChatBanner: View {
     }
 
     var body: some View {
-        Group {
+        // VStack, pas Group : un Group vide (bandeau caché au départ) ne porte pas le .task, qui ne partait jamais.
+        VStack(spacing: 0) {
             if shown, let c = counter, let store {
                 let count = c.count ?? 0
                 let until = SouvenirText.visibleFor(until: c.storyUntil)
@@ -163,11 +164,15 @@ struct SouvenirChatBanner: View {
         }
         .task(id: eventID) {
             // Relu chaque minute : le dévoilement (ou la fin de la story) arrive pendant que la discussion est ouverte.
+            // Échec (page pas encore prête au lancement par une notification, jeton absent, réseau) : nouvel essai dans 5 s,
+            // sinon le bandeau manquait une minute entière.
             while !Task.isCancelled {
-                if let store, let fresh = try? await store.counter(eventID), fresh != counter {
-                    Motion.animate(Motion.smooth) { counter = fresh }
+                var ok = false
+                if let store, let fresh = try? await store.counter(eventID) {
+                    ok = true
+                    if fresh != counter { Motion.animate(Motion.smooth) { counter = fresh } }
                 }
-                try? await Task.sleep(for: .seconds(60))
+                try? await Task.sleep(for: .seconds(ok ? 60 : 5))
             }
         }
     }

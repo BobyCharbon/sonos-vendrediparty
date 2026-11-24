@@ -44,7 +44,10 @@ export function ReviewSheet({ eventId, canRevealNow, onClose }: { eventId: strin
       setArm(null);
       await load();
     } catch (e) {
+      // Refus de la base (ex. « Remettre » d'une photo que seule la modération peut trancher) : la phrase, puis la liste à jour.
       setToast(errorText(e));
+      setArm(null);
+      await load();
     } finally {
       setBusy(null);
     }
@@ -89,10 +92,16 @@ export function ReviewSheet({ eventId, canRevealNow, onClose }: { eventId: strin
                     onPress={() => void run(p.id, () => removePhoto(p.id), 'Photo retirée : personne ne la verra.')} style={st.flBtn}>
                     <Text style={[st.flBtnText, { color: colors.redSoft }]}>Retirer</Text>
                   </Pressable>
-                  <Pressable accessibilityRole="button" accessibilityLabel={`Remettre la photo de ${p.author?.name ?? '?'}`} disabled={!!busy}
-                    onPress={() => void run(p.id, () => restorePhoto(p.id), before ? 'Photo remise.' : 'Photo remise dans la story.')} style={st.flBtn}>
-                    <Text style={st.flBtnText}>Remettre</Text>
-                  </Pressable>
+                  {p.can_restore !== false ? (
+                    <Pressable accessibilityRole="button" accessibilityLabel={`Remettre la photo de ${p.author?.name ?? '?'}`} disabled={!!busy}
+                      onPress={() => void run(p.id, () => restorePhoto(p.id), before ? 'Photo remise.' : 'Photo remise dans la story.')} style={st.flBtn}>
+                      <Text style={st.flBtnText}>Remettre</Text>
+                    </Pressable>
+                  ) : (
+                    <View style={[st.flBtn, st.flNote]} testID="review-moderation-decides">
+                      <Text style={st.flNoteText}>La modération décide</Text>
+                    </View>
+                  )}
                 </View>
                 <By p={p} />
               </View>
@@ -176,6 +185,8 @@ const st = StyleSheet.create({
   flActs: { position: 'absolute', left: 6, right: 6, bottom: 32, flexDirection: 'row', gap: 4 },
   flBtn: { flex: 1, minHeight: 44, borderRadius: 10, backgroundColor: 'rgba(21,16,42,0.92)', alignItems: 'center', justifyContent: 'center' },
   flBtnText: { color: colors.text, fontSize: 13, ...font.bold },
+  flNote: { paddingHorizontal: 4 },
+  flNoteText: { color: colors.text, fontSize: 11, lineHeight: 14, textAlign: 'center', ...font.medium },
   rm: { position: 'absolute', top: 4, right: 4, minWidth: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 10 },
   rmAsk: { backgroundColor: '#FF6B7A' },
   rmText: { color: '#fff', fontSize: 16, ...font.bold },
