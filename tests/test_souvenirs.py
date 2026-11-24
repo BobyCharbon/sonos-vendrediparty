@@ -214,3 +214,27 @@ def test_the_migration_is_additive_and_keeps_only_references():
 def test_moderators_can_read_the_new_kind_and_reason():
     from app import moderation_api
     assert "souvenir" in moderation_api.KINDS and "my_image" in moderation_api.REASONS
+
+
+def test_the_common_sense_migration_is_additive_and_covers_each_point():
+    """Contrôle « bon sens » (24.11, 20261124130000) ; la base est testée pour de vrai dans test_souvenirs_live.py."""
+    fix = (ROOT / "supabase/migrations/20261124130000_souvenirs_bon_sens.sql").read_text(encoding="utf-8")
+    assert "drop table" not in fix.lower() and "drop column" not in fix.lower()
+    for name in re.findall(r"(?im)^create trigger (\w+) ", fix):
+        assert f"drop trigger if exists {name} " in fix, name
+    guard = re.search(r"function private\.souvenirs_guard\(\).*?end \$\$;", fix, re.S).group(0)
+    # 1. Récurrents : remise à zéro à l'insertion AVANT tout test de rôle (spawn_series tourne en postgres).
+    assert guard.index("if tg_op = 'INSERT'") < guard.index("current_user")
+    # 2. Remettre : jamais sa photo, jamais un « my_image » ouvert.
+    restore = re.search(r"function public\.souvenir_restore\(.*?end \$\$;", fix, re.S).group(0)
+    assert "p.author_id = me" in restore and "souvenir_my_image_open" in restore
+    # 3. Annulé : ni dévoilement ni notification.
+    assert "ev.status <> 'published' then return 0" in fix and "x.status = 'published'" in fix
+    # 4. Date déplacée : le dévoilement posé avant la nouvelle fin est retiré.
+    assert "new.souvenirs_reveal_at := null" in guard.split("Date déplacée")[1]
+    # 5. Rafale : 5 photos masquées au plus par personne et par soirée.
+    assert ">= 5 then" in fix
+    # 6. Sans « garder » : la notification dit que les photos disparaissent.
+    assert "puis elles disparaissent." in fix
+    # 7. Réponse après la fin : pas de story (sauf photo prise ou organisation).
+    assert "private.souvenir_late" in fix and "private.souvenir_viewer(e, me)" in fix

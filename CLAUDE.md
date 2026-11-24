@@ -835,6 +835,12 @@ réglage de prod :
   dans `private.souvenir_trash`, vidée par la base (`souvenir_files_gc`, API Storage, appelée par le serveur toutes les heures
   et par `souvenirs-tick`). Temps réel : `event_changed` sur `souvenir_photos`. Compteur : `souvenir_counter` (le NOMBRE
   seulement, jamais qui ni quoi). Bulles : `souvenir_stories`, `souvenir_mark_seen` (`souvenir_seen`).
+- Bon sens (24.11, migration 20261124130000, à réappliquer après toute réapplication de 090000 / 120000) : nouvelle ligne
+  d'événement (récurrents) = verrou et dévoilement à zéro pour tous les rôles ; `souvenir_restore` refuse sa propre photo et
+  un signalement `my_image` ouvert (modération seule ; `can_restore` dans `reported`) ; événement non publié : ni dévoilement
+  ni notification ni story ; date déplacée : dévoilement posé avant la nouvelle fin retiré, notification réarmée ; 5 photos
+  masquées au plus par signaleur et par soirée (au-delà : modération seule) ; story refusée à qui a dit Présent lui-même après
+  la fin (`private.souvenir_late`, `souvenir_viewer`), sauf s'il a pris une photo. Tests : `test_souvenirs_live.py` (bloc « bon sens »).
 - Avant la prod : CGU, privacy.tsx (13 mois, EXIF retirés), notes de revue + démo déjà dévoilée, NSCameraUsageDescription,
   anti-capture iPhone de la story (comme `SecretCardsView`), story réservée à l'app iPhone.
 - Écrans web (maquette souvenirs-v2, module Événements, `components/souvenirs/`, `lib/souvenirs.ts`) : tout par le relais

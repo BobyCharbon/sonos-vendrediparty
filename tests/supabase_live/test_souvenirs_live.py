@@ -12,7 +12,7 @@ from tests.supabase_live.test_groups_members_only_live import sql_test
 from tests.supabase_live.test_member_admin_live import pytestmark  # noqa: F401
 
 ROOT = Path(__file__).resolve().parents[2]
-DECLARE = ("e uuid; a uuid; b uuid; c uuid; d uuid; n int; m int; r jsonb; s text; t text; k text; tk jsonb; bots uuid; bots2 uuid; "
+DECLARE = ("e uuid; a uuid; b uuid; c uuid; d uuid; f uuid; g uuid; n int; m int; r jsonb; s text; t text; k text; tk jsonb; bots uuid; bots2 uuid; "
            + " ".join(f"{k} uuid;" for k in BOTS))
 
 # Phases (par rapport à now()) : ouvert, fermé avant le dévoilement, story, après la story.
@@ -263,8 +263,9 @@ def test_a_reported_photo_is_hidden_at_once_the_organization_is_told_and_decides
       insert into public.rsvps (event_id, user_id, status) values (e, violette, 'yes');""" + as_bot("violette") + """
       n := jsonb_array_length(public.souvenir_story(e)->'photos');""" + as_bot("valentin") + """
       m := (select count(*) from jsonb_array_elements(public.souvenir_mine(e)->'photos') x where x->>'id' = a::text);""" + as_bot("olga") + """
-      r := public.souvenir_review(e);
-      perform public.souvenir_restore(a);""" + as_postgres() + """
+      r := public.souvenir_review(e);""" + as_postgres() + """
+      -- « my_image » : l'organisation ne la remet pas (test plus bas), la modération de Party la classe.
+      update public.content_reports set status = 'dismissed' where target_kind = 'souvenir' and target_id = a::text;
       s := (select count(*) from public.notifications where kind = 'souvenir_reported' and user_id = olga and event_id = e)::text
         || ' moderateurs=' || (select count(*) from public.notifications where kind = 'report_new'
                                and body like 'Droit à l''image · une photo Souvenirs%');""" + as_bot("violette") + """
@@ -324,6 +325,115 @@ def test_tables_are_never_read_directly_and_the_event_cascade_empties_everything
     assert result(out) == "photos=42501 gardees=42501 lignes=0 corbeille=1", out
 
 
+# ───────────── Contrôle « bon sens » (24.11, migration 20261124130000) ─────────────
+
+def test_a_recurring_event_starts_each_new_date_unlocked_and_unrevealed_without_any_photo():
+    """spawn_series (postgres) recopie la date d'avant : verrou et dévoilement remis à zéro, aucune photo recopiée."""
+    out = run(event() + take("victor") + move(WAITING) + as_bot("olga") + """
+      perform public.souvenir_reveal_now(e);
+      perform public.set_event_recurrence(e, 'weekly', 1, null);""" + as_postgres() + """
+      perform private.spawn_series();
+      d := (select x.id from public.events x where x.series_id = (select series_id from public.events where id = e) and x.id <> e);
+      raise exception 'résultat: avant=% option=% verrou=% devoile=% photos=% phase=%',
+        (select souvenirs_locked and souvenirs_reveal_at is not null from public.events where id = e),
+        (select souvenirs_enabled from public.events where id = d), (select souvenirs_locked from public.events where id = d),
+        (select souvenirs_reveal_at is not null from public.events where id = d),
+        (select count(*) from public.souvenir_photos where event_id = d),
+        (select private.souvenir_phase(x) from public.events x where x.id = d);""")
+    assert "résultat: avant=t option=t verrou=f devoile=f photos=0 phase=soon" in out, out
+
+
+def test_nobody_puts_back_their_own_reported_photo_nor_one_reported_as_my_image():
+    out = run(event() + "s := '';" + take("victor") + take("olga", "b") + take("valentin", "c") + move(STORY) + as_bot("victor") + """
+      perform public.report_content('souvenir', b::text, 'shocking', null);""" + as_bot("valentin") + """
+      perform public.report_content('souvenir', a::text, 'my_image', null);""" + as_bot("victor") + """
+      perform public.report_content('souvenir', c::text, 'spam', null);""" + as_bot("olga") + """
+      r := public.souvenir_review(e);""" + attempt("perform public.souvenir_restore(b);", "sienne")
+              + attempt("perform public.souvenir_restore(a);", "my_image") + as_bot("ada")
+              + attempt("perform public.souvenir_restore(b);", "ada_photo_olga") + as_bot("olga")
+              + attempt("perform public.souvenir_restore(c);", "spam") + attempt("perform public.souvenir_remove(a);", "retirer") + """
+      raise exception 'résultat:% remettre=%', s, (select string_agg((x->'author'->>'name') || '/' || (x->>'can_restore'), ','
+        order by x->'author'->>'name') from jsonb_array_elements(r->'reported') x);""")
+    assert result(out) == ("sienne=forbidden my_image=forbidden ada_photo_olga=ok spam=ok retirer=ok "
+                           "remettre=Bot Olga/false,Bot Valentin/true,Bot Victor/false"), out
+
+
+def test_a_cancelled_event_is_never_revealed_nor_notified_but_my_souvenirs_stay():
+    out = run(event() + "s := '';" + take("victor") + move(STORY) + as_postgres() + """
+      update public.events set status = 'cancelled' where id = e;
+      perform private.souvenir_tick();""" + as_bot("olga") + attempt("perform public.souvenir_reveal_now(e);", "devoiler")
+              + as_bot("victor") + attempt("perform public.souvenir_story(e);", "story") + """
+      n := jsonb_array_length(public.souvenir_mine(e)->'photos');
+      m := (select count(*) from jsonb_array_elements(public.souvenir_stories()) x where x->>'event_id' = e::text);""" + as_postgres() + """
+      raise exception 'résultat:% notifications=% mes_souvenirs=% bulles=%', s,
+        (select count(*) from public.notifications where kind = 'souvenirs_revealed' and event_id = e), n,
+        m;""")
+    assert result(out) == "devoiler=closed story=closed notifications=0 mes_souvenirs=1 bulles=0", out
+
+
+def test_a_moved_date_carries_the_reveal_and_never_reveals_before_the_new_end():
+    out = run(event() + take("victor") + move(WAITING) + as_bot("olga") + """
+      perform public.souvenir_reveal_now(e);""" + move("now() - interval '6 hours', now() - interval '4 hours'") + """
+      s := 'raccourcie=' || (select (souvenirs_reveal_at is not null) || '/' || private.souvenir_phase(x) from public.events x where id = e);
+      """ + move(OPEN) + """
+      s := s || ' repoussee=' || (select (souvenirs_reveal_at is null) || '/' || private.souvenir_phase(x) || '/'
+                                          || (least(private.souvenir_end(x) + interval '2 hours', private.souvenir_reveal_at(x)) = now() + interval '3 hours')::text
+                                  from public.events x where id = e)
+        || ' run=' || (select revealed_at is null from private.souvenir_runs where event_id = e);""" + move(STORY) + """
+      perform private.souvenir_tick();
+      raise exception 'résultat: % nouvelle_story=%', s,
+        (select private.souvenir_phase(x) || '/' || (r2.revealed_at is not null) from public.events x
+         join private.souvenir_runs r2 on r2.event_id = x.id where x.id = e);""")
+    assert "résultat: raccourcie=true/story repoussee=true/open/true run=true nouvelle_story=story/true" in out, out
+
+
+def test_one_person_hides_at_most_five_souvenirs_by_reporting_then_moderation_only():
+    out = run(event() + take("victor") + take("victor", "b") + take("victor", "c") + take("valentin", "d")
+              + take("valentin", "f") + take("valentin", "g") + as_postgres() + """
+      insert into public.rsvps (event_id, user_id, status) values (e, violette, 'yes');""" + move(STORY) + as_bot("violette") + """
+      perform public.report_content('souvenir', a::text, 'other', null);
+      perform public.report_content('souvenir', b::text, 'other', null);
+      perform public.report_content('souvenir', c::text, 'other', null);
+      perform public.report_content('souvenir', d::text, 'other', null);
+      perform public.report_content('souvenir', f::text, 'other', null);
+      perform public.report_content('souvenir', g::text, 'my_image', null);""" + as_postgres() + """
+      raise exception 'résultat: masquees=% sixieme=% signalements=% orga=%',
+        (select count(*) from public.souvenir_photos where event_id = e and hidden_at is not null),
+        (select hidden_at is null from public.souvenir_photos where id = g),
+        (select count(*) from public.content_reports where target_kind = 'souvenir' and reporter_id = violette and status = 'open'),
+        (select count(*) from public.notifications where kind = 'souvenir_reported' and user_id = olga and event_id = e);""")
+    assert "résultat: masquees=5 sixieme=t signalements=6 orga=5" in out, out
+
+
+def test_the_reveal_notification_says_the_photos_disappear_without_keep():
+    out = run(event(keep=False) + take("victor") + move(STORY) + as_postgres() + """
+      perform private.souvenir_tick();
+      raise exception 'résultat: %', (select body from public.notifications where kind = 'souvenirs_revealed' and event_id = e
+                                    and user_id = victor);""")
+    assert "résultat: Les photos de « Test souvenirs bots » sont à voir pendant 24 h, puis elles disparaissent." in out, out
+
+
+def test_a_yes_given_after_the_end_does_not_open_the_story_unless_a_photo_was_taken():
+    """La base accepte encore une réponse jusqu'à fin + 6 h (event_is_over) : Violette dit Présent après la fin, sans
+    photo → pas de story ; Côme aussi, mais prend une photo (appareil ouvert jusqu'à fin + 2 h) → story. Victor (Présent
+    avant la fin) et l'organisation : story."""
+    out = run(event() + "s := '';" + take("victor") + move("now() - interval '3 hours', now() - interval '1 hour'")
+              + as_bot("violette") + """
+      insert into public.rsvps (event_id, user_id, status) values (e, violette, 'yes');""" + as_bot("come") + """
+      insert into public.rsvps (event_id, user_id, status) values (e, come, 'yes');""" + take("come", "b") + move(STORY)
+              + as_bot("violette") + attempt("perform public.souvenir_story(e);", "violette")
+              + attempt("perform public.souvenir_mark_seen(e);", "vue") + """
+      n := (select count(*) from jsonb_array_elements(public.souvenir_stories()) x where x->>'event_id' = e::text);""" + as_bot("come") + attempt("perform public.souvenir_story(e);", "come")
+              + as_bot("victor") + attempt("perform public.souvenir_story(e);", "victor")
+              + as_bot("olga") + attempt("perform public.souvenir_story(e);", "olga") + as_postgres() + """
+      perform private.souvenir_tick();
+      raise exception 'résultat:% bulles_violette=% notif_violette=% notif_come=%', s, n,
+        (select count(*) from public.notifications where kind = 'souvenirs_revealed' and event_id = e and user_id = violette),
+        (select count(*) from public.notifications where kind = 'souvenirs_revealed' and event_id = e and user_id = come);""")
+    assert result(out) == ("violette=forbidden vue=forbidden come=ok victor=ok olga=ok bulles_violette=0 notif_violette=0 "
+                           "notif_come=1"), out
+
+
 def test_the_ai_never_turns_souvenirs_on():
     from app import ai_events as ev
     schema = ev.schema({"categories": [], "tags": [], "audiences": ["Vendredi Party"], "people": []})
@@ -331,7 +441,8 @@ def test_the_ai_never_turns_souvenirs_on():
 
 
 def test_the_migration_replays_without_change():
-    sql = (ROOT / "supabase/migrations/20261124090000_souvenirs.sql").read_text()
+    sql = "\n".join((ROOT / f"supabase/migrations/{f}").read_text() for f in (
+        "20261124090000_souvenirs.sql", "20261124120000_souvenirs_bulles_attente.sql", "20261124130000_souvenirs_bon_sens.sql"))
     out = sql_test("begin;\n" + sql + "\nrollback;")
     assert "HTTP" not in str(out) and "ERROR" not in str(out), out
     check = sql_test("""select (select count(*) from cron.job where jobname = 'souvenirs-tick') jobs,
