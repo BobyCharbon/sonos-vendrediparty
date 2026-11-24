@@ -101,6 +101,9 @@ enum NativeBridge {
             try { window.webkit.messageHandlers.\(pronosHandler).postMessage(c.group ? "create:group:" + c.group : c.event ? "create:event:" + c.event : "create"); } catch (e) {}
           }
         },
+        // Souvenirs (24.11, contrat pont-ios.md) : appareil photo natif (3 poses, sans aperçu), story protégée des captures,
+        // photo de « Mes souvenirs » dans Photos. À la fermeture, l'app appelle window.PartySouvenirs.changed(eventId).
+        souvenirs: \(SouvenirsBridge.script),
         // « Scanner les billets » (Événements) : lecteur QR d'Apple ; promesse du texte lu, ou null si l'on ferme.
         scan: {
           qr: function () { return window.webkit.messageHandlers.\(scanHandler).postMessage("qr"); }
@@ -160,6 +163,7 @@ enum NativeBridge {
         controller.addScriptMessageHandler(ContactNamesBridge(), contentWorld: .page, name: ContactNamesBridge.handler)
         controller.addScriptMessageHandler(NativeCalendarBridge(), contentWorld: .page, name: NativeCalendarBridge.handler)
         controller.addScriptMessageHandler(AgendaBridge(model: model), contentWorld: .page, name: AgendaBridge.handler)
+        controller.addScriptMessageHandler(SouvenirsBridge(model: model), contentWorld: .page, name: SouvenirsBridge.handler)
         // Zicou → widgets et Live Activity de l'éclosion (lecture des réponses /api/pet/* de la page).
         if AppConfig.zicouBuild {
             PetWidgetBridge.install(in: controller)

@@ -1885,6 +1885,8 @@ class NotificationPatch(BaseModel):
     booking_requests: bool | None = None
     # Pronos (17.11, migration 20261117180000) : nouveau prono, résultat, résultat à donner.
     pronos: bool | None = None
+    # Souvenirs (24.11, migration 20261124090000) : photos dévoilées ; photo signalée (organisation).
+    souvenirs: bool | None = None
     # Billets payants (migration 20261103130000) : quelqu'un dit avoir payé ; mon paiement est confirmé.
     ticket_pay_declared: bool | None = None
     ticket_pay_confirmed: bool | None = None

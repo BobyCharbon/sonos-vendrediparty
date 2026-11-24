@@ -52,6 +52,9 @@ export function tapPath(data: Record<string, unknown>): string {
   const event = typeof data.event_id === 'string' && /^[0-9a-f-]{36}$/.test(data.event_id) ? data.event_id : null;
   // Message de la discussion d'un événement : le toucher ouvre la discussion (écran natif de l'app iPhone).
   if (event && data.kind === 'message') return `/?tab=events&event=${event}&chat=1`;
+  // Souvenirs (24.11) : dévoilés → la story (native dans l'app iPhone) ; photo signalée → la fiche en relecture.
+  if (event && data.kind === 'souvenirs_revealed') return `/?tab=events&event=${event}&souvenirs=1`;
+  if (event && data.kind === 'souvenir_reported') return `/?tab=events&event=${event}&souvenirs=review`;
   return event ? `/?tab=events&event=${event}` : '/?tab=events&activity=1';
 }
 

@@ -21,6 +21,13 @@ final class WebModel: ObservableObject {
     @Published var eventChatID: String?
     /// Pronos (17.11) : écran natif par-dessus la page (PartyNative.pronos, notification ?prono=<id>).
     @Published var pronoRoute: PronoRoute?
+    /// Souvenirs (24.11) : appareil photo ou story en plein écran (PartyNative.souvenirs, notification, bulle).
+    @Published var souvenirRoute: SouvenirRoute?
+    /// Données des Souvenirs (relais /api/account/souvenirs/rpc, envoi des photos, bulles des Discussions).
+    private(set) var souvenirs: SouvenirsStore?
+    /// Événement de l'écran Souvenirs ouvert : la page le relit à la fermeture.
+    private var souvenirEvent: String?
+    private var waitingSouvenir: SouvenirRoute?
     /// Discussions v2 (18.11) : « Nouveau message » ou mini-profil demandés par la page (PartyNative.chat).
     @Published var peopleRoute: PeopleRoute?
     /// Groupes en natif (18.11, « tout en natif ») : liste, page ou création, plein écran par-dessus l'app.
@@ -129,6 +136,12 @@ final class WebModel: ObservableObject {
             waitingEventChat = nil
             openEventChat(waiting.id, info: waiting.info)
         }
+        souvenirs = SouvenirsStore(api: api, web: self)
+        souvenirs?.openStory = { [weak self] event in self?.openSouvenirs(.story(event)) }
+        if let waiting = waitingSouvenir {
+            waitingSouvenir = nil
+            openSouvenirs(waiting)
+        }
         // Noms des contacts (« Nom · pseudo ») : reconnaissance au lancement, puis à chaque changement du répertoire.
         ContactNames.shared.configure(api: api, web: self)
         settings = SettingsStore(api: api, web: self, isHost: { [weak self] in self?.isHost ?? false },
@@ -194,6 +207,12 @@ final class WebModel: ObservableObject {
             let kept = parts?.queryItems?.filter { $0.name != "prono" }
             parts?.queryItems = kept
             target = parts?.url ?? target
+        }
+        // Notification « Les souvenirs sont dévoilés » (?tab=events&event=<id>&souvenirs=1) : la fiche derrière, la story
+        // native par-dessus. (« souvenirs=review », photo signalée, reste à la page : la fiche en relecture.)
+        if let event = SouvenirLinks.storyRequested(in: target) {
+            openSouvenirs(.story(event))
+            target = SouvenirLinks.withoutStory(target)
         }
         // Lien de la discussion d'un événement (/events/event/<id>/chat) : la fiche dans la page Party, la discussion
         // en natif par-dessus (même chemin que la notification).
@@ -388,6 +407,22 @@ final class WebModel: ObservableObject {
         Motion.animate(Motion.smooth) { pronoRoute = route }
     }
 
+    /// Souvenirs : appareil photo ou story, plein écran par-dessus tout (la base vérifie les droits).
+    func openSouvenirs(_ route: SouvenirRoute) {
+        guard souvenirs != nil else { waitingSouvenir = route; return }
+        souvenirEvent = route.eventID
+        Motion.animate(Motion.smooth) { souvenirRoute = route }
+    }
+
+    /// Fermeture de l'appareil photo ou de la story : la page relit son compteur (window.PartySouvenirs.changed),
+    /// les bulles des Discussions sont relues.
+    func souvenirsClosed() {
+        souvenirRoute = nil
+        if let event = souvenirEvent, let script = SouvenirLinks.changedScript(event) { webView?.evaluateJavaScript(script) }
+        souvenirEvent = nil
+        Task { await souvenirs?.refreshBubbles() }
+    }
+
     /// Groupes : la page d'un groupe, sa création (« new ») ou la liste (nil). Écrans NATIFS (18.11) par le relais des
     /// Discussions ; Discussions indisponibles (« Bientôt ») : les pages du module Événements, comme avant.
     func openGroupPage(_ target: String?) {
@@ -547,6 +582,12 @@ final class WebModel: ObservableObject {
         if tabs != nil, let event = Self.eventChatRequested(in: url) ?? Self.eventChatPath(in: url), eventChats != nil {
             openEvent(event)
             openEventChat(event)
+            return true
+        }
+        // Souvenirs dévoilés (?tab=events&event=<id>&souvenirs=1) suivi dans la page : la fiche derrière, la story native.
+        if tabs != nil, souvenirs != nil, let event = SouvenirLinks.storyRequested(in: url) {
+            openEvent(event)
+            openSouvenirs(.story(event))
             return true
         }
         guard discussions, tabs != nil, let chats, let chat = Self.chatRequested(in: url) else { return false }
