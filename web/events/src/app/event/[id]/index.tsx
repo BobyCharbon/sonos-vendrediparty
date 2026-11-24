@@ -22,6 +22,7 @@ import { LinkedText } from '@/components/LinkedText';
 import { NameLinks } from '@/components/NameLinks';
 import { CarpoolCard } from '@/components/CarpoolCard';
 import { EventPronos } from '@/components/pronos/EventPronos';
+import { SouvenirsCard } from '@/components/souvenirs/SouvenirsCard';
 import { EventChatButton, EventChatEntry, useEventChatPrefs } from '@/components/EventChatEntry';
 import { NotifyBanner } from '@/components/NotifyBanner';
 import { BringSection, DatePollSection, ParticipantsSection, PollSection, RsvpCard } from '@/components/EventSections';
@@ -92,7 +93,8 @@ async function sharePublicLink(ev: Pick<EventRow, 'id' | 'title'>): Promise<stri
 export default function EventScreen() {
   // ?step=online : étape 3 de l'assistant IA ; &invite=link : la feuille « Inviter » s'ouvre (lien prêt, ?suggested= cochés) ;
   // &invite=more : la carte « Invités » passe en tête (publié pour un groupe).
-  const { id, step, invite, suggested } = useLocalSearchParams<{ id: string; step?: string; invite?: string; suggested?: string }>();
+  // ?souvenirs=1 : la story des Souvenirs (notification du dévoilement) ; ?souvenirs=review : la relecture (photo signalée).
+  const { id, step, invite, suggested, souvenirs } = useLocalSearchParams<{ id: string; step?: string; invite?: string; suggested?: string; souvenirs?: string }>();
   const me = useMe();
   const { can } = useAuth();
   const { width, fontScale } = useWindowDimensions();
@@ -446,6 +448,8 @@ export default function EventScreen() {
       {mine?.status === 'yes' && ticketRelevant(ev, data.loadedAt) ? (
         <TicketCard event={ev} me={me} answerKey={`${mine.status}:${mine.waitlisted}:${mine.plus_ones}:${paymentsTick}`} />
       ) : null}
+      {/* Souvenirs (24.11) : appareil jetable de la soirée, dévoilé en story ; l'état vient de souvenir_counter. */}
+      {published && ev.souvenirs_enabled ? <SouvenirsCard eventId={ev.id} title={ev.title} open={souvenirs} /> : null}
       {/* Sondages juste après « Présent / Absent » (demande de l'admin, 17.11) : ils étaient trop bas. */}
       {ev.polls
         .sort((a, b) => a.sort - b.sort)

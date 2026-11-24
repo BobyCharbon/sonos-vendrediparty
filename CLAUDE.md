@@ -799,7 +799,7 @@ réglage de prod :
   compare par clé (`role_rank('coadmin')`), jamais par nombre.
 - Tests : `tests/supabase_live/test_modifier_moderer_live.py`, `tests/test_modifier_moderer_browser.py`.
 
-## Souvenirs (avis 74d36b93e7bd, 24.11, migration 20261124090000) — socle base + serveur ; écrans web et iPhone à suivre
+## Souvenirs (avis 74d36b93e7bd, 24.11, migration 20261124090000) — socle base + serveur + écrans web ; écrans iPhone à suivre
 - Option par événement `events.souvenirs_enabled` (éteinte par défaut, jamais allumée par l'IA : hors du schéma de
   ai_events.py / ai_event_edit.py) et `souvenirs_keep` (« Garder les photos après la story », ALLUMÉ par défaut) ; réglés
   par l'organisation seule (`souvenir_settings`, garde `souvenirs_guard`), FIGÉS dès la 1re photo (`souvenirs_locked`).
@@ -829,4 +829,15 @@ réglage de prod :
   seulement, jamais qui ni quoi). Bulles : `souvenir_stories`, `souvenir_mark_seen` (`souvenir_seen`).
 - Avant la prod : CGU, privacy.tsx (13 mois, EXIF retirés), notes de revue + démo déjà dévoilée, NSCameraUsageDescription,
   anti-capture iPhone de la story (comme `SecretCardsView`), story réservée à l'app iPhone.
-- Tests : `tests/test_souvenirs.py`, `tests/supabase_live/test_souvenirs_live.py`.
+- Écrans web (maquette souvenirs-v2, module Événements, `components/souvenirs/`, `lib/souvenirs.ts`) : tout par le relais
+  `POST /api/account/souvenirs/rpc` (liens signés) ; carte de la fiche `SouvenirsCard` (avis avant le dévoilement, appareil
+  jetable, « 📸 Prendre une photo · N restantes » = `<input capture>` → `/api/account/souvenirs/photo`, « Annuler » 5 s SANS
+  aperçu, compteur, compte à rebours, carte du dévoilement, « 👀 Relire les photos (N) » + « Dévoiler maintenant », signal
+  `event:<id>`) ; `StoryViewer` (seulement si `keep` ; sinon « se regarde dans l'app iPhone »), `MySouvenirs` (Toutes / Prises par
+  moi / Gardées, lien `download=`), `ReviewSheet` (signalées en tête avec le motif, Retirer / Remettre ; mes photos absentes) ;
+  réglages `SouvenirsSettings` dans le formulaire (avertissement orange, figés) ; liens `?souvenirs=1|review` (events-shell.js,
+  ouverts une fois). App iPhone : `PartyNative.souvenirs.camera / story / save` (pont-ios.md), retour par
+  `window.PartySouvenirs.changed(id)` (index.html le passe au cadre). Modération : la copie porte `bucket: souvenirs`
+  (reports.tsx, moderation_api.py). Didacticiel : emplacement `SouvenirsTutorial` (`TUTORIAL_READY` à allumer).
+- Tests : `tests/test_souvenirs.py`, `tests/supabase_live/test_souvenirs_live.py`, `tests/test_souvenirs_browser.py`,
+  `tests/supabase_live/test_souvenirs_browser_live.py` (recette réelle).

@@ -590,6 +590,13 @@ window.PartyBack = {
     if (PartyBack.can()) $("eventsFrame").contentWindow.postMessage({ type: "party-shell:back" }, location.origin);
   },
 };
+// Souvenirs (24.11) : l'app iPhone appelle window.PartySouvenirs.changed(eventId) dans la page principale quand son
+// appareil photo ou sa story se referme ; la fiche est dans le module Événements (cadre) : elle relit son état.
+window.PartySouvenirs = {
+  changed(eventId) {
+    try { $("eventsFrame").contentWindow.PartySouvenirs?.changed(eventId); } catch (e) { /* module pas encore chargé */ }
+  },
+};
 function frameRoute(path) {
   const frame = $("eventsFrame");
   if (!path && frame.hasAttribute("src")) return;

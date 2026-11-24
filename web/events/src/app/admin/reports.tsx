@@ -19,6 +19,8 @@ type Report = {
   resolution: string | null; note: string | null; created_at: string; handled_at: string | null; handled_by: string | null;
   snapshot: {
     text?: string; photo_path?: string | null; place?: string; at?: string; cover_url?: string | null; event_id?: string;
+    /** Compartiment de la photo quand ce n'est pas celui des discussions (Souvenirs : « souvenirs »). */
+    bucket?: string;
     // Discussions v2 (18.11) : copie de la photo / du vocal gardée pour la modération, 10 messages précédents si demandé.
     evidence?: { photo?: string; audio?: string }; context?: { author: string; at: string; text: string }[];
   };
@@ -35,19 +37,24 @@ const KIND_LABELS: Record<string, string> = {
   pet_offer: 'Offre d’échange', pet_showcase: 'Vitrine', pet_word: 'Mot de Zicou',
   // Agenda (17.11) : demande d'une personne sans compte (« Masquer » l'efface) ; page publique d'un lien (« Masquer » l'arrête).
   booking_request: 'Demande de rendez-vous (personne sans compte)', agenda_link: 'Lien de dispo (page publique)',
+  // Souvenirs (24.11) : masquée aussitôt pour tous ; « Masquer » l'efface, « Classer » la remet.
+  souvenir: 'Photo Souvenirs',
 };
 /** Contenus rattachés à un événement : « Ouvrir l'événement » mène au contexte (la copie garde event_id). */
-const EVENT_KINDS = new Set(['event', 'event_message', 'rsvp_note', 'poll', 'poll_option', 'bring_item']);
+const EVENT_KINDS = new Set(['event', 'event_message', 'rsvp_note', 'poll', 'poll_option', 'bring_item', 'souvenir']);
 /** Ce que « Masquer le contenu » fait, dit avant de toucher (la base : private.moderation_hide). */
 const HIDE_EFFECT: Record<string, string> = {
   rsvp_note: 'Masquer supprime ce mot.', poll: 'Masquer remplace la question par « Question masquée par la modération ».',
   poll_option: 'Masquer supprime ce choix (et ses votes).', bring_item: 'Masquer retire cet objet de la liste.',
+  souvenir: 'Déjà masquée pour tous depuis le signalement. Masquer l’efface (aussi des souvenirs de ceux qui l’avaient gardée) ; Classer sans suite la remet.',
 };
 const RESOLUTIONS: Record<string, string> = {
   hide: 'Contenu masqué', warn: 'Averti', suspend: 'Suspendu', ban: 'Banni', dismiss: 'Classé sans suite',
 };
 const DAYS = [1, 7, 30];
-const reasonLabel = (key: string) => REPORT_REASONS.find((r) => r.key === key)?.label ?? key;
+const reasonLabel = (key: string) => REPORT_REASONS.find((r) => r.key === key)?.label
+  ?? ({ my_image: 'Droit à l’image (« Je suis sur la photo »)', money: 'Demande d’argent' } as Record<string, string>)[key] ?? key;
+const SOUVENIRS = 'souvenirs';
 const when = (iso: string) => new Date(iso).toLocaleString('fr-CH', { dateStyle: 'short', timeStyle: 'short' });
 const EVIDENCE = 'moderation-evidence';
 
@@ -64,15 +71,21 @@ export default function ReportsScreen() {
   }, [status]);
   const [photos, setPhotos] = useState<Map<string, string>>(new Map());
   useEffect(() => {
-    const paths = (data ?? []).filter((r) => r.kind !== 'profile_photo' && r.kind !== 'group_photo').map((r) => r.snapshot.photo_path).filter((p): p is string => !!p);
+    const paths = (data ?? []).filter((r) => r.kind !== 'profile_photo' && r.kind !== 'group_photo' && r.snapshot.bucket !== SOUVENIRS).map((r) => r.snapshot.photo_path).filter((p): p is string => !!p);
+    // Photo Souvenirs signalée : compartiment privé « souvenirs », lisible par la modération (souvenir_may_read).
+    const souvenirPaths = (data ?? []).filter((r) => r.snapshot.bucket === SOUVENIRS).map((r) => r.snapshot.photo_path).filter((p): p is string => !!p);
+    const souvenirs = souvenirPaths.length
+      ? supabase.storage.from(SOUVENIRS).createSignedUrls(souvenirPaths, 600)
+        .then(({ data: rows }) => (rows ?? []).flatMap((d) => (d.signedUrl && d.path ? [[d.path, d.signedUrl] as [string, string]] : [])))
+      : Promise.resolve([] as [string, string][]);
     const groupPaths = (data ?? []).filter((r) => r.kind === 'group_photo').map((r) => r.snapshot.photo_path).filter((p): p is string => !!p);
     const kept = (data ?? []).flatMap((r) => [r.snapshot.evidence?.photo, r.snapshot.evidence?.audio]).filter((p): p is string => !!p);
     const evidence = kept.length
       ? supabase.storage.from(EVIDENCE).createSignedUrls(kept, 3600)
         .then(({ data: rows }) => (rows ?? []).flatMap((d) => (d.signedUrl && d.path ? [[d.path, d.signedUrl] as [string, string]] : [])))
       : Promise.resolve([] as [string, string][]);
-    void Promise.all([signedPhotos(paths), evidence, ...groupPaths.map(async (p) => [p, await signGroupPhoto(p)] as const)])
-      .then(([chat, ev, ...groups]) => setPhotos(new Map([...chat, ...ev, ...groups.filter((g): g is readonly [string, string] => !!g[1])])))
+    void Promise.all([signedPhotos(paths), evidence, souvenirs, ...groupPaths.map(async (p) => [p, await signGroupPhoto(p)] as const)])
+      .then(([chat, ev, souv, ...groups]) => setPhotos(new Map([...chat, ...ev, ...souv, ...groups.filter((g): g is readonly [string, string] => !!g[1])])))
       .catch(() => {});
   }, [data]);
 

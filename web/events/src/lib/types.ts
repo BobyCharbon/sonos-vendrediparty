@@ -85,6 +85,11 @@ export type EventRow = {
   guest_group?: string | null;
   /** Billets QR (migration 20261104233000 ; absente avant : éteinte) : l'organisateur l'active et remet les billets. */
   tickets_enabled?: boolean;
+  /** Souvenirs (migration 20261124090000 ; absente avant : éteint). Réglés par l'organisation, figés dès la 1re photo. */
+  souvenirs_enabled?: boolean;
+  /** « Autoriser l'enregistrement » : allumé par défaut ; éteint, rien ne reste après la story de 24 h. */
+  souvenirs_keep?: boolean;
+  souvenirs_locked?: boolean;
   forum_enabled: boolean;
   notify_on_publish: boolean;
   /** « Prévenir le groupe » (06.11) : demande d'annonce au groupe, validée par son admin (migration 20261106220000). */

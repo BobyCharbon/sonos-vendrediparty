@@ -8,8 +8,9 @@ import { supabase } from './supabase';
 export type ReportKind = 'group_message' | 'direct_message' | 'event_message' | 'profile' | 'profile_photo' | 'group_photo' | 'event'
   | 'rsvp_note' | 'poll' | 'poll_option' | 'bring_item'
   | 'pet_name' | 'pet_item' | 'pet_offer' | 'pet_showcase' | 'pet_word'
-  | 'booking_request' | 'agenda_link' | 'prono' | 'prono_answer';
-export type ReportReason = 'harassment' | 'shocking' | 'spam' | 'scam' | 'other';
+  | 'booking_request' | 'agenda_link' | 'prono' | 'prono_answer' | 'souvenir';
+/** my_image : « Je suis sur la photo… » (Souvenirs seulement, motifs propres passés à ReportSheet). */
+export type ReportReason = 'harassment' | 'shocking' | 'spam' | 'scam' | 'other' | 'my_image';
 export type ReportTarget = { kind: ReportKind; id: string; label: string };
 
 export const REPORT_REASONS: { key: ReportReason; label: string; hint: string }[] = [

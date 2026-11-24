@@ -341,8 +341,11 @@ begin
   return jsonb_build_object('phase', private.souvenir_phase(ev),
     'photos', coalesce((select jsonb_agg(private.souvenir_json(p, me) order by p.taken_at, p.id)
       from public.souvenir_photos p where p.event_id = e and p.hidden_at is null and not private.blocked_either(me, p.author_id)), '[]'::jsonb),
-    -- Signalées, masquées en attendant : l'organisation les retire ou les remet.
-    'reported', coalesce((select jsonb_agg(private.souvenir_json(p, me) || jsonb_build_object('hidden_at', p.hidden_at) order by p.taken_at)
+    -- Signalées, masquées en attendant : l'organisation les retire ou les remet ; motifs des signalements ouverts
+    -- (jamais qui a signalé).
+    'reported', coalesce((select jsonb_agg(private.souvenir_json(p, me) || jsonb_build_object('hidden_at', p.hidden_at,
+        'reasons', (select coalesce(jsonb_agg(distinct r.reason), '[]'::jsonb) from public.content_reports r
+                    where r.target_kind = 'souvenir' and r.target_id = p.id::text and r.status = 'open')) order by p.taken_at)
       from public.souvenir_photos p where p.event_id = e and p.hidden_at is not null), '[]'::jsonb));
 end $$;
 

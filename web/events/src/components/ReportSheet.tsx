@@ -14,11 +14,15 @@ type Props = {
   send?: (reason: ReportReason, comment: string) => Promise<void>;
   /** Message d'une discussion : case « Joindre les 10 messages précédents » (décochée par défaut, conformité 🟠 8). */
   allowContext?: boolean;
+  /** Motifs propres à un contenu (photo Souvenirs : « Je suis sur la photo… ») ; sinon les motifs communs. */
+  reasons?: readonly { key: ReportReason; label: string; hint?: string }[];
+  /** Phrase après l'envoi (photo Souvenirs : masquée aussitôt, organisation et modération prévenues). */
+  thanks?: string;
 };
 
 /** « Signaler » (Apple 1.2, Google UGC) : une raison, un commentaire facultatif ; la file des modérateurs le reçoit.
  * La personne signalée n'est pas prévenue ; la base garde une copie du contenu au moment du signalement. */
-export function ReportSheet({ target, onClose, send: sendOwn, allowContext = false }: Props) {
+export function ReportSheet({ target, onClose, send: sendOwn, allowContext = false, reasons = REPORT_REASONS, thanks }: Props) {
   const [reason, setReason] = useState<ReportReason | null>(null);
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState(false);
@@ -65,7 +69,7 @@ export function ReportSheet({ target, onClose, send: sendOwn, allowContext = fal
           {sent ? (
             <>
               <T weight="bold" size={18}>Merci, c’est envoyé</T>
-              <T muted size={14}>Un modérateur va regarder. La personne n’est pas prévenue que c’est toi.</T>
+              <T muted size={14}>{thanks ?? 'Un modérateur va regarder. La personne n’est pas prévenue que c’est toi.'}</T>
               <T muted size={13}>Urgent ou grave (menace, contenu illégal) : écris aussi à {SUPPORT_EMAIL}.</T>
               <Button label="Fermer" onPress={close} />
             </>
@@ -73,12 +77,12 @@ export function ReportSheet({ target, onClose, send: sendOwn, allowContext = fal
             <>
               <T weight="bold" size={18}>Signaler {target?.label ?? ''}</T>
               <T muted size={13}>Pourquoi ? Un modérateur reçoit ton signalement et une copie du contenu.</T>
-              {REPORT_REASONS.map((r) => (
+              {reasons.map((r) => (
                 <Pressable key={r.key} accessibilityRole="radio" accessibilityState={{ checked: reason === r.key }}
                   accessibilityLabel={r.label} onPress={() => setReason(r.key)}
                   style={[st.reason, reason === r.key && st.chosen]}>
                   <T weight="semibold">{r.label}</T>
-                  <T muted size={12}>{r.hint}</T>
+                  {r.hint ? <T muted size={12}>{r.hint}</T> : null}
                 </Pressable>
               ))}
               {allowContext ? (

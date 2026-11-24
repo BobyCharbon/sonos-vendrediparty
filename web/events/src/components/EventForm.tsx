@@ -28,6 +28,7 @@ import { SaveAsTemplate, TemplateList } from './TemplatePicker';
 import { applyTemplate, templateData } from '@/lib/templates';
 import { notifyWallet } from '@/lib/wallet';
 import { AnnounceToggle } from './AnnounceToggle';
+import { SouvenirsSettings } from './souvenirs/SouvenirsSettings';
 
 type PollDraft = {
   id?: string;
@@ -76,6 +77,12 @@ type Draft = {
   carpool_enabled: boolean;
   /** Billets QR : éteints par défaut ; l'organisateur remet ensuite chaque billet (migration 20261104233000). */
   tickets_enabled: boolean;
+  /** Souvenirs (24.11) : éteints par défaut, jamais allumés par l'IA ; « Autoriser l'enregistrement » allumé par défaut.
+   * souvenirs_was : état enregistré (on n'écrit les colonnes que si l'option est ou était allumée) ; figés dès la 1re photo. */
+  souvenirs_enabled: boolean;
+  souvenirs_keep: boolean;
+  souvenirs_was: boolean;
+  souvenirs_locked: boolean;
   forum_enabled: boolean;
   notify_on_publish: boolean;
   /** « Prévenir le groupe » : éteint par défaut ; un simple membre du groupe fait une demande à l'admin du groupe. */
@@ -122,6 +129,10 @@ const emptyDraft: Draft = {
   pot_enabled: false,
   carpool_enabled: false,
   tickets_enabled: false,
+  souvenirs_enabled: false,
+  souvenirs_keep: true,
+  souvenirs_was: false,
+  souvenirs_locked: false,
   forum_enabled: true,
   notify_on_publish: true,
   announce_group: false,
@@ -246,6 +257,10 @@ async function loadDraft(eventId: string): Promise<Draft> {
     pot_enabled: e.pot_enabled ?? false,
     carpool_enabled: e.carpool_enabled ?? false,
     tickets_enabled: e.tickets_enabled ?? false,
+    souvenirs_enabled: e.souvenirs_enabled ?? false,
+    souvenirs_keep: e.souvenirs_keep ?? true,
+    souvenirs_was: e.souvenirs_enabled ?? false,
+    souvenirs_locked: e.souvenirs_locked ?? false,
     forum_enabled: e.forum_enabled,
     notify_on_publish: e.notify_on_publish,
     announce_group: !!e.announce_group,
@@ -495,6 +510,8 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
         pot_enabled: d.pot_enabled,
         carpool_enabled: d.carpool_enabled,
         tickets_enabled: d.tickets_enabled,
+        // Réglés par l'organisation (garde souvenirs_guard) ; jamais écrits tant qu'on n'y a pas touché (base d'avant).
+        ...(d.souvenirs_enabled || d.souvenirs_was ? { souvenirs_enabled: d.souvenirs_enabled, souvenirs_keep: d.souvenirs_keep } : {}),
         forum_enabled: d.forum_enabled,
         // Public : jamais d'annonce (la base l'impose aussi, migration 20261106200000).
         notify_on_publish: d.who.audience === 'public' ? false : d.notify_on_publish,
@@ -872,6 +889,7 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
           <ToggleRow label="Pot commun" hint="Les présents le trouvent dans Réglages › Pot commun pour partager les dépenses" value={d.pot_enabled} onChange={(v) => set({ pot_enabled: v })} />
           <ToggleRow label="Covoiturage" hint="Les participants proposent leurs places ou en cherchent une, ville de départ en option" value={d.carpool_enabled} onChange={(v) => set({ carpool_enabled: v })} />
         </Rows>
+        <SouvenirsSettings enabled={d.souvenirs_enabled} keep={d.souvenirs_keep} locked={d.souvenirs_locked} onChange={set} />
       </Section>
 
       {advanced ? (

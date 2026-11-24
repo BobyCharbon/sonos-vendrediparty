@@ -4,7 +4,8 @@ import { check, must, supabase } from './supabase';
 export type EventTemplate = { id: string; owner_id: string; name: string; shared: boolean; data: Record<string, unknown>; created_at: string };
 
 // Propre à chaque événement : jamais repris d'un modèle (dates, personnes invitées ou co-organisatrices).
-const SKIPPED = ['starts_at', 'ends_at', 'slots', 'poll_deadline', 'rsvp_deadline', 'organizers'];
+// Souvenirs : état enregistré de CET événement (allumé avant, figé dès la 1re photo), jamais repris.
+const SKIPPED = ['starts_at', 'ends_at', 'slots', 'poll_deadline', 'rsvp_deadline', 'organizers', 'souvenirs_was', 'souvenirs_locked'];
 
 type WithLabel = { label: string };
 type PollLike = { options: WithLabel[] } & Record<string, unknown>;
