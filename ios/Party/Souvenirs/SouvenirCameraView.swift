@@ -78,7 +78,17 @@ struct SouvenirCameraView: View {
         case .starting:
             if closedReason == nil && counter == nil { ProgressView().tint(.white) }
         case .denied:
-            message("📷", "Autorise l'appareil photo pour Party dans Réglages › Party › Appareil photo.")
+            VStack(spacing: 16) {
+                message("📷", "Autorise l'appareil photo pour Party dans Réglages › Party › Appareil photo.")
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    Button { UIApplication.shared.open(url) } label: {
+                        Text("Ouvrir Réglages").font(.headline).foregroundStyle(ChatNeon.onPink)
+                            .padding(.horizontal, 24).frame(minHeight: 48)
+                            .background(ChatNeon.pinkGradient, in: Capsule())
+                    }
+                    .accessibilityIdentifier("souvenir-open-settings")
+                }
+            }
         case .unavailable:
             message("📷", "Pas d'appareil photo disponible sur cet appareil.")
         }
@@ -192,11 +202,12 @@ struct SouvenirCameraView: View {
                     Spacer(minLength: 6)
                     if remaining > 0 {
                         Button { Task { await cancel(photo) } } label: {
-                            Text("Annuler \(Int(remaining.rounded(.up)))").font(.subheadline.weight(.bold))
+                            Text("↩︎ Annuler · \(Int(remaining.rounded(.up))) s").font(.subheadline.weight(.bold))
                                 .foregroundStyle(ChatNeon.coral)
                                 .padding(.horizontal, 14).padding(.vertical, 10)
                                 .background(ChatNeon.lavB.opacity(0.35), in: Capsule())
                         }
+                        .accessibilityLabel("Annuler la photo, encore \(Int(remaining.rounded(.up))) secondes")
                         .accessibilityIdentifier("souvenir-cancel")
                     }
                 }

@@ -100,21 +100,52 @@ export function reportPhoto(id: string, reason: string, comment: string) {
   return souvenirCall('report_content', { p_kind: 'souvenir', p_target: id, p_reason: reason, p_comment: comment.trim() || null });
 }
 
-/** Envoie la photo brute : le serveur retire EXIF / GPS, la réduit, la dépose, puis souvenir_take (la base décide). */
+/** Envoi trop long (réseau d'une cave, d'un sous-sol) : on arrête au bout de 30 s, la même photo peut repartir. */
+export const UPLOAD_TIMEOUT_MS = 30_000;
+const SLOW = 'L’envoi prend trop de temps : le réseau est faible. Ta photo n’est pas partie ; touche « Réessayer ».';
+
+/** Réduite dans le navigateur (1600 px au plus, JPEG) : jamais 15 Mo sur la 4G d'une soirée. Le serveur retire toujours
+ *  EXIF / GPS et réduit encore ; sans canvas ou image illisible, l'original part tel quel. */
+export async function shrinkPhoto(file: Blob, max = 1600): Promise<Blob> {
+  try {
+    if (typeof createImageBitmap !== 'function' || typeof document === 'undefined') return file;
+    const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' } as ImageBitmapOptions);
+    const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bmp.width * k);
+    canvas.height = Math.round(bmp.height * k);
+    canvas.getContext('2d')?.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    bmp.close?.();
+    const out = await new Promise<Blob | null>((ok) => canvas.toBlob(ok, 'image/jpeg', 0.85));
+    return out && out.size > 0 ? out : file;
+  } catch {
+    return file;
+  }
+}
+
+/** Envoie la photo (réduite ici) : le serveur retire EXIF / GPS, la réduit, la dépose, puis souvenir_take (la base décide).
+ *  Code `timeout` après 30 s, `network` sans réseau : la même photo peut repartir (« Réessayer »). */
 export async function uploadPhoto(eventId: string, file: Blob): Promise<{ id: string; left: number; taken: number }> {
   const token = await sessionToken();
+  const body = await shrinkPhoto(file);
+  const stop = new AbortController();
+  const timer = setTimeout(() => stop.abort(), UPLOAD_TIMEOUT_MS);
   let r: Response;
   try {
     r = await fetch(`/api/account/souvenirs/photo?event_id=${encodeURIComponent(eventId)}`, {
-      method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': file.type || 'application/octet-stream' },
-      credentials: 'same-origin', body: file,
+      method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': body.type || 'application/octet-stream' },
+      credentials: 'same-origin', body, signal: stop.signal,
     });
   } catch {
-    throw new SouvenirError('network', NETWORK);
+    throw stop.signal.aborted ? new SouvenirError('timeout', SLOW) : new SouvenirError('network', NETWORK);
+  } finally {
+    clearTimeout(timer);
   }
   if (!r.ok) throw await refusalOf(r);
   return (await r.json()) as { id: string; left: number; taken: number };
 }
+/** Refus qu'un nouvel essai avec la même photo peut régler (réseau, délai, serveur occupé). */
+export const canRetry = (e: unknown) => e instanceof SouvenirError && (e.code === 'network' || e.code === 'timeout' || e.code === 'error');
 
 // ───────────── Pont iPhone (facultatif) ─────────────
 type NativeSouvenirs = { camera?: (eventId: string) => unknown; story?: (eventId: string) => unknown; save?: (url: string) => unknown };
@@ -165,12 +196,11 @@ export const hoursLeft = (until: string, now = Date.now()) => Math.max(1, Math.c
 
 export const posesLabel = (n: number) => `${n} ${n > 1 ? 'poses' : 'pose'}`;
 
-/** Avis de la fiche, sous le titre « 📸 Souvenirs actif · L'organisation peut voir les photos avant le dévoilement. » */
+/** Avis de la fiche, sous le titre « 📸 Souvenirs actif » : court, et dit que l'organisation peut voir les photos avant. */
 export function noticeText(c: Counter): string {
-  const when = c.reveal_at ? `, dès ${revealWhen(c.reveal_at)}` : '';
-  return c.keep === false
-    ? `Tes 3 photos seront montrées à tous les participants pendant 24 h${when}. Enregistrement désactivé : personne ne pourra les garder.`
-    : `Tes 3 photos seront montrées à tous les participants pendant 24 h${when}. Chacun pourra garder ses préférées dans ses souvenirs.`;
+  const when = c.reveal_at ? ` ${revealWhen(c.reveal_at)}` : '';
+  return `3 photos chacun, dévoilées à tous${when} pendant 24 h. L’organisation peut les voir avant.`
+    + (c.keep === false ? ' Effacées après la story : personne ne les garde.' : '');
 }
 
 /** Motifs de « Signaler une photo » (maquette v2) ; my_image = le droit à l'image. */

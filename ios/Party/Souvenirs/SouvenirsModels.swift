@@ -70,6 +70,11 @@ struct SouvenirCounter: Decodable, Equatable {
     var canTake: Bool?
     var member: Bool?
     var revealAt: String?
+    /// Bandeau de la discussion de l'événement (le nombre seulement, jamais qui ni quoi).
+    var count: Int?
+    var staff: Bool?
+    var storyUntil: String?
+    var seen: Bool?
 }
 
 /// Photo enregistrée par la base (souvenir_take) : « Annuler » jusqu'à `cancel_until`.

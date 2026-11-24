@@ -8,10 +8,8 @@ import { colors, font, radius } from '@/lib/theme';
 
 /**
  * Didacticiel des Souvenirs (24.11), sur le modèle de celui de l'Agenda (components/agenda/Tutorial.tsx) : 5 cartes, une
- * idée par carte, + 2 cartes pour l'organisation (`staff`). Il s'ouvre à chaque ouverture de la carte Souvenirs tant que la
- * personne n'a pas touché « Ne plus me le rappeler » (retenu sur cet appareil : pas de table de préférences des Souvenirs) ;
- * ✕ / « Passer » / « C'est compris » le ferment pour cette fois. « ❔ Comment ça marche » le rouvre (carte et réglages).
- * `keep` : enregistrement autorisé (cartes 3 et 4 changent quand il est coupé).
+ * idée par carte, + 2 cartes pour l'organisation (`staff`). Il s'ouvre d'office une seule fois par appareil (première carte
+ * Souvenirs vue), puis seulement par « ❔ Comment ça marche » (carte et réglages). `keep` : photos gardées après la story.
  */
 export const TUTORIAL_READY = true;
 
@@ -64,19 +62,19 @@ function steps(staff: boolean, keep: boolean): Step[] {
       key: 'mes', title: 'Tes souvenirs',
       text: keep
         ? <>Sur la fiche de l’événement, tu retrouves <B>tes photos et celles que tu as gardées</B>, à enregistrer sur ton appareil.</>
-        : <>L’organisateur a coupé l’enregistrement : <B>après la story, rien ne reste</B>, ni chez toi ni chez les autres.</>,
+        : <>Ici, l’organisation efface les photos après la story : <B>rien ne reste</B>, ni chez toi ni chez les autres.</>,
       art: keep ? (
         <View style={{ gap: 6, width: '100%' }}>
           <Line icon="📸" label="Ta photo" when="21 h 40" />
           <Line icon="⭐" label="Gardée · photo de Maé" when="22 h 15" />
         </View>
       ) : (
-        <View style={st.warn}><T size={14} weight="bold" color={ORANGE}>⚠️ Enregistrement désactivé</T></View>
+        <View style={st.warn}><T size={14} weight="bold" color={ORANGE}>⚠️ Photos effacées après la story</T></View>
       ),
     },
     {
       key: 'confiance', title: 'En confiance',
-      text: <>Une photo te gêne ? « Signaler », puis « Je suis sur la photo… » : <B>elle est aussitôt masquée</B>. L’organisation peut voir les photos avant le dévoilement.</>,
+      text: <>Une photo te gêne ? « Signaler », puis « Je suis sur la photo… » : <B>elle est aussitôt masquée</B>, l’organisation décide (la modération de Party a le dernier mot). L’organisation peut voir les photos avant le dévoilement.</>,
       art: (
         <View style={{ alignItems: 'center', gap: 8 }}>
           <View style={st.report}><T size={13} weight="semibold">🚩 Je suis sur la photo…</T></View>
@@ -90,11 +88,11 @@ function steps(staff: boolean, keep: boolean): Step[] {
     ...list,
     {
       key: 'regler', title: 'Organisation : les réglages',
-      text: <>Dans « Modifier », allume <B>📸 Souvenirs</B>. « Autoriser l’enregistrement » est allumé : chacun garde ses préférées. Coupé, rien ne reste après la story. Tout se fige à la 1re photo.</>,
+      text: <>Dans « Modifier », allume <B>📸 Souvenirs</B>. « Garder les photos après la story » est allumé : chacun garde ses préférées. Coupé, rien ne reste. Tout se fige à la 1re photo.</>,
       art: (
         <View style={{ gap: 6, width: '100%' }}>
           <Switch label="📸 Souvenirs" />
-          <Switch label="Autoriser l’enregistrement" />
+          <Switch label="Garder les photos après la story" />
         </View>
       ),
     },
@@ -189,13 +187,17 @@ function Sheet({ staff, keep, onSkip, onNever }: { staff: boolean; keep: boolean
 const OFF_KEY = 'party-souvenirs-tutorial-off';
 
 /**
- * Ouvert d'office à chaque montage (`auto`) tant que « Ne plus me le rappeler » n'est pas retenu sur cet appareil
- * (stockage indisponible : il ne s'ouvre qu'à la demande). `show` : « ❔ Comment ça marche ».
+ * Ouvert d'office UNE seule fois par appareil (`auto`, retenu dès qu'il s'ouvre ; avis « bon sens » du 24.11), puis par
+ * « ❔ Comment ça marche » (`show`). Stockage indisponible : il ne s'ouvre qu'à la demande.
  */
 export function useSouvenirsTutorial(auto = true) {
   const [open, setOpen] = useState(() => {
     if (!auto) return false;
-    try { return localStorage.getItem(OFF_KEY) !== '1'; } catch { return false; }
+    try {
+      if (localStorage.getItem(OFF_KEY) === '1') return false;
+      localStorage.setItem(OFF_KEY, '1');
+      return true;
+    } catch { return false; }
   });
   const never = useCallback(() => {
     try { localStorage.setItem(OFF_KEY, '1'); } catch { /* sans stockage : fermé pour cette page */ }

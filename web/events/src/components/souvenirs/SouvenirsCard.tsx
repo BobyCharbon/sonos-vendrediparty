@@ -7,7 +7,7 @@ import { Button, Card, ErrorText, T, Title, Toast } from '@/components/ui';
 import { useSignal } from '@/lib/data';
 import { colors, font, radius } from '@/lib/theme';
 import {
-  CANCEL_SECONDS, cancelPhoto, errorText, fetchCounter, hoursLeft, isTermsRefusal, MAX_POSES, nativeSouvenirs, noticeText,
+  CANCEL_SECONDS, canRetry, cancelPhoto, errorText, fetchCounter, hoursLeft, isTermsRefusal, MAX_POSES, nativeSouvenirs, noticeText,
   onSouvenirsChanged, posesLabel, remaining, revealWhen, uploadPhoto, type Counter,
 } from '@/lib/souvenirs';
 
@@ -37,6 +37,8 @@ export function SouvenirsCard({ eventId, title, open }: { eventId: string; title
   const [undo, setUndo] = useState<Undo | null>(null);
   const [mineKey, setMineKey] = useState(0);
   const [note, setNote] = useState('');
+  /** Photo qui n'est pas partie (réseau, délai) : « Réessayer » la renvoie, jamais montrée. */
+  const [failed, setFailed] = useState<Blob | null>(null);
   const [, setTick] = useState(0);
   const input = useRef<HTMLInputElement | null>(null);
   const opened = useRef(false);
@@ -92,6 +94,7 @@ export function SouvenirsCard({ eventId, title, open }: { eventId: string; title
   const count = c.count ?? 0;
   const circle = !!(c.member || c.staff);
   const before = phase === 'soon' || phase === 'open' || phase === 'waiting';
+  const toReview = Math.max(0, count - (c.taken ?? 0));  // mes propres photos ne sont pas dans la relecture
 
   function shoot() {
     if (native?.camera) { native.camera(eventId); return; }
@@ -100,6 +103,7 @@ export function SouvenirsCard({ eventId, title, open }: { eventId: string; title
 
   async function send(file: Blob, retried = false) {
     setError(null);
+    setFailed(null);
     setUndo({ id: null, left, seconds: CANCEL_SECONDS, state: 'sending' });
     try {
       const done = await uploadPhoto(eventId, file);
@@ -109,6 +113,7 @@ export function SouvenirsCard({ eventId, title, open }: { eventId: string; title
       setUndo(null);
       if (isTermsRefusal(e) && !retried && await gate.ensure()) return send(file, true);  // CGU acceptées : même photo, nouvel essai
       setError(errorText(e));
+      if (canRetry(e)) setFailed(file);
       void load();
     }
   }
@@ -144,7 +149,7 @@ export function SouvenirsCard({ eventId, title, open }: { eventId: string; title
         <View style={st.notice} accessibilityRole="summary">
           <View style={st.live} />
           <View style={{ flex: 1, gap: 2 }}>
-            <Text style={st.noticeTitle}>📸 Souvenirs actif · L’organisation peut voir les photos avant le dévoilement.</Text>
+            <Text style={st.noticeTitle}>📸 Souvenirs actif</Text>
             <Text style={st.noticeText}>{noticeText(c)}</Text>
           </View>
         </View>
@@ -180,9 +185,8 @@ export function SouvenirsCard({ eventId, title, open }: { eventId: string; title
               <Button label={`📸 Prendre une photo · ${left} restante${left > 1 ? 's' : ''}`} onPress={shoot}
                 loading={undo?.state === 'sending'} disabled={undo?.state === 'sent'} />
               <T muted size={12} style={{ textAlign: 'center' }}>
-                Une seule chance : pas d’aperçu, la photo part au labo.{'\n'}
-                {c.keep === false ? '⚠️ Montrée 24 h dans la story, puis effacée : personne ne la garde.'
-                  : 'Tes 3 photos seront montrées à tous les participants pendant 24 h. Chacun pourra garder ses préférées dans ses souvenirs.'}
+                Une seule chance : pas d’aperçu, la photo part au labo.
+                {c.keep === false ? '\n⚠️ Montrée 24 h dans la story, puis effacée : personne ne la garde.' : ''}
               </T>
             </>
           ) : phase === 'open' && c.member && left === 0 ? (
@@ -228,7 +232,7 @@ export function SouvenirsCard({ eventId, title, open }: { eventId: string; title
           {c.keep === false && !native?.story ? (
             <View style={st.appOnly}>
               <T size={14} weight="semibold">📱 Cette story se regarde dans l’app iPhone (captures bloquées).</T>
-              <T muted size={12}>L’organisation n’a pas autorisé l’enregistrement : les photos ne s’affichent pas dans le navigateur.</T>
+              <T muted size={12}>L’organisation a choisi d’effacer les photos après la story : elles ne s’affichent pas dans le navigateur.</T>
             </View>
           ) : count > 0 ? (
             <Button label={c.seen ? '▶︎ Revoir la story' : '▶︎ Voir la story'} onPress={openStory} />
@@ -236,12 +240,10 @@ export function SouvenirsCard({ eventId, title, open }: { eventId: string; title
         </Card>
       ) : null}
 
-      {(phase === 'story' || phase === 'after') && c.keep && circle ? (
+      {/* Passé « Pas présent » après coup : ses propres photos restent à lui (la carte se cache si la liste est vide). */}
+      {(phase === 'story' || phase === 'after') && c.keep ? (
         <View ref={mineRef}>
-          <Card>
-            <Title size={18}>📸 Mes souvenirs</Title>
-            <MySouvenirs eventId={eventId} refreshKey={`${mineKey}|${c.count}`} />
-          </Card>
+          <MySouvenirs eventId={eventId} refreshKey={`${mineKey}|${c.count}`} hideWhenEmpty={!circle} />
         </View>
       ) : null}
 
@@ -254,7 +256,7 @@ export function SouvenirsCard({ eventId, title, open }: { eventId: string; title
               Les photos de cette soirée ne se gardent pas : elles n’étaient visibles que pendant les 24 h de la story.
             </T>
             <T muted size={13.5} style={{ textAlign: 'center' }}>
-              L’organisateur n’a pas autorisé l’enregistrement. Personne n’a pu les garder, et leurs fichiers sont effacés depuis la fin de la story.
+              L’organisation avait choisi d’effacer les photos après la story. Personne n’a pu les garder, et leurs fichiers sont effacés.
             </T>
             <View style={st.pastst}>
               <Text style={{ fontSize: 20 }}>⏳</Text>
@@ -266,11 +268,12 @@ export function SouvenirsCard({ eventId, title, open }: { eventId: string; title
         </Card>
       ) : null}
 
-      {c.staff && phase !== 'soon' ? (
+      {/* Après la story, plus rien à relire (les photos ne sont plus signées) : le lien d'un signalement l'ouvre encore. */}
+      {c.staff && phase !== 'soon' && phase !== 'after' ? (
         <View style={{ gap: 8 }}>
-          <Pressable accessibilityRole="button" accessibilityLabel={`Relire les photos (${count}), organisation seulement`}
+          <Pressable accessibilityRole="button" accessibilityLabel={`Relire les photos (${toReview}), organisation seulement`}
             onPress={() => setReview(true)} style={({ pressed }) => [st.revBtn, pressed && { opacity: 0.85 }]}>
-            <T weight="semibold">👀 Relire les photos ({count})</T>
+            <T weight="semibold">👀 Relire les photos ({toReview})</T>
             <Text style={st.orgtag}>Organisation seulement</Text>
           </Pressable>
           {c.can_reveal_now ? <RevealNow eventId={eventId} onDone={(msg) => { setNote(msg); void load(); }} /> : null}
@@ -283,12 +286,13 @@ export function SouvenirsCard({ eventId, title, open }: { eventId: string; title
         </Pressable>
       ) : null}
       <ErrorText error={error} />
+      {failed && phase === 'open' ? <Button variant="secondary" label="↻ Réessayer" onPress={() => void send(failed)} /> : null}
       {note ? <Toast message={note} onHide={() => setNote('')} /> : null}
 
       {story ? <StoryViewer eventId={eventId} onMine={goMine} onClose={(changed) => { setStory(false); if (changed) setMineKey((k) => k + 1); void load(); }} /> : null}
       {review ? <ReviewSheet eventId={eventId} canRevealNow={!!c.can_reveal_now} onClose={(changed) => { setReview(false); if (changed) void load(); }} /> : null}
       {gate.sheet}
-      {/* Didacticiel : à chaque ouverture de la carte tant que « Ne plus me le rappeler » n'est pas touché, et « Comment ça marche ». */}
+      {/* Didacticiel : d'office une seule fois par appareil, puis par « Comment ça marche ». */}
       <SouvenirsTutorial visible={tutorial.visible && !story && !review} staff={!!c.staff} keep={c.keep !== false}
         onSkip={tutorial.skip} onNever={tutorial.never} />
     </View>
@@ -320,7 +324,7 @@ function UndoBar({ undo, onCancel }: { undo: Undo; onCancel: () => void }) {
       </View>
       {undo.state === 'sent' && undo.seconds > 0 ? (
         <Pressable accessibilityRole="button" accessibilityLabel={`Annuler la photo, encore ${undo.seconds} secondes`} onPress={onCancel} style={st.undoBtn}>
-          <Text style={st.undoBtnText}>Annuler {undo.seconds}</Text>
+          <Text style={st.undoBtnText}>↩︎ Annuler · {undo.seconds} s</Text>
         </Pressable>
       ) : null}
       {undo.state === 'sent' ? <View style={[st.undoBarLine, { width: `${(undo.seconds / CANCEL_SECONDS) * 100}%` }]} /> : null}

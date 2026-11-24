@@ -109,6 +109,70 @@ struct SouvenirBubbleView: View {
     }
 }
 
+/// « 📸 Les souvenirs sont arrivés » en haut de la discussion d'un événement (maquette v2, écran 5 bis), pendant les 24 h
+/// de la story seulement (souvenir_counter : le nombre, jamais qui ni quoi). Un toucher ouvre la story native.
+struct SouvenirChatBanner: View {
+    let eventID: String
+    @Environment(\.souvenirs) private var store
+    @State private var counter: SouvenirCounter?
+
+    private var shown: Bool {
+        guard let c = counter, c.enabled, c.phase == "story", c.member == true || c.staff == true else { return false }
+        return (c.count ?? 0) > 0
+    }
+
+    var body: some View {
+        Group {
+            if shown, let c = counter, let store {
+                let count = c.count ?? 0
+                let until = SouvenirText.visibleFor(until: c.storyUntil)
+                Button {
+                    Haptics.selection()
+                    store.openStory(eventID)
+                } label: {
+                    HStack(spacing: 12) {
+                        Text("📸").font(.system(size: 22))
+                            .frame(width: 44, height: 44)
+                            .background(ChatNeon.s1b, in: Circle())
+                            .overlay(Circle().stroke(c.seen == true ? AnyShapeStyle(ChatNeon.line2) : AnyShapeStyle(ChatNeon.pinkA), lineWidth: 2))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Les souvenirs sont arrivés").font(.subheadline.weight(.bold)).foregroundStyle(ChatNeon.t1)
+                            Text([SouvenirText.photos(count), until].compactMap { $0 }.joined(separator: " · "))
+                                .font(.caption).foregroundStyle(ChatNeon.t2)
+                        }
+                        .lineLimit(1)
+                        Spacer(minLength: 4)
+                        Text(c.seen == true ? "▶︎ Revoir" : "▶︎ Voir").font(.subheadline.weight(.bold)).foregroundStyle(ChatNeon.onPink)
+                            .padding(.horizontal, 14).frame(minHeight: 44)
+                            .background(ChatNeon.pinkGradient, in: Capsule())
+                    }
+                    .padding(.horizontal, 12).padding(.vertical, 10)
+                    .background(ChatNeon.pink.opacity(0.14), in: RoundedRectangle(cornerRadius: 18))
+                    .overlay(RoundedRectangle(cornerRadius: 18).stroke(ChatNeon.pink.opacity(0.55), lineWidth: 1))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 12).padding(.top, 8)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Les souvenirs sont arrivés : \(SouvenirText.photos(count))\(until.map { ", \($0)" } ?? "")")
+                .accessibilityHint("Ouvre la story")
+                .accessibilityAddTraits(.isButton)
+                .accessibilityIdentifier("souvenir-chat-banner")
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .task(id: eventID) {
+            // Relu chaque minute : le dévoilement (ou la fin de la story) arrive pendant que la discussion est ouverte.
+            while !Task.isCancelled {
+                if let store, let fresh = try? await store.counter(eventID), fresh != counter {
+                    Motion.animate(Motion.smooth) { counter = fresh }
+                }
+                try? await Task.sleep(for: .seconds(60))
+            }
+        }
+    }
+}
+
 /// Le store des Souvenirs pour l'onglet Discussions (bulles) ; nil avant que l'app soit prête.
 private struct SouvenirsStoreKey: EnvironmentKey {
     static let defaultValue: SouvenirsStore? = nil

@@ -62,6 +62,16 @@ final class SouvenirsTests: XCTestCase {
         XCTAssertEqual(SouvenirText.countdown(to: iso(now.addingTimeInterval(-10)), now: now), "00:00:00")
     }
 
+    /// Bandeau de la discussion de l'événement : le compteur porte la phase, le nombre et la fin de la story.
+    func testTheCounterTellsTheChatBannerWhenTheStoryIsOn() throws {
+        let json = #"{"enabled":true,"keep":true,"phase":"story","count":12,"member":true,"staff":false,"story_until":"2026-11-25T21:00:00Z","seen":false}"#
+        let c = try SouvenirsStore.decoder.decode(SouvenirCounter.self, from: Data(json.utf8))
+        XCTAssertEqual(c.phase, "story")
+        XCTAssertEqual(c.count, 12)
+        XCTAssertEqual(c.storyUntil, "2026-11-25T21:00:00Z")
+        XCTAssertEqual(c.seen, false)
+    }
+
     func testPostgresTimestampsAreRead() {
         XCTAssertNotNil(SouvenirDates.parse("2026-11-24T21:15:03.123456+00:00"))
         XCTAssertNotNil(SouvenirDates.parse("2026-11-24 21:15:03.12+01"))

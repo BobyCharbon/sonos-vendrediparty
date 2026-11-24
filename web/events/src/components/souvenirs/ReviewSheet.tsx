@@ -51,7 +51,8 @@ export function ReviewSheet({ eventId, canRevealNow, onClose }: { eventId: strin
   }
 
   const close = () => onClose(changed);
-  const photos = (data?.photos ?? []).filter((p) => !p.mine);
+  // Mes photos n'y sont pas ; une photo sans lien (plus signée) ne ferait qu'une case grise.
+  const photos = (data?.photos ?? []).filter((p) => !p.mine && p.url);
   const reported = data?.reported ?? [];
   const before = !data || data.phase === 'open' || data.phase === 'waiting' || data.phase === 'soon';
 
@@ -61,7 +62,7 @@ export function ReviewSheet({ eventId, canRevealNow, onClose }: { eventId: strin
         <View style={st.nav}>
           <View style={{ flex: 1 }}>
             <Text style={st.title}>
-              Relire les photos ({photos.length + reported.length}){reported.length ? <Text style={{ color: colors.accent }}> · 🚩 {reported.length}</Text> : null}
+              Relire les photos ({photos.length}){reported.length ? <Text style={{ color: colors.accent }}> · 🚩 {reported.length}</Text> : null}
             </Text>
             <T muted size={12}>Organisation seulement{before ? ' · avant le dévoilement' : ''}</T>
           </View>
@@ -89,7 +90,7 @@ export function ReviewSheet({ eventId, canRevealNow, onClose }: { eventId: strin
                     <Text style={[st.flBtnText, { color: colors.redSoft }]}>Retirer</Text>
                   </Pressable>
                   <Pressable accessibilityRole="button" accessibilityLabel={`Remettre la photo de ${p.author?.name ?? '?'}`} disabled={!!busy}
-                    onPress={() => void run(p.id, () => restorePhoto(p.id), 'Photo remise dans la story.')} style={st.flBtn}>
+                    onPress={() => void run(p.id, () => restorePhoto(p.id), before ? 'Photo remise.' : 'Photo remise dans la story.')} style={st.flBtn}>
                     <Text style={st.flBtnText}>Remettre</Text>
                   </Pressable>
                 </View>

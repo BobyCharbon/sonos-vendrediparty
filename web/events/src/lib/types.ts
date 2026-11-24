@@ -87,7 +87,7 @@ export type EventRow = {
   tickets_enabled?: boolean;
   /** Souvenirs (migration 20261124090000 ; absente avant : éteint). Réglés par l'organisation, figés dès la 1re photo. */
   souvenirs_enabled?: boolean;
-  /** « Autoriser l'enregistrement » : allumé par défaut ; éteint, rien ne reste après la story de 24 h. */
+  /** « Garder les photos après la story » : allumé par défaut ; éteint, rien ne reste après la story de 24 h. */
   souvenirs_keep?: boolean;
   souvenirs_locked?: boolean;
   forum_enabled: boolean;

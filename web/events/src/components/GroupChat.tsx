@@ -21,6 +21,7 @@ import { GroupChatSettings } from './GroupChatSettings';
 import { GroupJoinNote } from './GuestGroup';
 import { MentionSuggestions } from './MentionSuggestions';
 import { ReportSheet } from './ReportSheet';
+import { SouvenirsChatBanner } from './souvenirs/SouvenirsChatBanner';
 import { useTermsGate } from './TermsSheet';
 import { usePersonText } from './PersonName';
 import { Button, Input, Loading, s, Toast } from './ui';
@@ -989,6 +990,8 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
           {/* Entré par sa réponse à un événement (17.11) : d'où il vient et « Quitter », à la première ouverture. */}
           {direct || event ? null : <GroupJoinNote groupId={id} me={me.id} onLeft={reload} />}
+          {/* Souvenirs dévoilés (24.11) : la story s'ouvre d'ici pendant ses 24 h. */}
+          {event ? <SouvenirsChatBanner eventId={id} /> : null}
           {requestIn && other ? (
             <RequestBanner side="incoming" name={otherName} userId={other} photo={people.get(other)?.avatar_url ?? null}
               onProfile={() => mini.open(other)}

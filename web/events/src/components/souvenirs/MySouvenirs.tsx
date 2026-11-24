@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Avatar, Button, ErrorText, Skeleton, T, Toast } from '@/components/ui';
+import { Avatar, Button, Card, ErrorText, Skeleton, T, Title, Toast } from '@/components/ui';
 import { colors, font } from '@/lib/theme';
 import {
   deletePhoto, downloadUrl, errorText, fetchMine, nativeSouvenirs, photoWhen, shortDate, unkeepPhoto, type Photo,
@@ -15,7 +15,8 @@ const FILM = '#FFB547';
  * soirée, avec leur auteur ; filtre Toutes / Prises par moi / Gardées ; Enregistrer (lien de téléchargement, ou la
  * Photothèque dans l'app iPhone), Supprimer (les miennes, aussi chez ceux qui les avaient gardées) ou Retirer (gardées).
  */
-export function MySouvenirs({ eventId, refreshKey }: { eventId: string; refreshKey?: unknown }) {
+// `hideWhenEmpty` : hors du cercle (passé « Pas présent ») ; la carte ne s'affiche que s'il a encore des photos.
+export function MySouvenirs({ eventId, refreshKey, hideWhenEmpty = false }: { eventId: string; refreshKey?: unknown; hideWhenEmpty?: boolean }) {
   const [photos, setPhotos] = useState<Photo[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
@@ -33,7 +34,8 @@ export function MySouvenirs({ eventId, refreshKey }: { eventId: string; refreshK
     return () => clearTimeout(t);
   }, [arm]);
 
-  if (!photos) return error ? <ErrorText error={error} /> : <Skeleton height={96} />;
+  if (hideWhenEmpty && !photos?.length) return null;
+  if (!photos) return <Card><Title size={18}>📸 Mes souvenirs</Title>{error ? <ErrorText error={error} /> : <Skeleton height={96} />}</Card>;
   const me = photos.filter((p) => p.mine);
   const kept = photos.filter((p) => !p.mine);
   const list = filter === 'me' ? me : filter === 'kept' ? kept : photos;
@@ -56,7 +58,8 @@ export function MySouvenirs({ eventId, refreshKey }: { eventId: string; refreshK
     { key: 'all', label: 'Toutes', n: photos.length }, { key: 'me', label: 'Prises par moi', n: me.length }, { key: 'kept', label: 'Gardées', n: kept.length },
   ];
   return (
-    <View style={{ gap: 12 }}>
+    <Card style={{ gap: 12 }}>
+      <Title size={18}>📸 Mes souvenirs</Title>
       <View style={st.seg} accessibilityRole="tablist" accessibilityLabel="Filtrer">
         {tabs.map((t) => (
           <Pressable key={t.key} accessibilityRole="tab" accessibilityState={{ selected: filter === t.key }} aria-selected={filter === t.key}
@@ -104,7 +107,7 @@ export function MySouvenirs({ eventId, refreshKey }: { eventId: string; refreshK
       </T>
       <ErrorText error={error} />
       {toast ? <Toast message={toast} onHide={() => setToast('')} /> : null}
-    </View>
+    </Card>
   );
 }
 

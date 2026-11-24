@@ -182,8 +182,8 @@ def test_during_the_party_a_photo_goes_to_the_lab_unseen_and_can_be_cancelled_fo
     page, errors = phone
     state = souvenir_services(page, phase='open')
     open_event(page, events_origin)
-    pw.expect(page.get_by_text('📸 Souvenirs actif · L’organisation peut voir les photos avant le dévoilement.', exact=True)).to_be_visible()
-    pw.expect(page.get_by_text('Chacun pourra garder ses préférées dans ses souvenirs.', exact=False).first).to_be_visible()
+    pw.expect(page.get_by_text('📸 Souvenirs actif', exact=True)).to_be_visible()
+    pw.expect(page.get_by_text('L’organisation peut les voir avant.', exact=False).first).to_be_visible()
     pw.expect(page.get_by_text('Ton appareil jetable', exact=True)).to_be_visible()
     pw.expect(page.get_by_text('🧪 Au labo :', exact=False)).to_contain_text('5 photos')
     pw.expect(page.get_by_role('button', name='Relire les photos (5), organisation seulement')).to_be_visible()
@@ -326,10 +326,73 @@ def test_after_the_story_without_recording_the_empty_state_of_the_mockup(phone, 
     souvenir_services(page, phase='after', keep=False)
     open_event(page, events_origin)
     pw.expect(page.get_by_text('Les photos de cette soirée ne se gardent pas', exact=False)).to_be_visible()
-    pw.expect(page.get_by_text('L’organisateur n’a pas autorisé l’enregistrement.', exact=False)).to_be_visible()
+    pw.expect(page.get_by_text('L’organisation avait choisi d’effacer les photos après la story.', exact=False)).to_be_visible()
     pw.expect(page.get_by_text('Souvenirs actif', exact=False)).to_have_count(0)
     page.get_by_test_id('souvenirs').scroll_into_view_if_needed()
     shot(page, 'souvenirs-apres-sans-enregistrement.png')
+    assert not errors, errors
+
+
+def test_a_failed_send_keeps_the_photo_unseen_and_retry_sends_it_again(phone, events_origin):
+    """Réseau coupé (cave, sous-sol) : « Réessayer » renvoie la même photo, jamais montrée ; la photo part réduite (JPEG)."""
+    page, errors = phone
+    state = souvenir_services(page, phase='open')
+    cut = {'n': 1}
+
+    def flaky(route):
+        if cut['n']:
+            cut['n'] -= 1
+            return route.abort()
+        return route.fallback()
+    page.route('**/api/account/souvenirs/photo**', flaky)
+    open_event(page, events_origin)
+    with page.expect_file_chooser() as chooser:
+        page.get_by_role('button', name='📸 Prendre une photo · 3 restantes').click()
+    chooser.value.set_files(files=[{'name': 'photo.jpg', 'mimeType': 'image/jpeg', 'buffer': jpeg()}])
+    pw.expect(page.get_by_text('La connexion a échoué', exact=False)).to_be_visible()
+    assert not state['uploads']
+    page.get_by_role('button', name='↻ Réessayer').click()
+    pw.expect(page.get_by_test_id('souvenir-undo')).to_contain_text('🧪 Partie au labo')
+    assert state['uploads'][0][1] == 'image/jpeg' and state['uploads'][0][2] > 100
+    pw.expect(page.get_by_role('button', name='↻ Réessayer')).to_have_count(0)
+    assert not errors, errors
+
+
+def test_someone_now_not_coming_still_sees_his_own_photos(phone, events_origin):
+    """Passé « Pas présent » après coup : hors du cercle, mais ses propres photos (et gardées) restent dans « Mes souvenirs »."""
+    page, errors = phone
+    state = souvenir_services(page, phase='after', staff=False)
+    state['counter'].update(member=False)
+    open_event(page, events_origin)
+    pw.expect(page.get_by_text('📸 Mes souvenirs', exact=True)).to_be_visible()
+    pw.expect(page.get_by_test_id('souvenir-item')).to_have_count(3)
+    pw.expect(page.get_by_role('button', name='Relire les photos', exact=False)).to_have_count(0)
+    state['mine'] = []
+    page.reload(wait_until='domcontentloaded')
+    pw.expect(page.get_by_test_id('souvenirs')).to_be_visible(timeout=15000)
+    page.wait_for_timeout(800)
+    pw.expect(page.get_by_text('📸 Mes souvenirs', exact=True)).to_have_count(0)
+    assert not errors, errors
+
+
+def test_the_event_chat_shows_the_arrived_souvenirs_and_opens_the_story(phone, events_origin):
+    """Maquette v2, écran 5 bis : « 📸 Les souvenirs sont arrivés » en haut de la discussion pendant la story ; un toucher
+    ouvre la story (fiche + ?souvenirs=1). Hors story : rien."""
+    page, errors = phone
+    state = souvenir_services(page, phase='story')
+    signed_in(page, events_origin, f'/event/{EVENT}/chat')
+    banner = page.get_by_test_id('souvenirs-chat-banner')
+    pw.expect(banner).to_be_visible(timeout=15000)
+    pw.expect(banner).to_contain_text('Les souvenirs sont arrivés')
+    pw.expect(banner).to_contain_text('5 photos · Visible encore 23 h')
+    shot(page, 'souvenirs-discussion.png')
+    banner.click()
+    pw.expect(page.get_by_test_id('story-photo')).to_be_visible(timeout=15000)
+    assert 'souvenir_story' in names(state)
+    state['counter'].update(phase='waiting')
+    page.goto(f'{events_origin}/events/event/{EVENT}/chat', wait_until='domcontentloaded')
+    page.wait_for_timeout(1500)
+    pw.expect(page.get_by_test_id('souvenirs-chat-banner')).to_have_count(0)
     assert not errors, errors
 
 
@@ -401,15 +464,15 @@ def test_the_form_has_souvenirs_off_recording_on_and_the_orange_warning(phone, e
     pw.expect(box).to_be_visible(timeout=15000)
     souvenirs = box.get_by_role('switch', name='📸 Souvenirs')
     pw.expect(souvenirs).not_to_be_checked()
-    pw.expect(box.get_by_role('switch', name='Autoriser l’enregistrement')).to_have_count(0)
+    pw.expect(box.get_by_role('switch', name='Garder les photos après la story')).to_have_count(0)
     souvenirs.click()
-    keep = box.get_by_role('switch', name='Autoriser l’enregistrement')
+    keep = box.get_by_role('switch', name='Garder les photos après la story')
     pw.expect(keep).to_be_checked()
     pw.expect(box.get_by_text('Chacun pourra garder ses préférées dans ses souvenirs (13 mois).', exact=False)).to_be_visible()
     keep.click()
     warn = box.get_by_role('alert')
-    pw.expect(warn).to_contain_text('Enregistrement désactivé')
-    pw.expect(warn).to_contain_text('Captures bloquées dans l’app iPhone seulement ; ailleurs, rien ne peut l’empêcher.')
+    pw.expect(warn).to_contain_text('Photos effacées après la story')
+    pw.expect(warn).to_contain_text('ne se regarde alors que dans l’app iPhone (captures bloquées)')
     box.scroll_into_view_if_needed()
     shot(page, 'souvenirs-reglages.png')
     page.get_by_role('button', name='Enregistrer', exact=True).first.click()
@@ -434,9 +497,9 @@ TUTORIAL = ['Les photos de la soirée', '3 photos chacun', 'Le dévoilement', 'T
 STAFF_TUTORIAL = ['Organisation : les réglages', 'Organisation : relire et dévoiler']
 
 
-def test_the_tutorial_opens_with_the_card_skip_comes_back_never_stays_closed_and_can_be_seen_again(phone, events_origin):
-    """Didacticiel (24.11, modèle de l'Agenda) : à chaque ouverture de la carte ; ✕ / « Passer » pour cette fois (il revient
-    au rechargement) ; « Ne plus me le rappeler » retenu sur cet appareil ; « ❔ Comment ça marche » le rouvre au début."""
+def test_the_tutorial_opens_once_per_device_then_only_from_how_it_works(phone, events_origin):
+    """Didacticiel (24.11, modèle de l'Agenda ; avis « bon sens ») : d'office UNE seule fois par appareil, même fermé par ✕ ;
+    ensuite « ❔ Comment ça marche » le rouvre au début ; « Ne plus me le rappeler » le ferme aussi."""
     page, errors = phone
     souvenir_services(page, phase='open', staff=False, tutorial=True)
     signed_in(page, events_origin, f'/event/{EVENT}')
@@ -454,14 +517,6 @@ def test_the_tutorial_opens_with_the_card_skip_comes_back_never_stays_closed_and
     pw.expect(tuto.get_by_role('heading', name='Tes souvenirs')).to_be_visible()
     tuto.get_by_role('button', name='Passer le tutoriel').click()     # ✕
     pw.expect(tuto).to_have_count(0)
-    page.reload(wait_until='domcontentloaded')
-    pw.expect(tuto).to_be_visible(timeout=15000)
-    tuto.get_by_role('button', name='Passer', exact=True).click()
-    pw.expect(tuto).to_have_count(0)
-    page.reload(wait_until='domcontentloaded')
-    pw.expect(tuto).to_be_visible(timeout=15000)
-    tuto.get_by_role('button', name='Ne plus me le rappeler').click()
-    pw.expect(tuto).to_have_count(0)
     assert page.evaluate("localStorage.getItem('party-souvenirs-tutorial-off')") == '1'
     page.reload(wait_until='domcontentloaded')
     pw.expect(page.get_by_test_id('souvenirs')).to_be_visible(timeout=15000)
@@ -472,6 +527,9 @@ def test_the_tutorial_opens_with_the_card_skip_comes_back_never_stays_closed_and
     for _ in TUTORIAL[1:]:
         tuto.get_by_role('button', name='Suivant').click()
     tuto.get_by_role('button', name='C’est compris').click()
+    pw.expect(tuto).to_have_count(0)
+    page.get_by_test_id('souvenirs-tutorial-again').click()
+    tuto.get_by_role('button', name='Ne plus me le rappeler').click()
     pw.expect(tuto).to_have_count(0)
     assert not errors, errors
 
@@ -491,7 +549,7 @@ def test_the_organization_gets_two_more_cards_and_without_recording_nothing_stay
             pw.expect(tuto).to_contain_text('rien ne se garde')
             pw.expect(tuto).not_to_contain_text('⭐')
         if title == 'Tes souvenirs':
-            pw.expect(tuto).to_contain_text('après la story, rien ne reste')
+            pw.expect(tuto).to_contain_text('efface les photos après la story')
         shot(page, f'souvenirs-tuto-staff-{n}.png')
     pw.expect(tuto).to_contain_text('Dévoiler maintenant')
     assert not errors, errors

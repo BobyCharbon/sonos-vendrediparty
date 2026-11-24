@@ -112,7 +112,7 @@ export function StoryViewer({ eventId, onClose, onMine }: { eventId: string; onC
       await setBlocked(author.id, true);
       changed.current = true;
       setMasked((m) => ({ ...m, ...Object.fromEntries(photos.filter((p) => p.author?.id === author.id).map((p) => [p.id, `⛔ ${author.name} est bloqué·e`])) }));
-      setToast('Vous ne verrez plus vos photos, dans les deux sens.');
+      setToast(`Tu ne verras plus les photos de ${author.name}, et ${author.name} ne verra plus les tiennes.`);
     } catch (e) {
       setToast(errorText(e));
     }
@@ -198,7 +198,7 @@ export function StoryViewer({ eventId, onClose, onMine }: { eventId: string; onC
                 <Text style={st.endTitle}>C’était toute la soirée</Text>
                 <Text style={st.endText}>
                   {photos.length} photo{photos.length > 1 ? 's' : ''}{first && last ? `, de ${clock.format(new Date(first))} à ${clock.format(new Date(last))}` : ''}.{'\n'}
-                  {story.keep ? 'Tes photos et celles que tu as gardées t’attendent sur la fiche.' : 'Enregistrement désactivé : rien ne reste après la story.'}
+                  {story.keep ? 'Tes photos et celles que tu as gardées t’attendent sur la fiche.' : 'Photos effacées après la story : rien ne reste.'}
                 </Text>
                 {story.keep ? <Button label="📸 Mes souvenirs" style={st.endBtn} onPress={() => { onMine(); close(); }} /> : null}
                 <Button variant="secondary" label="↺ Revoir" style={st.endBtn} onPress={() => { setEnded(false); show(0); }} />
@@ -216,14 +216,14 @@ export function StoryViewer({ eventId, onClose, onMine }: { eventId: string; onC
                     <Text style={st.optIcon}>🚩</Text>
                     <View style={{ flex: 1 }}>
                       <Text style={st.optText}>Signaler</Text>
-                      <Text style={st.optSmall}>La photo est masquée aussitôt, la modération décide.</Text>
+                      <Text style={st.optSmall}>Masquée aussitôt. L’organisation décide, la modération de Party a le dernier mot.</Text>
                     </View>
                   </Pressable>
                   <Pressable accessibilityRole="menuitem" style={st.opt} onPress={() => void block()}>
                     <Text style={st.optIcon}>⛔</Text>
                     <View style={{ flex: 1 }}>
                       <Text style={[st.optText, { color: colors.redSoft }]}>Bloquer {photo.author?.name ?? ''}</Text>
-                      <Text style={st.optSmall}>Vous ne verrez plus vos photos, dans les deux sens.</Text>
+                      <Text style={st.optSmall}>Tu ne verras plus ses photos, et cette personne ne verra plus les tiennes.</Text>
                     </View>
                   </Pressable>
                   <Button variant="secondary" label="Annuler" onPress={() => setMenu(false)} />

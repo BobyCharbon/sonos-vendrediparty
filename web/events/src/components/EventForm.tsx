@@ -77,7 +77,7 @@ type Draft = {
   carpool_enabled: boolean;
   /** Billets QR : éteints par défaut ; l'organisateur remet ensuite chaque billet (migration 20261104233000). */
   tickets_enabled: boolean;
-  /** Souvenirs (24.11) : éteints par défaut, jamais allumés par l'IA ; « Autoriser l'enregistrement » allumé par défaut.
+  /** Souvenirs (24.11) : éteints par défaut, jamais allumés par l'IA ; « Garder les photos après la story » allumé par défaut.
    * souvenirs_was : état enregistré (on n'écrit les colonnes que si l'option est ou était allumée) ; figés dès la 1re photo. */
   souvenirs_enabled: boolean;
   souvenirs_keep: boolean;

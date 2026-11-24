@@ -847,9 +847,15 @@ réglage de prod :
   ouverts une fois). App iPhone : `PartyNative.souvenirs.camera / story / save` (pont-ios.md), retour par
   `window.PartySouvenirs.changed(id)` (index.html le passe au cadre). Modération : la copie porte `bucket: souvenirs`
   (reports.tsx, moderation_api.py). Didacticiel `SouvenirsTutorial` (modèle de l'Agenda) : 5 cartes (+ 2 pour l'organisation,
-  variante sans enregistrement), à chaque ouverture de la carte tant que « Ne plus me le rappeler » n'est pas touché (par
-  appareil, localStorage `party-souvenirs-tutorial-off` : pas de table de préférences), jamais d'office par un lien
-  `?souvenirs=` ; « ❔ Comment ça marche » sur la carte et dans les réglages.
+  variante sans enregistrement), d'office UNE seule fois par appareil (localStorage `party-souvenirs-tutorial-off`, posé
+  dès qu'il s'ouvre ; avis « bon sens » du 24.11), jamais d'office par un lien `?souvenirs=` ; ensuite « ❔ Comment ça
+  marche » sur la carte et dans les réglages. Texte visible du réglage `souvenirs_keep` : « Garder les photos après la
+  story » (jamais « Autoriser l'enregistrement »). Envoi web : photo réduite dans le navigateur (canvas 1600 px, JPEG),
+  délai de 30 s, « ↻ Réessayer » renvoie la même photo. « Mes souvenirs » reste visible hors du cercle (passé « Pas
+  présent ») s'il reste des photos ; « 👀 Relire » caché après la story (lien d'un signalement seul).
+  Bandeau « 📸 Les souvenirs sont arrivés » en haut de la discussion de l'événement pendant la story (`souvenir_counter`,
+  aucune migration) : web `SouvenirsChatBanner` (GroupChat mode event → fiche `?souvenirs=1` ou story native), iPhone
+  `SouvenirChatBanner` (ConversationView, `openStory`). Test : `test_the_event_chat_shows_the_arrived_souvenirs_and_opens_the_story`.
 - Tests : `tests/test_souvenirs.py`, `tests/supabase_live/test_souvenirs_live.py`, `tests/test_souvenirs_browser.py`,
   `tests/supabase_live/test_souvenirs_browser_live.py` (recette réelle).
 - App iPhone (24.11, contrat pont-ios.md) : `PartyNative.souvenirs.camera(id)` (appareil NATIF AVFoundation, jamais la
