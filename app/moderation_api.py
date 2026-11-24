@@ -12,13 +12,14 @@ from .group_chats import GroupChats
 
 UUID = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
 KINDS = ("group_message", "direct_message", "event_message", "profile", "profile_photo", "event", "group_photo",
-         "pet_name", "pet_item", "pet_offer", "pet_showcase", "pet_word")
+         "pet_name", "pet_item", "pet_offer", "pet_showcase", "pet_word", "souvenir")
 REASONS = {
     "harassment": "Harcèlement",
     "shocking": "Contenu choquant",
     "spam": "Spam",
     "scam": "Arnaque ou vente",
     "other": "Autre",
+    "my_image": "Je suis sur la photo et je ne veux pas qu'elle soit montrée",
 }
 ACTIONS = ("hide", "warn", "suspend", "ban", "dismiss")
 STATUSES = ("open", "actioned", "dismissed", "all")

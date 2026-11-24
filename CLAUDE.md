@@ -798,3 +798,35 @@ réglage de prod :
   edit_others / remove_others. Sous le seuil Co-admin : ni admin du site, ni tous les groupes. Tout seuil de rang se
   compare par clé (`role_rank('coadmin')`), jamais par nombre.
 - Tests : `tests/supabase_live/test_modifier_moderer_live.py`, `tests/test_modifier_moderer_browser.py`.
+
+## Souvenirs (avis 74d36b93e7bd, 24.11, migration 20261124090000) — socle base + serveur ; écrans web et iPhone à suivre
+- Option par événement `events.souvenirs_enabled` (éteinte par défaut, jamais allumée par l'IA : hors du schéma de
+  ai_events.py / ai_event_edit.py) et `souvenirs_keep` (« Garder les photos après la story », ALLUMÉ par défaut) ; réglés
+  par l'organisation seule (`souvenir_settings`, garde `souvenirs_guard`), FIGÉS dès la 1re photo (`souvenirs_locked`).
+- Prise de vue : Présent, Peut-être et organisation (`private.souvenir_circle`), profil complet, CGU ; du début à la fin + 2 h
+  (sans fin : début + 12 h), avant le dévoilement ; 3 photos par personne (plusieurs jours : 3 en tout), jamais revues,
+  annulables 5 s (`souvenir_cancel`, 8 s en base). Envoi par le serveur seulement : `POST /api/account/souvenirs/photo`
+  (app/souvenirs.py : EXIF / GPS retirés, 1600 px, JPEG ; compartiment privé `souvenirs/<événement>/<auteur>/<id>.jpg`, puis
+  `souvenir_take`). Lecture : liens signés de 10 min (relais `POST /api/account/souvenirs/rpc`, liste blanche `RELAY`).
+- L'organisation (créateur, co-organisateurs, `events.manage_all`) voit TOUJOURS les photos avant le dévoilement, sans
+  réglage (`souvenir_review`), et en retire (`souvenir_remove`) : l'avis « 📸 Souvenirs actif » aux invités doit le dire.
+- Dévoilement : fin + 24 h (pg_cron `souvenirs-tick`) ou « Dévoiler maintenant » (`souvenir_reveal_now`, JAMAIS avant la fin) ;
+  notification `souvenirs_revealed` au cercle, une fois (interrupteur `notification_prefs.souvenirs`). Story de 24 h
+  (`souvenir_story`) : toutes les photos au cercle ; « ⭐ Garder dans mes souvenirs » (`souvenir_keep` / `souvenir_unkeep`,
+  table `souvenir_keeps` = une RÉFÉRENCE, jamais une copie) seulement si `souvenirs_keep`. Mes photos y sont d'office.
+- Après la story : `souvenir_mine` = mes photos (`origin` « taken ») + gardées (« kept »), ordre chronologique, 13 mois.
+  `souvenirs_keep` éteint : rien ne reste, `souvenir_keep` refusé, lignes et fichiers effacés à la fin des 24 h.
+  Plus de partage par l'auteur ni d'onglet « Partagées » ; plus de « Je suis sur cette photo » (décisions du 24.11).
+- Une photo gardée disparaît des souvenirs des autres si l'auteur la supprime (`souvenir_delete`), si l'organisation la
+  retire, si elle est signalée / masquée, ou en cas de blocage (dans les deux sens, partout : story, souvenirs, compteur).
+- Signaler (`report_content` type `souvenir`, motif `my_image` « Je suis sur la photo et je ne veux pas qu'elle soit
+  montrée » en plus des habituels) : masquée AUSSITÔT pour tous ; modérateurs prévenus (`report_new`) ET organisation
+  (`souvenir_reported`, interrupteur `souvenirs` dans Réglages › Notifications, may_receive_push, blocage) ; l'organisation la retire ou la remet (`souvenir_restore`) ; la modération
+  de Party a le dernier mot (« Masquer » efface, « Classer » remet).
+- Toute ligne effacée (auteur, organisation, modération, compte, événement, story sans « garder », 13 mois) met son fichier
+  dans `private.souvenir_trash`, vidée par la base (`souvenir_files_gc`, API Storage, appelée par le serveur toutes les heures
+  et par `souvenirs-tick`). Temps réel : `event_changed` sur `souvenir_photos`. Compteur : `souvenir_counter` (le NOMBRE
+  seulement, jamais qui ni quoi). Bulles : `souvenir_stories`, `souvenir_mark_seen` (`souvenir_seen`).
+- Avant la prod : CGU, privacy.tsx (13 mois, EXIF retirés), notes de revue + démo déjà dévoilée, NSCameraUsageDescription,
+  anti-capture iPhone de la story (comme `SecretCardsView`), story réservée à l'app iPhone.
+- Tests : `tests/test_souvenirs.py`, `tests/supabase_live/test_souvenirs_live.py`.

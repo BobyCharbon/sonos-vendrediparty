@@ -205,6 +205,7 @@ export type NotificationPrefs = {
   booking_requests?: boolean;
   /** Pronos (17.11) : nouveau prono, résultat, résultat à donner. */
   pronos?: boolean;
+  souvenirs?: boolean;
   /** Annonces et @tout des groupes de Discussions (absent avant la migration : reçues). */
   group_broadcasts?: boolean;
   /** Billets payants (migration 20261103130000 ; absent avant : reçues) : quelqu'un dit avoir payé ma place / mon paiement confirmé. */

@@ -33,6 +33,8 @@ from . import tv_zicou
 from . import calendar_feed
 from .agenda import agenda_router
 from .pronos import pronos_router
+from .souvenirs import souvenirs_router
+from .souvenirs import start_files_gc as start_souvenir_files_gc
 from .chat_rpc import chat_rpc_router, start_files_gc
 from . import pet_pot, tv_star
 # Adresse du déploiement et fonctions en bêta (Compagnon : allumé sur le site de test seulement).
@@ -173,6 +175,7 @@ async def lifespan(app):
         threading.Thread(target=absorb_local_feedback, daemon=True).start()
     if "pytest" not in sys.modules:  # fichiers orphelins des Discussions : au démarrage puis toutes les 6 h (jamais en test)
         start_files_gc(group_chats)
+        start_souvenir_files_gc(accounts)  # Souvenirs : corbeille et envois jamais enregistrés, toutes les heures
     yield
 
 
@@ -1648,6 +1651,8 @@ app.include_router(moderation_router(Moderation(group_admin, group_chats)))
 # Agenda (17.11) : page publique des liens de dispo (/d/<jeton>), suivi des demandes (/d/r/<secret>), relais iPhone.
 app.include_router(agenda_router(accounts, configured_public_url, client_ip))
 app.include_router(pronos_router(accounts))
+# Souvenirs (24.11) : envoi des photos (EXIF / GPS retirés, 1600 px) et relais souvenir_* (liens signés courts).
+app.include_router(souvenirs_router(accounts))
 # Discussions v2 (18.11) : relais des nouvelles fonctions pour l'app iPhone (sous /api/account/chats : drapeau compris).
 app.include_router(chat_rpc_router(group_chats, lambda link: group_link_url(link)))  # groupes natifs : adresse des liens
 contact_names = ContactNames(accounts)
