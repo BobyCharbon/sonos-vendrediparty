@@ -20,6 +20,11 @@
 --   (<événement>/<auteur>/<id>.jpg), envoyés par le serveur (EXIF / GPS retirés, 1600 px), lus par liens signés ;
 --   toute ligne effacée (auteur, organisation, modération, compte, événement, story sans « garder », 13 mois) met
 --   son fichier à la corbeille, vidée par la base (souvenir_files_gc, API Storage avec la clé du coffre).
+-- - Dépôt par le serveur SEUL (sinon EXIF / GPS passeraient) : le serveur Party (clé souvenirs_server_key du coffre,
+--   variable SOUVENIRS_SECRET) obtient un ticket à usage unique (souvenir_upload_ticket, 2 min) ; la règle de dépôt du
+--   compartiment l'exige et souvenir_take le consomme. Un client seul n'a pas la clé : aucun dépôt direct.
+-- - Une photo masquée par un signalement reste visible pour l'organisation (relecture : Retirer / Remettre) ; retirée
+--   par la modération ou supprimée, elle n'existe plus.
 -- Purement additive et rejouable.
 
 -- ───────────── Événement : options ─────────────
@@ -86,7 +91,29 @@ create table if not exists private.souvenir_gc_runs (
   last_at timestamptz not null,
   removed int
 );
-revoke all on private.souvenir_runs, private.souvenir_trash, private.souvenir_gc_runs from public, anon, authenticated;
+-- Tickets de dépôt (serveur Party seulement) : un chemin <e>/<moi>/<id>.jpg, 2 minutes, consommé par souvenir_take.
+create table if not exists private.souvenir_tickets (
+  path text primary key,
+  user_id uuid not null,
+  expires_at timestamptz not null
+);
+revoke all on private.souvenir_runs, private.souvenir_trash, private.souvenir_gc_runs, private.souvenir_tickets
+  from public, anon, authenticated;
+
+-- Clé du serveur Party (SOUVENIRS_SECRET sur le serveur = ce secret du coffre) : elle seule obtient un ticket de dépôt.
+do $$
+begin
+  if not exists (select 1 from vault.secrets where name = 'souvenirs_server_key') then
+    perform vault.create_secret(encode(extensions.gen_random_bytes(32), 'hex'), 'souvenirs_server_key',
+                                'Souvenirs : clé du serveur Party (SOUVENIRS_SECRET), seule à pouvoir déposer une photo');
+  end if;
+end $$;
+create or replace function private.souvenir_server_ok(p_key text) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select coalesce(char_length(p_key) >= 32 and extensions.digest(p_key, 'sha256') = extensions.digest(
+    (select decrypted_secret from vault.decrypted_secrets where name = 'souvenirs_server_key' limit 1), 'sha256'), false);
+$$;
+revoke all on function private.souvenir_server_ok(text) from public, anon, authenticated;
 
 -- Toute ligne effacée (cascade du compte ou de l'événement comprise) : son fichier part à la corbeille.
 create or replace function private.souvenir_trash_file() returns trigger
@@ -206,7 +233,7 @@ values ('souvenirs', 'souvenirs', false, 4 * 1024 * 1024, array['image/jpeg'])
 on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit,
   allowed_mime_types = excluded.allowed_mime_types;
 
--- Déposer : dans son dossier <événement>/<moi>/, quand je peux encore prendre une photo.
+-- Déposer : dans son dossier <événement>/<moi>/, quand je peux encore prendre une photo, avec un ticket du serveur.
 create or replace function private.souvenir_may_upload(name text) returns boolean
 language plpgsql stable security definer set search_path = '' as $$
 declare me uuid := auth.uid(); e uuid; ev public.events;
@@ -218,9 +245,11 @@ begin
   select * into ev from public.events where id = e;
   return ev.id is not null and ev.status = 'published' and private.souvenir_phase(ev) = 'open'
     and private.souvenir_circle(e, me)
-    and (select count(*) from public.souvenir_photos p where p.event_id = e and p.author_id = me) < 3;
+    and (select count(*) from public.souvenir_photos p where p.event_id = e and p.author_id = me) < 3
+    and exists (select 1 from private.souvenir_tickets t where t.path = name and t.user_id = me and t.expires_at > now());
 end $$;
--- Lire (liens signés) : une photo visible pour moi, ou signalée et lue par la modération.
+-- Lire (liens signés) : une photo visible pour moi ; signalée (masquée en attendant) : l'organisation, pour décider
+-- (Retirer / Remettre), et la modération.
 create or replace function private.souvenir_may_read(name text) returns boolean
 language plpgsql stable security definer set search_path = '' as $$
 declare p public.souvenir_photos;
@@ -228,6 +257,7 @@ begin
   select * into p from public.souvenir_photos where path = name;
   if p.id is null then return false; end if;
   return private.souvenir_visible(p, auth.uid())
+    or (p.hidden_at is not null and private.souvenir_staff(p.event_id, auth.uid()))
     or (public.has_perm('moderation.reports') and exists (select 1 from public.content_reports r
           where r.target_kind = 'souvenir' and r.target_id = p.id::text));
 end $$;
@@ -341,8 +371,8 @@ begin
   return jsonb_build_object('phase', private.souvenir_phase(ev),
     'photos', coalesce((select jsonb_agg(private.souvenir_json(p, me) order by p.taken_at, p.id)
       from public.souvenir_photos p where p.event_id = e and p.hidden_at is null and not private.blocked_either(me, p.author_id)), '[]'::jsonb),
-    -- Signalées, masquées en attendant : l'organisation les retire ou les remet ; motifs des signalements ouverts
-    -- (jamais qui a signalé).
+    -- Signalées, masquées en attendant : l'organisation les VOIT (lien signé, souvenir_may_read) pour les retirer ou les
+    -- remettre ; motifs des signalements ouverts (jamais qui a signalé).
     'reported', coalesce((select jsonb_agg(private.souvenir_json(p, me) || jsonb_build_object('hidden_at', p.hidden_at,
         'reasons', (select coalesce(jsonb_agg(distinct r.reason), '[]'::jsonb) from public.content_reports r
                     where r.target_kind = 'souvenir' and r.target_id = p.id::text and r.status = 'open')) order by p.taken_at)
@@ -376,11 +406,10 @@ begin
 end $$;
 
 -- ───────────── Prise de vue ─────────────
--- Le serveur a déposé <e>/<moi>/<id>.jpg (EXIF / GPS retirés) ; la photo est enregistrée ici. 3 au plus par personne.
-create or replace function public.souvenir_take(e uuid, id uuid) returns jsonb
+-- Puis-je prendre une photo maintenant ? (compte, profil, CGU, option, cercle, fenêtre, 3 au plus) ; rend l'événement.
+create or replace function private.souvenir_take_check(e uuid, me uuid) returns public.events
 language plpgsql security definer set search_path = '' as $$
-declare me uuid := auth.uid(); ev public.events; n int; f text := e::text || '/' || auth.uid()::text || '/' || id::text || '.jpg';
-        p public.souvenir_photos;
+declare ev public.events;
 begin
   if me is null or not private.is_account_active(me) then raise exception 'forbidden: connecte-toi' using errcode = '42501'; end if;
   if not private.identity_complete(me) then
@@ -397,11 +426,40 @@ begin
   if private.souvenir_phase(ev) <> 'open' then
     raise exception 'closed: l''appareil photo est ouvert du début de l''événement à 2 h après sa fin' using errcode = '22023';
   end if;
-  perform pg_advisory_xact_lock(hashtext('souvenir:' || e::text || ':' || me::text));
+  if (select count(*) from public.souvenir_photos x where x.event_id = e and x.author_id = me) >= 3 then
+    raise exception 'full: tu as déjà pris tes 3 photos' using errcode = '22023';
+  end if;
+  return ev;
+end $$;
+revoke all on function private.souvenir_take_check(uuid, uuid) from public, anon, authenticated;
+
+-- Ticket de dépôt, pour le serveur Party seul (clé du coffre) : juste avant de déposer la photo nettoyée.
+create or replace function public.souvenir_upload_ticket(e uuid, p_key text) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare me uuid := auth.uid(); i uuid := gen_random_uuid(); f text;
+begin
+  if not private.souvenir_server_ok(p_key) then
+    raise exception 'server: les photos passent par le serveur de Party' using errcode = '42501';
+  end if;
+  perform private.souvenir_take_check(e, me);
+  f := e::text || '/' || me::text || '/' || i::text || '.jpg';
+  delete from private.souvenir_tickets t where t.expires_at < now() - interval '1 hour';
+  insert into private.souvenir_tickets (path, user_id, expires_at) values (f, me, now() + interval '2 minutes');
+  return jsonb_build_object('id', i, 'path', f);
+end $$;
+
+-- Le serveur a déposé <e>/<moi>/<id>.jpg (EXIF / GPS retirés, ticket) ; la photo est enregistrée ici. 3 au plus.
+create or replace function public.souvenir_take(e uuid, id uuid) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare me uuid := auth.uid(); ev public.events; n int; f text := e::text || '/' || auth.uid()::text || '/' || id::text || '.jpg';
+        p public.souvenir_photos;
+begin
+  if me is not null then perform pg_advisory_xact_lock(hashtext('souvenir:' || e::text || ':' || me::text)); end if;
+  ev := private.souvenir_take_check(e, me);
   select count(*) into n from public.souvenir_photos x where x.event_id = e and x.author_id = me;
-  if n >= 3 then raise exception 'full: tu as déjà pris tes 3 photos' using errcode = '22023'; end if;
-  if not exists (select 1 from storage.objects o where o.bucket_id = 'souvenirs' and o.name = f
-                 and (o.owner = me or o.owner_id = me::text)) then
+  delete from private.souvenir_tickets t where t.path = f and t.user_id = me;
+  if not found or not exists (select 1 from storage.objects o where o.bucket_id = 'souvenirs' and o.name = f
+                              and (o.owner = me or o.owner_id = me::text)) then
     raise exception 'invalid: photo introuvable, réessaie' using errcode = '22023';
   end if;
   insert into public.souvenir_photos (id, event_id, author_id, path) values (id, e, me, f)
@@ -632,12 +690,12 @@ revoke all on function public.souvenir_counter(uuid), public.souvenir_story(uuid
   public.souvenir_review(uuid), public.souvenir_stories(), public.souvenir_mark_seen(uuid), public.souvenir_take(uuid, uuid),
   public.souvenir_cancel(uuid), public.souvenir_delete(uuid), public.souvenir_remove(uuid), public.souvenir_restore(uuid),
   public.souvenir_keep(uuid), public.souvenir_unkeep(uuid), public.souvenir_settings(uuid, jsonb),
-  public.souvenir_reveal_now(uuid) from public, anon;
+  public.souvenir_reveal_now(uuid), public.souvenir_upload_ticket(uuid, text) from public, anon;
 grant execute on function public.souvenir_counter(uuid), public.souvenir_story(uuid), public.souvenir_mine(uuid),
   public.souvenir_review(uuid), public.souvenir_stories(), public.souvenir_mark_seen(uuid), public.souvenir_take(uuid, uuid),
   public.souvenir_cancel(uuid), public.souvenir_delete(uuid), public.souvenir_remove(uuid), public.souvenir_restore(uuid),
   public.souvenir_keep(uuid), public.souvenir_unkeep(uuid), public.souvenir_settings(uuid, jsonb),
-  public.souvenir_reveal_now(uuid) to authenticated;
+  public.souvenir_reveal_now(uuid), public.souvenir_upload_ticket(uuid, text) to authenticated;
 
 -- ───────────── Signaler ─────────────
 -- Copie gardée par le signalement : visible seulement par qui voit la photo.

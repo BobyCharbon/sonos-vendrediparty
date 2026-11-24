@@ -59,27 +59,39 @@ def test_a_small_png_stays_small_and_anything_else_is_refused():
             souvenirs.clean_jpeg(bad)
 
 
-def test_upload_puts_the_clean_file_then_calls_souvenir_take(client):
+KEY = "cle-du-serveur-souvenirs-pour-les-tests-0123456789"
+PHOTO = "0a0b0c0d-0000-4000-8000-0000000000ff"
+TICKET = {"id": PHOTO, "path": f"{EVENT}/{ME}/{PHOTO}.jpg"}
+
+
+def answers(*replies):
+    """Réponses successives de la base (souvenir_upload_ticket, puis souvenir_take)."""
+    return mock.patch.object(souvenirs.Db, "call", side_effect=list(replies))
+
+
+def test_upload_gets_a_ticket_with_the_server_key_puts_the_clean_file_then_calls_souvenir_take(client, monkeypatch):
+    monkeypatch.setenv(souvenirs.SECRET_ENV, KEY)
     calls = []
 
     def fake_get(method, path, token, **kw):
         calls.append((method, path, kw))
         return mock.Mock(status_code=200, json=lambda: {})
 
-    taken = {"id": "x", "path": "p", "taken": 1, "left": 2, "cancel_until": "2026-11-24T22:00:05Z"}
+    taken = {"id": PHOTO, "path": TICKET["path"], "taken": 1, "left": 2, "cancel_until": "2026-11-24T22:00:05Z"}
     with mock.patch.object(main.accounts, "_uid", return_value=ME), mock.patch.object(main.accounts, "_get", side_effect=fake_get), \
-            mock.patch.object(souvenirs.Db, "call", return_value=(200, taken)) as call:
+            answers((200, TICKET), (200, taken)) as call:
         r = client.post(f"/api/account/souvenirs/photo?event_id={EVENT}", content=phone_photo(800, 600),
                         headers={"Authorization": "Bearer t", "Content-Type": "image/jpeg"})
     assert r.status_code == 200 and r.json() == taken
     method, path, kw = calls[0]
-    assert method == "POST" and re.fullmatch(rf"/storage/v1/object/souvenirs/{EVENT}/{ME}/[0-9a-f-]{{36}}\.jpg", path)
+    assert method == "POST" and path == f"/storage/v1/object/souvenirs/{TICKET['path']}"
     assert kw["headers"]["Content-Type"] == "image/jpeg" and b"Apple" not in kw["content"]
-    fn, args, token = call.call_args.args
-    assert fn == "souvenir_take" and args == {"e": EVENT, "id": path.rsplit("/", 1)[1][:-4]} and token == "t"
+    assert [c.args for c in call.call_args_list] == [("souvenir_upload_ticket", {"e": EVENT, "p_key": KEY}, "t"),
+                                                     ("souvenir_take", {"e": EVENT, "id": PHOTO}, "t")]
 
 
-def test_a_refused_photo_is_removed_and_the_words_of_the_database_are_kept(client):
+def test_a_refused_photo_is_removed_and_the_words_of_the_database_are_kept(client, monkeypatch):
+    monkeypatch.setenv(souvenirs.SECRET_ENV, KEY)
     calls = []
 
     def fake_get(method, path, token, **kw):
@@ -87,11 +99,36 @@ def test_a_refused_photo_is_removed_and_the_words_of_the_database_are_kept(clien
         return mock.Mock(status_code=200, json=lambda: {})
 
     with mock.patch.object(main.accounts, "_uid", return_value=ME), mock.patch.object(main.accounts, "_get", side_effect=fake_get), \
-            mock.patch.object(souvenirs.Db, "call", return_value=(400, {"message": "full: tu as déjà pris tes 3 photos"})):
+            answers((200, TICKET), (400, {"message": "full: tu as déjà pris tes 3 photos"})):
         r = client.post(f"/api/account/souvenirs/photo?event_id={EVENT}", content=phone_photo(400, 300),
                         headers={"Authorization": "Bearer t"})
     assert r.status_code == 409 and r.json() == {"code": "full", "detail": "tu as déjà pris tes 3 photos"}
     assert [m for m, _ in calls] == ["POST", "DELETE"] and calls[0][1] == calls[1][1]
+
+
+def test_a_refused_ticket_uploads_nothing(client, monkeypatch):
+    monkeypatch.setenv(souvenirs.SECRET_ENV, KEY)
+    with mock.patch.object(main.accounts, "_uid", return_value=ME), mock.patch.object(main.accounts, "_get") as get, \
+            answers((400, {"message": "closed: l'appareil photo est ouvert du début de l'événement à 2 h après sa fin"})):
+        r = client.post(f"/api/account/souvenirs/photo?event_id={EVENT}", content=phone_photo(400, 300),
+                        headers={"Authorization": "Bearer t"})
+    assert r.status_code == 409 and r.json()["code"] == "closed" and get.call_count == 0
+
+
+def test_without_the_server_key_or_with_a_wrong_one_the_camera_is_not_ready(client, monkeypatch):
+    """Sans SOUVENIRS_SECRET (ou refusée par la base) : panne de configuration, 503, rien n'est déposé."""
+    monkeypatch.delenv(souvenirs.SECRET_ENV, raising=False)
+    with mock.patch.object(main.accounts, "_uid", return_value=ME), mock.patch.object(main.accounts, "_get") as get, \
+            answers() as call:
+        r = client.post(f"/api/account/souvenirs/photo?event_id={EVENT}", content=phone_photo(400, 300),
+                        headers={"Authorization": "Bearer t"})
+    assert r.status_code == 503 and "pas encore prêt" in r.json()["detail"] and get.call_count == 0 and call.call_count == 0
+    monkeypatch.setenv(souvenirs.SECRET_ENV, "fausse-cle-0123456789-0123456789-0123")
+    with mock.patch.object(main.accounts, "_uid", return_value=ME), mock.patch.object(main.accounts, "_get") as get, \
+            answers((400, {"message": "server: les photos passent par le serveur de Party"})):
+        r = client.post(f"/api/account/souvenirs/photo?event_id={EVENT}", content=phone_photo(400, 300),
+                        headers={"Authorization": "Bearer t"})
+    assert r.status_code == 503 and get.call_count == 0
 
 
 def test_upload_needs_a_session_a_valid_event_and_a_real_photo(client):
@@ -108,6 +145,7 @@ def test_the_relay_only_calls_souvenir_functions(client):
     with mock.patch.object(souvenirs.Db, "call", return_value=(200, {"enabled": False})) as call:
         assert client.post("/api/account/souvenirs/rpc", json={"token": "t", "fn": "prono_list"}).status_code == 404
         assert client.post("/api/account/souvenirs/rpc", json={"token": "t", "fn": "souvenir_take"}).status_code == 404
+        assert client.post("/api/account/souvenirs/rpc", json={"token": "t", "fn": "souvenir_upload_ticket"}).status_code == 404
         assert client.post("/api/account/souvenirs/rpc", json={"token": "t", "fn": "souvenir_files_gc"}).status_code == 404
         assert client.post("/api/account/souvenirs/rpc", json={"token": "t", "fn": "report_content",
                                                                 "args": {"p_kind": "profile"}}).status_code == 404

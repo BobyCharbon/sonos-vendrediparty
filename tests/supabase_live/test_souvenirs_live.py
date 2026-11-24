@@ -12,7 +12,7 @@ from tests.supabase_live.test_groups_members_only_live import sql_test
 from tests.supabase_live.test_member_admin_live import pytestmark  # noqa: F401
 
 ROOT = Path(__file__).resolve().parents[2]
-DECLARE = ("e uuid; a uuid; b uuid; c uuid; d uuid; n int; m int; r jsonb; s text; t text; bots uuid; bots2 uuid; "
+DECLARE = ("e uuid; a uuid; b uuid; c uuid; d uuid; n int; m int; r jsonb; s text; t text; k text; tk jsonb; bots uuid; bots2 uuid; "
            + " ".join(f"{k} uuid;" for k in BOTS))
 
 # Phases (par rapport à now()) : ouvert, fermé avant le dévoilement, story, après la story.
@@ -48,12 +48,17 @@ def move(span: str) -> str:
     return as_postgres() + f"update public.events set (starts_at, ends_at) = ({span}) where id = e;"
 
 
+SERVER_KEY = "k := (select decrypted_secret from vault.decrypted_secrets where name = 'souvenirs_server_key' limit 1);"
+
+
 def take(bot: str, into: str = "a") -> str:
-    """Le serveur dépose le fichier (ici : la ligne de storage.objects), puis souvenir_take avec la session du bot."""
-    return as_postgres() + f"""
-      {into} := gen_random_uuid();
-      insert into storage.objects (bucket_id, name, owner_id) values ('souvenirs', e || '/' || {bot} || '/' || {into} || '.jpg', {bot}::text);
-      """ + as_bot(bot) + f"perform public.souvenir_take(e, {into});"
+    """Comme le serveur : ticket (clé du serveur), dépôt du fichier avec la session du bot (règle du compartiment : la
+    ligne de storage.objects), puis souvenir_take."""
+    return as_postgres() + SERVER_KEY + as_bot(bot) + f"""
+      tk := public.souvenir_upload_ticket(e, k);
+      {into} := (tk->>'id')::uuid;
+      insert into storage.objects (bucket_id, name, owner_id) values ('souvenirs', tk->>'path', {bot}::text);
+      """ + f"perform public.souvenir_take(e, {into});"
 
 
 def attempt(stmt: str, label: str) -> str:
@@ -87,8 +92,8 @@ def test_the_window_the_circle_the_profile_and_the_file():
       """ + as_bot("violette") + attempt("perform public.souvenir_take(e, a);", "sans_reponse") + as_postgres() + """
       insert into public.rsvps (event_id, user_id, status) values (e, violette, 'no');""" + as_bot("violette")
         + attempt("perform public.souvenir_take(e, a);", "pas_present") + as_bot("victor")
-        + attempt("perform public.souvenir_take(e, gen_random_uuid());", "sans_fichier") + move(WAITING)
-        + take("victor").replace("perform public.souvenir_take(e, a);", "") + as_bot("victor")
+        + attempt("perform public.souvenir_take(e, gen_random_uuid());", "sans_fichier")
+        + take("victor").replace("perform public.souvenir_take(e, a);", "") + move(WAITING) + as_bot("victor")
         + attempt("perform public.souvenir_take(e, a);", "apres_fin") + move("now() + interval '1 hour', now() + interval '3 hours'")
         + as_bot("victor") + attempt("perform public.souvenir_take(e, a);", "avant_debut") + move(OPEN) + as_postgres() + """
       delete from public.terms_acceptances where user_id = victor;""" + as_bot("victor")
@@ -103,10 +108,35 @@ def test_cancel_within_five_seconds_only_and_the_upload_rule_of_the_bucket():
               + take("victor", "b") + as_postgres() + """
       update public.souvenir_photos set taken_at = now() - interval '10 seconds' where id = b;""" + as_bot("victor")
               + attempt("perform public.souvenir_cancel(b);", "dix_secondes") + """
-      raise exception 'résultat:% photos=% depot_soi=% depot_autre=%', s,
-        (select count(*) from public.souvenir_counter(e) x), private.souvenir_may_upload(e || '/' || victor || '/' || gen_random_uuid() || '.jpg'),
-        private.souvenir_may_upload(e || '/' || valentin || '/' || gen_random_uuid() || '.jpg');""")
-    assert result(out) == "tout_de_suite=ok dix_secondes=closed photos=1 depot_soi=t depot_autre=f", out
+      tk := public.souvenir_upload_ticket(e, k);
+      raise exception 'résultat:% photos=% depot_ticket=% depot_sans_ticket=% depot_autre=%', s,
+        (select count(*) from public.souvenir_counter(e) x), private.souvenir_may_upload(tk->>'path'),
+        private.souvenir_may_upload(e || '/' || victor || '/' || gen_random_uuid() || '.jpg'),
+        private.souvenir_may_upload(replace(tk->>'path', victor::text, valentin::text));""")
+    assert result(out) == "tout_de_suite=ok dix_secondes=closed photos=1 depot_ticket=t depot_sans_ticket=f depot_autre=f", out
+
+
+def test_a_client_alone_can_never_put_a_file_in_the_bucket():
+    """Faille fermée (24.11) : sans la clé du serveur, pas de ticket ; sans ticket, la règle du compartiment refuse le
+    dépôt (le fichier garderait EXIF et GPS) ; un ticket expiré ne sert plus ; une photo sans ticket n'est pas prise."""
+    state = "replace(split_part(sqlerrm, ':', 1), 'new row violates row-level security policy for table \"objects\"', 'rls')"
+    out = run(event() + "s := '';" + as_bot("victor")
+              + attempt("perform public.souvenir_upload_ticket(e, 'une-cle-inventee-par-le-client-0123456789');", "ticket_client")
+              + attempt("perform public.souvenir_upload_ticket(e, null);", "ticket_sans_cle")
+              + attempt("insert into storage.objects (bucket_id, name, owner_id) values ('souvenirs', e || '/' || victor || '/' "
+                        "|| gen_random_uuid() || '.jpg', victor::text);", "depot_direct").replace("split_part(sqlerrm, ':', 1)", state)
+              + as_postgres() + SERVER_KEY + as_bot("victor") + """
+      tk := public.souvenir_upload_ticket(e, k);""" + as_postgres() + """
+      update private.souvenir_tickets set expires_at = now() - interval '1 second' where path = tk->>'path';""" + as_bot("victor")
+              + attempt("insert into storage.objects (bucket_id, name, owner_id) values ('souvenirs', tk->>'path', victor::text);",
+                        "ticket_expire").replace("split_part(sqlerrm, ':', 1)", state) + as_postgres() + """
+      a := gen_random_uuid();
+      insert into storage.objects (bucket_id, name, owner_id) values ('souvenirs', e || '/' || victor || '/' || a || '.jpg', victor::text);
+      """ + as_bot("victor") + attempt("perform public.souvenir_take(e, a);", "prise_sans_ticket") + take("victor", "b") + as_bot("victor")
+              + attempt("perform public.souvenir_take(e, b);", "ticket_rejoue") + """
+      raise exception 'résultat:% photos=%', s, public.souvenir_counter(e)->>'count';""")
+    assert result(out) == ("ticket_client=server ticket_sans_cle=server depot_direct=rls ticket_expire=rls "
+                           "prise_sans_ticket=invalid ticket_rejoue=invalid photos=1"), out
 
 
 def test_before_the_reveal_only_the_organization_sees_the_photos():
@@ -242,6 +272,23 @@ def test_a_reported_photo_is_hidden_at_once_the_organization_is_told_and_decides
         jsonb_array_length(r->'reported'), jsonb_array_length(public.souvenir_story(e)->'photos');""")
     # Les modérateurs de Party (droit moderation.reports) reçoivent « Droit à l'image · une photo Souvenirs » (au moins un).
     assert re.search(r"résultat: masquee_story=1 masquee_gardee=0 orga_prevenue=1 moderateurs=[1-9]\d* signalee=1 remise=2", out), out
+
+
+def test_the_organization_sees_a_reported_photo_to_decide_never_one_removed_by_moderation():
+    """Décision de l'admin (24.11) : le signalement va à l'organisation, qui décide ; elle doit donc VOIR la photo masquée
+    (fichier lisible : lien signé de souvenir_review). Les autres non ; retirée par la modération de Party : plus rien."""
+    out = run(event() + take("victor") + take("valentin", "b") + move(STORY) + as_bot("valentin") + """
+      perform public.report_content('souvenir', a::text, 'my_image', null);""" + as_postgres() + """
+      t := (select path from public.souvenir_photos where id = a);""" + as_bot("olga") + """
+      r := public.souvenir_review(e);
+      s := 'olga=' || private.souvenir_may_read(t) || ' chemin=' || (r->'reported'->0->>'path' = t);""" + as_bot("ada") + """
+      s := s || ' ada=' || private.souvenir_may_read(t);""" + as_bot("victor") + """
+      s := s || ' auteur=' || private.souvenir_may_read(t);""" + as_bot("valentin") + """
+      s := s || ' valentin=' || private.souvenir_may_read(t);""" + as_postgres() + """
+      perform private.moderation_hide(x) from public.content_reports x where target_kind = 'souvenir' and target_id = a::text;""" + as_bot("olga") + """
+      raise exception 'résultat:% apres_moderation=% signalees=%', s, private.souvenir_may_read(t),
+        jsonb_array_length(public.souvenir_review(e)->'reported');""")
+    assert result(out) == "olga=true chemin=true ada=true auteur=false valentin=false apres_moderation=f signalees=0", out
 
 
 def test_party_moderation_has_the_last_word():

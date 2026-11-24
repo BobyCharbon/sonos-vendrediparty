@@ -48,6 +48,14 @@ def shot(page, name: str):
         page.screenshot(path=str(SHOTS / f'{name}.png'))
 
 
+def phone_jpeg_with_gps() -> bytes:
+    exif = Image.Exif()
+    exif[0x8825] = {1: 'N', 2: (46.0, 13.0, 0.0), 3: 'E', 4: (7.0, 21.0, 0.0)}
+    out = io.BytesIO()
+    Image.new('RGB', (64, 64), '#123456').save(out, 'JPEG', exif=exif)
+    return out.getvalue()
+
+
 def jpeg(color: str) -> bytes:
     img = Image.new('RGB', (900, 1200), color)
     draw = ImageDraw.Draw(img)
@@ -72,7 +80,9 @@ def party(tmp_path_factory):
            'ADMIN_PIN': '8462', 'SPOTIFY_CLIENT_ID': '', 'SPOTIFY_CLIENT_SECRET': '', 'INVITES_V2_ENABLED': '1',
            'COMPAGNON_ENABLED': '0', 'DISCUSSIONS_ENABLED': '1', 'BAR_ENABLED': '1',
            'PARTY_PUBLIC_URL': f'http://127.0.0.1:{port}',
-           'SUPABASE_URL': TEST_URL, 'SUPABASE_ANON_KEY': KEY_FILE.read_text().strip(), 'PYTHONDONTWRITEBYTECODE': '1'}
+           'SUPABASE_URL': TEST_URL, 'SUPABASE_ANON_KEY': KEY_FILE.read_text().strip(), 'PYTHONDONTWRITEBYTECODE': '1',
+           # Clé du serveur (coffre de la base de TEST) : sans elle, aucun dépôt (comme SOUVENIRS_SECRET en prod).
+           'SOUVENIRS_SECRET': sql("select decrypted_secret k from vault.decrypted_secrets where name = 'souvenirs_server_key'")[0]['k']}
     process = subprocess.Popen([sys.executable, '-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', str(port),
                                 '--lifespan', 'off'], cwd=ROOT, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     origin = f'http://127.0.0.1:{port}'
@@ -144,9 +154,16 @@ def test_souvenirs_for_real_from_the_camera_to_my_souvenirs(browser, party, worl
                     headers={'Authorization': f'Bearer {token}', 'Content-Type': 'image/jpeg'})
     assert up.status_code == 200, up.text
     owner_photo = up.json()['id']
+    # Faille fermée : un client qui dépose lui-même (sans le serveur, donc avec EXIF / GPS) est refusé par le compartiment.
+    direct = httpx.post(f"{TEST_URL}/storage/v1/object/souvenirs/{eid}/{owner.uid}/{owner_photo[:-4]}0000.jpg",
+                        content=phone_jpeg_with_gps(), timeout=30, headers={**owner.headers, 'Content-Type': 'image/jpeg'})
+    assert direct.status_code in (400, 403) and 'row-level security' in direct.text, direct.text
+    assert sql(f"select count(*)::int n from storage.objects where bucket_id = 'souvenirs' and name like '{eid}/%'") == [{'n': 1}]
 
     ctx_b, page, errors = phone_page(browser, alone=True)
     ctx_a, org, org_errors = phone_page(browser, alone=True)
+    for each in (page, org):  # le didacticiel (première ouverture) a son propre test : tests/test_souvenirs_browser.py
+        each.add_init_script("try { localStorage.setItem('party-souvenirs-tutorial-off', '1'); } catch (e) {}")
     try:
         # 1. Guest B pendant la soirée : l'avis, l'appareil jetable, une photo, « Annuler » sans aperçu.
         page.goto(f'{party}/events/sign-in', wait_until='domcontentloaded')
@@ -183,6 +200,9 @@ def test_souvenirs_for_real_from_the_camera_to_my_souvenirs(browser, party, worl
         review = org.get_by_label('Relire les photos', exact=True)
         pw.expect(review.get_by_test_id('review-reported')).to_have_count(1, timeout=30000)
         pw.expect(review.get_by_test_id('review-photo')).to_have_count(0)  # la sienne n'y est pas
+        # Le signalement va à l'organisation, qui décide : elle VOIT la photo masquée (lien signé, fichier lisible).
+        org.wait_for_function("[...document.querySelectorAll('[data-testid=\"review-reported\"] img')].some((i) => i.complete "
+                              "&& i.naturalWidth > 0 && i.src.includes('/storage/v1/object/sign/souvenirs/'))", timeout=30000)
         shot(org, '03-organisation-relecture-signalee')
         review.get_by_role('button', name='Remettre la photo de', exact=False).click()
         pw.expect(review.get_by_test_id('review-photo')).to_have_count(1, timeout=15000)

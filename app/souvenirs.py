@@ -2,15 +2,17 @@
 
 - POST /api/account/souvenirs/photo?event_id=<id> : la photo brute (corps de la requête, JPEG / PNG / WebP, 15 Mo au plus),
   jeton du compte dans l'en-tête Authorization. Le serveur la redresse, retire EXIF et GPS (une image neuve, sans
-  métadonnées), la réduit à 1600 px au plus, la dépose en JPEG dans le compartiment privé « souvenirs »
-  (<événement>/<moi>/<id>.jpg) puis appelle souvenir_take (la base décide de tout : cercle, fenêtre, 3 photos, CGU).
-  Refusée : le fichier déposé est retiré aussitôt.
+  métadonnées), la réduit à 1600 px au plus, demande un ticket de dépôt (souvenir_upload_ticket, avec la clé du serveur
+  SOUVENIRS_SECRET = secret « souvenirs_server_key » du coffre de la base : un client seul ne peut rien déposer), la dépose
+  en JPEG dans le compartiment privé « souvenirs » (<événement>/<moi>/<id>.jpg) puis appelle souvenir_take (la base décide
+  de tout : cercle, fenêtre, 3 photos, CGU). Refusée : le fichier déposé est retiré aussitôt.
 - POST /api/account/souvenirs/rpc : relais des fonctions souvenir_* (liste blanche) pour l'iPhone et le web ; chaque
   photo reçoit « url » (lien signé court) et chaque auteur « photo » (sa photo de profil signée).
 - Fichiers effacés (corbeille de la base, envois jamais enregistrés) : la base les retire par l'API Storage
   (souvenir_files_gc), appelée au démarrage puis toutes les heures, et par la tâche souvenirs-tick."""
 import io
 import logging
+import os
 import re
 import threading
 import time
@@ -42,6 +44,8 @@ JPEG_QUALITY = 85
 SIGNED_TTL = 600               # lien d'une photo : 10 minutes
 GC_EVERY = 3600
 GC_FIRST_DELAY = 90
+SECRET_ENV = "SOUVENIRS_SECRET"   # clé du serveur Party : secret « souvenirs_server_key » du coffre de la base
+NOT_READY = "L'appareil photo n'est pas encore prêt. Réessaie plus tard."
 
 
 class RelayBody(BaseModel):
@@ -92,9 +96,10 @@ def bearer(request: Request) -> str:
 
 
 class Souvenirs:
-    def __init__(self, accounts: Accounts):
+    def __init__(self, accounts: Accounts, secret: str | None = None):
         self.accounts = accounts
         self.db = Db(accounts)
+        self.secret = secret  # None : lue dans l'environnement à chaque photo
 
     def _sign(self, bucket: str, paths: list[str], token: str) -> dict[str, str]:
         paths = sorted({p for p in paths if p})
@@ -122,19 +127,20 @@ class Souvenirs:
         return data
 
     def take(self, token: str, event_id: str, data: bytes) -> tuple[int, dict]:
-        me = self.accounts._uid(token)
+        self.accounts._uid(token)
         jpeg = clean_jpeg(data)
-        photo_id = str(uuid.uuid4())
-        path = f"{event_id}/{me}/{photo_id}.jpg"
+        key = (os.environ.get(SECRET_ENV, "") if self.secret is None else self.secret).strip()
+        if not key:
+            log.error("Souvenirs : %s manquant, aucune photo ne peut être déposée", SECRET_ENV)
+            raise ServiceUnavailable(NOT_READY)
+        # Ticket à usage unique (la base vérifie cercle, fenêtre, 3 photos, CGU) : seul le serveur peut déposer.
+        status, body = self.db.call("souvenir_upload_ticket", {"e": event_id, "p_key": key}, token)
+        if status != 200 or not isinstance(body, dict) or not body.get("path"):
+            return self._refused(status, body)
+        photo_id, path = str(body["id"]), str(body["path"])
         r = self.accounts._get("POST", f"/storage/v1/object/souvenirs/{path}", token, content=jpeg,
                                headers={"Content-Type": "image/jpeg"}, timeout=20.0)
         if r.status_code not in (200, 201):
-            # Le compartiment refuse (hors fenêtre, hors cercle, 3 photos) : la base dit pourquoi, sans rien garder.
-            status, body = self.db.call("souvenir_counter", {"e": event_id}, token)
-            if status == 200 and isinstance(body, dict) and body.get("enabled") and not body.get("can_take"):
-                text = ("Tu as déjà pris tes 3 photos." if body.get("member") and not body.get("left")
-                        else "L'appareil photo n'est pas ouvert pour toi en ce moment.")
-                return 409, {"code": "closed", "detail": text}
             raise AccountError("La photo n'a pas pu être envoyée. Réessaie.")
         status, body = self.db.call("souvenir_take", {"e": event_id, "id": photo_id}, token)
         if status == 200:
@@ -143,9 +149,15 @@ class Souvenirs:
             self.accounts._get("DELETE", f"/storage/v1/object/souvenirs/{path}", token, timeout=6.0)
         except AccountError:
             pass
+        return self._refused(status, body)
+
+    def _refused(self, status: int, body: Any) -> tuple[int, dict]:
         if status == 401:
             raise HTTPException(401, "Ta connexion a expiré. Reconnecte-toi.")
         code, text = refusal(body)
+        if code == "server":  # clé du serveur fausse (SOUVENIRS_SECRET) : panne de configuration, pas sa faute
+            log.error("Souvenirs : la base refuse la clé du serveur (%s)", SECRET_ENV)
+            raise ServiceUnavailable(NOT_READY)
         if code == "error":
             raise HTTPException(503 if status >= 500 else 400, "Ça n'a pas marché. Réessaie dans un instant.")
         return STATUS.get(code, 400), {"code": code, "detail": text}

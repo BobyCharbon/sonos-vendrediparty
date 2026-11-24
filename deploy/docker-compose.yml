@@ -24,6 +24,8 @@ services:
       # Notifications de l'app iOS native (app/apns.py) : clé APNs .p8 (contenu) et son identifiant.
       APNS_KEY_P8: ${APNS_KEY_P8:-}
       APNS_KEY_ID: ${APNS_KEY_ID:-}
+      # Souvenirs : clé du serveur, seule à pouvoir déposer une photo (coffre de la base, « souvenirs_server_key »).
+      SOUVENIRS_SECRET: ${SOUVENIRS_SECRET:-}
       SONOS_IP: ${SONOS_IP:-192.168.50.186}
       # IP de HAProxy (pfSense) : seule source autorisée à transmettre la vraie IP des invités.
       FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-192.168.50.1}

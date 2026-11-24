@@ -807,7 +807,12 @@ réglage de prod :
   (sans fin : début + 12 h), avant le dévoilement ; 3 photos par personne (plusieurs jours : 3 en tout), jamais revues,
   annulables 5 s (`souvenir_cancel`, 8 s en base). Envoi par le serveur seulement : `POST /api/account/souvenirs/photo`
   (app/souvenirs.py : EXIF / GPS retirés, 1600 px, JPEG ; compartiment privé `souvenirs/<événement>/<auteur>/<id>.jpg`, puis
-  `souvenir_take`). Lecture : liens signés de 10 min (relais `POST /api/account/souvenirs/rpc`, liste blanche `RELAY`).
+  `souvenir_take`). Aucun dépôt direct (sinon EXIF / GPS passeraient) : le serveur obtient un ticket à usage unique
+  (`souvenir_upload_ticket(e, p_key)`, 2 min, table `private.souvenir_tickets`) avec SA clé — variable `SOUVENIRS_SECRET`
+  = secret `souvenirs_server_key` du coffre de la base (créé par la migration ; à renseigner dans les piles prod et test
+  après la migration, sinon « L'appareil photo n'est pas encore prêt », 503) ; la règle de dépôt (`souvenir_may_upload`)
+  exige le ticket, `souvenir_take` le consomme. Ne jamais remettre une règle de dépôt sans ticket ni mettre
+  `souvenir_upload_ticket` dans `RELAY`. Test : `test_a_client_alone_can_never_put_a_file_in_the_bucket`. Lecture : liens signés de 10 min (relais `POST /api/account/souvenirs/rpc`, liste blanche `RELAY`).
 - L'organisation (créateur, co-organisateurs, `events.manage_all`) voit TOUJOURS les photos avant le dévoilement, sans
   réglage (`souvenir_review`), et en retire (`souvenir_remove`) : l'avis « 📸 Souvenirs actif » aux invités doit le dire.
 - Dévoilement : fin + 24 h (pg_cron `souvenirs-tick`) ou « Dévoiler maintenant » (`souvenir_reveal_now`, JAMAIS avant la fin) ;
@@ -822,7 +827,10 @@ réglage de prod :
 - Signaler (`report_content` type `souvenir`, motif `my_image` « Je suis sur la photo et je ne veux pas qu'elle soit
   montrée » en plus des habituels) : masquée AUSSITÔT pour tous ; modérateurs prévenus (`report_new`) ET organisation
   (`souvenir_reported`, interrupteur `souvenirs` dans Réglages › Notifications, may_receive_push, blocage) ; l'organisation la retire ou la remet (`souvenir_restore`) ; la modération
-  de Party a le dernier mot (« Masquer » efface, « Classer » remet).
+  de Party a le dernier mot (« Masquer » efface, « Classer » remet). Décision de l'admin (24.11) : le signalement va à
+  l'organisation, qui décide ; elle VOIT donc la photo masquée par un signalement (`souvenir_may_read` : `hidden_at` +
+  `souvenir_staff` ; lien signé dans `reported` de `souvenir_review`), les autres non ; retirée par la modération ou
+  supprimée : plus rien. Test : `test_the_organization_sees_a_reported_photo_to_decide_never_one_removed_by_moderation`.
 - Toute ligne effacée (auteur, organisation, modération, compte, événement, story sans « garder », 13 mois) met son fichier
   dans `private.souvenir_trash`, vidée par la base (`souvenir_files_gc`, API Storage, appelée par le serveur toutes les heures
   et par `souvenirs-tick`). Temps réel : `event_changed` sur `souvenir_photos`. Compteur : `souvenir_counter` (le NOMBRE
