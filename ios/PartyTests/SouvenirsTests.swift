@@ -10,18 +10,21 @@ final class SouvenirsTests: XCTestCase {
 
     // MARK: Pont et liens
 
-    func testBridgeAcceptsCameraStoryAndSaveOnly() {
+    func testBridgeAcceptsCameraStoryAndSaveOnly() throws {
         XCTAssertEqual(SouvenirBridgeRequest.parse(["action": "camera", "eventId": Self.event.uppercased()]), .open(.camera(Self.event)))
         XCTAssertEqual(SouvenirBridgeRequest.parse(["action": "story", "eventId": Self.event]), .open(.story(Self.event)))
         XCTAssertNil(SouvenirBridgeRequest.parse(["action": "camera", "eventId": "../admin"]))
         XCTAssertNil(SouvenirBridgeRequest.parse(["action": "delete", "eventId": Self.event]))
         XCTAssertNil(SouvenirBridgeRequest.parse("camera:\(Self.event)"))
-        let signed = "https://ewromqfsmcqsthftyhzm.supabase.co/storage/v1/object/sign/souvenirs/\(Self.event)/a/b.jpg?token=x"
-        XCTAssertEqual(SouvenirBridgeRequest.parse(["action": "save", "url": signed]), .save(URL(string: signed)!))
-        // Jamais une autre adresse ni un autre compartiment.
-        XCTAssertNil(SouvenirBridgeRequest.parse(["action": "save", "url": "https://evil.example/storage/v1/object/sign/souvenirs/x.jpg"]))
-        XCTAssertNil(SouvenirBridgeRequest.parse(["action": "save", "url": "https://x.supabase.co/storage/v1/object/sign/chat-photos/x.jpg"]))
-        XCTAssertNil(SouvenirBridgeRequest.parse(["action": "save", "url": "http://x.supabase.co/storage/v1/object/sign/souvenirs/x.jpg"]))
+        // Lien du serveur Party (relatif, fichiers sur son disque) : rattaché à l'adresse de l'app.
+        let signed = "/api/souvenirs/file/abc.def?v=original"
+        let resolved = try XCTUnwrap(URL(string: signed, relativeTo: AppConfig.baseURL)?.absoluteURL)
+        XCTAssertEqual(SouvenirBridgeRequest.parse(["action": "save", "url": signed]), .save(resolved))
+        XCTAssertEqual(SouvenirBridgeRequest.parse(["action": "save", "url": resolved.absoluteString]), .save(resolved))
+        // Jamais une autre adresse, ni un autre chemin, ni l'ancien compartiment de Supabase.
+        XCTAssertNil(SouvenirBridgeRequest.parse(["action": "save", "url": "https://evil.example/api/souvenirs/file/x?v=original"]))
+        XCTAssertNil(SouvenirBridgeRequest.parse(["action": "save", "url": "/api/account/souvenirs/rpc"]))
+        XCTAssertNil(SouvenirBridgeRequest.parse(["action": "save", "url": "https://x.supabase.co/storage/v1/object/sign/souvenirs/x.jpg"]))
     }
 
     func testTheBridgeScriptIsInstalledInThePage() {
@@ -109,17 +112,31 @@ final class SouvenirsTests: XCTestCase {
 
     // MARK: Photo envoyée
 
-    func testThePhotoIsARedrawnJPEGOfAtMost1600px() throws {
-        let image = UIGraphicsImageRenderer(size: CGSize(width: 4032, height: 3024)).image { ctx in
-            UIColor.orange.setFill()
-            ctx.fill(CGRect(x: 0, y: 0, width: 4032, height: 3024))
-        }
-        let jpeg = try XCTUnwrap(SouvenirCameraSensor.jpeg(image))
-        XCTAssertEqual(Array(jpeg.prefix(2)), [0xFF, 0xD8])  // JPEG
-        let back = try XCTUnwrap(UIImage(data: jpeg))
-        XCTAssertEqual(max(back.size.width * back.scale, back.size.height * back.scale), 1600)
+    func testThePhotoLeavesAsTheSensorGaveItAtFullResolution() throws {
+        // Le fichier du capteur part tel quel (le serveur garde l'original 7 jours) ; trop lourd seulement : 0,9.
+        let raw = Data([0xFF, 0xD8, 0xFF, 0xE1]) + Data(repeating: 7, count: 1000)
+        XCTAssertEqual(SouvenirCameraSensor.sendable(raw), raw)
+        XCTAssertEqual(SouvenirCameraSensor.quality, 0.95)
         let test = try XCTUnwrap(SouvenirCameraSensor.testImage(front: false))
         XCTAssertEqual(Array(test.prefix(2)), [0xFF, 0xD8])
+        let back = try XCTUnwrap(UIImage(data: test))
+        XCTAssertEqual(back.size.width * back.scale, 3024)  // 12 Mpx, comme un iPhone : jamais réduite ici
+        XCTAssertEqual(back.size.height * back.scale, 4032)
+    }
+
+    func testSeenPhotosAreKeptOnTheDeviceByPhotoNotByLink() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("souvenirs-\(UUID().uuidString)")
+        let cache = SouvenirImageCache(folder: folder)
+        let image = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8)).image { _ in }
+        let data = try XCTUnwrap(image.jpegData(compressionQuality: 0.9))
+        let id = "0A0B0C0D-0000-4000-8000-0000000000AA"
+        XCTAssertNil(cache.image(id))
+        cache.store(data, image: image, id: id)
+        XCTAssertNotNil(SouvenirImageCache(folder: folder).image(id.lowercased()))  // relu du disque (nouvelle ouverture)
+        cache.store(data, image: image, id: "../../secret")  // jamais un chemin
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: folder.path), [id.lowercased() + ".jpg"])
+        cache.trim(now: Date().addingTimeInterval(4 * 86_400))
+        XCTAssertNil(SouvenirImageCache(folder: folder).image(id))  // plus de 3 jours : effacée
     }
 
     // MARK: Serveur simulé

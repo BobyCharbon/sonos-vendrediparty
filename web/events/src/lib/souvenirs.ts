@@ -3,8 +3,9 @@ import { supabase } from './supabase';
 /**
  * Souvenirs (avis 74d36b93e7bd, 24.11.2026, migration 20261124090000) : l'appareil jetable de la soirée (3 poses, jamais
  * revues), dévoilé en story de 24 h, puis « Mes souvenirs » (13 mois) si l'organisation a laissé l'enregistrement.
- * Tout passe par le relais du serveur Party (`POST /api/account/souvenirs/rpc`, liste blanche) : il signe chaque photo
- * (lien de 10 min) et chaque visage. La base décide de tout ; ces fonctions ne font que l'appeler.
+ * Tout passe par le relais du serveur Party (`POST /api/account/souvenirs/rpc`, liste blanche) : les fichiers sont sur
+ * son disque ; il donne pour chaque photo que la base me laisse voir un lien court signé (`url` = écran 2048 px,
+ * `original` = pleine résolution 7 jours) et signe chaque visage. La base décide de tout ; ces fonctions ne font que l'appeler.
  * Dans l'app iPhone, appareil photo, story et Photothèque sont NATIFS (`window.PartyNative.souvenirs`, voir
  * scratchpad pont-ios.md) ; l'app rappelle `window.PartySouvenirs.changed(eventId)` quand elle a fini.
  */
@@ -21,8 +22,10 @@ export type Counter = {
 export type Author = { id: string; name: string; avatar_url: string | null; photo?: string | null };
 export type Photo = {
   id: string; event_id: string; path: string; taken_at: string; mine: boolean; author: Author | null;
-  /** Lien signé (10 min) posé par le serveur ; null si la base ne la montre plus. */
+  /** Version écran (2048 px), lien signé par le serveur Party (~10 min) ; null si la base ne la montre plus. */
   url: string | null;
+  /** L'original (7 jours, puis 2560 px) : « Enregistrer » et téléchargement. */
+  original?: string | null;
   origin?: 'taken' | 'kept'; kept?: boolean; can_keep?: boolean; hidden_at?: string | null;
   /** Relecture : motifs des signalements ouverts (jamais qui a signalé). */
   reasons?: string[] | null;
@@ -98,38 +101,32 @@ export const unkeepPhoto = (id: string) => souvenirCall('souvenir_unkeep', { id 
 export const revealNow = (eventId: string) => souvenirCall<Counter>('souvenir_reveal_now', { e: eventId });
 
 /** « Signaler » une photo : masquée aussitôt pour tous ; l'organisation et la modération de Party sont prévenues. */
+/** Liens des photos signalées (écran Signalements de la modération) : le serveur demande d'abord à la base. */
+export async function souvenirLinks(paths: string[]): Promise<Map<string, string>> {
+  if (!paths.length) return new Map();
+  const token = await sessionToken();
+  const r = await fetch('/api/account/souvenirs/links', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'same-origin', body: JSON.stringify({ token, paths }),
+  });
+  if (!r.ok) return new Map();
+  return new Map(Object.entries(((await r.json()) as { links: Record<string, string> }).links ?? {}));
+}
+
 export function reportPhoto(id: string, reason: string, comment: string) {
   return souvenirCall('report_content', { p_kind: 'souvenir', p_target: id, p_reason: reason, p_comment: comment.trim() || null });
 }
 
-/** Envoi trop long (réseau d'une cave, d'un sous-sol) : on arrête au bout de 30 s, la même photo peut repartir. */
-export const UPLOAD_TIMEOUT_MS = 30_000;
+/** Envoi trop long (réseau d'une cave, d'un sous-sol) : on arrête au bout de 60 s (photo pleine résolution), la même
+ *  photo peut repartir. */
+export const UPLOAD_TIMEOUT_MS = 60_000;
 const SLOW = 'L’envoi prend trop de temps : le réseau est faible. Ta photo n’est pas partie ; touche « Réessayer ».';
 
-/** Réduite dans le navigateur (1600 px au plus, JPEG) : jamais 15 Mo sur la 4G d'une soirée. Le serveur retire toujours
- *  EXIF / GPS et réduit encore ; sans canvas ou image illisible, l'original part tel quel. */
-export async function shrinkPhoto(file: Blob, max = 1600): Promise<Blob> {
-  try {
-    if (typeof createImageBitmap !== 'function' || typeof document === 'undefined') return file;
-    const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' } as ImageBitmapOptions);
-    const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.round(bmp.width * k);
-    canvas.height = Math.round(bmp.height * k);
-    canvas.getContext('2d')?.drawImage(bmp, 0, 0, canvas.width, canvas.height);
-    bmp.close?.();
-    const out = await new Promise<Blob | null>((ok) => canvas.toBlob(ok, 'image/jpeg', 0.85));
-    return out && out.size > 0 ? out : file;
-  } catch {
-    return file;
-  }
-}
-
-/** Envoie la photo (réduite ici) : le serveur retire EXIF / GPS, la réduit, la dépose, puis souvenir_take (la base décide).
- *  Code `timeout` après 30 s, `network` sans réseau : la même photo peut repartir (« Réessayer »). */
+/** Envoie la photo TELLE QUELLE (jamais réduite dans le navigateur : l'original est gardé 7 jours) ; le serveur retire
+ *  GPS et numéros de série, fait la version écran, puis souvenir_take (la base décide). Code `timeout` après le délai,
+ *  `network` sans réseau : la même photo peut repartir (« Réessayer »). */
 export async function uploadPhoto(eventId: string, file: Blob): Promise<{ id: string; left: number; taken: number }> {
   const token = await sessionToken();
-  const body = await shrinkPhoto(file);
+  const body = file;
   const stop = new AbortController();
   const timer = setTimeout(() => stop.abort(), UPLOAD_TIMEOUT_MS);
   let r: Response;
@@ -158,7 +155,7 @@ export function nativeSouvenirs(): NativeSouvenirs | null {
   return n && typeof n === 'object' ? n : null;
 }
 
-/** Lien de téléchargement d'une photo signée (Supabase Storage : `download` = pièce jointe). */
+/** Lien de téléchargement (serveur Party : `download` = pièce jointe, avec ce nom). */
 export function downloadUrl(url: string, name: string): string {
   return `${url}${url.includes('?') ? '&' : '?'}download=${encodeURIComponent(name)}`;
 }

@@ -312,11 +312,10 @@ struct SouvenirStoryView: View {
         }
     }
 
-    /// La photo affichée et la suivante, chargées d'avance (liens signés de 10 min).
+    /// La photo affichée et la suivante, chargées d'avance (version écran ; déjà vue : prise dans le cache de l'appareil).
     private func prefetch() async {
         for photo in photos.dropFirst(index).prefix(2) where images[photo.id] == nil {
-            guard let raw = photo.url, let url = URL(string: raw),
-                  let (data, _) = try? await URLSession.shared.data(from: url), let image = UIImage(data: data) else { continue }
+            guard let image = await store.image(for: photo) else { continue }
             images[photo.id] = image
         }
     }

@@ -52,12 +52,11 @@ SERVER_KEY = "k := (select decrypted_secret from vault.decrypted_secrets where n
 
 
 def take(bot: str, into: str = "a") -> str:
-    """Comme le serveur : ticket (clé du serveur), dépôt du fichier avec la session du bot (règle du compartiment : la
-    ligne de storage.objects), puis souvenir_take."""
+    """Comme le serveur : ticket (clé du serveur) avec la session du bot, puis souvenir_take ; le fichier va ensuite sur
+    le disque du serveur (migration 20261124150000 : plus rien dans le compartiment storage)."""
     return as_postgres() + SERVER_KEY + as_bot(bot) + f"""
       tk := public.souvenir_upload_ticket(e, k);
       {into} := (tk->>'id')::uuid;
-      insert into storage.objects (bucket_id, name, owner_id) values ('souvenirs', tk->>'path', {bot}::text);
       """ + f"perform public.souvenir_take(e, {into});"
 
 
@@ -77,7 +76,6 @@ def result(out: str) -> str:
 def test_three_photos_at_most_and_the_counter_gives_the_number_only():
     out = run(event() + "s := '';" + take("victor") + take("victor", "b") + take("victor", "c") + as_postgres() + """
       d := gen_random_uuid();
-      insert into storage.objects (bucket_id, name, owner_id) values ('souvenirs', e || '/' || victor || '/' || d || '.jpg', victor::text);
       """ + as_bot("victor") + attempt("perform public.souvenir_take(e, d);", "quatrieme") + """
       r := public.souvenir_counter(e);""" + as_bot("violette") + """
       raise exception 'résultat:% compte=% reste=% peut=% violette=% qui=%', s, r->>'count', r->>'left', r->>'can_take',
@@ -88,7 +86,6 @@ def test_three_photos_at_most_and_the_counter_gives_the_number_only():
 def test_the_window_the_circle_the_profile_and_the_file():
     out = run(event() + "s := '';" + as_postgres() + """
       a := gen_random_uuid();
-      insert into storage.objects (bucket_id, name, owner_id) values ('souvenirs', e || '/' || violette || '/' || a || '.jpg', violette::text);
       """ + as_bot("violette") + attempt("perform public.souvenir_take(e, a);", "sans_reponse") + as_postgres() + """
       insert into public.rsvps (event_id, user_id, status) values (e, violette, 'no');""" + as_bot("violette")
         + attempt("perform public.souvenir_take(e, a);", "pas_present") + as_bot("victor")
@@ -131,7 +128,6 @@ def test_a_client_alone_can_never_put_a_file_in_the_bucket():
               + attempt("insert into storage.objects (bucket_id, name, owner_id) values ('souvenirs', tk->>'path', victor::text);",
                         "ticket_expire").replace("split_part(sqlerrm, ':', 1)", state) + as_postgres() + """
       a := gen_random_uuid();
-      insert into storage.objects (bucket_id, name, owner_id) values ('souvenirs', e || '/' || victor || '/' || a || '.jpg', victor::text);
       """ + as_bot("victor") + attempt("perform public.souvenir_take(e, a);", "prise_sans_ticket") + take("victor", "b") + as_bot("victor")
               + attempt("perform public.souvenir_take(e, b);", "ticket_rejoue") + """
       raise exception 'résultat:% photos=%', s, public.souvenir_counter(e)->>'count';""")
@@ -210,8 +206,8 @@ def test_without_keep_nothing_stays_and_the_files_are_erased_after_the_story():
       m := jsonb_array_length(public.souvenir_mine(e)->'photos');""" + as_postgres() + """
       raise exception 'résultat:% mine_story=% mine_apres=% lignes=% corbeille=%', s, n, m, (select count(*) from public.souvenir_photos where event_id = e),
         (select count(*) from private.souvenir_trash where path like e || '/%');""")
-    # La tâche a aussi vidé la corbeille (demandes d'effacement à l'API Storage, envoyées par pg_net après validation).
-    assert result(out) == "garder=forbidden mine_story=0 mine_apres=0 lignes=0 corbeille=0", out
+    # Les 2 fichiers attendent dans la corbeille : le serveur Party la vide (disque, migration 20261124150000).
+    assert result(out) == "garder=forbidden mine_story=0 mine_apres=0 lignes=0 corbeille=2", out
 
 
 def test_settings_are_frozen_by_the_first_photo_and_only_the_organization_sets_them():
@@ -451,6 +447,53 @@ def test_a_yes_on_the_waitlist_is_not_in_the_circle_until_a_place_frees_up():
     assert result(out) == "attente=true photo=forbidden story=forbidden liberee=true photos=1", out
 
 
+# ───────────── Fichiers sur le disque du serveur (24.11, migration 20261124150000) ─────────────
+
+def test_a_photo_needs_the_ticket_of_the_server_only_never_a_file_in_the_bucket():
+    """Plus de ligne storage.objects exigée : le ticket (clé du serveur, 2 min, usage unique) suffit et reste nécessaire ;
+    un ticket expiré ne sert plus."""
+    out = run(event() + "s := '';" + take("victor") + as_postgres() + SERVER_KEY + as_bot("victor") + """
+      tk := public.souvenir_upload_ticket(e, k);""" + as_postgres() + """
+      update private.souvenir_tickets set expires_at = now() - interval '1 second' where path = tk->>'path';""" + as_bot("victor")
+              + attempt("perform public.souvenir_take(e, (tk->>'id')::uuid);", "ticket_expire") + """
+      raise exception 'résultat:% photos=% compartiment=%', s, public.souvenir_counter(e)->>'count',
+        (select count(*) from storage.objects where bucket_id = 'souvenirs' and name like e || '/%');""")
+    assert result(out) == "ticket_expire=invalid photos=1 compartiment=0", out
+
+
+def test_the_server_reads_with_the_token_of_the_person_which_photos_it_may_link():
+    """souvenir_readable : la base dit quelles photos MON compte peut voir avant que le serveur signe un lien."""
+    out = run(event() + take("victor") + take("valentin", "b") + as_postgres() + """
+      s := (select path from public.souvenir_photos where id = a); t := (select path from public.souvenir_photos where id = b);
+      """ + as_bot("victor") + """
+      r := to_jsonb(public.souvenir_readable(array[s, t, 'x/../../etc/passwd']));""" + move(STORY) + as_bot("violette") + """
+      r := jsonb_build_object('victor_ouvert', r, 'violette_story', to_jsonb(public.souvenir_readable(array[s, t])));"""
+              + as_bot("valentin") + """
+      r := r || jsonb_build_object('valentin_story', jsonb_array_length(to_jsonb(public.souvenir_readable(array[s, t]))));""" + as_postgres() + """
+      insert into public.direct_blocks (user_id, blocked_id) values (valentin, victor);""" + as_bot("valentin") + """
+      raise exception 'résultat: victor=% violette=% valentin=% bloque=%', jsonb_array_length(r->'victor_ouvert'),
+        jsonb_array_length(r->'violette_story'), r->>'valentin_story', to_jsonb(public.souvenir_readable(array[s, t])) = to_jsonb(array[t]);""")
+    # Pendant la prise de vue : personne, pas même l'auteur (jamais revues) ; story : Valentin voit les 2, Violette (pas du
+    # cercle) aucune ; Valentin bloque Victor : plus que la sienne. Chemin piégé : jamais.
+    assert "résultat: victor=0 violette=0 valentin=2 bloque=t" in out, out
+
+
+def test_the_trash_is_emptied_by_the_server_only_with_its_key():
+    out = run(event() + "s := '';" + take("victor") + as_bot("victor") + """
+      perform public.souvenir_cancel(a);""" + as_postgres() + """
+      perform private.souvenir_tick();
+      t := (select path from private.souvenir_trash where path like e || '/%');""" + as_bot("victor")
+              + attempt("perform public.souvenir_trash_take('une-cle-inventee-par-le-client-0123456789', 10);", "client")
+              + as_postgres() + "execute 'set local role anon';"
+              + attempt("perform public.souvenir_trash_done(null, array[t]);", "sans_cle") + as_postgres() + SERVER_KEY + """
+      n := (select count(*) from unnest(public.souvenir_trash_take(k, 500)) x where x = t);
+      m := public.souvenir_trash_done(k, array[t]);
+      raise exception 'résultat:% vue=% rendue=% reste=%', s, n, m,
+        (select count(*) from private.souvenir_trash where path like e || '/%');""")
+    # La tâche de la base ne vide plus la corbeille (le serveur en a besoin pour effacer le disque).
+    assert result(out) == "client=server sans_cle=server vue=1 rendue=1 reste=0", out
+
+
 def test_the_ai_never_turns_souvenirs_on():
     from app import ai_events as ev
     schema = ev.schema({"categories": [], "tags": [], "audiences": ["Vendredi Party"], "people": []})
@@ -460,7 +503,7 @@ def test_the_ai_never_turns_souvenirs_on():
 def test_the_migration_replays_without_change():
     sql = "\n".join((ROOT / f"supabase/migrations/{f}").read_text() for f in (
         "20261124090000_souvenirs.sql", "20261124120000_souvenirs_bulles_attente.sql", "20261124130000_souvenirs_bon_sens.sql",
-        "20261124140000_souvenirs_liste_attente.sql"))
+        "20261124140000_souvenirs_liste_attente.sql", "20261124150000_souvenirs_disque.sql"))
     out = sql_test("begin;\n" + sql + "\nrollback;")
     assert "HTTP" not in str(out) and "ERROR" not in str(out), out
     check = sql_test("""select (select count(*) from cron.job where jobname = 'souvenirs-tick') jobs,

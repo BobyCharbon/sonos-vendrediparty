@@ -84,8 +84,8 @@ export function MySouvenirs({ eventId, refreshKey, hideWhenEmpty = false }: { ev
           </View>
           <View style={st.acts}>
             {p.url ? (native?.save
-              ? <Button small variant="secondary" label="⬇︎ Enregistrer dans la Photothèque" style={{ flex: 1 }} onPress={() => { native.save!(p.url!); }} />
-              : <Button small variant="secondary" label="⬇︎ Enregistrer" style={{ flex: 1 }} href={downloadUrl(p.url, `souvenir-${p.taken_at.slice(0, 10)}-${p.id.slice(0, 6)}.jpg`)} />) : null}
+              ? <Button small variant="secondary" label="⬇︎ Enregistrer dans la Photothèque" style={{ flex: 1 }} onPress={() => { native.save!(p.original ?? p.url!); }} />
+              : <Button small variant="secondary" label="⬇︎ Enregistrer" style={{ flex: 1 }} href={downloadUrl(p.original ?? p.url, `souvenir-${p.taken_at.slice(0, 10)}-${p.id.slice(0, 6)}.jpg`)} />) : null}
             {p.mine ? (
               <Button small variant="danger" label={arm === p.id ? 'Supprimer pour de bon ?' : '🗑 Supprimer'}
                 accessibilityLabel={arm === p.id ? 'Supprimer pour de bon ?' : `Supprimer ma photo de ${photoWhen(p.taken_at)}`}

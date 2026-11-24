@@ -214,6 +214,9 @@
         <button class="danger" id="stop" style="width:100%">Arrêter la soirée</button>
       </div>
 
+      <h2>Serveur</h2>
+      <div class="card"><div class="artist" id="souvenirsDisk" role="status">📸 Souvenirs : …</div></div>
+
       <div id="auditAdmin"></div>
 
       <p style="text-align:center;margin-top:32px"><a href="#" id="logout" style="color:var(--muted)">Se déconnecter</a></p>
@@ -322,7 +325,7 @@ function showView(view) {
     Nav.tabIn([...document.querySelectorAll("[data-view]:not(.hidden)")], document.querySelector(`#tabs [data-tab="${view}"]`));
   }
   if (view === "settings" && typeof loadSpeakers === "function") loadSpeakers();
-  if (view === "settings") window.AuditAdmin?.refresh();
+  if (view === "settings") { window.AuditAdmin?.refresh(); loadSouvenirsDisk(); }
   if (view === "games" && typeof refreshGame === "function") refreshGame();
   if (view === "feedback") loadFeedback();
 }
@@ -773,6 +776,20 @@ $("speakers").addEventListener("change", (ev) => {
 });
 // Rafraîchi à l'ouverture de Réglages, puis toutes les 10 s tant que l'écran est affiché.
 setInterval(() => { if (location.hash === "#settings") loadSpeakers(); }, 10000);
+
+// Réglages › Serveur : photos Souvenirs sur le disque du serveur et dernière copie de nuit vers le NAS (deploy/souvenirs-nas.md).
+async function loadSouvenirsDisk() {
+  const line = document.getElementById("souvenirsDisk");
+  try {
+    const r = await fetch("/api/admin/souvenirs", { credentials: "same-origin" });
+    if (!r.ok) throw new Error();
+    const s = await r.json();
+    const mo = (s.bytes / 1048576).toLocaleString("fr-CH", { maximumFractionDigits: s.bytes < 10485760 ? 1 : 0 });
+    const nas = s.nas ? new Date(s.nas) : null;
+    const when = nas && !isNaN(nas) ? nas.toLocaleString("fr-CH", { dateStyle: "short", timeStyle: "short" }) : (s.nas || "jamais");
+    line.textContent = `📸 Souvenirs : ${s.photos} photo${s.photos > 1 ? "s" : ""} · ${mo} Mo sur le serveur · dernière copie NAS : ${when}`;
+  } catch { line.textContent = "📸 Souvenirs : état du disque illisible."; }
+}
 
 $("pinCustom").addEventListener("input", () => { $("pinCustom").value = $("pinCustom").value.replace(/\D/g, ""); });
 $("pinChoose").addEventListener("submit", async (ev) => {

@@ -9,6 +9,7 @@ import { GROUP_PHOTOS, signGroupPhoto } from '@/lib/groups';
 import { useQuery } from '@/lib/data';
 import { dbMessage, moderationInfo, REPORT_REASONS, type PublicInfo } from '@/lib/moderation';
 import { roleRank } from '@/lib/roles';
+import { souvenirLinks } from '@/lib/souvenirs';
 import { supabase } from '@/lib/supabase';
 import { colors } from '@/lib/theme';
 
@@ -72,12 +73,10 @@ export default function ReportsScreen() {
   const [photos, setPhotos] = useState<Map<string, string>>(new Map());
   useEffect(() => {
     const paths = (data ?? []).filter((r) => r.kind !== 'profile_photo' && r.kind !== 'group_photo' && r.snapshot.bucket !== SOUVENIRS).map((r) => r.snapshot.photo_path).filter((p): p is string => !!p);
-    // Photo Souvenirs signalée : compartiment privé « souvenirs », lisible par la modération (souvenir_may_read).
+    // Photo Souvenirs signalée : fichier sur le disque du serveur Party ; lien signé par le serveur si la base laisse la
+    // modération la voir (souvenir_readable → souvenir_may_read).
     const souvenirPaths = (data ?? []).filter((r) => r.snapshot.bucket === SOUVENIRS).map((r) => r.snapshot.photo_path).filter((p): p is string => !!p);
-    const souvenirs = souvenirPaths.length
-      ? supabase.storage.from(SOUVENIRS).createSignedUrls(souvenirPaths, 600)
-        .then(({ data: rows }) => (rows ?? []).flatMap((d) => (d.signedUrl && d.path ? [[d.path, d.signedUrl] as [string, string]] : [])))
-      : Promise.resolve([] as [string, string][]);
+    const souvenirs = souvenirLinks(souvenirPaths).then((m) => [...m]).catch(() => [] as [string, string][]);
     const groupPaths = (data ?? []).filter((r) => r.kind === 'group_photo').map((r) => r.snapshot.photo_path).filter((p): p is string => !!p);
     const kept = (data ?? []).flatMap((r) => [r.snapshot.evidence?.photo, r.snapshot.evidence?.audio]).filter((p): p is string => !!p);
     const evidence = kept.length

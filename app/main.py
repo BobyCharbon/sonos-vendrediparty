@@ -33,8 +33,9 @@ from . import tv_zicou
 from . import calendar_feed
 from .agenda import agenda_router
 from .pronos import pronos_router
-from .souvenirs import souvenirs_router
-from .souvenirs import start_files_gc as start_souvenir_files_gc
+from . import souvenirs as souvenirs_module
+from .souvenirs import Souvenirs, souvenirs_router
+from .souvenirs import start_chores as start_souvenir_chores
 from .chat_rpc import chat_rpc_router, start_files_gc
 from . import pet_pot, tv_star
 # Adresse du déploiement et fonctions en bêta (Compagnon : allumé sur le site de test seulement).
@@ -175,7 +176,7 @@ async def lifespan(app):
         threading.Thread(target=absorb_local_feedback, daemon=True).start()
     if "pytest" not in sys.modules:  # fichiers orphelins des Discussions : au démarrage puis toutes les 6 h (jamais en test)
         start_files_gc(group_chats)
-        start_souvenir_files_gc(accounts)  # Souvenirs : corbeille et envois jamais enregistrés, toutes les heures
+        start_souvenir_chores(souvenir_service)  # Souvenirs : corbeille (disque) et originaux de 7 jours, toutes les 5 min
     yield
 
 
@@ -199,6 +200,8 @@ app.add_middleware(GZipMiddleware, minimum_size=800, compresslevel=6)
 # Plus gros envoi permis : une photo de discussion de 8 Mo en base64 (≈ 11,2 Mo) ; au-delà, 413 sans tout lire.
 MAX_BODY = 12 * 1024 * 1024
 TOO_LARGE = "Envoi trop lourd"
+# Photo Souvenirs : l'original pleine résolution (48 Mpx d'un iPhone) part tel quel, 25 Mo au plus (souvenirs.RAW_MAX).
+BIG_BODY = {"/api/account/souvenirs/photo": (souvenirs_module.RAW_MAX, "Photo trop volumineuse (25 Mo au plus).")}
 
 
 class BodyLimit:
@@ -211,17 +214,18 @@ class BodyLimit:
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
+        limit, too_large = BIG_BODY.get(scope.get("path", ""), (MAX_BODY, TOO_LARGE))
         declared = dict(scope["headers"]).get(b"content-length", b"0")
-        if not declared.isdigit() or int(declared) > MAX_BODY:
-            return await JSONResponse({"detail": TOO_LARGE}, status_code=413)(scope, receive, send)
+        if not declared.isdigit() or int(declared) > limit:
+            return await JSONResponse({"detail": too_large}, status_code=413)(scope, receive, send)
         total = 0
 
         async def counted():
             nonlocal total
             message = await receive()
             total += len(message.get("body", b""))
-            if total > MAX_BODY:
-                raise HTTPException(413, TOO_LARGE)
+            if total > limit:
+                raise HTTPException(413, too_large)
             return message
 
         await self.app(scope, counted, send)
@@ -1646,13 +1650,15 @@ accounts = Accounts(_secret())
 group_admin = GroupAdmin(accounts)
 group_chats = GroupChats(group_admin)
 event_chats = EventChats(group_chats)
+# Souvenirs (24.11) : photos sur le disque du serveur (DATA_DIR/souvenirs : original 7 jours, écran 2048, puis 2560 px),
+# relais souvenir_* et liens signés par le serveur (/api/souvenirs/file/<jeton>).
+souvenir_service = Souvenirs(accounts, DATA_DIR / "souvenirs", _secret())
 # Modération commune (Signaler, blocage, CGU, écran Signalements) : relais pour l'app iOS native.
-app.include_router(moderation_router(Moderation(group_admin, group_chats)))
+app.include_router(moderation_router(Moderation(group_admin, group_chats, souvenir_service.link_map)))
 # Agenda (17.11) : page publique des liens de dispo (/d/<jeton>), suivi des demandes (/d/r/<secret>), relais iPhone.
 app.include_router(agenda_router(accounts, configured_public_url, client_ip))
 app.include_router(pronos_router(accounts))
-# Souvenirs (24.11) : envoi des photos (EXIF / GPS retirés, 1600 px) et relais souvenir_* (liens signés courts).
-app.include_router(souvenirs_router(accounts))
+app.include_router(souvenirs_router(souvenir_service))
 # Discussions v2 (18.11) : relais des nouvelles fonctions pour l'app iPhone (sous /api/account/chats : drapeau compris).
 app.include_router(chat_rpc_router(group_chats, lambda link: group_link_url(link)))  # groupes natifs : adresse des liens
 contact_names = ContactNames(accounts)
@@ -3325,6 +3331,12 @@ def account_admin(body: AccountToken, request: Request, response: Response):
 def admin_audit(limit: int = Query(100, ge=1, le=500), before: str | None = Query(None, max_length=64)):
     """Journal (lecture seule) : actions admin, connexions, refus. Aucune route ne le modifie."""
     return {"entries": journal.read(limit, before)}
+
+
+@app.get("/api/admin/souvenirs", dependencies=[Depends(require_admin)])
+def admin_souvenirs():
+    """Réglages › Serveur : photos Souvenirs sur le disque (nombre, taille) et dernière copie de nuit vers le NAS."""
+    return souvenir_service.files.stats()
 
 
 ONLINE_WINDOW = 45  # s : un téléphone ouvert sur la partie se manifeste au moins toutes les 15 s

@@ -69,42 +69,48 @@ final class SouvenirCameraSensor: NSObject, ObservableObject {
         session.addInput(newInput)
         input = newInput
         if !session.outputs.contains(output), session.canAddOutput(output) { session.addOutput(output) }
+        // Pleine résolution et qualité maximale : l'original est gardé 7 jours par le serveur (décision du 24.11).
+        output.maxPhotoQualityPrioritization = .quality
+        if #available(iOS 16.0, *), let largest = device.activeFormat.supportedMaxPhotoDimensions
+            .max(by: { Int($0.width) * Int($0.height) < Int($1.width) * Int($1.height) }) {
+            output.maxPhotoDimensions = largest
+        }
         front = wantFront
         return true
     }
 
-    /// La photo en JPEG (1600 px au plus, sans métadonnées : redessinée) ; nil si la prise a échoué.
+    /// Qualité JPEG du capteur (0,95) et taille au-delà de laquelle le serveur refuse (25 Mo, souvenirs.RAW_MAX).
+    nonisolated static let quality: Float = 0.95
+    nonisolated static let maxBytes = 24 * 1024 * 1024
+
+    /// La photo du capteur, TELLE QUELLE : pleine résolution, JPEG 0,95, priorité à la qualité (jamais réduite ni
+    /// redessinée ici). Le serveur retire GPS et numéros de série, garde l'original 7 jours et fait la version écran.
     func capture() async -> Data? {
         if fake { return Self.testImage(front: front) }
         guard state == .ready, pending == nil else { return nil }
-        let settings = AVCapturePhotoSettings(format: [AVVideoCodecKey: AVVideoCodecType.jpeg])
+        let settings = AVCapturePhotoSettings(format: [AVVideoCodecKey: AVVideoCodecType.jpeg,
+                                                       AVVideoCompressionPropertiesKey: [AVVideoQualityKey: Self.quality]])
+        settings.photoQualityPrioritization = .quality
+        if #available(iOS 16.0, *) { settings.maxPhotoDimensions = output.maxPhotoDimensions }
         if output.supportedFlashModes.contains(.on) { settings.flashMode = flash ? .on : .off }
         let raw: Data? = await withCheckedContinuation { reply in
             pending = reply
             output.capturePhoto(with: settings, delegate: self)
         }
-        guard let raw, let image = UIImage(data: raw) else { return nil }
-        return Self.jpeg(image)
+        return raw.flatMap(Self.sendable)
     }
 
-    /// Redessinée (EXIF, GPS et orientation appliqués puis oubliés), 1600 px au plus, JPEG 0,85.
-    nonisolated static func jpeg(_ image: UIImage, maxSide: CGFloat = 1600) -> Data? {
-        let size = image.size
-        guard size.width > 0, size.height > 0 else { return nil }
-        let scale = min(1, maxSide / max(size.width, size.height))
-        let target = CGSize(width: (size.width * scale).rounded(), height: (size.height * scale).rounded())
-        let format = UIGraphicsImageRendererFormat.default()
-        format.scale = 1
-        format.opaque = true
-        let drawn = UIGraphicsImageRenderer(size: target, format: format).image { _ in
-            image.draw(in: CGRect(origin: .zero, size: target))
-        }
-        return drawn.jpegData(compressionQuality: 0.85)
+    /// Le fichier du capteur tel quel ; seulement s'il dépasse la limite du serveur (rare : 48 Mpx très détaillée),
+    /// réencodé à 0,9 (toujours pleine résolution, orientation gardée).
+    nonisolated static func sendable(_ raw: Data) -> Data? {
+        guard raw.count > maxBytes else { return raw }
+        return UIImage(data: raw)?.jpegData(compressionQuality: 0.9).flatMap { $0.count <= maxBytes ? $0 : nil }
     }
 
-    /// Image de la recette : un dégradé et l'heure, jamais montrée à l'écran avant le dévoilement.
+    /// Image de la recette : un dégradé et l'heure, en 12 Mpx (3024 × 4032, comme un iPhone), jamais montrée à l'écran
+    /// avant le dévoilement.
     nonisolated static func testImage(front: Bool) -> Data? {
-        let size = CGSize(width: 1200, height: 1600)
+        let size = CGSize(width: 3024, height: 4032)
         let format = UIGraphicsImageRendererFormat.default()
         format.scale = 1
         let image = UIGraphicsImageRenderer(size: size, format: format).image { ctx in
@@ -114,10 +120,10 @@ final class SouvenirCameraSensor: NSObject, ObservableObject {
                 ctx.cgContext.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: size.width, y: size.height), options: [])
             }
             let text = "📸 Recette Souvenirs\n\(front ? "selfie" : "dos") · \(Date().formatted(date: .omitted, time: .standard))" as NSString
-            text.draw(in: CGRect(x: 80, y: 650, width: 1040, height: 400),
-                      withAttributes: [.font: UIFont.systemFont(ofSize: 90, weight: .heavy), .foregroundColor: UIColor.white])
+            text.draw(in: CGRect(x: 200, y: 1640, width: 2620, height: 1000),
+                      withAttributes: [.font: UIFont.systemFont(ofSize: 226, weight: .heavy), .foregroundColor: UIColor.white])
         }
-        return image.jpegData(compressionQuality: 0.85)
+        return image.jpegData(compressionQuality: CGFloat(quality))
     }
 }
 

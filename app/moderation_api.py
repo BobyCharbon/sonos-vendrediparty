@@ -69,9 +69,11 @@ class SettingsBody(MemberToken):
 
 
 class Moderation:
-    def __init__(self, admin: GroupAdmin, chats: GroupChats):
+    def __init__(self, admin: GroupAdmin, chats: GroupChats, souvenir_links=None):
         self.admin = admin
         self.chats = chats
+        # Photos Souvenirs (disque du serveur) : liens signés par le serveur si la base laisse ce compte les voir.
+        self.souvenir_links = souvenir_links or (lambda paths, token: {})
 
     def report(self, token: str, kind: str, target: str, reason: str, comment: str, context: bool = False) -> dict:
         rid = self.admin._rpc(token, "report_content", {"p_kind": kind, "p_target": target, "p_reason": reason,
@@ -104,11 +106,11 @@ class Moderation:
                                "Les signalements n'ont pas pu être lus.") or []
         snaps = [r.get("snapshot") or {} for r in rows]
         group = [s.get("photo_path") for s in snaps if s.get("place") == "Photo du groupe"]
-        # Photo Souvenirs signalée : son compartiment est dans la copie (bucket « souvenirs »), jamais celui des discussions.
+        # Photo Souvenirs signalée : la copie porte bucket « souvenirs » ; le fichier est sur le disque du serveur.
         souvenirs = [s.get("photo_path") for s in snaps if s.get("bucket") == "souvenirs"]
         photos = {**self.chats._sign([p for s in snaps for p in (s.get("photo_path"), s.get("audio_path"))
                                       if p and s.get("place") not in ("Profil", "Photo du groupe") and not s.get("bucket")], token),
-                  **self.admin._photos(group, token, "group-photos"), **self.admin._photos(souvenirs, token, "souvenirs")}
+                  **self.admin._photos(group, token, "group-photos"), **self.souvenir_links(souvenirs, token)}
         # Copie gardée au signalement (Discussions v2) : lisible par les modérateurs même si le message a disparu.
         evidence = self.admin._photos([(s.get("evidence") or {}).get(k) for s in snaps for k in ("photo", "audio")],
                                       token, "moderation-evidence")

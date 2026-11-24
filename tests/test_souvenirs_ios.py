@@ -60,3 +60,22 @@ def test_bubbles_migration_is_additive_and_only_counts_while_waiting():
     assert "x.ph in ('story', 'waiting')" in sql and "'phase', x.ph" in sql and "'reveal_at'" in sql
     # Pendant l'attente : le NOMBRE seulement (jamais d'auteur ni de chemin de photo).
     assert "'path'" not in sql and "'author'" not in sql and "souvenir_json" not in sql
+
+
+def test_the_native_camera_takes_full_resolution_best_quality_and_sends_it_as_is():
+    """Décision du 24.11 : l'original est gardé 7 jours par le serveur ; l'iPhone ne réduit plus rien."""
+    src = (ROOT / "ios/Party/Souvenirs/SouvenirCamera.swift").read_text(encoding="utf-8")
+    assert "output.maxPhotoQualityPrioritization = .quality" in src and "settings.photoQualityPrioritization = .quality" in src
+    assert "output.maxPhotoDimensions = largest" in src and "settings.maxPhotoDimensions = output.maxPhotoDimensions" in src
+    assert "AVVideoQualityKey: Self.quality" in src and "static let quality: Float = 0.95" in src
+    assert "maxSide" not in src and "1600" not in src and "UIGraphicsImageRenderer(size: target" not in src
+    assert "return raw.flatMap(Self.sendable)" in src
+
+
+def test_the_app_reads_photos_from_the_party_server_and_keeps_the_seen_ones():
+    models = (ROOT / "ios/Party/Souvenirs/SouvenirsModels.swift").read_text(encoding="utf-8")
+    assert 'url.path.hasPrefix("/api/souvenirs/file/")' in models and "storage/v1" not in models
+    store = (ROOT / "ios/Party/Souvenirs/SouvenirsStore.swift").read_text(encoding="utf-8")
+    assert "SouvenirImageCache.shared.image(photo.id)" in store and "addResource(with: .photo, data: data" in store
+    story = (ROOT / "ios/Party/Souvenirs/SouvenirStoryView.swift").read_text(encoding="utf-8")
+    assert "await store.image(for: photo)" in story and "URLSession.shared" not in story

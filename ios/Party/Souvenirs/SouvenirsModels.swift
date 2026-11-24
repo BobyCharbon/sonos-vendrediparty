@@ -30,8 +30,11 @@ struct SouvenirPhoto: Decodable, Hashable, Identifiable {
     let takenAt: String?
     let mine: Bool?
     let author: SouvenirAuthor?
-    /// Lien signé de 10 min (null si la base ne la montre plus).
+    /// Version écran (2048 px) : lien court signé par le serveur Party, relatif (/api/souvenirs/file/…) ; null si la base
+    /// ne la montre plus.
     var url: String?
+    /// L'original (7 jours, puis 2560 px) : « Enregistrer ».
+    var original: String?
     var kept: Bool?
     var canKeep: Bool?
 }
@@ -125,7 +128,7 @@ enum SouvenirBridgeRequest: Equatable {
             guard let raw = message["eventId"] as? String, let id = UUID(uuidString: raw)?.uuidString.lowercased() else { return nil }
             return .open(action == "camera" ? .camera(id) : .story(id))
         case "save":
-            guard let raw = message["url"] as? String, let url = URL(string: raw), SouvenirLinks.savable(url) else { return nil }
+            guard let raw = message["url"] as? String, let url = SouvenirLinks.resolve(raw), SouvenirLinks.savable(url) else { return nil }
             return .save(url)
         default:
             return nil
@@ -152,12 +155,17 @@ enum SouvenirLinks {
         return parts.url ?? url
     }
 
-    /// « Enregistrer » : seulement une photo du compartiment souvenirs (lien signé de la base), jamais une autre adresse.
+    /// Lien d'une photo donné par le serveur (relatif, /api/souvenirs/file/…) : rattaché à l'adresse de l'app.
+    static func resolve(_ raw: String) -> URL? {
+        URL(string: raw, relativeTo: AppConfig.baseURL)?.absoluteURL
+    }
+
+    /// « Enregistrer » : seulement une photo servie par le serveur de Party (lien signé), jamais une autre adresse.
     static func savable(_ url: URL) -> Bool {
-        // https seulement (le serveur local de la recette, http, est l'adresse même de l'app) ; base ou serveur de Party.
-        let local = url.host?.lowercased() == AppConfig.baseURL.host?.lowercased()
-        guard url.scheme == "https" || local, AppConfig.isInternal(url) else { return false }
-        return url.path.contains("/storage/v1/object/sign/souvenirs/")
+        // Même adresse et même protocole que l'app (https ; le serveur local de la recette est l'adresse même de l'app).
+        guard url.host?.lowercased() == AppConfig.baseURL.host?.lowercased(), url.scheme == AppConfig.baseURL.scheme,
+              url.port == AppConfig.baseURL.port else { return false }
+        return url.path.hasPrefix("/api/souvenirs/file/")
     }
 
     /// `window.PartySouvenirs?.changed(id)` dans la page et dans le cadre du module Événements.

@@ -68,7 +68,7 @@ def author(uid: str, name: str) -> dict:
 
 def photo(i: int, who: dict, minutes: int, **extra) -> dict:
     return {'id': P[i], 'event_id': EVENT, 'path': f'{EVENT}/{who["id"]}/{P[i]}.jpg', 'taken_at': iso(NOW - timedelta(hours=30, minutes=-minutes)),
-            'mine': who['id'] == USER, 'author': who, 'url': PICS[i], **extra}
+            'mine': who['id'] == USER, 'author': who, 'url': PICS[i], 'original': f'/api/souvenirs/file/jeton{i}?v=original', **extra}
 
 
 ME, MAE_A, LEO_A, INES_A = author(USER, 'Compte de démonstration'), author(MAE, 'Maé'), author(LEO, 'Léo'), author(INES, 'Inès')
@@ -174,9 +174,9 @@ def names(state):
     return [f for f, _ in state['calls']]
 
 
-def jpeg() -> bytes:
+def jpeg(w: int = 40, h: int = 30) -> bytes:
     out = io.BytesIO()
-    Image.new('RGB', (40, 30), '#ff4f9a').save(out, 'JPEG')
+    Image.new('RGB', (w, h), '#ff4f9a').save(out, 'JPEG', quality=95)
     return out.getvalue()
 
 
@@ -195,11 +195,13 @@ def test_during_the_party_a_photo_goes_to_the_lab_unseen_and_can_be_cancelled_fo
     shoot = page.get_by_role('button', name='📸 Prendre une photo · 3 restantes')
     with page.expect_file_chooser() as chooser:
         shoot.click()
-    chooser.value.set_files(files=[{'name': 'photo.jpg', 'mimeType': 'image/jpeg', 'buffer': jpeg()}])
+    big = jpeg(4032, 3024)  # pleine résolution : jamais réduite dans le navigateur (l'original est gardé 7 jours)
+    chooser.value.set_files(files=[{'name': 'photo.jpg', 'mimeType': 'image/jpeg', 'buffer': big}])
     undo = page.get_by_test_id('souvenir-undo')
     pw.expect(undo).to_contain_text('🧪 Partie au labo')
     pw.expect(undo).to_contain_text('Encore 2 poses · tu ne la reverras qu’au dévoilement.')
-    assert state['uploads'][0][0].startswith('Bearer ') and state['uploads'][0][2] > 100
+    assert state['uploads'][0][0].startswith('Bearer ') and state['uploads'][0][1] == 'image/jpeg'
+    assert state['uploads'][0][2] == len(big)  # le fichier tel quel, octet pour octet
     # Jamais d'aperçu de sa propre photo : aucune image tirée du fichier choisi.
     assert page.locator('img[src^="blob:"], img[src^="data:image/jpeg"]').count() == 0
     shot(page, 'souvenirs-annuler.png')
@@ -439,7 +441,8 @@ def test_my_souvenirs_filter_save_delete_and_remove(phone, events_origin):
     pw.expect(page.get_by_role('tab', name='Prises par moi 2')).to_be_visible()
     pw.expect(page.get_by_text('⭐ Gardée', exact=True)).to_have_count(1)
     save = page.get_by_role('link', name='⬇︎ Enregistrer').first
-    assert 'download=souvenir-' in (save.get_attribute('href') or '')
+    href = save.get_attribute('href') or ''
+    assert href.startswith('/api/souvenirs/file/') and 'v=original' in href and 'download=souvenir-' in href  # l'original
     page.get_by_text('📸 Mes souvenirs', exact=True).scroll_into_view_if_needed()
     shot(page, 'souvenirs-mes-souvenirs.png')
     page.get_by_role('tab', name='Gardées 1').click()
@@ -647,8 +650,11 @@ def test_notification_links_open_the_story_or_the_review():
     assert 'window.PartySouvenirs = {' in page and 'contentWindow.PartySouvenirs?.changed(eventId)' in page
 
 
-def test_the_moderation_screens_read_the_souvenirs_bucket():
+def test_the_moderation_screens_still_see_the_reported_souvenir_from_the_server_disk():
     web = (ROOT / 'web/events/src/app/admin/reports.tsx').read_text(encoding='utf-8')
-    assert "supabase.storage.from(SOUVENIRS).createSignedUrls" in web and "souvenir: 'Photo Souvenirs'" in web
+    assert "souvenirLinks(souvenirPaths)" in web and "souvenir: 'Photo Souvenirs'" in web
+    assert "storage.from(SOUVENIRS)" not in web  # plus rien dans Supabase Storage
     server = (ROOT / 'app/moderation_api.py').read_text(encoding='utf-8')
-    assert 'self.admin._photos(souvenirs, token, "souvenirs")' in server
+    assert 'self.souvenir_links(souvenirs, token)' in server and '"souvenirs")' not in server
+    lib = (ROOT / 'web/events/src/lib/souvenirs.ts').read_text(encoding='utf-8')
+    assert 'shrinkPhoto' not in lib and 'canvas' not in lib and "'/api/account/souvenirs/links'" in lib

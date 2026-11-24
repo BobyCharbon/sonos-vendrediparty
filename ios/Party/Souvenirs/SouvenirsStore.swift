@@ -88,7 +88,8 @@ final class SouvenirsStore: ObservableObject {
         try await call("souvenir_counter", ["e": event])
     }
 
-    /// La photo part au labo : le serveur retire EXIF / GPS, réduit, dépose, puis la base l'enregistre (souvenir_take).
+    /// La photo part au labo, telle quelle : la base l'enregistre (souvenir_take), puis le serveur garde l'original 7 jours
+    /// (GPS et numéros de série retirés) et fait la version écran.
     func upload(_ jpeg: Data, event: String) async throws -> SouvenirTaken {
         guard var parts = api.url("/api/account/souvenirs/photo").flatMap({ URLComponents(url: $0, resolvingAgainstBaseURL: true) })
         else { throw PartyAPIError.offline }
@@ -152,27 +153,88 @@ final class SouvenirsStore: ObservableObject {
 
     // MARK: Photothèque
 
-    /// `PartyNative.souvenirs.save(url)` : la photo dans la Photothèque (accès « ajouter seulement »). Rend nil si c'est
-    /// fait, sinon la phrase à montrer.
+    /// `PartyNative.souvenirs.save(url)` : la photo dans la Photothèque (accès « ajouter seulement »), le fichier tel que
+    /// le serveur le donne (l'original pendant 7 jours, avec sa date de prise). Rend nil si c'est fait, sinon la phrase.
     func save(_ url: URL) async -> String? {
         guard SouvenirLinks.savable(url) else { return "Cette photo ne peut pas être enregistrée." }
         guard let (data, response) = try? await session.data(from: url),
-              (response as? HTTPURLResponse)?.statusCode ?? 200 < 300, let image = UIImage(data: data) else {
+              (response as? HTTPURLResponse)?.statusCode ?? 200 < 300, UIImage(data: data) != nil else {
             return "La photo n'a pas pu être chargée. Réessaie."
         }
-        return await Self.addToPhotos(image)
+        return await Self.addToPhotos(data)
     }
 
-    static func addToPhotos(_ image: UIImage) async -> String? {
+    static func addToPhotos(_ data: Data) async -> String? {
         let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
         guard status == .authorized || status == .limited else {
             return "Autorise Party à ajouter des photos dans Réglages › Party › Photos."
         }
         do {
-            try await PHPhotoLibrary.shared().performChanges { PHAssetChangeRequest.creationRequestForAsset(from: image) }
+            try await PHPhotoLibrary.shared().performChanges {
+                PHAssetCreationRequest.forAsset().addResource(with: .photo, data: data, options: nil)
+            }
             return nil
         } catch {
             return "La photo n'a pas pu être enregistrée. Réessaie."
+        }
+    }
+
+    // MARK: Photos vues
+
+    /// La version écran d'une photo de la story : d'abord le cache (photos déjà vues), sinon le serveur (lien signé).
+    func image(for photo: SouvenirPhoto) async -> UIImage? {
+        if let hit = SouvenirImageCache.shared.image(photo.id) { return hit }
+        guard let raw = photo.url, let url = SouvenirLinks.resolve(raw),
+              let (data, response) = try? await session.data(from: url),
+              (response as? HTTPURLResponse)?.statusCode == 200, let image = UIImage(data: data) else { return nil }
+        SouvenirImageCache.shared.store(data, image: image, id: photo.id)
+        return image
+    }
+}
+
+/// Photos déjà vues (version écran 2048 px) : en mémoire et dans Caches/souvenirs, rangées par photo (le lien signé change
+/// à chaque lecture, la photo non) : rouvrir la story ne retélécharge rien. Seules les photos que la base liste encore sont
+/// demandées au cache (une photo retirée ou signalée ne revient jamais) ; 3 jours au plus sur l'appareil.
+final class SouvenirImageCache {
+    static let shared = SouvenirImageCache()
+    static let maxAge: TimeInterval = 3 * 86_400
+
+    private let memory = NSCache<NSString, UIImage>()
+    private let folder: URL?
+
+    init(folder: URL? = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
+        .appendingPathComponent("souvenirs", isDirectory: true)) {
+        self.folder = folder
+        memory.countLimit = 40
+        trim()
+    }
+
+    private func file(_ id: String) -> URL? {
+        guard let id = UUID(uuidString: id)?.uuidString.lowercased() else { return nil }
+        return folder?.appendingPathComponent("\(id).jpg")
+    }
+
+    func image(_ id: String) -> UIImage? {
+        if let hit = memory.object(forKey: id as NSString) { return hit }
+        guard let file = file(id), let data = try? Data(contentsOf: file), let image = UIImage(data: data) else { return nil }
+        memory.setObject(image, forKey: id as NSString)
+        return image
+    }
+
+    func store(_ data: Data, image: UIImage, id: String) {
+        memory.setObject(image, forKey: id as NSString)
+        guard let folder, let file = file(id) else { return }
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try? data.write(to: file, options: [.atomic, .completeFileProtection])
+    }
+
+    /// Plus vieilles que 3 jours : effacées (la story dure 24 h).
+    func trim(now: Date = Date()) {
+        guard let folder, let files = try? FileManager.default.contentsOfDirectory(
+            at: folder, includingPropertiesForKeys: [.contentModificationDateKey]) else { return }
+        for f in files {
+            let at = (try? f.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate ?? .distantPast
+            if now.timeIntervalSince(at) > Self.maxAge { try? FileManager.default.removeItem(at: f) }
         }
     }
 }

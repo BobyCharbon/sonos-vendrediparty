@@ -806,13 +806,33 @@ réglage de prod :
 - Prise de vue : Présent (jamais en liste d'attente : migration 20261124140000), Peut-être et organisation (`private.souvenir_circle`), profil complet, CGU ; du début à la fin + 2 h
   (sans fin : début + 12 h), avant le dévoilement ; 3 photos par personne (plusieurs jours : 3 en tout), jamais revues,
   annulables 5 s (`souvenir_cancel`, 8 s en base). Envoi par le serveur seulement : `POST /api/account/souvenirs/photo`
-  (app/souvenirs.py : EXIF / GPS retirés, 1600 px, JPEG ; compartiment privé `souvenirs/<événement>/<auteur>/<id>.jpg`, puis
-  `souvenir_take`). Aucun dépôt direct (sinon EXIF / GPS passeraient) : le serveur obtient un ticket à usage unique
-  (`souvenir_upload_ticket(e, p_key)`, 2 min, table `private.souvenir_tickets`) avec SA clé — variable `SOUVENIRS_SECRET`
-  = secret `souvenirs_server_key` du coffre de la base (créé par la migration ; à renseigner dans les piles prod et test
-  après la migration, sinon « L'appareil photo n'est pas encore prêt », 503) ; la règle de dépôt (`souvenir_may_upload`)
-  exige le ticket, `souvenir_take` le consomme. Ne jamais remettre une règle de dépôt sans ticket ni mettre
-  `souvenir_upload_ticket` dans `RELAY`. Test : `test_a_client_alone_can_never_put_a_file_in_the_bucket`. Lecture : liens signés de 10 min (relais `POST /api/account/souvenirs/rpc`, liste blanche `RELAY`).
+  (app/souvenirs.py, 25 Mo au plus par photo, AUCUN plafond par soirée), puis `souvenir_take`. Seul le serveur crée une
+  photo : ticket à usage unique (`souvenir_upload_ticket(e, p_key)`, 2 min, table `private.souvenir_tickets`) avec SA clé —
+  variable `SOUVENIRS_SECRET` = secret `souvenirs_server_key` du coffre de la base (à renseigner dans les piles prod et test,
+  sinon « L'appareil photo n'est pas encore prêt », 503) ; `souvenir_take` le consomme. Ne jamais mettre
+  `souvenir_upload_ticket`, `souvenir_readable` ni `souvenir_trash_*` dans `RELAY`. La règle de dépôt du compartiment
+  storage (`souvenir_may_upload`, ticket exigé) reste, mais plus rien n'y écrit.
+- FICHIERS SUR LE DISQUE DU SERVEUR (décision de l'admin du 24.11, migration 20261124150000 ; plan Free de Supabase : 1 Go,
+  5 Go de sortie par mois) : `DATA_DIR/souvenirs/<événement>/<auteur>/` — `<id>.orig.jpg` = l'ORIGINAL, jamais réencodé
+  (seuls GPS, numéros de série, propriétaire et MakerNote quittent l'EXIF ; date, orientation et réglages restent ; octets
+  de l'image, du SOS à la fin, identiques : `strip_jpeg`) ; `<id>.screen.jpg` = version écran 2048 px JPEG 85 (story, grilles,
+  relecture) ; au bout de `SOUVENIRS_ORIGINAL_DAYS` (7 par défaut) la tâche du serveur remplace l'original par `<id>.jpg`
+  (2560 px, JPEG 90, date gardée), qui reste 13 mois. PNG / WebP : un JPEG 95 neuf. Moins de 1 Go libre : 503.
+  « ⭐ Garder », « Enregistrer » et le téléchargement donnent l'original (`original` du relais) pendant les 7 jours.
+- Lecture : le relais demande à la base, avec le jeton de la personne, ce qu'elle peut voir (`souvenir_readable(paths)` →
+  `souvenir_may_read`), puis chaque photo reçoit `url` (écran) et `original` = liens RELATIFS signés par le serveur (HMAC
+  dérivé de DATA_DIR/secret, 10 à 15 min, stables 5 min) `GET /api/souvenirs/file/<jeton>?v=screen|original[&download=nom]`
+  (`Cache-Control: private`, ETag, 304). Modération : `POST /api/account/souvenirs/links` (reports.tsx `souvenirLinks`,
+  moderation_api `souvenir_links`), la copie porte toujours `bucket: souvenirs`. Jamais de lien signé Supabase Storage.
+- Effacement : toute ligne effacée met son chemin dans `private.souvenir_trash` ; le SERVEUR la vide toutes les 5 min
+  (`souvenir_trash_take` / `souvenir_trash_done`, sa clé ; `Souvenirs.chores` : corbeille + originaux de 7 jours) et efface
+  les 3 fichiers ; la base n'y touche plus (`souvenir_files_gc_now` : anciens objets du compartiment seulement). Copie de nuit
+  vers le NAS, miroir `rsync --delete` (deploy/souvenirs-nas.md / .sh, cron de l'hôte, à appliquer par l'admin) ; Admin ›
+  Réglages › Serveur : « 📸 Souvenirs : N photos · X Mo sur le serveur · dernière copie NAS : … » (`/api/admin/souvenirs`,
+  `souvenirs/.derniere-copie-nas`). 150000 à réappliquer après toute réapplication de 090000.
+  Corps : `BIG_BODY` (main.py) autorise 25 Mo sur la seule route photo (12 Mo ailleurs).
+  Tests : `tests/test_souvenirs.py` (EXIF, pixels à l'octet, 2048, 2560 après 7 jours, lien expiré / falsifié, droit refusé,
+  corbeille), `test_souvenirs_live.py` (bloc « disque »).
 - L'organisation (créateur, co-organisateurs, `events.manage_all`) voit TOUJOURS les photos avant le dévoilement, sans
   réglage (`souvenir_review`), et en retire (`souvenir_remove`) : l'avis « 📸 Souvenirs actif » aux invités doit le dire.
 - Dévoilement : fin + 24 h (pg_cron `souvenirs-tick`) ou « Dévoiler maintenant » (`souvenir_reveal_now`, JAMAIS avant la fin) ;
@@ -832,8 +852,7 @@ réglage de prod :
   `souvenir_staff` ; lien signé dans `reported` de `souvenir_review`), les autres non ; retirée par la modération ou
   supprimée : plus rien. Test : `test_the_organization_sees_a_reported_photo_to_decide_never_one_removed_by_moderation`.
 - Toute ligne effacée (auteur, organisation, modération, compte, événement, story sans « garder », 13 mois) met son fichier
-  dans `private.souvenir_trash`, vidée par la base (`souvenir_files_gc`, API Storage, appelée par le serveur toutes les heures
-  et par `souvenirs-tick`). Temps réel : `event_changed` sur `souvenir_photos`. Compteur : `souvenir_counter` (le NOMBRE
+  dans `private.souvenir_trash`, vidée par le serveur (disque, puis NAS la nuit). Temps réel : `event_changed` sur `souvenir_photos`. Compteur : `souvenir_counter` (le NOMBRE
   seulement, jamais qui ni quoi). Bulles : `souvenir_stories`, `souvenir_mark_seen` (`souvenir_seen`).
 - Bon sens (24.11, migration 20261124130000, à réappliquer après toute réapplication de 090000 / 120000) : nouvelle ligne
   d'événement (récurrents) = verrou et dévoilement à zéro pour tous les rôles ; `souvenir_restore` refuse sa propre photo et
@@ -858,8 +877,8 @@ réglage de prod :
   variante sans enregistrement), d'office UNE seule fois par appareil (localStorage `party-souvenirs-tutorial-off`, posé
   dès qu'il s'ouvre ; avis « bon sens » du 24.11), jamais d'office par un lien `?souvenirs=` ; ensuite « ❔ Comment ça
   marche » sur la carte et dans les réglages. Texte visible du réglage `souvenirs_keep` : « Garder les photos après la
-  story » (jamais « Autoriser l'enregistrement »). Envoi web : photo réduite dans le navigateur (canvas 1600 px, JPEG),
-  délai de 30 s, « ↻ Réessayer » renvoie la même photo. « Mes souvenirs » reste visible hors du cercle (passé « Pas
+  story » (jamais « Autoriser l'enregistrement »). Envoi web : le fichier TEL QUEL (jamais réduit dans le navigateur),
+  délai de 60 s, « ↻ Réessayer » renvoie la même photo. « Mes souvenirs » reste visible hors du cercle (passé « Pas
   présent ») s'il reste des photos ; « 👀 Relire » caché après la story (lien d'un signalement seul).
   Bandeau « 📸 Les souvenirs sont arrivés » en haut de la discussion de l'événement pendant la story (`souvenir_counter`,
   aucune migration) : web `SouvenirsChatBanner` (GroupChat mode event → fiche `?souvenirs=1` ou story native), iPhone
@@ -872,9 +891,11 @@ réglage de prod :
 - App iPhone (24.11, contrat pont-ios.md) : `PartyNative.souvenirs.camera(id)` (appareil NATIF AVFoundation, jamais la
   Photothèque ni d'aperçu, « N poses », « Annuler » 5 s, refus full / closed / profile_required, terms_required → CGU puis
   nouvel essai), `.story(id)` (story native : photo + auteur dans ScreenshotProof comme SecretCardsView, ⭐ Garder, ⋯ Signaler
-  motif my_image en tête / Bloquer `set_direct_block`, `souvenir_mark_seen`), `.save(url)` (Photos, ajout seulement, liens
-  signés du compartiment souvenirs seulement) ; à la fermeture : `window.PartySouvenirs.changed(id)` (page et cadre).
-  Code : `ios/Party/Souvenirs/`. Bulles en haut des Discussions (`souvenir_stories` : story néon, labo gris + cadenas + compte
+  motif my_image en tête / Bloquer `set_direct_block`, `souvenir_mark_seen`), `.save(url)` (Photos, ajout seulement, le fichier
+  tel quel avec sa date ; liens `/api/souvenirs/file/` du serveur de l'app seulement, relatifs rattachés à AppConfig.baseURL) ; à la fermeture : `window.PartySouvenirs.changed(id)` (page et cadre).
+  Appareil : pleine résolution (`maxPhotoDimensions` le plus grand), `.quality`, JPEG 0,95, fichier du capteur envoyé tel
+  quel (au-delà de 24 Mo seulement : 0,9). Story : photos déjà vues gardées par photo (`SouvenirImageCache`, mémoire +
+  Caches/souvenirs, 3 jours). Code : `ios/Party/Souvenirs/`. Bulles en haut des Discussions (`souvenir_stories` : story néon, labo gris + cadenas + compte
   à rebours, migration 20261124120000). Toucher : `souvenirs_revealed` → `?souvenirs=1` (story native), `souvenir_reported`
   → `?souvenirs=review` (fiche) ; send-push et send-web-push. Réglages › Notifications › Souvenirs. Recette simulateur :
   `PARTY_E2E_SOUVENIR_CAMERA=1` (image de test, DEBUG / E2E_HOOKS seulement), `ios/PartyUITests/RecetteSouvenirsUITests.swift`.
