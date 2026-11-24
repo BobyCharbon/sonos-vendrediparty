@@ -213,3 +213,13 @@ uv pip install playwright httpx
 Ces parcours simulent Supabase et Twilio, sans SMS ni modification de données réelles.
 Ils couvrent les indicatifs suisse/français, la connexion obligatoire, l'attente
 d'approbation, la liste, la fiche et la réponse à un événement à plusieurs largeurs.
+
+## Intégration continue
+
+Les workflows GitHub Actions tournent sur deux machines de l'admin (runners auto-hébergés) : le Mac (`party-mac` :
+iPhone, Apple TV, captures, Android) et le serveur (`party-linux` : tests, image Docker, revue App Store, correction
+par Claude). Installation, arrêt et désinstallation : [deploy/runner/README.md](deploy/runner/README.md).
+
+## Licence
+
+Code propriétaire : © 2026 Vendredi Party, tous droits réservés, aucune licence libre. Voir [LICENSE](LICENSE).

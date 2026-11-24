@@ -1,0 +1,21 @@
+# Runner GitHub Actions auto-hébergé pour les jobs Linux (image Docker, tests, revue App Store, claude-fix).
+# Sur le serveur : /opt/party-runner (copie de ce dossier), HORS de Dockhand. Procédure : README.md.
+name: party-runner
+services:
+  runner:
+    build: .
+    image: party-runner:local
+    container_name: party-runner
+    restart: unless-stopped
+    environment:
+      RUNNER_NAME: party-linux
+      REPO_URL: https://github.com/BobyCharbon/sonos-vendrediparty
+      RUNNER_TOKEN: ${RUNNER_TOKEN:-}   # seulement au premier démarrage
+    volumes:
+      - ./state:/runner-state                        # identité du runner (fichiers .runner / .credentials)
+      - /var/run/docker.sock:/var/run/docker.sock    # docker build de l'image Party
+    group_add:
+      - "${DOCKER_GID:-996}"   # groupe propriétaire de /var/run/docker.sock sur l'hôte (getent group docker)
+    # Pas de network_mode: host : le réseau Docker par défaut suffit (tests sur 127.0.0.1 du conteneur).
+    cpus: 16
+    mem_limit: 16g

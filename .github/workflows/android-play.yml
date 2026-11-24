@@ -6,6 +6,8 @@ name: App Android → Play Store (test)
 #   ANDROID_KEYSTORE_B64, ANDROID_KEYSTORE_PASSWORD : clé d'envoi (sans eux, l'app est compilée mais pas signée) ;
 #   PLAY_SERVICE_ACCOUNT_JSON : compte de service Google Play (sans lui, pas d'envoi au Play Store).
 # Le paquet (.aab) est toujours disponible dans l'artefact de l'exécution.
+# Tourne sur le Mac de l'admin (runner « party-mac ») : il faut le SDK Android (ANDROID_HOME, licences acceptées par
+# l'admin une fois : voir deploy/runner/README.md).
 on:
   push:
     branches: [main, develop]
@@ -27,13 +29,22 @@ concurrency:
 
 jobs:
   play:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, party-mac]
     timeout-minutes: 30
     env:
       FLAVOR: ${{ (github.event_name == 'workflow_dispatch' && inputs.site == 'production' || github.event_name == 'push' && github.ref_name == 'main') && 'prod' || 'beta' }}
       BUILD_NUMBER: ${{ github.run_number }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: SDK Android du Mac
+        run: |
+          SDK="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
+          if [ ! -d "$SDK/platforms" ] && [ ! -d "$SDK/cmdline-tools" ]; then
+            echo "::error::SDK Android absent du Mac ($SDK) : l'installer et accepter ses licences (deploy/runner/README.md)"
+            exit 1
+          fi
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
 
       - uses: actions/setup-java@v4
         with:
@@ -63,7 +74,7 @@ jobs:
       - name: Paquet Play Store (.aab)
         working-directory: android
         run: |
-          TASK="bundle${FLAVOR^}Release"
+          TASK="bundle$(printf %s "${FLAVOR:0:1}" | tr a-z A-Z)${FLAVOR:1}Release"  # bash 3.2 du Mac
           echo "Variante : $FLAVOR, version $BUILD_NUMBER"
           gradle --no-daemon "$TASK"
           ls -la app/build/outputs/bundle/${FLAVOR}Release/

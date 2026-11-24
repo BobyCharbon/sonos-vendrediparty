@@ -1,13 +1,17 @@
 name: App iOS → TestFlight
 
-# Compile l'app iOS (ios/) sur un Mac de GitHub, la signe et l'envoie à App Store Connect / TestFlight.
-# develop → VendrediPartyBETA (ch.bobycharbon.party.beta, site de test) ;
-# main → VendrediParty (ch.bobycharbon.party, site principal, App Store). Lancement manuel possible (onglet Actions).
+# Compile l'app iOS (ios/) sur le Mac de l'admin (runner auto-hébergé « party-mac », ~/actions-runner), la signe et
+# l'envoie à App Store Connect / TestFlight.
+# main → VendrediParty (ch.bobycharbon.party, site principal, App Store), à chaque push qui touche l'app ;
+# BETA (ch.bobycharbon.party.beta, site de test) : seulement à la demande (onglet Actions, site « test »), plus à
+# chaque push sur develop (dépôt privé : décision du 24.11). « envoi » décoché = compilation seule, rien ne part chez Apple.
+# Mac persistant : DerivedData dans le dossier temporaire du job, archive et profils téléchargés effacés à la fin ;
+# aucun certificat ni trousseau sur le Mac (signature gérée par Apple avec la clé API, effacée à la fin).
 # Secrets requis (Settings › Secrets and variables › Actions) : clé API App Store Connect, rôle Admin
 #   ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 (contenu du fichier AuthKey_XXXX.p8).
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
     paths: ["ios/**", ".github/workflows/ios-testflight.yml", "tools/testflight_publish.py"]
   workflow_dispatch:
     inputs:
@@ -16,6 +20,10 @@ on:
         type: choice
         options: [test, production]
         default: test
+      envoi:
+        description: Envoyer à App Store Connect / TestFlight (décoché = compilation seule, rien ne part chez Apple)
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -27,21 +35,28 @@ concurrency:
 jobs:
   testflight:
     # iPhone Duo (18.11) : l'app doit être compilée avec le SDK iOS 27.1 ou plus, sinon le Duo l'affiche en mode
-    # compatibilité (petit iPhone entouré de noir, barre d'onglets en bas). Image GitHub « xcode-27 » (macOS 27,
-    # Xcode 27.0 / 27.1 / 27.2, encore « preview » chez GitHub : file d'attente possible), Xcode épinglé.
-    # Ne jamais revenir à macos-15 / latest-stable (Xcode 16, SDK iOS 18).
-    runs-on: xcode-27
+    # compatibilité (petit iPhone entouré de noir, barre d'onglets en bas). Xcode épinglé (étape « Xcode épinglé »).
+    # Ne jamais revenir à macos-15 / latest-stable (Xcode 16, SDK iOS 18). Mac de l'admin : Xcode 27.2 installé.
+    runs-on: [self-hosted, party-mac]
     # Envoi (~20 min) + attente du traitement par Apple pour publier la BETA (30 min au plus).
     timeout-minutes: 80
     env:
       PRODUCTION: ${{ (github.event_name == 'workflow_dispatch' && inputs.site == 'production' || github.event_name == 'push' && github.ref_name == 'main') && '1' || '0' }}
+      UPLOAD: ${{ (github.event_name == 'push' || inputs.envoi) && '1' || '0' }}
       ARCHIVE: ${{ github.workspace }}/build/Party.xcarchive
     steps:
       - uses: actions/checkout@v4
 
-      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1 (épinglé : action tierce, la clé App Store Connect est sur la même machine)
-        with:
-          xcode-version: "27.2"
+      - name: Xcode épinglé
+        # Pas de setup-xcode sur le Mac de l'admin (il demande sudo) : DEVELOPER_DIR pour ce job seulement.
+        env:
+          XCODE_VERSION: "27.2"
+        run: |
+          DIR=/Applications/Xcode_$XCODE_VERSION.app/Contents/Developer
+          [ -d "$DIR" ] || DIR=/Applications/Xcode.app/Contents/Developer
+          V=$(DEVELOPER_DIR="$DIR" xcodebuild -version | awk 'NR==1{print $2}')
+          [ "$V" = "$XCODE_VERSION" ] || { echo "::error::Xcode $V sur le Mac, $XCODE_VERSION attendu"; exit 1; }
+          echo "DEVELOPER_DIR=$DIR" >> "$GITHUB_ENV"
 
       - name: SDK iOS 27.1 ou plus (iPhone Duo)
         run: |
@@ -53,6 +68,7 @@ jobs:
             || { echo "::error::SDK iOS $SDK < 27.1 : l'app ne serait pas optimisée pour l'iPhone Duo"; exit 1; }
 
       - name: Clé API App Store Connect
+        if: env.UPLOAD == '1'
         env:
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
@@ -67,11 +83,14 @@ jobs:
           chmod 600 "$KEY_PATH"
           echo "AUTH_FLAGS=-allowProvisioningUpdates -authenticationKeyPath $KEY_PATH -authenticationKeyID $ASC_KEY_ID -authenticationKeyIssuerID $ASC_ISSUER_ID" >> "$GITHUB_ENV"
           echo "ASC_KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
+          # Profils déjà sur le Mac : gardés ; ceux que l'export télécharge seront effacés à la fin.
+          ls ~/Library/MobileDevice/Provisioning\ Profiles ~/Library/Developer/Xcode/UserData/Provisioning\ Profiles \
+            2>/dev/null > "$RUNNER_TEMP/profiles-before.txt" || true
 
       - name: Projet Xcode (XcodeGen)
         working-directory: ios
         run: |
-          brew install xcodegen
+          command -v xcodegen >/dev/null || brew install xcodegen
           xcodegen
 
       - name: Archive (Release, numéro de build = numéro d'exécution)
@@ -94,7 +113,7 @@ jobs:
           xcodebuild archive \
             -project Party.xcodeproj -scheme Party -configuration Release \
             -destination 'generic/platform=iOS' -archivePath "$ARCHIVE" \
-            "${VARIANT[@]}" CURRENT_PROJECT_VERSION="${{ github.run_number }}" CODE_SIGNING_ALLOWED=NO | tail -40
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" "${VARIANT[@]}" CURRENT_PROJECT_VERSION="${{ github.run_number }}" CODE_SIGNING_ALLOWED=NO | tail -40
           # Signature provisoire portant les droits de l'extension « Partager » puis de l'app ; l'export la remplace
           # par la signature Apple Distribution gérée dans le cloud (clé API), qui conserve ces droits.
           # Trousseau partagé app ↔ extension : session de l'invité (Party/Shared/SharedSession.swift).
@@ -125,6 +144,7 @@ jobs:
           codesign --force --sign - --timestamp=none --entitlements "$RUNNER_TEMP/app.entitlements" "$APP"
 
       - name: Envoi à TestFlight
+        if: env.UPLOAD == '1'
         working-directory: ios
         run: |
           xcodebuild -exportArchive -archivePath "$ARCHIVE" \
@@ -133,7 +153,7 @@ jobs:
 
       # Chaque BETA part aussitôt dans le groupe public « Invités » : le lien TestFlight donne toujours la dernière.
       - name: Publier la BETA sur le lien public (Invités)
-        if: env.PRODUCTION == '0'
+        if: env.PRODUCTION == '0' && env.UPLOAD == '1'
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
@@ -142,27 +162,47 @@ jobs:
           "$RUNNER_TEMP/asc/bin/pip" install --quiet cryptography
           "$RUNNER_TEMP/asc/bin/python" tools/testflight_publish.py 6827336068 "${{ github.run_number }}" "$ASC_KEY_PATH"
 
-      - name: Nettoyage de la clé
+      - name: Nettoyage (clé, archive, profils téléchargés)
         if: always()
-        run: rm -f "$RUNNER_TEMP"/AuthKey_*.p8
+        run: |
+          rm -f "$RUNNER_TEMP"/AuthKey_*.p8
+          rm -rf "$RUNNER_TEMP/DerivedData" "$RUNNER_TEMP/export" "$RUNNER_TEMP/asc" build
+          if [ -f "$RUNNER_TEMP/profiles-before.txt" ]; then
+            for d in ~/Library/MobileDevice/Provisioning\ Profiles ~/Library/Developer/Xcode/UserData/Provisioning\ Profiles; do
+              [ -d "$d" ] || continue
+              for f in "$d"/*; do
+                [ -e "$f" ] || continue
+                grep -qxF "$(basename "$f")" "$RUNNER_TEMP/profiles-before.txt" || rm -f "$f"
+              done
+            done
+          fi
 
   # App Apple TV (ios/PartyTV) : même app TestFlight que l'iPhone (achat universel), comme lui :
-  # develop → « Party BETA » (site de test, publiée sur le lien public « Invités ») ;
+  # site « test » (à la demande) → « Party BETA » (site de test, publiée sur le lien public « Invités ») ;
   # main → « Party » dans VendrediParty (site principal, groupe interne « Équipe », qui reçoit tous les builds).
   tvos:
-    runs-on: macos-15
+    runs-on: [self-hosted, party-mac]
     timeout-minutes: 80
     env:
       PRODUCTION: ${{ (github.event_name == 'workflow_dispatch' && inputs.site == 'production' || github.event_name == 'push' && github.ref_name == 'main') && '1' || '0' }}
+      UPLOAD: ${{ (github.event_name == 'push' || inputs.envoi) && '1' || '0' }}
       ARCHIVE: ${{ github.workspace }}/build/PartyTV.xcarchive
     steps:
       - uses: actions/checkout@v4
 
-      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1 (épinglé : action tierce, la clé App Store Connect est sur la même machine)
-        with:
-          xcode-version: latest-stable
+      - name: Xcode épinglé
+        # Pas de setup-xcode sur le Mac de l'admin (il demande sudo) : DEVELOPER_DIR pour ce job seulement.
+        env:
+          XCODE_VERSION: "27.2"
+        run: |
+          DIR=/Applications/Xcode_$XCODE_VERSION.app/Contents/Developer
+          [ -d "$DIR" ] || DIR=/Applications/Xcode.app/Contents/Developer
+          V=$(DEVELOPER_DIR="$DIR" xcodebuild -version | awk 'NR==1{print $2}')
+          [ "$V" = "$XCODE_VERSION" ] || { echo "::error::Xcode $V sur le Mac, $XCODE_VERSION attendu"; exit 1; }
+          echo "DEVELOPER_DIR=$DIR" >> "$GITHUB_ENV"
 
       - name: Clé API App Store Connect
+        if: env.UPLOAD == '1'
         env:
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
@@ -173,14 +213,17 @@ jobs:
           chmod 600 "$KEY_PATH"
           echo "AUTH_FLAGS=-allowProvisioningUpdates -authenticationKeyPath $KEY_PATH -authenticationKeyID $ASC_KEY_ID -authenticationKeyIssuerID $ASC_ISSUER_ID" >> "$GITHUB_ENV"
           echo "ASC_KEY_PATH=$KEY_PATH" >> "$GITHUB_ENV"
+          # Profils déjà sur le Mac : gardés ; ceux que l'export télécharge seront effacés à la fin.
+          ls ~/Library/MobileDevice/Provisioning\ Profiles ~/Library/Developer/Xcode/UserData/Provisioning\ Profiles \
+            2>/dev/null > "$RUNNER_TEMP/profiles-before.txt" || true
 
       - name: Plateforme tvOS (Xcode)
-        run: xcodebuild -downloadPlatform tvOS | tail -3
+        run: xcrun --sdk appletvos --show-sdk-version || xcodebuild -downloadPlatform tvOS | tail -3
 
       - name: Projet Xcode (XcodeGen)
         working-directory: ios
         run: |
-          brew install xcodegen
+          command -v xcodegen >/dev/null || brew install xcodegen
           xcodegen
 
       - name: Archive Apple TV (Release)
@@ -199,7 +242,7 @@ jobs:
           xcodebuild archive \
             -project Party.xcodeproj -scheme PartyTV -configuration Release \
             -destination 'generic/platform=tvOS' -archivePath "$ARCHIVE" \
-            "${VARIANT[@]}" CURRENT_PROJECT_VERSION="${{ github.run_number }}" CODE_SIGNING_ALLOWED=NO | tail -40
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" "${VARIANT[@]}" CURRENT_PROJECT_VERSION="${{ github.run_number }}" CODE_SIGNING_ALLOWED=NO | tail -40
           # Signature provisoire ; l'export la remplace par la signature Apple Distribution gérée dans le cloud.
           cat > "$RUNNER_TEMP/tv.entitlements" <<PLIST
           <?xml version="1.0" encoding="UTF-8"?>
@@ -214,6 +257,7 @@ jobs:
             "$ARCHIVE/Products/Applications/PartyTV.app"
 
       - name: Envoi à TestFlight
+        if: env.UPLOAD == '1'
         working-directory: ios
         run: |
           xcodebuild -exportArchive -archivePath "$ARCHIVE" \
@@ -221,7 +265,7 @@ jobs:
             $AUTH_FLAGS
 
       - name: Publier la BETA Apple TV sur le lien public (Invités)
-        if: env.PRODUCTION == '0'
+        if: env.PRODUCTION == '0' && env.UPLOAD == '1'
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
@@ -230,6 +274,17 @@ jobs:
           "$RUNNER_TEMP/asc/bin/pip" install --quiet cryptography
           "$RUNNER_TEMP/asc/bin/python" tools/testflight_publish.py 6827336068 "${{ github.run_number }}" "$ASC_KEY_PATH" TV_OS
 
-      - name: Nettoyage de la clé
+      - name: Nettoyage (clé, archive, profils téléchargés)
         if: always()
-        run: rm -f "$RUNNER_TEMP"/AuthKey_*.p8
+        run: |
+          rm -f "$RUNNER_TEMP"/AuthKey_*.p8
+          rm -rf "$RUNNER_TEMP/DerivedData" "$RUNNER_TEMP/export" "$RUNNER_TEMP/asc" build
+          if [ -f "$RUNNER_TEMP/profiles-before.txt" ]; then
+            for d in ~/Library/MobileDevice/Provisioning\ Profiles ~/Library/Developer/Xcode/UserData/Provisioning\ Profiles; do
+              [ -d "$d" ] || continue
+              for f in "$d"/*; do
+                [ -e "$f" ] || continue
+                grep -qxF "$(basename "$f")" "$RUNNER_TEMP/profiles-before.txt" || rm -f "$f"
+              done
+            done
+          fi

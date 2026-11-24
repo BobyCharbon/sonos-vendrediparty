@@ -28,7 +28,7 @@ concurrency:
 
 jobs:
   appstore:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, party-linux]
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4

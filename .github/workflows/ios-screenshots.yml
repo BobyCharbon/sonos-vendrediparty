@@ -4,6 +4,8 @@ name: App iOS → captures App Store
 # Lancement manuel (onglet Actions, une fois ce fichier sur main) ou à chaque modification du script sur develop ;
 # les images sont dans l'artefact « captures-app-store ».
 # Sur Mac Apple silicon : le simulateur d'un Mac Intel affiche les emojis en « ? ».
+# Tourne sur le Mac de l'admin (runner « party-mac ») : simulateur « Party CI » créé pour l'occasion puis supprimé,
+# ses propres simulateurs ne sont jamais touchés ; build dans le dossier temporaire du job.
 on:
   push:
     branches: [develop]
@@ -21,20 +23,21 @@ permissions:
 
 jobs:
   screenshots:
-    runs-on: macos-15
+    runs-on: [self-hosted, party-mac]
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 
-      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1 (épinglé : action tierce)
-        with:
-          xcode-version: latest-stable
+      - name: Xcode
+        run: |
+          echo "DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer" >> "$GITHUB_ENV"
+          xcodebuild -version
 
       - name: Build Debug pour le simulateur
         working-directory: ios
         run: |
           set -o pipefail
-          brew install xcodegen
+          command -v xcodegen >/dev/null || brew install xcodegen
           xcodegen
           # Debug = VendrediPartyBETA ; pour la production on reprend les réglages de la configuration Release.
           if [ "${{ inputs.site }}" = test ]; then
@@ -44,15 +47,28 @@ jobs:
                      "PARTY_DISPLAY_NAME=Party" ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon)
           fi
           xcodebuild build -project Party.xcodeproj -scheme Party -configuration Debug \
-            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             CODE_SIGNING_ALLOWED=NO "${VARIANT[@]}" | tail -5
 
       - name: Captures
         env:
           BUNDLE_ID: ${{ inputs.site == 'test' && 'ch.bobycharbon.party.beta' || 'ch.bobycharbon.party' }}
-        run: ios/scripts/screenshots.sh ios/build/Build/Products/Debug-iphonesimulator/Party.app "$RUNNER_TEMP/captures"
+          DEVICE_NAME: Party CI
+        run: |
+          xcrun simctl create "Party CI" "iPhone 17 Pro Max" > "$RUNNER_TEMP/sim-udid"
+          ios/scripts/screenshots.sh "$RUNNER_TEMP/DerivedData/Build/Products/Debug-iphonesimulator/Party.app" "$RUNNER_TEMP/captures"
 
       - uses: actions/upload-artifact@v4
         with:
           name: captures-app-store
           path: ${{ runner.temp }}/captures/*.png
+
+      - name: Nettoyage (simulateur Party CI, build)
+        if: always()
+        run: |
+          if [ -s "$RUNNER_TEMP/sim-udid" ]; then
+            UDID=$(cat "$RUNNER_TEMP/sim-udid")
+            xcrun simctl shutdown "$UDID" 2>/dev/null || true
+            xcrun simctl delete "$UDID" || true
+          fi
+          rm -rf "$RUNNER_TEMP/DerivedData"

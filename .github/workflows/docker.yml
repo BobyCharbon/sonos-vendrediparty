@@ -3,6 +3,9 @@ name: Image Docker
 # develop = site de test : l'image part tout de suite (≈ 3 min), les tests tournent à côté et préviennent s'ils échouent
 #           (la suite complète est déjà passée sur le Mac avant chaque envoi).
 # main    = production, utilisée par tout le monde : AUCUNE image tant que tous les tests ne sont pas verts.
+# Tout tourne sur le runner auto-hébergé du serveur (party-linux, deploy/runner/) : dépôt privé, minutes GitHub payantes.
+# Le build passe par un builder buildx à part (docker-container) : l'image n'arrive jamais dans les images locales du
+# serveur, où les tags :develop / :latest des sites restent ceux tirés du registre par Dockhand.
 on:
   push:
     branches: [main, develop]
@@ -13,20 +16,24 @@ permissions:
 
 jobs:
   tests:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, party-linux]
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
 
       - name: Tests
         # Répartis sur les cœurs de la machine (pytest-xdist) : la suite prenait ~58 min sur un seul.
         run: |
-          pip install -r requirements.txt pytest pytest-xdist
+          pip install -q -r requirements.txt pytest pytest-xdist
           python -m pytest -q -n auto
 
-  # Site de test : sans attendre les tests.
+  # Site de test : sans attendre les tests. Autre branche (lancement manuel) : image construite, jamais publiée.
   image-develop:
-    if: github.ref_name == 'develop'
-    runs-on: ubuntu-latest
+    if: github.ref_name != 'main'
+    runs-on: [self-hosted, party-linux]
     permissions:
       contents: read
       packages: write
@@ -41,7 +48,7 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: .
-          push: true
+          push: ${{ github.ref_name == 'develop' }}
           # Base Supabase de TEST (Vendrediparty-test).
           build-args: |
             SUPABASE_URL=https://ewromqfsmcqsthftyhzm.supabase.co
@@ -57,7 +64,7 @@ jobs:
   image-main:
     if: github.ref_name == 'main'
     needs: tests
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, party-linux]
     permissions:
       contents: read
       packages: write

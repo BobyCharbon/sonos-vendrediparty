@@ -87,14 +87,15 @@ def test_recette_hooks_never_reach_the_app_store_build():
 
 def test_testflight_builds_the_iphone_app_with_the_ios_27_1_sdk():
     """iPhone Duo (18.11) : compilée avec un SDK plus ancien, l'app y tourne en mode compatibilité (bandes noires, barre
-    d'onglets en bas). Le job iPhone tourne sur l'image GitHub « xcode-27 », Xcode épinglé à 27.1 ou plus ; cible iOS 16."""
+    d'onglets en bas). Le job iPhone tourne sur le Mac de l'admin (runner « party-mac »), Xcode épinglé à 27.1 ou plus ;
+    cible iOS 16."""
     import re
     from pathlib import Path
     root = Path(__file__).resolve().parents[1]
     workflow = (root / ".github/workflows/ios-testflight.yml").read_text(encoding="utf-8")
     job = workflow.split("\n  testflight:\n", 1)[1].split("\n  tvos:\n", 1)[0]
-    assert "runs-on: xcode-27" in job
-    version = re.search(r'xcode-version: "(\d+)\.(\d+)"', job)
+    assert "runs-on: [self-hosted, party-mac]" in job
+    version = re.search(r'XCODE_VERSION: "(\d+)\.(\d+)"', job)
     assert version and (int(version[1]), int(version[2])) >= (27, 1), "Xcode épinglé à 27.1 ou plus"
     assert 'iOS: "16.0"' in (root / "ios/project.yml").read_text(encoding="utf-8")
 
@@ -125,3 +126,20 @@ def test_review_notes_describe_every_big_feature_delivered_by_the_web():
     }
     missing = [name for name, word in features.items() if word.lower() not in notes.lower()]
     assert not missing, missing
+
+
+def test_workflows_run_on_the_admin_machines_and_testflight_never_on_develop():
+    """Dépôt privé (24.11) : tous les jobs sur les runners auto-hébergés (Mac de l'admin pour Apple et Android, serveur
+    pour Linux), jamais sur une machine GitHub payante. TestFlight ne part plus à chaque push sur develop."""
+    from pathlib import Path
+    import re
+    root = Path(__file__).resolve().parents[1]
+    for workflow in (root / ".github/workflows").glob("*.yml"):
+        text = workflow.read_text(encoding="utf-8")
+        for runs_on in re.findall(r"runs-on: (.+)", text):
+            assert runs_on.strip() in ("[self-hosted, party-mac]", "[self-hosted, party-linux]"), (workflow.name, runs_on)
+        assert "maxim-lobanov/setup-xcode" not in text, workflow.name  # demande sudo sur le Mac de l'admin
+    testflight = (root / ".github/workflows/ios-testflight.yml").read_text(encoding="utf-8")
+    push = testflight.split("  push:\n", 1)[1].split("\n  workflow_dispatch:", 1)[0]
+    assert "branches: [main]" in push and "develop" not in push
+    assert "envoi:" in testflight and "UPLOAD" in testflight

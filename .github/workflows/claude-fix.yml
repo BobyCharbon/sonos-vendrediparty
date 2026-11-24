@@ -3,6 +3,7 @@ name: Correction par Claude
 # Un retour d'invité confié à Claude depuis l'admin (bouton 🤖) devient une issue étiquetée « claude-fix ».
 # Claude corrige selon les instructions de l'admin et commite ; ce workflow relance les tests,
 # pousse sur develop (jamais main), reconstruit l'image de test, puis ferme l'issue.
+# Tourne sur le runner auto-hébergé du serveur (party-linux, deploy/runner/).
 on:
   issues:
     types: [labeled]
@@ -24,7 +25,7 @@ jobs:
       github.event.label.name == 'claude-fix' &&
       github.event.sender.login == github.repository_owner &&
       github.event.issue.user.login == github.repository_owner
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, party-linux]
     timeout-minutes: 45
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -158,3 +159,8 @@ jobs:
             echo "Log : ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           } > "$RUNNER_TEMP/comment.md"
           gh issue comment "$ISSUE" --body-file "$RUNNER_TEMP/comment.md"
+
+      # Runner auto-hébergé : le dossier de travail reste sur le serveur. Jamais de jeton laissé dans .git/config.
+      - name: Nettoyage du jeton
+        if: always()
+        run: git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git" || true
