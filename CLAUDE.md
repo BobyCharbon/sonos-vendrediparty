@@ -838,6 +838,9 @@ réglage de prod :
   réglages `SouvenirsSettings` dans le formulaire (avertissement orange, figés) ; liens `?souvenirs=1|review` (events-shell.js,
   ouverts une fois). App iPhone : `PartyNative.souvenirs.camera / story / save` (pont-ios.md), retour par
   `window.PartySouvenirs.changed(id)` (index.html le passe au cadre). Modération : la copie porte `bucket: souvenirs`
-  (reports.tsx, moderation_api.py). Didacticiel : emplacement `SouvenirsTutorial` (`TUTORIAL_READY` à allumer).
+  (reports.tsx, moderation_api.py). Didacticiel `SouvenirsTutorial` (modèle de l'Agenda) : 5 cartes (+ 2 pour l'organisation,
+  variante sans enregistrement), à chaque ouverture de la carte tant que « Ne plus me le rappeler » n'est pas touché (par
+  appareil, localStorage `party-souvenirs-tutorial-off` : pas de table de préférences), jamais d'office par un lien
+  `?souvenirs=` ; « ❔ Comment ça marche » sur la carte et dans les réglages.
 - Tests : `tests/test_souvenirs.py`, `tests/supabase_live/test_souvenirs_live.py`, `tests/test_souvenirs_browser.py`,
   `tests/supabase_live/test_souvenirs_browser_live.py` (recette réelle).

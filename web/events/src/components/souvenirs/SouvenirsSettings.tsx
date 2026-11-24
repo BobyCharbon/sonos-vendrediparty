@@ -1,7 +1,9 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Rows, T, ToggleRow } from '@/components/ui';
 import { colors, font, radius } from '@/lib/theme';
+
+import { SouvenirsTutorial, useSouvenirsTutorial } from './SouvenirsTutorial';
 
 const ORANGE = '#FF9F43';
 
@@ -13,6 +15,7 @@ const ORANGE = '#FF9F43';
 export function SouvenirsSettings({ enabled, keep, locked, onChange }: {
   enabled: boolean; keep: boolean; locked: boolean; onChange: (v: { souvenirs_enabled?: boolean; souvenirs_keep?: boolean }) => void;
 }) {
+  const tutorial = useSouvenirsTutorial(false);
   return (
     <View style={{ gap: 10 }} testID="souvenirs-settings">
       <Rows>
@@ -50,6 +53,12 @@ export function SouvenirsSettings({ enabled, keep, locked, onChange }: {
           position et données de l’appareil retirées des photos.
         </T>
       ) : null}
+      {enabled ? (
+        <Pressable accessibilityRole="button" testID="souvenirs-settings-help" onPress={tutorial.show} style={{ alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' }}>
+          <T size={14} weight="semibold" color={colors.accentSoft}>❔ Comment ça marche</T>
+        </Pressable>
+      ) : null}
+      <SouvenirsTutorial visible={tutorial.visible} staff keep={keep} onSkip={tutorial.skip} onNever={tutorial.never} />
       {locked ? (
         <T size={13} color={colors.coralSoft}>
           🔒 Réglages figés depuis la première photo : les participants ont pris leurs photos en sachant ce qu’elles deviendraient.

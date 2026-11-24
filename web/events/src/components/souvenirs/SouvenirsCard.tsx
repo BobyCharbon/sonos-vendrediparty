@@ -42,7 +42,7 @@ export function SouvenirsCard({ eventId, title, open }: { eventId: string; title
   const opened = useRef(false);
   const mineRef = useRef<View>(null);
   const gate = useTermsGate('Avant ta première photo');
-  const tutorial = useSouvenirsTutorial();
+  const tutorial = useSouvenirsTutorial(!open);   // ouvert par un lien (story, relecture) : pas d'office
 
   const load = useCallback(() => fetchCounter(eventId).then((x) => setC(x), () => setC((old) => old)), [eventId]);
   useEffect(() => { void load(); }, [load]);
@@ -278,7 +278,7 @@ export function SouvenirsCard({ eventId, title, open }: { eventId: string; title
       ) : null}
 
       {TUTORIAL_READY ? (
-        <Pressable accessibilityRole="button" onPress={tutorial.show} style={{ alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' }}>
+        <Pressable accessibilityRole="button" testID="souvenirs-tutorial-again" onPress={tutorial.show} style={{ alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center' }}>
           <T size={13} color={colors.accentSoft}>❔ Comment ça marche</T>
         </Pressable>
       ) : null}
@@ -288,8 +288,9 @@ export function SouvenirsCard({ eventId, title, open }: { eventId: string; title
       {story ? <StoryViewer eventId={eventId} onMine={goMine} onClose={(changed) => { setStory(false); if (changed) setMineKey((k) => k + 1); void load(); }} /> : null}
       {review ? <ReviewSheet eventId={eventId} canRevealNow={!!c.can_reveal_now} onClose={(changed) => { setReview(false); if (changed) void load(); }} /> : null}
       {gate.sheet}
-      {/* Didacticiel : 1re ouverture de la carte sur cet appareil, puis « Comment ça marche » (components/souvenirs/SouvenirsTutorial.tsx). */}
-      <SouvenirsTutorial visible={tutorial.visible} staff={!!c.staff} keep={c.keep !== false} onDone={tutorial.done} />
+      {/* Didacticiel : à chaque ouverture de la carte tant que « Ne plus me le rappeler » n'est pas touché, et « Comment ça marche ». */}
+      <SouvenirsTutorial visible={tutorial.visible && !story && !review} staff={!!c.staff} keep={c.keep !== false}
+        onSkip={tutorial.skip} onNever={tutorial.never} />
     </View>
   );
 }

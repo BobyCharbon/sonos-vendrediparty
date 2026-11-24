@@ -9,7 +9,9 @@ Supabase et relais du serveur SIMULÉS (`/api/account/souvenirs/rpc`, `/api/acco
 - « Mes souvenirs » : filtre Toutes / Prises par moi / Gardées, auteur, lien de téléchargement, Supprimer / Retirer ;
 - app iPhone : PartyNative.souvenirs.camera / story / save, window.PartySouvenirs.changed(id) relit l'état ;
 - formulaire : « 📸 Souvenirs » éteint, « Autoriser l'enregistrement » allumé, avertissement orange, figé après la 1re photo ;
-- lien de notification ?souvenirs=1 / review (events-shell.js).
+- lien de notification ?souvenirs=1 / review (events-shell.js) ;
+- didacticiel : à chaque ouverture de la carte, Passer, Ne plus me le rappeler (cet appareil), « Comment ça marche »,
+  cartes de l'organisation, variante sans enregistrement, aide des réglages.
 Captures : PARTY_SHOTS=<dossier> (sinon le dossier temporaire)."""
 import base64
 import io
@@ -89,8 +91,11 @@ def counter(phase: str, **extra) -> dict:
     return base
 
 
-def souvenir_services(page, phase='open', keep=True, staff=True, event_extra=None, photo_status=None):
-    """Base simulée des Souvenirs, posée par-dessus mock_services ; state['calls'] : (fonction, arguments)."""
+def souvenir_services(page, phase='open', keep=True, staff=True, event_extra=None, photo_status=None, tutorial=False):
+    """Base simulée des Souvenirs, posée par-dessus mock_services ; state['calls'] : (fonction, arguments).
+    `tutorial` : False = « Ne plus me le rappeler » déjà touché (le didacticiel ne couvre pas la fiche)."""
+    if not tutorial:
+        page.add_init_script("try { localStorage.setItem('party-souvenirs-tutorial-off', '1'); } catch (e) {}")
     mock_services(page, event_extra={'souvenirs_enabled': True, 'souvenirs_keep': keep, 'souvenirs_locked': True,
                                      **({} if staff else {'created_by': MAE}), **(event_extra or {})})
     state = {'calls': [], 'counter': counter(phase, keep=keep, staff=staff), 'uploads': [],
@@ -422,6 +427,104 @@ def test_settings_are_frozen_after_the_first_photo(phone, events_origin):
     pw.expect(box).to_be_visible(timeout=15000)
     pw.expect(box.get_by_role('switch', name='📸 Souvenirs')).to_be_disabled()
     pw.expect(box.get_by_text('🔒 Réglages figés depuis la première photo', exact=False)).to_be_visible()
+    assert not errors, errors
+
+
+TUTORIAL = ['Les photos de la soirée', '3 photos chacun', 'Le dévoilement', 'Tes souvenirs', 'En confiance']
+STAFF_TUTORIAL = ['Organisation : les réglages', 'Organisation : relire et dévoiler']
+
+
+def test_the_tutorial_opens_with_the_card_skip_comes_back_never_stays_closed_and_can_be_seen_again(phone, events_origin):
+    """Didacticiel (24.11, modèle de l'Agenda) : à chaque ouverture de la carte ; ✕ / « Passer » pour cette fois (il revient
+    au rechargement) ; « Ne plus me le rappeler » retenu sur cet appareil ; « ❔ Comment ça marche » le rouvre au début."""
+    page, errors = phone
+    souvenir_services(page, phase='open', staff=False, tutorial=True)
+    signed_in(page, events_origin, f'/event/{EVENT}')
+    tuto = page.get_by_test_id('souvenirs-tutorial')
+    pw.expect(tuto).to_be_visible(timeout=15000)
+    for n, title in enumerate(TUTORIAL, start=1):
+        if n > 1:
+            tuto.get_by_role('button', name='Suivant').click()
+        pw.expect(tuto.get_by_role('heading', name=title)).to_be_visible()
+        pw.expect(tuto).to_contain_text(f'{n} / 5')
+        shot(page, f'souvenirs-tuto-{n}.png')
+    pw.expect(tuto).to_contain_text('Je suis sur la photo')
+    pw.expect(tuto.get_by_role('button', name='Suivant')).to_have_count(0)
+    tuto.get_by_role('button', name='‹ Retour').click()
+    pw.expect(tuto.get_by_role('heading', name='Tes souvenirs')).to_be_visible()
+    tuto.get_by_role('button', name='Passer le tutoriel').click()     # ✕
+    pw.expect(tuto).to_have_count(0)
+    page.reload(wait_until='domcontentloaded')
+    pw.expect(tuto).to_be_visible(timeout=15000)
+    tuto.get_by_role('button', name='Passer', exact=True).click()
+    pw.expect(tuto).to_have_count(0)
+    page.reload(wait_until='domcontentloaded')
+    pw.expect(tuto).to_be_visible(timeout=15000)
+    tuto.get_by_role('button', name='Ne plus me le rappeler').click()
+    pw.expect(tuto).to_have_count(0)
+    assert page.evaluate("localStorage.getItem('party-souvenirs-tutorial-off')") == '1'
+    page.reload(wait_until='domcontentloaded')
+    pw.expect(page.get_by_test_id('souvenirs')).to_be_visible(timeout=15000)
+    page.wait_for_timeout(800)
+    pw.expect(tuto).to_have_count(0)
+    page.get_by_test_id('souvenirs-tutorial-again').click()
+    pw.expect(tuto.get_by_role('heading', name='Les photos de la soirée')).to_be_visible()
+    for _ in TUTORIAL[1:]:
+        tuto.get_by_role('button', name='Suivant').click()
+    tuto.get_by_role('button', name='C’est compris').click()
+    pw.expect(tuto).to_have_count(0)
+    assert not errors, errors
+
+
+def test_the_organization_gets_two_more_cards_and_without_recording_nothing_stays(phone, events_origin):
+    page, errors = phone
+    souvenir_services(page, phase='open', keep=False, staff=True, tutorial=True)
+    signed_in(page, events_origin, f'/event/{EVENT}')
+    tuto = page.get_by_test_id('souvenirs-tutorial')
+    pw.expect(tuto).to_be_visible(timeout=15000)
+    for n, title in enumerate(TUTORIAL + STAFF_TUTORIAL, start=1):
+        if n > 1:
+            tuto.get_by_role('button', name='Suivant').click()
+        pw.expect(tuto.get_by_role('heading', name=title)).to_be_visible()
+        pw.expect(tuto).to_contain_text(f'{n} / 7')
+        if title == 'Le dévoilement':
+            pw.expect(tuto).to_contain_text('rien ne se garde')
+            pw.expect(tuto).not_to_contain_text('⭐')
+        if title == 'Tes souvenirs':
+            pw.expect(tuto).to_contain_text('après la story, rien ne reste')
+        shot(page, f'souvenirs-tuto-staff-{n}.png')
+    pw.expect(tuto).to_contain_text('Dévoiler maintenant')
+    assert not errors, errors
+
+
+def test_a_story_link_does_not_open_the_tutorial_over_the_story(phone, events_origin):
+    page, errors = phone
+    souvenir_services(page, phase='story', tutorial=True)
+    open_event(page, events_origin, '?souvenirs=1')
+    pw.expect(page.get_by_test_id('story-photo').first).to_be_visible(timeout=15000)
+    page.wait_for_timeout(600)
+    pw.expect(page.get_by_test_id('souvenirs-tutorial')).to_have_count(0)
+    assert not errors, errors
+
+
+def test_the_settings_explain_how_it_works_for_the_organization(phone, events_origin):
+    page, errors = phone
+    souvenir_services(page, phase='open', event_extra={**FORM_ROWS, 'souvenirs_enabled': False, 'souvenirs_locked': False}, tutorial=True)
+    signed_in(page, events_origin, f'/event/{EVENT}/edit')
+    box = page.get_by_test_id('souvenirs-settings')
+    pw.expect(box).to_be_visible(timeout=15000)
+    pw.expect(page.get_by_test_id('souvenirs-tutorial')).to_have_count(0)    # jamais d'office dans le formulaire
+    pw.expect(page.get_by_test_id('souvenirs-settings-help')).to_have_count(0)
+    box.get_by_role('switch', name='📸 Souvenirs').click()
+    page.get_by_test_id('souvenirs-settings-help').click()
+    tuto = page.get_by_test_id('souvenirs-tutorial')
+    pw.expect(tuto).to_contain_text('1 / 7')
+    for _ in range(5):
+        tuto.get_by_role('button', name='Suivant').click()
+    pw.expect(tuto.get_by_role('heading', name='Organisation : les réglages')).to_be_visible()
+    shot(page, 'souvenirs-tuto-reglages.png')
+    tuto.get_by_role('button', name='Passer le tutoriel').click()
+    pw.expect(tuto).to_have_count(0)
     assert not errors, errors
 
 
