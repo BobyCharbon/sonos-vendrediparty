@@ -1,7 +1,7 @@
 -- Prod : ouverture de l'Agenda (préparé le 24.11.2026, PAS appliqué). Les 6 migrations de l'Agenda absentes de la prod, dans
 -- l'ordre, en une seule transaction : 20261117140000_agenda, 20261117150000_agenda_liens_calendriers,
 -- 20261117160000_agenda_liens_marges, 20261117170000_agenda_adresses, 20261117200000_agenda_durees,
--- 20261117210000_agenda_pas_present, puis 20261124090000_agenda_apercu_delai (aperçu d'un lien avec le délai). Contenu identique aux fichiers de supabase/migrations/, sauf deux retouches marquées
+-- 20261117210000_agenda_pas_present, puis 20261124080000_agenda_apercu_delai (aperçu d'un lien avec le délai). Contenu identique aux fichiers de supabase/migrations/, sauf deux retouches marquées
 -- [prod 24.11] pour la rejouabilité (contrainte des signalements étendue au lieu d'être réécrite ; ancienne
 -- agenda_booking_request retirée après la version avec durée).
 -- Dépendances vérifiées en prod (lecture seule, 24.11 00 h) : aucun objet agenda_* ; pg_cron 1.6.4, pgcrypto ; colonne
@@ -2090,7 +2090,7 @@ begin
 end $$;
 revoke all on function private.agenda_party_spans(uuid, timestamptz, timestamptz) from public, anon, authenticated;
 
--- ═════════════════════════ 20261124090000_agenda_apercu_delai.sql ═════════════════════════
+-- ═════════════════════════ 20261124080000_agenda_apercu_delai.sql ═════════════════════════
 -- Agenda : l'aperçu d'un lien (« Voici ce que verra la personne ») tient compte du délai minimum (recette iPhone du 24.11).
 -- Avec les demandes de rendez-vous allumées, l'aperçu ne recevait pas min_notice_min (null) : aucun créneau, « Aucun moment
 -- libre dans ces heures » juste au-dessus de « Dès le … ». Délai lu dans le brouillon (par 15 min, 14 jours au plus),
@@ -2122,6 +2122,6 @@ insert into supabase_migrations.schema_migrations (version, name) values ('20261
 insert into supabase_migrations.schema_migrations (version, name) values ('20261117170000', 'agenda_adresses') on conflict do nothing;
 insert into supabase_migrations.schema_migrations (version, name) values ('20261117200000', 'agenda_durees') on conflict do nothing;
 insert into supabase_migrations.schema_migrations (version, name) values ('20261117210000', 'agenda_pas_present') on conflict do nothing;
-insert into supabase_migrations.schema_migrations (version, name) values ('20261124090000', 'agenda_apercu_delai') on conflict do nothing;
+insert into supabase_migrations.schema_migrations (version, name) values ('20261124080000', 'agenda_apercu_delai') on conflict do nothing;
 notify pgrst, 'reload schema';
 commit;
