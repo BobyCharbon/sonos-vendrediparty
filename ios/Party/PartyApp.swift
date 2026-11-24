@@ -247,6 +247,15 @@ struct ContentView: View {
                 PronoRouteView(store: store, route: route) { model.pronoRoute = nil }
             }
         }
+        // Souvenirs (24.11) : appareil photo et story, plein écran par-dessus tout ; la page relit sa fiche à la fermeture.
+        .fullScreenCover(item: $model.souvenirRoute, onDismiss: { model.souvenirsClosed() }) { route in
+            if let store = model.souvenirs {
+                switch route {
+                case .camera(let event): SouvenirCameraView(store: store, eventID: event) { model.souvenirRoute = nil }
+                case .story(let event): SouvenirStoryView(store: store, eventID: event) { model.souvenirRoute = nil }
+                }
+            }
+        }
         // Groupes en natif (18.11, « tout en natif ») : Réglages › Groupes, « Nouveau groupe », page d'un groupe ; « ✕ » ferme.
         .fullScreenCover(item: $model.groupRoute) { route in
             GroupsHostView(route: route) { model.groupRoute = nil }
@@ -270,6 +279,8 @@ struct ContentView: View {
         // ci-dessus (discussion d'événement, pronos, personnes) les reçoivent aussi.
         .environment(\.writeDirect, model.canWriteDirect ? WriteDirectAction { user in await model.writeDirect(to: user) } : nil)
         .environment(\.people, model.canWriteDirect ? model.people : nil)
+        // Bulles des Souvenirs en haut des Discussions.
+        .environment(\.souvenirs, model.souvenirs)
         // Groupes natifs : ce qu'ils ouvrent ailleurs (discussion, fiche d'un événement, création d'un événement, pronos).
         .environment(\.groupHub, model.canWriteDirect ? GroupHub(
             pronos: model.settings?.pronosOn == true ? model.settings?.pronos : nil,

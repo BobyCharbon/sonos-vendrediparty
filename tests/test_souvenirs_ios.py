@@ -1,0 +1,62 @@
+"""Souvenirs dans l'app iPhone (24.11) : textes d'autorisation (appareil photo, ajout à Photos), crochet de la recette
+jamais dans la version de l'App Store, interrupteur « Souvenirs » accepté par le serveur, toucher des notifications
+(story, relecture) et bulles des Discussions (attente au labo, story)."""
+import json
+import shutil
+import subprocess
+from pathlib import Path
+
+import pytest
+
+from app import main
+
+ROOT = Path(__file__).resolve().parents[1]
+EVENT = "0a0b0c0d-0000-4000-8000-000000000024"
+
+
+def test_camera_and_photos_texts_name_the_souvenirs():
+    plist = (ROOT / "ios/project.yml").read_text(encoding="utf-8")
+    camera = next(l for l in plist.splitlines() if "NSCameraUsageDescription" in l)
+    add = next(l for l in plist.splitlines() if "NSPhotoLibraryAddUsageDescription" in l)
+    assert "Souvenirs" in camera and "Souvenirs" in add
+
+
+def test_the_fake_camera_of_the_recette_never_reaches_the_app_store_build():
+    """L'image de test qui remplace la caméra (simulateur) n'existe que dans DEBUG ou E2E_HOOKS."""
+    src = (ROOT / "ios/Party/Souvenirs/SouvenirCamera.swift").read_text(encoding="utf-8")
+    reads = src.split('environment["PARTY_E2E_SOUVENIR_CAMERA"]')
+    assert len(reads) == 2  # une seule lecture du crochet
+    before, after = reads
+    assert before.rsplit("#if", 1)[1].startswith(" DEBUG || E2E_HOOKS") and "#endif" not in before.rsplit("#if", 1)[1]
+    assert "#else" in after.split("#endif", 1)[0] and "return false" in after.split("#endif", 1)[0]
+    assert "UIImagePickerController" not in src and "PHPicker" not in src  # jamais la Photothèque
+
+
+def test_the_server_saves_the_souvenirs_notification_switch():
+    assert main.NotificationPatch(souvenirs=False).model_dump(exclude_unset=True) == {"souvenirs": False}
+
+
+@pytest.mark.skipif(not shutil.which("node"), reason="Node absent")
+def test_web_push_opens_the_story_or_the_review():
+    script = ("import(process.argv[1]).then(({ notificationTarget }) => "
+              "console.log(JSON.stringify(JSON.parse(process.argv[2]).map(notificationTarget))))")
+    rows = [{"origin": "https://party.bobycharbon.ch", "kind": k, "event_id": EVENT} for k in ("souvenirs_revealed", "souvenir_reported")]
+    out = subprocess.run(["node", "-e", script, (ROOT / "supabase/functions/send-web-push/target.ts").as_uri(), json.dumps(rows)],
+                         capture_output=True, text=True, check=True, timeout=30)
+    assert json.loads(out.stdout) == [f"https://party.bobycharbon.ch/?tab=events&event={EVENT}&souvenirs=1",
+                                      f"https://party.bobycharbon.ch/?tab=events&event={EVENT}&souvenirs=review"]
+
+
+def test_apns_opens_the_story_or_the_review():
+    apns = (ROOT / "supabase/functions/send-push/apns.ts").read_text(encoding="utf-8")
+    assert "data.kind === 'souvenirs_revealed') return `/?tab=events&event=${event}&souvenirs=1`" in apns
+    assert "data.kind === 'souvenir_reported') return `/?tab=events&event=${event}&souvenirs=review`" in apns
+
+
+def test_bubbles_migration_is_additive_and_only_counts_while_waiting():
+    sql = (ROOT / "supabase/migrations/20261124120000_souvenirs_bulles_attente.sql").read_text(encoding="utf-8")
+    assert "create or replace function public.souvenir_stories()" in sql
+    assert not any(w in sql.lower() for w in ("drop table", "drop column", "delete from", "truncate"))
+    assert "x.ph in ('story', 'waiting')" in sql and "'phase', x.ph" in sql and "'reveal_at'" in sql
+    # Pendant l'attente : le NOMBRE seulement (jamais d'auteur ni de chemin de photo).
+    assert "'path'" not in sql and "'author'" not in sql and "souvenir_json" not in sql

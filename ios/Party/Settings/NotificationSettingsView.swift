@@ -220,6 +220,14 @@ struct NotificationSettingsView: View {
             }
         }
 
+        // Souvenirs (24.11) : un seul interrupteur, comme sur le web (dévoilement ; photo signalée pour l'organisation).
+        Section("📸 Souvenirs") {
+            eventToggle("souvenirs", "camera.fill", .pink, "Souvenirs",
+                        "Les photos d'une soirée sont dévoilées ; une photo Souvenirs d'un événement que j'organise est signalée",
+                        p.souvenirs != false)
+                .accessibilityIdentifier("notif-souvenirs")
+        }
+
         // Mes amis dans Party : chaque type a son interrupteur (aussi sur le web).
         Section("Amis") {
             eventToggle("referral_joins", "envelope.open.fill", .purple, "Quelqu'un rejoint Party grâce à moi",

@@ -23,6 +23,9 @@ export function notificationTarget(row: {
     target.searchParams.set('event', row.event_id);
     // Message de la discussion d'un événement : le toucher ouvre la discussion (native dans l'app iPhone).
     if (row.kind === 'message') target.searchParams.set('chat', '1');
+    // Souvenirs (24.11) : dévoilés → la story ; photo signalée → la fiche en relecture (organisation).
+    if (row.kind === 'souvenirs_revealed') target.searchParams.set('souvenirs', '1');
+    if (row.kind === 'souvenir_reported') target.searchParams.set('souvenirs', 'review');
   } else {
     const own = typeof row.url === 'string' && /^\/(?![/\\])/.test(row.url) ? new URL(row.url, row.origin) : null;
     if (own && own.origin === target.origin) return own.href;  // ex. « Nouveau compte » → /?tab=account

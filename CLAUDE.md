@@ -852,3 +852,13 @@ réglage de prod :
   `?souvenirs=` ; « ❔ Comment ça marche » sur la carte et dans les réglages.
 - Tests : `tests/test_souvenirs.py`, `tests/supabase_live/test_souvenirs_live.py`, `tests/test_souvenirs_browser.py`,
   `tests/supabase_live/test_souvenirs_browser_live.py` (recette réelle).
+- App iPhone (24.11, contrat pont-ios.md) : `PartyNative.souvenirs.camera(id)` (appareil NATIF AVFoundation, jamais la
+  Photothèque ni d'aperçu, « N poses », « Annuler » 5 s, refus full / closed / profile_required, terms_required → CGU puis
+  nouvel essai), `.story(id)` (story native : photo + auteur dans ScreenshotProof comme SecretCardsView, ⭐ Garder, ⋯ Signaler
+  motif my_image en tête / Bloquer `set_direct_block`, `souvenir_mark_seen`), `.save(url)` (Photos, ajout seulement, liens
+  signés du compartiment souvenirs seulement) ; à la fermeture : `window.PartySouvenirs.changed(id)` (page et cadre).
+  Code : `ios/Party/Souvenirs/`. Bulles en haut des Discussions (`souvenir_stories` : story néon, labo gris + cadenas + compte
+  à rebours, migration 20261124120000). Toucher : `souvenirs_revealed` → `?souvenirs=1` (story native), `souvenir_reported`
+  → `?souvenirs=review` (fiche) ; send-push et send-web-push. Réglages › Notifications › Souvenirs. Recette simulateur :
+  `PARTY_E2E_SOUVENIR_CAMERA=1` (image de test, DEBUG / E2E_HOOKS seulement), `ios/PartyUITests/RecetteSouvenirsUITests.swift`.
+  Tests : `SouvenirsTests`, `tests/test_souvenirs_ios.py`.
