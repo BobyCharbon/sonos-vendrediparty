@@ -12,6 +12,7 @@ import { useQuery } from '@/lib/data';
 import { formatMessageTime } from '@/lib/format';
 import { refreshPending } from '@/lib/pending';
 import { duration, ease, pressTransition, transition } from '@/lib/motion';
+import { storeApp } from '@/lib/features';
 import { must, supabase } from '@/lib/supabase';
 import { colors, radius } from '@/lib/theme';
 
@@ -29,12 +30,13 @@ function close() {
 export default function Activity() {
   const me = useMe();
   const { data, error, reload } = useQuery(async () => {
-    const res = await supabase
+    let q = supabase
       .from('notifications')
       .select('id, kind, title, body, event_id, created_at, read_at, data')
-      .neq('kind', HIDDEN_KIND)
-      .order('created_at', { ascending: false })
-      .limit(100);
+      .neq('kind', HIDDEN_KIND);
+    // App App Store (refus Apple 1.4.3) : le bar y est caché, ses notifications (« 🍹 Barman… ») aussi.
+    if (storeApp) q = q.not('kind', 'like', 'bar_%');
+    const res = await q.order('created_at', { ascending: false }).limit(100);
     return must(res) as Item[];
   }, [me.id]);
   // null = choix automatique : « Importantes » s'il y en a de non lues, sinon « Tout ».

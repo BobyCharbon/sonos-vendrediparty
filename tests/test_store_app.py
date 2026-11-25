@@ -32,28 +32,45 @@ def create(ua, kind, gid, **options):
 
 
 def test_store_app_cannot_open_the_hidden_games():
-    assert set(main.STORE_HIDDEN_GAMES) == {"casino", "blackjack", "beerpong", "biskit", "purity"}  # Pyramide : en points
+    # Décision de l'admin du 25.11 : tous les jeux à boire par leur origine ou leur mécanique sont BLOQUÉS en 1.0.0.
+    assert set(main.STORE_HIDDEN_GAMES) == {"casino", "blackjack", "beerpong", "biskit", "purity", "pyramid", "never",
+                                            "whoof", "roulette"}
     for kind in main.STORE_HIDDEN_GAMES:
         r = create(STORE_UA, kind, f"store-{kind}")
         assert r.status_code == 403 and r.json()["detail"] == MESSAGE  # jamais « ouvre-le sur le site »
-    assert create(STORE_UA, "whoof", "store-ok").status_code == 200
+    assert create(STORE_UA, "likely", "store-ok").status_code == 200
 
 
 def test_other_apps_keep_every_game():
     for i, ua in enumerate((BETA_UA, WEB_UA)):
-        for kind in ("blackjack", "biskit", "beerpong"):
+        for kind in ("blackjack", "biskit", "beerpong", "pyramid", "never", "whoof", "roulette"):
             assert create(ua, kind, f"guest-{kind}-{i}").status_code == 200
 
 
-def test_a_game_created_by_the_store_app_counts_points_and_never_has_hot_questions():
-    """Décision de l'admin du 25.11 : dans l'app, les « gorgées » sont des ⭐ points (la page les affiche ainsi) ;
-    la partie est marquée `store` (questions filtrées) et n'a jamais de mode Hot / Mix."""
-    g = create(STORE_UA, "whoof", "store-sips", sips=3, mode="hot").json()
+def test_a_game_created_by_the_store_app_has_no_drinks_no_points_mode_and_no_hidden_theme():
+    """Décision de l'admin du 25.11 : dans l'app, AUCUNE gorgée ni « mode points » qui les remplacerait (sips toujours 0),
+    ni thème WTF, ni paquet « Entre amis » ; la partie est marquée `store` (questions filtrées)."""
+    g = create(STORE_UA, "likely", "store-sips", sips=3, cats=["family", "friends"]).json()
     raw = main.store.session.games[g["code"]]
-    assert raw["store"] and raw["options"]["sips"] == 3 and raw["options"]["mode"] == "soft"
-    assert client(STORE_UA).get(f"/api/games/{g['code']}?guest_id=store-sips").status_code == 200
-    py = create(STORE_UA, "pyramid", "store-pyr1").json()
-    assert main.store.session.games[py["code"]]["store"]
+    assert raw["store"] and raw["options"]["sips"] == 0 and raw["likely"]["packs"] == ["family"]
+    view = client(STORE_UA).get(f"/api/games/{g['code']}?guest_id=store-sips").json()
+    assert [p["id"] for p in view["likely"]["pack_list"]] == ["family"] and view["likely"]["max_sips"] == 0
+    qz = main.store.session.games[create(STORE_UA, "quiz", "store-qz1", sips=1).json()["code"]]
+    assert qz["options"]["sips"] == 0
+    db = main.store.session.games[create(STORE_UA, "debate", "store-db1", cats=["light", "wtf"]).json()["code"]]
+    assert db["debate"]["themes"] == ["light"]
+    themes = client(STORE_UA).get(f"/api/games/{db['code']}?guest_id=store-db1").json()["debate"]["theme_list"]
+    assert "wtf" not in {t["id"] for t in themes}
+    # Réglages refusés ensuite (403, même message), même par un téléphone du web dans une partie de l'app.
+    for code, gid, settings, action in ((g["code"], "store-sips", {"sips": 2}, "lkset"), (g["code"], "store-sips", {"packs": ["friends"]}, "lkset"),
+                                        (db["code"], "store-db1", {"themes": ["wtf"]}, "dbset")):
+        for ua in (STORE_UA, WEB_UA):
+            r = client(ua).post(f"/api/games/{code}", json={"guest_id": gid, "action": action, "settings": settings})
+            assert r.status_code == 403 and r.json()["detail"] == MESSAGE, (action, settings, r.text)
+    assert raw["options"]["sips"] == 0 and raw["likely"]["packs"] == ["family"]
+    # Le web, lui, garde gorgées et thème WTF.
+    web = main.store.session.games[create(WEB_UA, "likely", "web-sips", sips=2).json()["code"]]
+    assert web["options"]["sips"] == 2 and not web.get("store")
 
 
 @pytest.mark.parametrize("options", [{"type": "never", "sips": 1}, {"type": "whoof", "sips": 2}, {"type": "quiz", "sips": 1},
@@ -77,12 +94,15 @@ def test_store_app_cannot_view_or_join_a_casino_opened_elsewhere():
 
 
 def test_a_web_game_already_running_without_the_filter_is_refused_but_a_lobby_is_cleaned():
-    started = main.store.session.games[create(WEB_UA, "never", "web-host-a").json()["code"]]
-    started["phase"] = "question"
+    started = main.store.session.games[create(WEB_UA, "likely", "web-host-a").json()["code"]]
+    started["phase"] = "ask"
     assert client(STORE_UA).get(f"/api/games/{started['code']}?guest_id=store-p1").status_code == 403
-    lobby = main.store.session.games[create(WEB_UA, "never", "web-host-b", mode="awkward").json()["code"]]
+    lobby = main.store.session.games[create(WEB_UA, "likely", "web-host-b", cats=["family", "friends"]).json()["code"]]
     assert client(STORE_UA).get(f"/api/games/{lobby['code']}?guest_id=store-p1").status_code == 200
-    assert lobby["store"]  # la suite est tirée sans boisson
+    assert lobby["store"] and lobby["likely"]["packs"] == ["family"]  # la suite est tirée sans boisson
+    masque_game = main.store.session.games[create(WEB_UA, "masque", "web-host-m").json()["code"]]
+    assert client(STORE_UA).get(f"/api/games/{masque_game['code']}?guest_id=store-p1").status_code == 200
+    assert masque_game["store"]  # textes écrits filtrés pour la suite
     # Pyramide créée sur le web (des gorgées) : jamais ouverte à l'app, même en salle d'attente (contrôle final du 25.11).
     web_pyr = main.store.session.games[create(WEB_UA, "pyramid", "web-host-c").json()["code"]]
     assert web_pyr["phase"] == "lobby"
@@ -93,7 +113,7 @@ def test_a_web_game_already_running_without_the_filter_is_refused_but_a_lobby_is
 
 def test_store_app_cannot_launch_hidden_games_from_a_game_room():
     room = create(STORE_UA, "room", "store-room-1").json()
-    for kind in ("blackjack", "biskit", "beerpong"):
+    for kind in ("blackjack", "biskit", "beerpong", "pyramid", "never", "whoof", "roulette"):
         r = client(STORE_UA).post(f"/api/games/{room['code']}", json={"guest_id": "store-room-1", "action": "launch",
                                                                       "settings": {"type": kind}})
         assert r.status_code == 403
@@ -120,15 +140,16 @@ def test_a_room_joined_by_the_store_app_never_shows_a_hidden_game():
                                                                 "settings": {"type": "beerpong"}})
     assert r.status_code == 403
     r = client(WEB_UA).post(f"/api/games/{room['code']}", json={"guest_id": "web-room", "action": "launch",
-                                                                "settings": {"type": "never", "sips": 2, "mode": "hot"}})
+                                                                "settings": {"type": "likely", "sips": 2, "cats": ["family", "friends"]}})
     assert r.status_code == 200
     child = main.store.session.games[room["current"]]
-    assert child["store"] and child["options"]["mode"] == "soft"  # ses 2 « gorgées » : des points dans l'app
+    assert child["store"] and child["options"]["sips"] == 0 and child["likely"]["packs"] == ["family"]  # aucune gorgée
     assert client(STORE_UA).get(f"/api/games/{child['code']}?guest_id=store-p").status_code == 200
     main.end_game(child["code"], "host")
-    r = client(WEB_UA).post(f"/api/games/{room['code']}", json={"guest_id": "web-room", "action": "launch",
-                                                                "settings": {"type": "pyramid"}})
-    assert r.status_code == 200 and main.store.session.games[room["current"]]["store"]  # Pyramide en points
+    for kind in ("pyramid", "never", "whoof", "roulette"):
+        r = client(WEB_UA).post(f"/api/games/{room['code']}", json={"guest_id": "web-room", "action": "launch",
+                                                                    "settings": {"type": kind}})
+        assert r.status_code == 403, kind
 
 
 # ── Textes tirés dans une partie de l'app App Store : jamais une boisson, une ivresse ni une drogue ──
@@ -161,7 +182,7 @@ def test_store_undercover_words_likely_tmc_divan_debate_quiz_are_clean():
         games.start(g, rng)
         assert not store_app.drinky(" ".join(g["words"].values()))
     lk = store_game("likely")
-    likely.configure(lk, {"packs": ["family", "friends"]})
+    likely.configure(lk, {"packs": ["family"]})
     assert not [q for q in likely._pool(lk["likely"]) if store_app.drinky(q)]
     tm = store_game("tmc")
     assert not [q for q in (games._tmc_question(tm, rng) for _ in range(400)) if store_app.drinky(q)]
@@ -223,11 +244,11 @@ def test_store_app_guests_play_without_limit_while_the_web_keeps_its_cap(monkeyp
     monkeypatch.setattr(main, "guest_gate", gate)
     monkeypatch.setattr(main, "_store_guests", set())
     for i in range(4):
-        assert create(STORE_UA, "whoof", "store-guest-01").status_code == 200, i
-    web = [create(WEB_UA, "whoof", "web-guest-001").status_code for _ in range(3)]
+        assert create(STORE_UA, "likely", "store-guest-01").status_code == 200, i
+    web = [create(WEB_UA, "likely", "web-guest-001").status_code for _ in range(3)]
     assert web[:2] == [200, 200] and web[2] == 403
     # Une partie web rejointe depuis l'app : pas de plafond non plus.
-    code = create(WEB_UA, "whoof", "web-host-xyz").json()["code"]
+    code = create(WEB_UA, "likely", "web-host-xyz").json()["code"]
     r = client(STORE_UA).post(f"/api/games/{code}", json={"guest_id": "store-guest-01", "action": "join", "name": "Léa"})
     assert r.status_code == 200, r.text
 
@@ -236,3 +257,93 @@ def test_the_filter_also_catches_vomit_cheers_beer_and_bottles():
     for text in ("J'ai déjà vomi en soirée", "Tchin-tchin !", "S'Beer", "vomir"):
         assert store_app.drinky(text), text
     assert not store_app.drinky("Soirée jeux de société")
+
+
+# ── Test anti-alcool de TOUS les jeux (décision de l'admin du 25.11) : l'app n'en montre aucun mot ; le web garde tout ──
+
+def _texts(x):
+    if isinstance(x, str):
+        yield x
+    elif isinstance(x, dict):
+        for v in x.values():
+            yield from _texts(v)
+    elif isinstance(x, (list, tuple)):
+        for v in x:
+            yield from _texts(v)
+
+
+def test_every_game_of_the_app_draws_nothing_about_drinking_and_the_web_keeps_its_games():
+    from app import divan_cards, psy, tmc_questions
+    from app.masque_cards import MASQUE_CARDS, REFLET_CARDS
+    from app.quizbank import BANK, THEMES
+    kept = [t for t in games.GAMES if t not in store_app.HIDDEN_GAMES]
+    assert set(kept) >= {"likely", "quiz", "undercover", "president", "debate", "divan", "tmc", "masque", "reflet", "psy",
+                         "neon", "island", "heist", "room"}
+    assert not [games.GAMES[t] for t in kept if store_app.drinky(games.GAMES[t])]
+    # Banques filtrées dans une partie de l'app (store_app.clean) : la version de l'app ne garde aucune phrase « à boire ».
+    banks = {
+        "likely": [q for p, (_, qs) in likely.PACKS.items() if p not in store_app.HIDDEN_PACKS for q in qs],
+        "debate": [q for t, (_, qs) in debate.THEMES.items() if t not in store_app.HIDDEN_THEMES for q in qs],
+        "divan": [q for qs in divan_cards.DIVAN_CARDS.values() for q in qs],
+        "tmc": list(tmc_questions.TMC_QUESTIONS),
+        "undercover": [" ".join(p) for p in games.WORD_PAIRS],
+        "quiz": [" ".join([q["q"], q["a"], *q["w"]]) for t in THEMES for q in BANK.get(t, [])],
+    }
+    for kind, bank in banks.items():
+        shown = store_app.clean(bank)
+        assert len(shown) > len(bank) // 2, kind  # le filtre n'a pas vidé la banque (sinon clean rendrait tout)
+        assert not [t for t in shown if store_app.drinky(t)], kind
+    # Banques non filtrées (Masque, Reflet, Qui es-tu vraiment ?) : propres telles quelles.
+    for kind, bank in (("masque", MASQUE_CARDS), ("reflet", REFLET_CARDS),
+                       ("psy", [getattr(psy, a) for a in dir(psy) if a.isupper()])):
+        assert not [t for t in _texts(bank) if store_app.drinky(t)], kind
+    # Le web garde ses jeux à boire et leurs textes (rien n'a changé pour lui).
+    assert {"pyramid", "never", "whoof", "roulette", "beerpong", "biskit", "purity"} <= set(games.GAMES)
+    assert any(store_app.drinky(q) for q in games.NEVER_AWKWARD) and any(store_app.drinky(q) for q in debate.THEMES["wtf"][1] + debate.THEMES["light"][1])
+
+
+def test_phrases_found_by_the_judges_are_never_drawn_in_the_app():
+    """Relu le 25.11 : apéritif, soirée arrosée, vin, tabac, casino, drogue dans les titres d'œuvres, ivresse sans le mot."""
+    for text in ("Quel apéritif improvisé est devenu une soirée légendaire ?", "…après une soirée arrosée ?",
+                 "vigneron ou vigneronne, ta cuvée ?", "les vendanges", "Poker / Blackjack, un jeu de cartes de casino",
+                 "Faut-il taxer la viande comme le tabac ?", "De quel pays vient le cognac ?", "De quel pays vient la Guinness ?",
+                 "Quel fruit rouge sert à faire le kir ?", "Comment appelle-t-on le chasselas en Valais ?",
+                 "Dans quel pays se trouve la région viticole : Lavaux ?", "la damassine (eau-de-vie)",
+                 "Dans quelle série un professeur de chimie devient trafiquant ?", "Breaking Bad", "Pablo Escobar",
+                 "Je n'ai jamais été réveillé chez quelqu'un sans savoir comment j'y étais arrivé",
+                 "Je n'ai jamais dormi dans ma voiture après une soirée", "Qui est le plus susceptible d'oublier comment il est rentré ?",
+                 "le pot de départ", "la buvette", "à quelle heure la boirait-on ?"):
+        assert store_app.drinky(text), text
+    for name in ("Marc", "Léa", "Mirabelle", "Jean-Marc", "Ginette", "contournées"):
+        assert not store_app.drinky(name), name
+
+
+def test_texts_typed_by_players_in_an_app_game_never_mention_drinking():
+    g = store_game("likely")
+    with pytest.raises(games.GameError, match="pas accepté"):
+        games.add_guest(g, "Vodka")
+    games.add_guest(g, "Marc")
+    web = games.new_game("likely", "h", "Hôte")
+    games.add_guest(web, "Vodka")  # le web garde son filtre habituel seulement
+    db = store_game("debate")
+    with pytest.raises(debate.DebateError, match="pas accepté"):
+        debate.propose(db, "p0", "Faut-il offrir des shots à tout le monde ce soir ?")
+
+
+def test_new_music_party_codes_have_six_digits_and_old_four_digit_codes_still_work(monkeypatch):
+    monkeypatch.setattr(main.store, "save", lambda *a, **k: None)
+    old = main.store.session.guest_pin
+    try:
+        pin = main.store.regenerate_pin()
+        assert len(pin) == 6 and pin.isdigit()
+        main.store.regenerate_pin("4321")  # ancien code choisi par l'hôte : accepté (web)
+        assert client(WEB_UA).post("/api/join", json={"pin": "4321"}).status_code == 200
+    finally:
+        main.store.session.guest_pin = old
+
+
+def test_shared_expenses_never_show_a_drink_emoji_in_the_app():
+    from app import tricount_logic as tc
+    assert tc.CATEGORIES["drinks"][1] == "🥤" and tc.CATEGORIES["health"][1] == "🩺"
+    assert main.store_emoji("🍻", type("R", (), {"headers": {"user-agent": STORE_UA}})()) == "🎉"
+    assert main.store_emoji("🍻", type("R", (), {"headers": {"user-agent": WEB_UA}})()) == "🍻"

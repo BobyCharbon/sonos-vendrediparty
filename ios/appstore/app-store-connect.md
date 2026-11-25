@@ -45,12 +45,12 @@ Les deux pages sont dessinées en JavaScript : `curl` reçoit une page sans text
   refuser) rapidement les propositions d'« Apple-test » pendant la revue.
 - Vérifier que le code fixe marche encore en production (connexion sur un iPhone avec l'app App Store/TestFlight) et
   que le plafond mensuel de l'IA n'est pas atteint.
-- Facultatif mais utile : la Musique ne s'essaie qu'avec une soirée en cours (code à 4 chiffres). Si une soirée tourne
-  pendant la revue, on peut ajouter son code dans les notes (une ligne).
+- Facultatif mais utile : la Musique (sans onglet dans l'app App Store depuis le 25.11) ne s'essaie qu'avec une soirée en
+  cours, par Jeux › Code (6 chiffres). Si une soirée tourne pendant la revue, on peut ajouter son code dans les notes (une ligne).
 
 ## 4. Classification par âge (questionnaire d'Apple, version 2025)
 
-Résultat attendu : **18+**. Libellés anglais d'App Store Connect (ils peuvent varier un peu).
+Résultat attendu : **18+** (Apple calcule 16+ avec ces réponses : cocher « Override to Higher Age Rating : 18+ », `metadata-fr.json` › `ageRatingOverrideV2`). Libellés anglais d'App Store Connect (ils peuvent varier un peu).
 
 | Question | Réponse | Pourquoi |
 |---|---|---|
@@ -60,13 +60,13 @@ Résultat attendu : **18+**. Libellés anglais d'App Store Connect (ils peuvent 
 | User-Generated Content | Oui | Événements, sondages, photos, profils, avis, titres demandés |
 | Messaging and Chat | Oui | « Discussion » de chaque événement, messages à l'hôte (Musique) |
 | Advertising | Non | Aucune publicité |
-| Profanity or Crude Humor | Peu fréquent / léger | Questions « hot » de « Je n'ai jamais », « Qui de nous ? », Président (« … ou Trou du cul ») |
+| Profanity or Crude Humor | Peu fréquent / léger | Textes écrits par les membres ; dans l'app App Store, plus de questions « hot » ni de « Trou du cul » (Président : « Dernier ») |
 | Horror/Fear Themes | Aucun | |
 | Alcohol, Tobacco, or Drug Use or References | **Peu fréquent / léger** (25.11) | Refus Apple 1.4.3 : aucun jeu à boire, gorgée, bar ni Purify Test dans l'app App Store (app/store_app.py) ; restent de rares mentions écrites par les membres |
-| Mature or Suggestive Themes | Fréquent / intense | Questions « hot », Purify Test (🔞 Adultes) |
+| Mature or Suggestive Themes | Fréquent / intense | Gardé par prudence (app 18+) : contenus des membres, dilemmes de Pour ou contre ; les questions « hot », le thème WTF et le Purify Test sont absents de l'app App Store depuis le 25.11 |
 | Medical or Treatment Information | Aucun | |
 | Health or Wellness Topics | Aucun | |
-| Sexual Content or Nudity | Peu fréquent / léger | Questions écrites (Purify « Au lit », mode hot), aucune image |
+| Sexual Content or Nudity | Peu fréquent / léger | Gardé par prudence : textes des membres ; aucune image (Purify et mode hot absents de l'app App Store) |
 | Graphic Sexual Content and Nudity | Aucun | |
 | Cartoon or Fantasy Violence | Peu fréquent / léger | Néon Knockout (« Éjecte » les autres de l'arène), Braquage en miniature (cambriolage de musée, sans arme) |
 | Realistic Violence | Aucun | |

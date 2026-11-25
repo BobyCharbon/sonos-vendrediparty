@@ -91,18 +91,21 @@ struct GameStatsView: View {
 
     @ObservedObject var store: AccountStore
     let openGames: () -> Void
-    @State private var kind: Kind = .purify
+    /// App App Store (refus Apple 1.4.3, 25.11) : le Purify Test n'y existe pas, seules les stats de Méninges.
+    @State private var kind: Kind = AppConfig.isStoreApp ? .brain : .purify
 
     var body: some View {
         List {
-            Section {
-                Picker("Jeu", selection: $kind) {
-                    ForEach(Kind.allCases) { Text($0.label).tag($0) }
+            if !AppConfig.isStoreApp {
+                Section {
+                    Picker("Jeu", selection: $kind) {
+                        ForEach(Kind.allCases) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
                 }
-                .pickerStyle(.segmented)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets())
             }
-            .listRowBackground(Color.clear)
-            .listRowInsets(EdgeInsets())
             switch kind {
             case .purify: purify
             case .brain: BrainStatsSections(store: store, openGames: openGames)

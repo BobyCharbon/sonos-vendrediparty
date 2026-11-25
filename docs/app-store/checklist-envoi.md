@@ -7,9 +7,14 @@
 ## 1. Avant tout : la production
 
 - [ ] **Refus 1.4.3 (25.11)** : branche `fix-143` en prod ; avec l'User-Agent « PartyStore », l'écran Jeux n'a ni « 🍻 Alcool »,
-      ni gorgée, ni Beer pong / Biskit / Pyramide / Purify Test, ni mode Hot ; `/api/features` répond `bar: false` à l'app
+      ni gorgée ni « ⭐ Mode points », ni Pyramide / Je n'ai jamais / Qui de nous ? / Roulette / Beer pong / Biskit /
+      Purify Test / Casino / Blackjack, ni mode Hot / Mix, ni thème WTF ; un code de Pyramide créée sur le web répond 403 ;
+      la barre d'onglets n'a pas « Musique » ; Jeux › Code à 6 chiffres ouvre la soirée Musique ; `/api/features` répond `bar: false` à l'app
       App Store (et à tout appel natif `X-Party-Native: ios` en prod) ; `supabase/prod/2026-11-25-demo-sans-alcool-apply.sql`
       appliqué ; fonction `send-push` redéployée (aucune notification du bar vers l'app App Store).
+- [ ] Code de la soirée Musique à **6 chiffres** : l'actuel code de prod a encore 4 chiffres (gardé sur le web) ; l'hôte
+      tire un nouveau code (Admin de la soirée › Nouveau code) avant l'envoi, sinon l'app ne peut pas rejoindre la soirée
+      par le champ Code (4 chiffres = un jeu ; le QR marche toujours).
 
 - [ ] `https://party.bobycharbon.ch/api/features` = `compagnon: false`, `discussions: true`, `invites_v2: true`, `bar: true`, `agenda: false`, `pronos: false`, `patates: false`
       (contrôlé le 16.11.2026). Rien ne doit changer pendant la revue.
@@ -44,13 +49,14 @@
 - [ ] Texte promotionnel, description, mots-clés : copiés de `fiche-app-store.md`.
 - [ ] Nouveautés : rien (1re version, Apple n'affiche pas ce champ).
 - [ ] URL d'assistance : `https://party.bobycharbon.ch/events/terms` · URL de confidentialité :
-      `https://party.bobycharbon.ch/events/privacy` (ouvertes une fois dans Safari) · URL marketing : décider (site Party
-      ou vide, jamais `vendrediparty.ch`).
+      `https://party.bobycharbon.ch/events/privacy` (ouvertes une fois dans Safari) · URL marketing : **vide** (décision du 25.11 :
+      jamais vers le site et ses jeux, jamais `vendrediparty.ch` ; `metadata-fr.json` l'efface).
 - [ ] Droits d'auteur : `© 2026 Ludovic Trombert`.
 - [ ] Catégories : Style de vie / Divertissement.
 - [ ] Captures 6,9" **refaites sur la prod** (celles du 26.10 sont périmées : ni Événements, ni Discussions, ni bar) :
       liste et légendes dans `fiche-app-store.md`. Ni alcool mis en avant, ni « 🍻 Alcool », ni Casino / Blackjack, ni
-      Zicou, ni vraie personne sans accord.
+      Zicou, ni vraie personne sans accord. **Sans l'onglet Musique** (caché depuis le 25.11) : les captures et l'aperçu
+      vidéo actuels le montrent tous, la capture 09 « musique » est à remplacer (Méninges ou une autre).
 - [ ] Icône 1024 inchangée.
 
 ## 4. App Review Information
@@ -90,6 +96,8 @@
 - [ ] Alcohol, Tobacco, or Drug Use or References : **Infrequent/Mild** (25.11, refus 1.4.3 : plus aucun jeu à boire, ni
       gorgée, ni bar, ni Purify Test dans l'app App Store ; restent de rares mentions écrites par les membres)
 - [ ] Mature or Suggestive Themes : **Frequent/Intense**
+- [ ] **Override to Higher Age Rating : 18+** (Apple calcule 16+ avec ces réponses ; CGU et notes disent 18+ :
+      `metadata-fr.json` › `ageRatingOverrideV2: EIGHTEEN_PLUS`, à contrôler à l'écran, sinon cocher à la main)
 - [ ] Medical or Treatment Information : None · Health or Wellness Topics : None
 - [ ] Sexual Content or Nudity : Infrequent/Mild · Graphic Sexual Content and Nudity : None
 - [ ] Cartoon or Fantasy Violence : Infrequent/Mild · Realistic Violence : None · Prolonged Graphic or Sadistic Realistic

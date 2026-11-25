@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
+import { storeApp } from '@/lib/features';
 import { duration, enter, transition } from '@/lib/motion';
 import { colors, radius } from '@/lib/theme';
 
@@ -66,7 +67,7 @@ export function PlaceSearch({ onPick, typed }: { onPick: (place: Place) => void;
   return (
     <View style={{ gap: 6 }}>
       <T muted size={13}>Chercher sur Google Maps</T>
-      <Input accessibilityLabel="Chercher un lieu sur Google Maps" placeholder="Bar, resto, adresse…" value={query} onChangeText={setQuery} autoCorrect={false} />
+      <Input accessibilityLabel="Chercher un lieu sur Google Maps" placeholder={storeApp ? 'Resto, salle, adresse…' : 'Bar, resto, adresse…'} value={query} onChangeText={setQuery} autoCorrect={false} />
       {shown.length ? (
         // Les propositions descendent sous le champ, au lieu d’apparaître d’un coup.
         <View role="list" style={[{ borderWidth: 1, borderColor: colors.lineStrong, borderRadius: radius.md, overflow: 'hidden' }, enter('drop')]}>

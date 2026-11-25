@@ -12,7 +12,7 @@ GAME_RULES.debate = `
   <h3>Le revote</h3>
   <p>Après le débat, l'animateur choisit : <b>faire revoter</b> (une fois) pour voir combien ont changé d'avis, ou passer au dilemme suivant.</p>
   <h3>Les thèmes</h3>
-  <p>L'animateur coche les thèmes du soir : ⚖️ Morale, 🏛️ Société, 💞 Relations & couple, 🍍 Léger… et <b>🤪 WTF 🔞</b> (absurde, idiot, osé, entre adultes), qui n'est <b>jamais</b> proposé d'office.</p>
+  <p>L'animateur coche les thèmes du soir : ⚖️ Morale, 🏛️ Société, 💞 Relations & couple, 🍍 Léger${STORE ? "." : `… et <b>🤪 WTF 🔞</b> (absurde, idiot, osé, entre adultes), qui n'est <b>jamais</b> proposé d'office.`}</p>
   <h3>Vos dilemmes</h3>
   <p>Chacun peut proposer un dilemme (« ✍️ Proposer »). L'animateur le valide : il passe alors avant ceux de l'app, avec le prénom de son auteur.</p>
   <h3>Sans téléphone ?</h3>

@@ -22,7 +22,7 @@ struct AIEditTips: View {
 
     static let examples = [
         "Décale à 21 heures.",
-        "Mets 15 bouteilles de vin et 3 paquets de chips dans qui amène quoi.",
+        "Mets 15 pizzas et 3 paquets de chips dans qui amène quoi.",
         "Ajoute Tom en co-organisateur et invite Léa.",
         "Plus d'accompagnants, et 20 places maximum.",
     ]

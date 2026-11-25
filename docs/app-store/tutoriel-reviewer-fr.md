@@ -11,7 +11,7 @@ et bar allumés, Zicou éteint). Ce qui ne l'est pas porte la marque **À VÉRIF
   avec photo, code fixe (Supabase prod › Auth › Test OTP, valable jusqu'au 31.12.2027). Le code ne s'écrit que dans App
   Store Connect (champ Password), jamais dans le dépôt.
 - Données à préparer : voir l'encadré « À FAIRE AVANT ENVOI » de `notes-for-review.md` (événement « Soirée démo » où Apple-test
-  est invité, bar ouvert avec des articles sans alcool, groupe « Démo Apple » avec des messages, un message privé, et si
+  est invité (le bar est caché dans l'app App Store depuis le 25.11), groupe « Démo Apple » avec des messages, un message privé, et si
   possible « Démo Apple · Sondage »).
 - Second compte de démo **« Apple-test 2 »** (Discussions v2, 18.11) : autre numéro à code fixe, sans groupe ni événement
   privé en commun avec Apple-test, qui lui a envoyé une **demande de message** en attente (point 4 bis de l'encadré).
@@ -28,7 +28,6 @@ L'app s'ouvre sur **Événements** (sauf au milieu d'une partie de jeu). Barre d
 
 | Déconnecté | Connecté | Fait en |
 |---|---|---|
-| Musique | Musique | natif (SwiftUI) |
 | Jeux | Jeux | page web du site |
 | Événements | Événements | page web du site (module Événements) |
 | — | Discussions | natif |
@@ -51,9 +50,9 @@ en bas à droite **✨ Avec l'IA** et **+ Proposer**. 📸 (liste avec des évé
 
 ### 3.2 La fiche
 De haut en bas : titre, date, lieu (« Itinéraire › »), « À propos », **Ajouter à mon agenda**, la réponse, le billet,
-la carte **Invités**, le covoiturage, le **🍹 Bar de la soirée**, les infos, les participants, les mini-sondages,
+la carte **Invités**, le covoiturage, les infos, les participants, les mini-sondages,
 « Qui amène quoi », la discussion, **Signaler cet événement**, puis la **ZONE ORGANISATEUR** (organisateurs).
-En-tête : **🔔 Sourdine**, **✨ IA** et **Modifier** (organisateurs). La fiche se met à jour en direct ; un nom ouvre la
+En-tête : **🔔 Sourdine** et **Modifier** (organisateurs ; « ✨ IA » n'est pas sur la fiche dans l'app App Store). La fiche se met à jour en direct ; un nom ouvre la
 fiche de la personne. 📸
 
 ### 3.3 Créer avec le formulaire
@@ -106,14 +105,7 @@ Règle Apple : **3.1.3(e)** (biens et services réels consommés hors de l'app ;
 citée dans la demande concerne aujourd'hui les cryptomonnaies ; ne pas la citer à Apple.
 
 ### 3.12 Bar de la soirée
-Option de l'organisateur, éteinte par défaut ; bar payant seulement sur un événement non public, bar offert partout ;
-tabac / drogues refusés.
-- Invité « Présent » (Apple-test sur « Soirée démo ») : **🍹 Bar de la soirée** › **Ouvrir le bar ›** (carte, badges 16+ / 18+, QR, solde) ›
-  **J'accepte l'engagement** › − / + › **Valider la commande** (ou montrer son QR au comptoir) › rembourser hors de
-  l'app › **J'ai remboursé**. 📸 seulement avec des boissons sans alcool
-- Organisateur / barman : ZONE ORGANISATEUR › **🍹 Gérer le bar** (Articles · Options · Rembourser · Barmans · Direct,
-  **📄 Récapitulatif de la soirée**) et **🍹 Scanner au bar** (il faut un 2e téléphone pour scanner un QR).
-- L'âge est vérifié en personne par le barman (aucune date de naissance dans l'app).
+**Caché dans l'app App Store** (refus 1.4.3, 25.11) : ni menu, ni commande, ni notification du bar. Le site le garde.
 
 ### 3.13 Discussion d'un événement
 Option « Forum de l'événement » : section **Discussion** › **Ouvrir ›** ; mêmes règles que les Discussions.
@@ -136,17 +128,18 @@ Réglages › **Groupes** : mes groupes, **Nouveau groupe**, membres, **Inviter 
 groupe » (caché par défaut).
 
 ## 6. Jeux
-Onglet **Jeux** › **Salle de jeux** › **Créer une salle** (ou code à 4 chiffres sous « ou rejoindre ») ; dans la salle, on
-vote, l'animateur lance (**Quiz** se joue seul) ; **🎮 Changer de jeu** ramène à la salle. **🧠 Jeux solo** › **Méninges** ›
-**Faire chauffer**. **?** = règles. Pyramide : cartes 30 s dans un panneau natif noir en capture. Mode gorgées
-facultatif (eau, 0 gorgée = sans alcool, aucun classement par boissons) ; ni mise, ni argent, ni lot ; Casino et
-Blackjack absents de l'app App Store. Sans compte : quelques parties (3 par défaut, réglable par l'admin). 📸 (salle ou
-Quiz, **sans** la catégorie « 🍻 Alcool » à l'écran)
+Onglet **Jeux** › **Salle de jeux** › **Créer une salle** (ou **Code** › **Rejoindre** : 4 chiffres = un jeu) ; dans la
+salle, on vote, l'animateur lance (**Quiz** se joue seul) ; **🎮 Changer de jeu** ramène à la salle. **🧠 Jeux solo** ›
+**Méninges** › **Faire chauffer**. **?** = règles. Dans l'app App Store (refus 1.4.3, décision du 25.11), **retirés pour la
+1.0.0** : Pyramide, Je n'ai jamais, Qui de nous ?, Roulette, Beer pong, Biskit, Purify Test, Casino, Blackjack, toute
+option de gorgées (aucun « mode points » à la place), modes Hot / Mix, thème WTF de Pour ou contre, paquet « Entre amis »
+de Qui est le plus… ; ni mise, ni argent, ni lot. Sans compte : parties illimitées dans l'app. 📸 (salle ou Quiz, **sans**
+catégorie « 🍻 Alcool »)
 
 ## 7. Musique
-Onglet **Musique** › **Scanner le QR de l'hôte** ou **Code** › **Entrer** › « Titre, artiste ou lien » › ajouter ;
-« Me prévenir quand mon titre passe » (Live Activity). Il faut une soirée en cours chez l'hôte (ses enceintes, son compte
-de musique). 📸 (pendant une vraie soirée, file avec des titres)
+**Pas d'onglet Musique dans l'app App Store** (25.11). Pendant une soirée chez l'hôte : Jeux › **Code** › le code de la
+soirée à **6 chiffres** (ou le QR de l'hôte) ouvre l'écran natif Musique › « Titre, artiste ou lien » › ajouter ; « Me
+prévenir quand mon titre passe » (Live Activity). Il faut une soirée en cours (enceintes et compte de musique de l'hôte).
 
 ## 8. Réglages
 - **Notifications** : un interrupteur par type (Général, Musique, Jeux, Ton avis, Événements, Discussions des groupes,
@@ -159,8 +152,9 @@ de musique). 📸 (pendant une vraie soirée, file avec des titres)
 📸 (Réglages)
 
 ## 9. Ce qui vient du serveur (à assumer devant Apple)
-Événements et Jeux = le site `party.bobycharbon.ch` dans une WKWebView, même code pour tous ; natif : barre d'onglets,
-Musique, Réglages, Discussions, Groupes, Ton avis, assistant IA, Pot commun, écran hors ligne, bandeau d'annonce, QR,
+Événements et Jeux = le site `party.bobycharbon.ch` dans une WKWebView ; l'app App Store y reçoit toujours sa version à elle
+(sans jeux à boire, bar, Casino / Blackjack ni onglet Musique), pour tous ses utilisateurs ; natif : barre d'onglets,
+écran Musique (ouvert par Jeux › Code), Réglages, Discussions, Groupes, Ton avis, assistant IA, Pot commun, écran hors ligne, bandeau d'annonce, QR,
 Cartes, Calendrier, Contacts, Live Activity, extension Partager, notifications. La page n'appelle que les fonctions
 natives prévues (`window.PartyNative`) ; tout autre site s'ouvre dans Safari. Toute grosse fonction livrée par le site
 doit figurer dans les notes AVANT son ouverture en prod (règle CLAUDE.md, Apple 2.3.1(a)).

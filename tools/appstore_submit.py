@@ -290,7 +290,8 @@ def fill(key: str, version: str) -> int:
             patch(asc, "ageRatingDeclarations", rating["data"]["id"], meta["ageRating"], "Classification par âge")
     for loc in asc.data(f"/v1/appStoreVersions/{v['id']}/appStoreVersionLocalizations"):
         if loc["attributes"]["locale"] == LOCALE:
-            patch(asc, "appStoreVersionLocalizations", loc["id"], {k: meta[k] for k in
+            # URL vide (marketingUrl, refus 1.4.3 : jamais vers le site et ses jeux) : effacée (null), pas une chaîne vide.
+            patch(asc, "appStoreVersionLocalizations", loc["id"], {k: meta[k] or None for k in
                   ("description", "keywords", "supportUrl", "marketingUrl")}, "Description, mots-clés et URL")
     current = review_detail(asc, v["id"])
     attrs = {"demoAccountRequired": True, "demoAccountName": meta["demoAccountName"]}

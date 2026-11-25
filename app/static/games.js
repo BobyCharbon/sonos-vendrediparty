@@ -94,15 +94,21 @@ const newBadge = (type) => NEW_GAMES.includes(type) ? `<span class="g-new" aria-
 // Méninges en tête : la première chose qu'on voit dans la liste (demande de l'admin, 03.11.2026).
 // Compagnon (Zicou) en bêta : éteint hors site de test (<html data-compagnon="off">), sa carte n'existe pas.
 const PET_ON = document.documentElement.dataset.compagnon !== "off";
-// App VendrediParty de l'App Store (« PartyStore », ios-app.js) : ni jeux d'argent simulés (05.11), ni jeu à boire,
-// gorgée, mot de boisson, drogue ou mode Hot (refus Apple 1.4.3 du 25.11). Le serveur refuse aussi ces jeux et ces
-// parties (app/store_app.py) ; le site, l'app BETA et Android gardent tout.
+// App VendrediParty de l'App Store (« PartyStore », ios-app.js) : ni jeux d'argent simulés (05.11), ni jeu à boire par
+// son origine ou sa mécanique, gorgée, mot de boisson, drogue ou mode Hot (refus Apple 1.4.3 du 25.11, décision de l'admin :
+// BLOQUÉS pour la 1.0.0). Le serveur refuse aussi ces jeux et ces parties (app/store_app.py HIDDEN_GAMES) ; le site, l'app
+// BETA et Android gardent tout.
 const STORE = document.documentElement.classList.contains("party-store");
-const STORE_HIDDEN = STORE ? ["casino", "blackjack", "beerpong", "biskit", "purity"] : [];
-// App App Store (décision de l'admin du 25.11) : les gorgées des jeux deviennent des ⭐ points (« Léa donne 2 points à
-// Tom », « Tom reçoit 3 points » ; le moins de points gagne) et le shot du sommet de la Pyramide le « 🏔️ Défi du
-// sommet ». Appliqué à tout ce que la page dessine (partie, annonces, règles, cartes) : jamais un mot ni un emoji de
-// boisson, ni de nourriture. Le web garde ses gorgées.
+const STORE_HIDDEN = STORE ? ["casino", "blackjack", "beerpong", "biskit", "purity", "pyramid", "never", "whoof", "roulette"] : [];
+// « ⭐ Mode points » (gorgées converties en points, Pyramide en points) : ÉTEINT pour la 1.0.0 (décision du 25.11). Il ne
+// reviendra que dans une mise à jour décrite à Apple : le code reste en place, inactif tant que STORE_POINTS est faux.
+const STORE_POINTS = false;
+// Toujours dans l'app : jamais une phrase sur la boisson (on la retire, sans la convertir) ni un rang grossier (Président).
+const STORE_SWAPS = [
+  [/\s*Personne n['’]est obligé de boire[^<]*?(?=<\/p>|$)/g, ""],
+  [/\s*Buvez avec modération !/g, ""],
+  [/Vice-trou du cul/g, "Vice-dernier"], [/Trou du cul/g, "Dernier"], [/trou du cul/g, "dernier"],
+];
 const POINTS_RULE = "On joue aux points : celui qui en reçoit le moins gagne.";
 const pts = (n) => `${n} point${+n > 1 ? "s" : ""}`;
 const CANDY_SWAPS = [
@@ -123,7 +129,8 @@ const CANDY_SWAPS = [
   [/[Ss]ans alcool/g, "sans points"], [/[Aa]vec alcool/g, "avec points"], [/\balcool\b/gi, "points"],
   [/\bshots?\b/g, "défi"], [/verre d['’]eau/g, "point"],
 ];
-const candy = (s) => STORE && typeof s === "string" ? CANDY_SWAPS.reduce((t, [re, to]) => t.replace(re, to), s) : s;
+const candy = (s) => STORE && typeof s === "string"
+  ? (STORE_POINTS ? [...STORE_SWAPS, ...CANDY_SWAPS] : STORE_SWAPS).reduce((t, [re, to]) => t.replace(re, to), s) : s;
 const CHEERS = STORE ? "🙋" : "🍻";  // « Je l'ai déjà fait » (Je n'ai jamais)
 // Icône de « Je n'ai jamais » : deux verres sur le web ; une bulle « ! » (un aveu) dans l'app App Store.
 if (STORE) GAME_ICONS.never = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 10h32a3 3 0 0 1 3 3v17a3 3 0 0 1-3 3H22l-9 8v-8H8a3 3 0 0 1-3-3V13a3 3 0 0 1 3-3z"/><path d="M24 15v8"/><path d="M24 28h.01"/></svg>`;
@@ -135,8 +142,8 @@ const GAME_CATEGORIES = [
   ["cards", "🃏 Jeux de cartes", ["pyramid", "blackjack", "president"]],
   ["mood", "🎉 Ambiance", ["quiz", "undercover", "likely"]]
 ];
-// App App Store : sans ses jeux cachés, la catégorie « Alcool » garde Qui de nous ?, Je n'ai jamais et la Roulette.
-if (STORE) GAME_CATEGORIES.find(([id]) => id === "drinks")[1] = "🙊 Entre amis";
+// App App Store : la catégorie « Alcool » n'existe pas (tous ses jeux y sont cachés : groupHomeCards ne garde pas une
+// catégorie vide, roomCatalogHtml non plus).
 // Jeux rangés hors « Alcool » qui se jouent aussi avec des gorgées : étiquette 🍻 (chaque jeu n'apparaît qu'une fois).
 const DRINK_TAG_GAMES = ["pyramid", "blackjack", "quiz", "likely"];
 const drinkTag = (type) => !STORE && DRINK_TAG_GAMES.includes(type) ? `<span class="g-drink" title="Se joue aussi avec de l'alcool" aria-label="Se joue aussi avec de l'alcool">🍻</span>` : "";
@@ -408,7 +415,8 @@ const STORE_MODES = `
       <li><b>😇 Soft</b> : questions gentilles et drôles, pour tout le monde.</li>
       <li><b>😬 Malaisant</b> : petites hontes, souvenirs embarrassants, secrets.</li>
     </ul>`;
-if (STORE) Object.assign(GAME_RULES, {
+// Règles « en points » de jeux BLOQUÉS dans la 1.0.0 (gardées pour la mise à jour décrite à Apple, STORE_POINTS).
+if (STORE && STORE_POINTS) Object.assign(GAME_RULES, {
   never: `
     <h3>Le but</h3>
     <p>Découvrir ce que vos amis ont (ou n'ont jamais) fait… et raconter quand on avoue.</p>
@@ -441,6 +449,8 @@ if (STORE) Object.assign(GAME_RULES, {
     <p>Il faut au moins 2 joueurs, et on peut rejoindre en cours de route.</p>`,
   roulette: GAME_RULES.roulette.replace(/\s*<li>Qui boit[^<]*<\/li>\s*<li>Qui paie[^<]*<\/li>/, ""),
   pyramid: GAME_RULES.pyramid + `<h3>⭐ Les points</h3><p>${POINTS_RULE} Le tableau des points s'affiche pendant la partie et à la fin. Gage final facultatif, au choix de la table, pour celui qui en a le plus.</p>`,
+});
+if (STORE) Object.assign(GAME_RULES, {
   room: GAME_RULES.room.replace("Les points du Quiz et les gorgées de tous les jeux s'additionnent d'un jeu à l'autre.",
     "Les points des jeux (Quiz, Qui est le plus…, Président, jeux 3D) s'additionnent d'un jeu à l'autre."),
 });
@@ -471,9 +481,12 @@ document.getElementById("gamesRoot").innerHTML = `
         <button class="g-go" data-create="room">Créer une salle</button>
         <div class="g-sep"><span>ou rejoindre</span></div>
         <form id="gJoinForm" class="g-code">
-          <label for="gCode">Code de la salle</label>
-          <input id="gCode" type="text" spellcheck="false" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="• • • •" autocomplete="off">
+          <label for="gCode">${STORE ? "Code du jeu ou de la soirée" : "Code de la salle"}</label>
+          <input id="gCode" type="text" spellcheck="false" inputmode="numeric" pattern="[0-9]*" maxlength="${STORE ? 6 : 4}" placeholder="${STORE ? "4 ou 6 chiffres" : "• • • •"}" autocomplete="off">
+          ${STORE ? `<button type="submit" class="g-code-go">Rejoindre</button>` : ""}
         </form>
+        ${STORE ? `<p class="g-code-note">4 chiffres : un jeu · 6 chiffres : la soirée Musique de l'hôte.</p>
+          <button type="button" class="secondary g-music-back hidden" id="gMusicBack">🎵 Revenir à la soirée Musique</button>` : ""}
       </div>
 
       <div class="gcard g-hs">
@@ -931,22 +944,21 @@ document.addEventListener("click", (ev) => {
       card.querySelector(".g-title")?.insertAdjacentHTML("beforeend", drinkTag(type));
       sec.append(card);
     }
+    if (!sec.querySelector(".gcard")) continue;  // catégorie vide (app App Store) : pas de titre orphelin
     after.after(sec);
     after = sec;
   }
   if (STORE) storeScrubCards(home);
 })();
 
-// App App Store (refus Apple 1.4.3) : sur les cartes gardées, ni réglage de gorgées, ni mode Hot / Mix, ni mot de
-// boisson. La salle de jeux recopie ces cartes (openRoomSheet) : elle en hérite.
+// App App Store (refus Apple 1.4.3) : sur les cartes gardées, ni réglage de gorgées (ni « mode points » qui les
+// remplacerait), ni mode Hot / Mix, ni thème WTF, ni paquet « Entre amis », ni mot de boisson. La salle de jeux recopie
+// ces cartes (openRoomSheet) : elle en hérite. Le serveur refuse aussi ces réglages (store_app.refused_settings).
 function storeScrubCards(home) {
-  // ⭐ Mode points à la place des gorgées (même réglage, éteint au départ) ; jamais de mode Hot / Mix.
-  const label = (sel, html) => home.querySelectorAll(sel).forEach((el) => { const s = el.closest(".g-opt")?.querySelector("span"); if (s) s.innerHTML = html; });
-  label(".g-wh [data-opt-group=sips]", "⭐ Mode points <small>points pour le désigné · 0 = sans</small>");
-  label(".g-nv [data-opt-group=sips]", "⭐ Mode points <small>points pour ceux qui l'ont fait · 0 = sans</small>");
-  label("[data-opt=qzsips]", "⭐ Mode points <small>une erreur = un point reçu</small>");
-  label("[data-opt=lkalcohol]", "⭐ Mode points <small>le plus désigné reçoit des points</small>");
-  home.querySelectorAll(".g-wh [data-opt-group=sips] [data-val-out], .g-nv [data-opt-group=sips] [data-val-out]").forEach((b) => { b.textContent = "0"; });
+  for (const type of STORE_HIDDEN) home.querySelectorAll(`[data-create="${type}"]`).forEach((b) => b.closest(".gcard")?.remove());
+  home.querySelectorAll("[data-opt-group=sips], [data-opt=qzsips], [data-opt=lkalcohol], [data-opt=lkfriends]")
+    .forEach((el) => (el.closest(".g-opt") || el.closest(".g-sips, .g-row") || el).remove());
+  home.querySelectorAll("[data-opt-group=lksips], .g-db [data-opt-group=cats] [data-val=wtf]").forEach((el) => el.remove());
   home.querySelectorAll("[data-opt-group=mode] [data-val=hot], [data-opt-group=mode] [data-val=mix]").forEach((b) => b.remove());
   home.querySelectorAll(".g-chips span").forEach((c) => { if (/alcool|gorgée|Hot/i.test(c.textContent)) c.remove(); });
   const text = {
@@ -1294,7 +1306,7 @@ function renderGame(g) {
       : `<button class="secondary" data-gact="show" data-key="${esc(key)}" style="width:100%">👁 Voir mon mot (en cachette)</button>`;
     if (g.phase === "end") {
       body = `<div class="title">${WINNERS[g.winner]}</div>
-        <p class="sub" style="margin:6px 0">Mot des civils : <b>${esc(g.words.civil)}</b> · Mot undercover : <b>${esc(g.words.undercover)}</b>${g.last?.guess ? ` · Le Fantôme a proposé « ${esc(g.last.guess)} »` : ""}</p>
+        <p class="sub" style="margin:6px 0">Mot des civils : <b>${esc(g.words.civil)}</b> · Mot de l'intrus : <b>${esc(g.words.undercover)}</b>${g.last?.guess ? ` · Le Fantôme a proposé « ${esc(g.last.guess)} »` : ""}</p>
         <div class="artist">${g.is_host ? "Tu peux relancer une partie avec les mêmes joueurs." : "L'animateur peut relancer une partie."}</div>`;
     } else if (!me.alive && !(g.phase === "white_guess" && g.last?.me)) {
       body = `<div class="title">Tu es éliminé 👀</div><div class="artist">Regarde la suite… sans rien dire !</div>${lastLine}`;
@@ -1356,7 +1368,7 @@ function renderGame(g) {
     setGameHtml(lobbyInvite(g) + beerpongHtml(g));
   } else if (g.type === "pyramid" || g.type === "biskit") {
     // Mise à jour fine (morph) : une carte déjà retournée ne se retourne plus quand un autre joueur agit.
-    morphGameHtml(lobbyInvite(g) + (g.type === "biskit" ? bkHtml(g) : pyrHtml(g) + (STORE ? pyrPointsHtml(g) : "")));
+    morphGameHtml(lobbyInvite(g) + (g.type === "biskit" ? bkHtml(g) : pyrHtml(g) + (STORE && STORE_POINTS ? pyrPointsHtml(g) : "")));
     if (g.type === "pyramid") { pyrWheel(g); pyrLookStart(); }
   } else {
     // Jeux simples : chaque étape (phase) arrive en fondu ; même clé = même nœud, rien ne se rejoue entre deux étapes.
@@ -3288,7 +3300,9 @@ document.addEventListener("click", async (ev) => {
 });
 async function joinByCode() {
   const code = $("gCode").value.trim();
-  if (!/^\d{4}$/.test(code)) return toast("Le code de la salle a 4 chiffres.", "err");
+  // App App Store (onglet Musique caché, décision du 25.11) : 6 chiffres = la soirée Musique de l'hôte (index.html).
+  if (STORE && /^\d{6}$/.test(code)) { $("gCode").value = ""; $("gCode").blur(); return window.joinMusicByCode?.(code); }
+  if (!/^\d{4}$/.test(code)) return toast(STORE ? "Le code a 4 chiffres (un jeu) ou 6 chiffres (la soirée Musique)." : "Le code de la salle a 4 chiffres.", "err");
   $("gCode").value = ""; $("gCode").blur();
   setGame(code); autoJoin = true;
   await refreshGame();
@@ -3382,10 +3396,10 @@ document.addEventListener("click", (ev) => {
   }
 });
 $("gJoinForm").addEventListener("submit", (ev) => { ev.preventDefault(); joinByCode(); });
-// On rejoint dès le 4ᵉ chiffre, comme pour le code de la musique.
+// On rejoint dès le 4ᵉ chiffre (app App Store : dès le 6ᵉ, ou « Rejoindre » pour un code de jeu à 4 chiffres).
 $("gCode").addEventListener("input", () => {
   $("gCode").value = $("gCode").value.replace(/\D/g, "");
-  if ($("gCode").value.length === 4) joinByCode();
+  if ($("gCode").value.length === (STORE ? 6 : 4)) joinByCode();
 });
 $("gNameForm").addEventListener("submit", (ev) => {
   ev.preventDefault();

@@ -143,12 +143,14 @@ class GameError(Exception):
     pass
 
 
-def shown_text(text: str, kind: str) -> str:
+def shown_text(text: str, kind: str, store: bool = False) -> str:
     """Texte libre montré à toute la table et sur la TV : filtre commun (Apple 1.2). « name » refuse, « answer »
-    masque une insulte d'un mot et refuse liens, numéros et le reste."""
+    masque une insulte d'un mot et refuse liens, numéros et le reste. Partie de l'app App Store (`store`) : aucun mot
+    de boisson ni de drogue (store_app.check_text)."""
     try:
+        store_app.check_text(text, store)
         return require_clean(text, kind)
-    except ContentRefused as e:
+    except (ContentRefused, ValueError) as e:
         raise GameError(str(e)) from None
 
 
@@ -289,7 +291,7 @@ def add_guest(g: dict, name: str, guest_id: str | None = None):
     name = " ".join((name or "").split())[:30]
     if not name:
         raise GameError("Écris un prénom")
-    name = shown_text(name, "name")
+    name = shown_text(name, "name", g.get("store"))
     if guest_id:
         if not guest_id.startswith("manual-"):
             raise GameError("Identité manuelle non valide")
@@ -442,7 +444,7 @@ def set_names(g: dict, names: list[str]):
     for n in names:
         n = " ".join(str(n).split())[:20]
         if n:
-            n = shown_text(n, "name")
+            n = shown_text(n, "name", g.get("store"))
         if n and n.lower() not in [c.lower() for c in clean]:
             clean.append(n)
     if len(clean) > 30:
@@ -1072,7 +1074,7 @@ def tmc_answer(g: dict, gid: str, text: str):
         raise GameError("C'est à la personne interrogée d'écrire sa réponse")
     if not text:
         raise GameError("Écris une réponse")
-    d["answers"][d["subject"]] = shown_text(text, "answer")  # au nom du sujet, même saisi sur le téléphone de l'animateur
+    d["answers"][d["subject"]] = shown_text(text, "answer", g.get("store"))  # au nom du sujet, même saisi sur le téléphone de l'animateur
     g["phase"] = "guess"
 
 
@@ -1871,7 +1873,7 @@ def bk_complete(g: dict, actor: str, target: str = "", text: str = "", rng: rand
         t = " ".join(text.split())[:120]
         if not t:
             raise GameError("Écris ta règle")
-        t = shown_text(t, "answer")
+        t = shown_text(t, "answer", g.get("store"))
         B["rules"].append({"id": secrets.token_hex(3), "text": t, "by": n(g, actor)})
         _bk_out(g, f"Nouvelle règle : « {t} »")
     elif kind == "unrule":
@@ -2337,7 +2339,7 @@ def white_guess(g: dict, gid: str, guess: str):
         raise GameError("Ce n'est pas à toi de deviner")
     guess = guess.strip()[:40]
     if guess:
-        guess = shown_text(guess, "answer")
+        guess = shown_text(guess, "answer", g.get("store"))
     g["last"]["guess"] = guess
     if normalize(guess) == normalize(g["words"]["civil"]):
         g.update(winner="white", phase="end")

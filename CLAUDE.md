@@ -450,15 +450,33 @@ l'admin. Toujours :
 ## Refus Apple 1.4.3 (25.11) — à garder
 - Règle : JAMAIS de jeu à boire ni de gorgées dans l'app App Store (« PartyStore » dans l'User-Agent ; en prod, aussi tout appel
   natif `X-Party-Native: ios`, la BETA ne parlant qu'au site de test). Ni boisson, ivresse, drogue, emoji 🍻🍺🥃🍸🍹🍷, mode Hot / Mix, ni bar.
-- Le SERVEUR le garantit (`app/store_app.py`) : jeux cachés (`HIDDEN_GAMES` : Casino, Blackjack, Beer pong, Biskit,
-  Purify Test) et toute partie du web avec gorgées ou mode Hot refusés (création, salle, code / QR, lecture) ; partie de l'app =
-  `store` : ses gorgées sont des ⭐ points (« ⭐ Mode points » ; Pyramide gardée en points avec un tableau, le moins de points
-  gagne, sommet « 🏔️ Défi du sommet » ; jamais de bonbons ni de nourriture ; décision du 25.11), questions et mots filtrés (`drinky`) ; salle où l'app est entrée : rien de caché. Page : `STORE`,
-  `STORE_HIDDEN`, `candy()` sur tout ce qu'elle dessine (games.js).
+- Décision de l'admin du 25.11 : pour la 1.0.0, TOUS les jeux à boire par leur origine, leur mécanique ou leurs textes sont
+  BLOQUÉS dans l'app (`HIDDEN_GAMES` : Casino, Blackjack, Beer pong, Biskit, Purify Test, Pyramide, Je n'ai jamais, Qui de
+  nous ?, Roulette), ainsi que toute option de gorgées : PAS de « ⭐ Mode points » qui les remplacerait (`options.sips` forcé à 0
+  par `store_app.flag`, réglage > 0 refusé : `refused_settings`), ni thème WTF de Pour ou contre (`HIDDEN_THEMES`), ni paquet
+  « Entre amis » de Qui est le plus… (`HIDDEN_PACKS`). Ils ne reviendront que dans une MISE À JOUR décrite à Apple : le code
+  « en points » reste en place, éteint (`STORE_POINTS = false`, games.js). Jamais un jeu bloqué renommé ou converti.
+- Le SERVEUR le garantit (`app/store_app.py`) : jeux cachés et toute partie du web avec gorgées ou mode Hot refusés (création,
+  salle, vote, code / QR, lecture : « Ce jeu n'est pas disponible dans l'app. », jamais de renvoi au site) ; partie de l'app
+  (ou rejointe par l'app) = `store` : questions et mots filtrés (`drinky` = `DRINK_RE` + `STORE_EXCLUDE`, ivresse sans le mot),
+  textes écrits par les joueurs refusés s'ils parlent de boisson (`check_text`) ; salle où l'app est entrée : rien de caché.
+  Page : `STORE`, `STORE_HIDDEN`, `storeScrubCards`, `candy()` (ne fait plus que retirer les phrases de boisson et renommer
+  « Trou du cul » en « Dernier » ; sa conversion en points ne vaut que si `STORE_POINTS`). Catégorie vide : jamais de titre.
+- ONGLET MUSIQUE caché dans l'app App Store (index.html `STORE_APP` : bouton `hidden`, donc absent de la barre native,
+  native-tabs.js). On rejoint une soirée par Jeux › Code : 4 chiffres = un jeu, 6 chiffres = la soirée Musique
+  (`joinMusicByCode`, puis `showTab('music')` = écran natif sans onglet) ou le QR `?pin=`. Musique ne s'ouvre qu'après la
+  soirée rejointe (`musicJoined`, sinon Jeux : action rapide « Ajouter un titre » du build 216, notification). Nouveaux codes
+  Musique à 6 chiffres (`regenerate_pin`, web compris), un ancien code à 4 chiffres reste valable sur le web.
+- Autres traces cachées dans l'app : « ✨ IA » de la fiche, étiquettes `#bar`, notifications `bar_*` de l'Activité, page du
+  bar, sections Pronos / bar des CGU et bar / Purify de la confidentialité (`storeApp`, web ; `AppConfig.isStoreApp`, iOS au
+  prochain build), emoji 🍻 du Pot commun (🥤 pour tous), fiche d'un événement public « à boisson » ouverte par un lien.
+- Notes de revue : décrire ce qui est retiré (jamais « en points »), dire que le site est à part. Build natif suivant : Info.plist
+  sans action rapide Musique, texte caméra sans le bar, stats sans Purify, CGU / confidentialité filtrées, tvOS
+  `StoreGames.hidden` = `HIDDEN_GAMES`.
 - Invités : dans l'app App Store, les jeux sont illimités sans compte (`games_free`, main.py) ; le web garde son plafond.
 - Événement PUBLIC dont le titre, la description, le lieu ou les mini-sondages parlent d'alcool : absent de la liste et de la
   recherche de l'app App Store, sauf pour ses invités, participants et organisateurs (`web/events/src/lib/storeEvents.ts`).
-  Pyramide créée sur le web : jamais ouverte à l'app (seule celle de l'app ou d'une salle `store`). Bar : `data-bar="off"` et `/api/features` bar=false ; `send-push` n'envoie aucune notification `bar_*` à l'app App Store.
+  Bar : `data-bar="off"` et `/api/features` bar=false ; `send-push` n'envoie aucune notification `bar_*` à l'app App Store.
 - Undercover s'appelle « L'Intrus » et Mr. White « le Fantôme » partout (marque d'un tiers) ; identifiants inchangés.
 - Tout nouveau jeu, option ou texte : se demander s'il passe dans PartyStore. Tests : `tests/test_store_app.py`,
   `tests/e2e/test_store_app_no_drinks.py`. Le web, la BETA et Android gardent tout.

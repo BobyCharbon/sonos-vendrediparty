@@ -18,7 +18,7 @@ import { plural } from '@/lib/format';
 import { fetchMyGroups, type GroupOverview } from '@/lib/groups';
 import { must, supabase } from '@/lib/supabase';
 import { duration, ease, enter, pressTransition, transition } from '@/lib/motion';
-import { agendaOn } from '@/lib/features';
+import { agendaOn, storeApp } from '@/lib/features';
 import { colors, font, radius } from '@/lib/theme';
 import { useLiveRefresh } from '@/lib/connectivity';
 
@@ -241,7 +241,7 @@ export default function Home() {
         ) : null}
 
         {!can('events.view') ? (
-          <SignedIn note="Tu vois ici les événements publics et ceux où on t’invite. Les jeux et la musique sont ouverts avec ton compte." />
+          <SignedIn note={storeApp ? 'Tu vois ici les événements publics et ceux où on t’invite.' : 'Tu vois ici les événements publics et ceux où on t’invite. Les jeux et la musique sont ouverts avec ton compte.'} />
         ) : null}
 
         {isAdmin && pendingCount > 0 ? (

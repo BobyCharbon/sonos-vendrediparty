@@ -147,7 +147,8 @@ def test_music_is_native_for_everyone_and_the_host_keeps_his_tools(app):
 
 @pytest.mark.parametrize("store", [True, False])
 def test_store_app_hides_simulated_gambling_games(browser, server, store):
-    """App de l'App Store (« PartyStore » dans l'User-Agent) : ni Casino ni Blackjack. BETA : tous les jeux."""
+    """App de l'App Store (« PartyStore » dans l'User-Agent) : ni Casino ni Blackjack, ni jeux à boire (25.11), ni onglet
+    Musique dans la barre native. BETA : tous les jeux et l'onglet Musique."""
     ua = IPHONE["user_agent"] + (" PartyStore" if store else "")
     ctx = browser.new_context(base_url=server.url, **{**IPHONE, "user_agent": ua})
     ctx.add_init_script(NATIVE_BRIDGE)
@@ -157,9 +158,11 @@ def test_store_app_hides_simulated_gambling_games(browser, server, store):
     page.evaluate("PartyTabs.select('games')")
     # Les jeux à plusieurs se lancent dans la salle de jeux (accueil du 15.11.2026).
     page.locator('#gHome [data-create="room"]').click()
-    page.wait_for_selector('[data-room-pick="whoof"]', state="visible")
-    for kind in ("casino", "blackjack"):
+    page.wait_for_selector('[data-room-pick="quiz"]', state="visible")
+    for kind in ("casino", "blackjack", "pyramid", "never", "whoof", "roulette"):
         assert page.locator(f'[data-room-pick="{kind}"]').count() == (0 if store else 1)
+    tabs = [t["id"] for t in page.evaluate("window.__tabStates.at(-1)")["tabs"]]
+    assert ("music" in tabs) is (not store)
     ctx.close()
 
 

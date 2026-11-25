@@ -2,7 +2,7 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { storeApp } from './features';
-import { STORE_EVENT_EXTRA, storeVisible } from './storeEvents';
+import { DRINK_RE, STORE_EVENT_EXTRA, storeVisible } from './storeEvents';
 import { must, supabase } from './supabase';
 import type { Category, EventRow, Rsvp, Tag } from './types';
 
@@ -166,7 +166,9 @@ export async function fetchTaxonomy(includeArchived = false): Promise<Taxonomy> 
     tq = tq.eq('archived', false);
   }
   const [categories, tags] = await Promise.all([cq, tq]);
-  return { categories: must(categories) as Category[], tags: must(tags) as Tag[] };
+  const all = must(tags) as Tag[];
+  // App App Store (refus Apple 1.4.3) : jamais une étiquette « #bar » (filtres, abonnements, formulaire) ; le site les garde.
+  return { categories: must(categories) as Category[], tags: storeApp ? all.filter((t) => !DRINK_RE.test(t.name)) : all };
 }
 
 export type EventListItem = EventRow & {

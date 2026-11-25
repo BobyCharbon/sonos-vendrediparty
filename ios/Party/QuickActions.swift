@@ -46,13 +46,22 @@ enum QuickAction: String, CaseIterable {
         }
     }
 
+    /// Au lancement : « Ajouter un titre » dans l'app BETA (plus dans Info.plist), sans toucher aux actions déjà posées.
+    @MainActor
+    static func registerBase() {
+        if (UIApplication.shared.shortcutItems ?? []).isEmpty { showCompanion(false) }
+    }
+
     /// Compagnon ouvert (Zicou reçu) ou fermé (404, déconnexion) : actions dynamiques mises à jour.
     @MainActor
     static func showCompanion(_ shown: Bool) {
-        let items = shown && AppConfig.zicouBuild ? companion.map {
+        // « Ajouter un titre » : app BETA seulement (l'app App Store n'a pas d'onglet Musique, décision du 25.11 ; l'action
+        // n'est plus inscrite dans Info.plist).
+        let actions: [QuickAction] = (AppConfig.isStoreApp ? [] : [.addTrack]) + (shown && AppConfig.zicouBuild ? companion : [])
+        let items = actions.map {
             UIApplicationShortcutItem(type: $0.rawValue, localizedTitle: $0.title, localizedSubtitle: nil,
                                       icon: UIApplicationShortcutIcon(systemImageName: $0.symbol))
-        } : []
+        }
         if UIApplication.shared.shortcutItems?.map(\.type) != items.map(\.type) {
             UIApplication.shared.shortcutItems = items
         }

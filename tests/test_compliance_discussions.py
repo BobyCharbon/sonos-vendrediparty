@@ -135,7 +135,6 @@ def test_app_store_checklist_keeps_the_admin_decisions_in_view():
 
 
 def ios_terms_after_refus_143():
-    """Refus Apple 1.4.3 (25.11) : le web ne dit plus « dans les jeux, un verre d'eau compte toujours » (simple précision,
-    même version des CGU) ; l'iPhone garde l'ancienne phrase jusqu'au prochain build (TermsView.swift, non touché)."""
-    old, new = "Boire n'est jamais obligatoire ni récompensé : dans les jeux, un verre d'eau compte toujours et personne n'est classé selon ce qu'il boit.", "Boire n'est jamais obligatoire ni récompensé, et personne n'est classé selon ce qu'il boit ; dans l'app iPhone, les jeux se jouent en points."
-    return [(t, [p.replace(old, new) for p in ps]) for t, ps in terms_sections(web=False)]
+    """Refus Apple 1.4.3 (25.11) : web et iPhone (prochain build) disent la même chose, sans « un verre d'eau compte
+    toujours » ni « les jeux se jouent en points » (simple précision, même version des CGU)."""
+    return terms_sections(web=False)

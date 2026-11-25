@@ -3,6 +3,7 @@ import { Linking } from 'react-native';
 
 import { Button, Screen, Section, T, Title } from '@/components/ui';
 import { RESPONSIBLE, SUPPORT_EMAIL } from '@/lib/contact';
+import { storeApp } from '@/lib/features';
 
 /** Politique de confidentialité (Apple 5.1.1(i), RGPD art. 13, nLPD art. 19 ; éditeur établi en France depuis le 25.11) : lisible par tous, sans compte. Chaque donnée, son but,
  * qui la reçoit (sous-traitants) et combien de temps elle est gardée. À tenir à jour avec App Privacy (App Store
@@ -116,7 +117,7 @@ const BLOCKS: Block[] = [
       'GitHub : garde le code de Party ; y sont copiés, sans ton prénom, les avis confiés à l’IA de développement, seulement avec ton accord pour l’IA.',
       'Spotify : recherche et lecture des titres de la soirée.',
       'Apple : notifications de l’iPhone (APNs), billets Apple Wallet, app Apple TV, et la dictée vocale sur iPhone (transcription de ta voix, seulement quand tu dictes).',
-      'Google : la recherche d’un lieu dans l’assistant des événements (le texte du lieu), et la dictée vocale dans Chrome (transcription de ta voix, seulement quand tu dictes).',
+      'Google : la recherche d’un lieu, dans l’assistant et dans le formulaire d’un événement (le texte tapé et l’adresse IP de ton appareil), la police de caractères des pages (l’adresse IP de ton appareil), et la dictée vocale dans Chrome (transcription de ta voix, seulement quand tu dictes).',
       'Infomaniak (Suisse) : messagerie de l’adresse de contact, quand tu nous écris.',
       'Le serveur de Party est hébergé en Suisse. Twilio, Anthropic, GitHub, Spotify, Apple et Google peuvent traiter des données hors de Suisse, notamment aux États-Unis, avec les garanties prévues par le RGPD et la nLPD (Data Privacy Framework ou clauses contractuelles types).',
     ],
@@ -155,11 +156,16 @@ const BLOCKS: Block[] = [
 ];
 
 export default function Privacy() {
+  // App App Store (refus Apple 1.4.3, 25.11) : ni le bar ni le Purify Test, absents de l'app ; le site garde tout.
+  const shown: Block[] = storeApp
+    ? BLOCKS.map((b) => ({ ...b, paragraphs: b.paragraphs.filter((p) => !p.startsWith('Bar de la soirée') && !p.startsWith('Purify Test'))
+        .map((p) => p.replace('(Quiz, Méninges, Purify Test)', '(Quiz, Méninges)')) }))
+    : BLOCKS;
   return (
     <Screen edges={[]}>
       <Title>Confidentialité</Title>
       <T muted>Party · Mise à jour du {UPDATED}</T>
-      {BLOCKS.map((block) => (
+      {shown.map((block) => (
         <Section key={block.title} title={block.title}>
           {block.paragraphs.map((p) => <T key={p}>{p}</T>)}
         </Section>

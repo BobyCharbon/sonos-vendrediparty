@@ -54,7 +54,7 @@ def configure(g: dict, settings: dict):
         sips = settings["sips"]
         if not isinstance(sips, int) or not 0 <= sips <= MAX_SIPS:
             raise LikelyError(f"Entre 0 et {MAX_SIPS} gorgées")
-        g["options"]["sips"] = sips  # app App Store : des ⭐ points (store_app, games.js candy)
+        g["options"]["sips"] = sips  # app App Store : toujours 0 (store_app.refused_settings, main.py)
 
 
 def start(g: dict, rng=random):
@@ -203,8 +203,9 @@ def view(g: dict, gid: str) -> dict:
                   "winners": [{"pid": _pid(g, w), "name": _name(g, w)} for w in res["winners"] if _pid(g, w)]}
     here = _present(g)
     voters = [v for v in S["voters"] if v in here]
-    return {"packs": S["packs"], "pack_list": [{"id": k, "label": label, "size": len(qs)} for k, (label, qs) in PACKS.items()],
-            "count": S["count"], "counts": list(COUNTS), "max_sips": MAX_SIPS, "q": S["q"], "n": S["n"],
+    return {"packs": S["packs"], "pack_list": [{"id": k, "label": label, "size": len(qs)} for k, (label, qs) in PACKS.items()
+                                             if not (S.get("store") and k in store_app.HIDDEN_PACKS)],
+            "count": S["count"], "counts": list(COUNTS), "max_sips": 0 if S.get("store") else MAX_SIPS, "q": S["q"], "n": S["n"],
             "voter": {"pid": _pid(g, current), "name": _name(g, current)} if current else None,
             "can_vote": gid in left and gid not in manual,
             "waiting": [{"pid": _pid(g, v), "name": _name(g, v), "manual": v in manual} for v in left],

@@ -47,7 +47,7 @@ struct NotificationSettingsView: View {
             Text("Général")
         } footer: {
             Text(store.guest == nil && !store.hostMode && store.account == nil
-                 ? "Connecte-toi (Événements) ou entre le code de la soirée (onglet Musique) pour recevoir les notifications."
+                 ? (AppConfig.isStoreApp ? "Connecte-toi (Événements) ou entre le code à 6 chiffres de la soirée (champ Code de l'onglet Jeux) pour recevoir les notifications." : "Connecte-toi (Événements) ou entre le code de la soirée (onglet Musique) pour recevoir les notifications.")
                  : "Chaque type se choisit ci-dessous. Les événements ont leurs propres réglages, plus bas.")
         }
     }

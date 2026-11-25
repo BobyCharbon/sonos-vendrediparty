@@ -242,8 +242,9 @@ def propose(g: dict, gid: str, text) -> int:
     if not MIN_TEXT <= len(text) <= MAX_TEXT:
         raise DebateError(f"Ton dilemme doit faire entre {MIN_TEXT} et {MAX_TEXT} caractères")
     try:  # filtre commun (Apple 1.2) : un dilemme validé s'affiche à toute la table
+        store_app.check_text(text, g.get("store"))
         text = require_clean(text, "answer")
-    except ContentRefused as e:
+    except (ContentRefused, ValueError) as e:
         raise DebateError(str(e)) from None
     if len(S["proposals"]) >= MAX_PENDING:
         raise DebateError("Trop de propositions en attente : l'animateur doit d'abord les trier")
@@ -344,7 +345,7 @@ def view(g: dict, gid: str, lead: bool = False) -> dict:
     end = g["phase"] == "end"
     return {"themes": S["themes"], "count": S["count"], "counts": list(COUNTS), "public": S["public"],
             "theme_list": [{"id": k, "label": label, "size": len(qs), "adult": k in ADULT_THEMES}
-                           for k, (label, qs) in THEMES.items()],
+                           for k, (label, qs) in THEMES.items() if not (S.get("store") and k in store_app.HIDDEN_THEMES)],
             "scale": list(SCALE), "n": S["n"], "round": S["round"],
             "q": {"text": q["text"], "theme": THEMES[q["theme"]][0] if q["theme"] else None, "by": q["by"],
                   "reported": bool(q.get("reported"))} if q else None,

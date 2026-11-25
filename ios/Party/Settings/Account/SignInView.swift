@@ -170,6 +170,15 @@ struct DeleteAccountView: View {
 struct PrivacyView: View {
     /// Même texte que la politique du module web (web/events/src/app/privacy.tsx) : changer les deux ensemble.
     static let updated = "25 novembre 2026"
+    /// App App Store (refus Apple 1.4.3, 25.11) : ni le bar ni le Purify Test, absents de l'app (même filtre que privacy.tsx).
+    static var shown: [(String, [String])] {
+        guard AppConfig.isStoreApp else { return sections }
+        return sections.map { title, paragraphs in
+            (title, paragraphs.filter { !$0.hasPrefix("Bar de la soirée") && !$0.hasPrefix("Purify Test") }
+                .map { $0.replacingOccurrences(of: "(Quiz, Méninges, Purify Test)", with: "(Quiz, Méninges)") })
+        }
+    }
+
     static let sections: [(String, [String])] = [
         ("Qui est responsable ?", [
             "Party (Vendredi Party : l'app iPhone, l'app Apple TV et le site) est édité par Ludovic Trombert, établi en France (Union européenne), responsable du traitement de tes données au sens du règlement général sur la protection des données (RGPD).",
@@ -243,7 +252,7 @@ struct PrivacyView: View {
             "GitHub : garde le code de Party ; y sont copiés, sans ton prénom, les avis confiés à l'IA de développement, seulement avec ton accord pour l'IA.",
             "Spotify : recherche et lecture des titres de la soirée.",
             "Apple : notifications de l'iPhone (APNs), billets Apple Wallet, app Apple TV, et la dictée vocale sur iPhone (transcription de ta voix, seulement quand tu dictes).",
-            "Google : la recherche d'un lieu dans l'assistant des événements (le texte du lieu), et la dictée vocale dans Chrome (transcription de ta voix, seulement quand tu dictes).",
+            "Google : la recherche d'un lieu, dans l'assistant et dans le formulaire d'un événement (le texte tapé et l'adresse IP de ton appareil), la police de caractères des pages (l'adresse IP de ton appareil), et la dictée vocale dans Chrome (transcription de ta voix, seulement quand tu dictes).",
             "Infomaniak (Suisse) : messagerie de l'adresse de contact, quand tu nous écris.",
             "Le serveur de Party est hébergé en Suisse. Twilio, Anthropic, GitHub, Spotify, Apple et Google peuvent traiter des données hors de Suisse, notamment aux États-Unis, avec les garanties prévues par le RGPD et la nLPD (Data Privacy Framework ou clauses contractuelles types).",
         ]),
@@ -302,7 +311,7 @@ struct PrivacyView: View {
             }
             if let chatPrefs { ChatPrefsSection(store: chatPrefs) }
             if let moderation { AIConsentSection(store: moderation) }
-            ForEach(Self.sections, id: \.0) { title, paragraphs in
+            ForEach(Self.shown, id: \.0) { title, paragraphs in
                 Section(title) {
                     ForEach(paragraphs, id: \.self) { Text($0).font(.subheadline) }
                 }

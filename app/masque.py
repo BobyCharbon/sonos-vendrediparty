@@ -18,6 +18,7 @@ d'animateur restent dans main.py, et tout passe par le verrou unique des jeux.
 import random
 
 from .masque_cards import MASQUE_CARDS
+from . import store_app
 from .moderation import ContentRefused, require_clean
 
 CATS = {
@@ -139,8 +140,9 @@ def write(g: dict, gid: str, text, rng=random):
     if len(text) < MIN_ANSWER:
         raise MasqueError("Écris au moins quelques mots")
     try:  # filtre commun (Apple 1.2) : la réponse s'affiche à toute la table et sur la TV
+        store_app.check_text(text, g.get("store"))
         text = require_clean(text, "answer")
-    except ContentRefused as e:
+    except (ContentRefused, ValueError) as e:
         raise MasqueError(str(e)) from None
     S["answers"][gid] = text
     if all(p["id"] in S["answers"] for p in g["players"]):

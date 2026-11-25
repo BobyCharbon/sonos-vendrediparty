@@ -8,8 +8,8 @@ import re
 from decimal import ROUND_HALF_UP, Decimal
 
 CATEGORIES = {  # id → (libellé, emoji) ; ordre d'affichage
-    "food": ("Courses", "🛒"), "restaurant": ("Restaurant", "🍽️"), "drinks": ("Boissons", "🍻"), "transport": ("Transport", "🚗"),
-    "lodging": ("Logement", "🏠"), "leisure": ("Loisirs", "🎉"), "shopping": ("Achats", "🛍️"), "health": ("Santé", "💊"),
+    "food": ("Courses", "🛒"), "restaurant": ("Restaurant", "🍽️"), "drinks": ("Boissons", "🥤"), "transport": ("Transport", "🚗"),
+    "lodging": ("Logement", "🏠"), "leisure": ("Loisirs", "🎉"), "shopping": ("Achats", "🛍️"), "health": ("Santé", "🩺"),
     "bills": ("Factures", "🧾"), "other": ("Autre", "💸"),
 }
 KEYWORDS = {

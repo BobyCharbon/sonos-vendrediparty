@@ -10,24 +10,28 @@ import { storeApp } from './features';
 export const DRINK_RE = new RegExp(
   [
     'gorg[ée]es?', '\\bboire\\b', '\\bboi[st]\\b', '\\bboivent\\b', '\\bbuvez\\b', '\\bbu\\b', '\\bshots?\\b', 'alcool', 'bi[èe]res?\\b',
-    '\\bvins?\\b', 'vodka', 'tequila', 'whisky', '\\brhums?\\b', '\\bgin\\b', 'tourn[ée]e', '\\bcuites?\\b', '\\bivres?\\b', 'ivresse',
+    '\\bvins?\\b', 'vodka', 'tequila', 'whisky', '\\brhums?\\b', '\\bgin\\b', '\\btourn[ée]es?\\b', '\\bcuites?\\b', '\\bivres?\\b', 'ivresse',
     'bourr[ée]e?s?\\b', 'gueule de bois', 'ap[ée]ro', 'cocktail', 'champagne', 'mojito', 'ca[iï]pirinha', 'sangria', 'spritz', 'pastis',
     'j[äa]germeister', 'liqueur', '\\bbars?\\b', '\\bverres?\\b', 'drogue', 'cannabis', 'coca[iï]ne', '\\bjoint\\b', 'ecstasy', 'mdma',
     '\\blsd\\b', 'cigarette', 'nicotine', '\\bvomi', 'tchin', 'beer', 'bouteilles?', '🍻', '🍺', '🥃', '🍸', '🍹', '🍷', '🍾', '🥂',
+    // Ajoutés le 25.11 (vins, alcools, régions viticoles, tabac, casino, drogue dans les titres d'œuvres).
+    'ap[ée]ritif','arros[ée]','pot de d[ée]part','buvette','\\bboirai','cuv[ée]e','vigneron','vendange','viticole','vignoble','c[ée]page','absinthe','tabac','casino','poker','blackjack','cidre','\\bkir\\b','kirsch','cognac','calvados','armagnac','grappa','\\bsak[ée]\\b','prosecco','\\bcava\\b','guinness','eau-de-vie','eaux-de-vie','damassine','fendant','chasselas','merlot','pinot','chouchen','soju','baijiu','limoncello','ouzo','campari','aperol','cacha[çc]a','bourbon','cervoise','[ée]thanol','porto\\b','bordeaux','bourgogne','beaujolais','chardonnay','sauvignon','riesling','lambrusco','chianti','rioja','brasserie','brasseur','houblon','malt\\b','distill','spiritueux','digestif','\\braki\\b','mezcal','chartreuse','fernet','pimm','\\bkvas\\b','barolo','gamay','syrah','cornalin','humagne','d[ée]zaley','\\bperlan\\b','johannisberg','arvine','perdrix','amaretto','poire williams','ros[ée] de provence','gin-tonic','trafiquant','narcos','escobar','\\bweeds\\b','breaking bad','trainspotting','\\bcoke\\b','h[ée]ro[iï]ne\\b','\\bcrack\\b','opium','dealer',
   ].join('|'),
   'iu',
 );
 
 type StoreFields = {
   polls?: { question: string; poll_options?: { label: string }[] }[];
+  bring_items?: { label: string }[];
   event_organizers?: { user_id: string }[];
   event_invites?: { user_id: string }[];
 };
 
-export const STORE_EVENT_EXTRA = ', polls(question, poll_options(label)), event_organizers(user_id), event_invites(user_id)';
+export const STORE_EVENT_EXTRA = ', polls(question, poll_options(label)), bring_items(label), event_organizers(user_id), event_invites(user_id)';
 
 export function drinkyEvent(e: EventListItem & StoreFields): boolean {
-  const texts = [e.title, e.description, e.location_name, ...(e.polls ?? []).flatMap((p) => [p.question, ...(p.poll_options ?? []).map((o) => o.label)])];
+  const texts = [e.title, e.description, e.location_name, ...(e.polls ?? []).flatMap((p) => [p.question, ...(p.poll_options ?? []).map((o) => o.label)]),
+    ...(e.bring_items ?? []).map((b) => b.label)];
   return texts.some((t) => !!t && DRINK_RE.test(t));
 }
 

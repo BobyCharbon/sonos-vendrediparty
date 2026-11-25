@@ -599,8 +599,8 @@ def admin_new_pin(request: Request, body: PinChoice | None = None):
     """Nouveau code de la musique : au hasard, ou celui que l'hôte choisit (déconnecte tous les invités)."""
     pin = (body.pin or "").strip() if body else ""
     if pin:
-        if not re.fullmatch(r"[0-9]{4}", pin):
-            raise HTTPException(400, "Le code doit faire exactement 4 chiffres")
+        if not re.fullmatch(r"[0-9]{6}|[0-9]{4}", pin):
+            raise HTTPException(400, "Le code doit faire 6 chiffres (ou 4)")
         if pin == store.session.guest_pin:
             raise HTTPException(409, "C'est déjà le code actuel")
         if pin in store.session.games:
@@ -1424,7 +1424,7 @@ def check_store_access(request: Request, g: dict):
         raise HTTPException(403, store_app.MESSAGE)
     changed = False
     for x in filter(None, (g, room_of(g))):
-        if not x.get("store") and (x["type"] == "room" or x["type"] in store_app.BANK_GAMES):
+        if not x.get("store"):  # textes tirés et écrits filtrés pour la suite (tous les jeux gardés, la salle comprise)
             store_app.flag(x) if x["type"] != "room" else x.update(store=True)
             changed = True
     if changed:
@@ -2496,24 +2496,33 @@ class TcPayment(MemberToken):
     note: str = Field(default="", max_length=200)
 
 
+# App App Store (refus Apple 1.4.3) : jamais l'emoji 🍻 / 🍷 d'un pot commun, ni à l'affichage ni à la création.
+def store_emoji(emoji, request: Request):
+    return "🎉" if store_app.is_store(request) and emoji in store_app.DRINK_EMOJIS else emoji
+
+
 @app.post("/api/account/tricount")
-def account_tricount_list(body: MemberToken):
-    return account_call(lambda: tricount.overview(body.token), 401)
+def account_tricount_list(body: MemberToken, request: Request):
+    out = account_call(lambda: tricount.overview(body.token), 401)
+    return store_app.neutral_emojis(out) if store_app.is_store(request) else out
 
 
 @app.post("/api/account/tricount/open")
-def account_tricount_open(body: TcRef):
-    return account_call(lambda: tricount.state(body.token, body.group_id))
+def account_tricount_open(body: TcRef, request: Request):
+    out = account_call(lambda: tricount.state(body.token, body.group_id))
+    return store_app.neutral_emojis(out) if store_app.is_store(request) else out
 
 
 @app.post("/api/account/tricount/create")
-def account_tricount_create(body: TcCreate):
-    return account_call(lambda: tricount.create(body.token, body.name, body.emoji, body.currency, body.my_name))
+def account_tricount_create(body: TcCreate, request: Request):
+    emoji = store_emoji(body.emoji, request)
+    return account_call(lambda: tricount.create(body.token, body.name, emoji, body.currency, body.my_name))
 
 
 @app.post("/api/account/tricount/update")
-def account_tricount_update(body: TcUpdate):
-    return account_call(lambda: tricount.update(body.token, body.group_id, body.name, body.emoji, body.currency, body.archived))
+def account_tricount_update(body: TcUpdate, request: Request):
+    emoji = store_emoji(body.emoji, request)
+    return account_call(lambda: tricount.update(body.token, body.group_id, body.name, emoji, body.currency, body.archived))
 
 
 @app.post("/api/account/tricount/link")
@@ -3627,6 +3636,9 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     if a == "end":
         end_game(g["code"], "host")
         return None
+    # Partie de l'app App Store : ni gorgées, ni thème WTF, ni paquet « Entre amis » (store_app, refus Apple 1.4.3).
+    if a in ("lkset", "dbset", "qset") and store_app.refused_settings(g, body.settings):
+        raise HTTPException(403, store_app.MESSAGE)
     if g["type"] == "room" and a == "launch":
         if not games.is_lead(g, me):
             raise HTTPException(403, "Seul l'animateur lance les jeux")

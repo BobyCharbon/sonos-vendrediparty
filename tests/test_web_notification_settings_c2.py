@@ -72,9 +72,11 @@ def test_invitation_switch_also_covers_being_added_as_co_organizer():
 
 def test_activity_lists_every_event_notification_kind_including_new_ones():
     """« Co-organisateur » (coorganizer_added) et « Événement rétabli » (event_changed) s'affichent : l'Activité ne filtre
-    que les annonces admin (affichées à part) et montre le titre / texte écrits par la base."""
+    que les annonces admin (affichées à part) et, dans l'app App Store seulement, celles du bar (caché : refus 1.4.3) ; elle
+    montre le titre / texte écrits par la base."""
     activity = (SRC / 'app/(tabs)/activity.tsx').read_text()
-    assert re.findall(r"\.(?:neq|eq|in|not)\('kind'", activity) == [".neq('kind'"]
+    assert re.findall(r"\.(?:neq|eq|in|not)\('kind'", activity) == [".neq('kind'", ".not('kind'"]
+    assert "if (storeApp) q = q.not('kind', 'like', 'bar_%')" in activity
     assert "{n.title}" in activity and "{n.body}" in activity
 
 

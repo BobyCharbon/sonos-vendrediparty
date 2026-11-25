@@ -1,9 +1,11 @@
+import { storeApp } from './features';
+
 /** Texte des conditions d'utilisation (version 2026-11-18, = private.moderation_settings.terms_version).
  * Le même texte est repris dans l'app iPhone (ios/Party/Settings/Moderation/TermsView.swift) : changer les deux,
  * puis la version dans la base (les comptes acceptent alors la nouvelle version avant leur prochain contenu). */
 export const TERMS_UPDATED = '18 novembre 2026';
 
-export const TERMS_SECTIONS: { title: string; paragraphs: string[] }[] = [
+const ALL_SECTIONS: { title: string; paragraphs: string[] }[] = [
   {
     title: 'Party, entre amis',
     paragraphs: [
@@ -62,7 +64,7 @@ export const TERMS_SECTIONS: { title: string; paragraphs: string[] }[] = [
     paragraphs: [
       'Party ne vend rien et ne touche jamais d’argent : ni paiement, ni portefeuille, ni commission. Un organisateur peut indiquer un prix et un moyen de payer qui est le sien (Revolut, billetterie, sur place) ; le paiement se fait en dehors de Party, entre personnes. Un « J’ai payé » n’est confirmé que par l’organisateur.',
       'Le bar de la soirée est une option de l’organisateur pour une soirée privée entre amis, offerte ou à prix coûtant. Party note seulement qui a pris quoi et qui doit combien ; l’engagement à rembourser est une promesse entre personnes. L’organisateur est seul responsable de ses prix, de ce qu’il sert et du respect de la loi, en particulier sur l’alcool (âge minimum, pas d’alcool à une personne ivre). Tabac et drogues sont interdits.',
-      'Boire n’est jamais obligatoire ni récompensé, et personne n’est classé selon ce qu’il boit ; dans l’app iPhone, les jeux se jouent en points.',
+      'Boire n’est jamais obligatoire ni récompensé, et personne n’est classé selon ce qu’il boit.',
     ],
   },
   {
@@ -80,3 +82,13 @@ export const TERMS_SECTIONS: { title: string; paragraphs: string[] }[] = [
     ],
   },
 ];
+
+/**
+ * App App Store (refus Apple 1.4.3, 25.11) : ni la section des Pronos (éteints dans cette version), ni les paragraphes du bar
+ * (caché dans l'app) ; « Paiements et billets » garde son premier paragraphe. Le site garde le texte complet (même version).
+ * Même filtre dans l'app iPhone (TermsView.swift, prochain build).
+ */
+export const TERMS_SECTIONS = storeApp
+  ? ALL_SECTIONS.filter((s) => s.title !== 'Pronos et confettis')
+      .map((s) => (s.title === 'Paiements, billets et bar' ? { title: 'Paiements et billets', paragraphs: s.paragraphs.slice(0, 1) } : s))
+  : ALL_SECTIONS;

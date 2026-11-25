@@ -29,51 +29,51 @@
 >    « Bloquer » masque aussitôt les messages et prévient les modérateurs ; aucun jeu à boire, aucune gorgée, aucun mode Hot / Mix
 >    ni bar dans l'app App Store (refus 1.4.3, 25.11, `app/store_app.py`) ; CGU « 18 ans et plus ». Si l'une manque en prod : corriger ce
 >    texte avant l'envoi (Apple compare les notes et l'app).
-> 8. Copier la **partie A** dans App Store Connect › App Review Information › **Notes** (3 950 caractères  limite 4 000 ; 25.11 : refus 1.4.3) ET
+> 8. Copier la **partie A** dans App Store Connect › App Review Information › **Notes** (3996 caractères, limite 4 000 ; 25.11 : refus 1.4.3) ET
 >    dans `ios/appstore/review-notes.txt` (même texte) (c'est ce fichier que `tools/appstore_submit.py` envoie ; la partie A garde tous
 >    les mots exigés par `tests/test_ios_app.py::test_review_notes_describe_every_big_feature_delivered_by_the_web`).
 > 9. Exporter la **partie B** en PDF (sans cet encadré) et la joindre dans App Review Information › **Attachment**.
 
 ---
 
-## PART A — Text for the "Notes" field (3,983 characters, limit 4,000)
+## PART A — Text for the "Notes" field (3,996 characters, limit 4,000)
 
 ```text
 ABOUT
-"Vendredi Party" (icon "Party !"): free app by Ludovic Trombert, an individual developer based in France, for friends and associations: real-world events, party games, music, chats. French, 18+. No ads, no tracking, no in-app purchase. Guide attached (PDF). The up-to-date privacy policy is the web page (linked in the app); the in-app copy is refreshed in the next build.
+"Vendredi Party" (icon "Party !"): free app by Ludovic Trombert, an individual developer based in France, for friends: real-world events, party games, chats. French, 18+. No ads, tracking or in-app purchase. Guide attached (PDF). The up-to-date privacy policy is the web page (linked in the app); in-app copy refreshed in the next build.
 
-CHANGES SINCE THE 1.4.3 REJECTION (server side, live now, permanent)
-Removed: the "Alcohol" games category and all drink labels/icons; Beer pong, Biskit, Purify Test; "Hot"/"Mix" questions; the party bar. Drinking options replaced by points; Pyramid is a points game. The server refuses any web game with drinks or Hot questions, even by code or QR. Demo event: no alcohol.
+CHANGES SINCE THE 1.4.3 REJECTION (server side, permanent for this version)
+Removed from the App Store app: every game linked to drinking (Pyramide, Je n'ai jamais, Qui de nous ?, Roulette, Beer pong, Biskit, Purify Test), every drink option, Hot/Mix questions, the party bar, Casino, Blackjack and the Music tab. Not renamed or re-skinned: our server recognises this app (User-Agent) and refuses them to all its users, even by code or QR. Our website is separate; the app never opens its games. Demo event: no alcohol.
 
 SIGN-IN
-Phone + 6-digit SMS code, no password. Demo account "Apple-test": number and code in the sign-in fields (fixed code, no SMS). Last tab "Se connecter" > "Suisse +41" > number > code.
+Phone + 6-digit SMS code. Demo "Apple-test": number and code in the sign-in fields (fixed code, no SMS). Tab "Se connecter" > "Suisse +41" > number > code.
 
 TRY IT
-1. Events > "Soirée démo Vendredi Party" (invited, co-organiser): answer "Présent", see who comes, write in the event chat.
+1. Events > "Soirée démo Vendredi Party" (co-organiser): answer "Présent", see who comes, use the event chat.
 2. Events > "Avec l'IA" or "+ Proposer" (new events wait for our approval).
-3. Discussions > "Démo Apple": long-press a message > "Signaler"; "Nouveau message"; "Demandes".
+3. Discussions > "Démo Apple": long-press > "Signaler"; "Nouveau message"; "Demandes".
 4. Games > "Créer une salle" > Quiz, or Méninges.
 
 NATIVE (4.2)
-Native tab bar; SwiftUI: Music, Settings, Discussions, Groups, event chat, "Ton avis", AI assistant, "Pot commun". Push (one switch per type), Live Activity, Wallet, QR scanner, Calendar, optional Contacts (hashed), dictation.
+Native tab bar; SwiftUI: Settings, Discussions, Groups, event chat, "Ton avis", AI assistant, "Pot commun". Push (a switch per type), Live Activity, Wallet, QR scanner, Calendar, Contacts (optional, hashed), dictation.
 
 WEB CONTENT (2.5.2)
-Events and Games tabs are our own site in a WKWebView, same for all users, using only the native features above. Other sites open in Safari. Not in this version (off on our server): Pronos, Agenda, companion; each will be described before it opens.
+Events and Games tabs: our own site in a WKWebView, the same for every user of this app. Other sites open in Safari. Games > Code: 4 digits = a game; 6 digits = a host's music party (native Music screen, no tab). Not in this version (off for this app on our server): Pronos, Agenda, companion; only a new reviewed version can open them.
 
 EVENTS
-"Qui est invité": public, invitation or groups. Links for one person or "Plusieurs"; guests create, copy and stop own links, see counts only. Not public: someone coming through a guest's link waits ("À accepter"). Date poll. Personal calendar feed. Carpool (no money). QR ticket + Wallet. Groups: "Inviter avec un lien". Everyone signs in (name, nickname of 12 characters max); games stay unlimited without an account. The page updates live; tap a name to open the profile; each answer shows its time. Admins: "Nouveau compte" alert, announcement or maintenance message.
+"Qui est invité": public, invite or groups. Links for one person or "Plusieurs"; guests create, copy and stop own links, see counts only. Not public: a guest's guest waits ("À accepter"). Date poll. Personal calendar feed. Carpool (no money). QR ticket + Wallet. Groups: "Inviter avec un lien". Sign-in for events (name, nickname of 12 characters max); games stay unlimited without an account. Updates live; tap a name to open the profile; each answer shows its time. Admins: "Nouveau compte", announcement or maintenance.
 
 PAYMENTS (3.1.3(e))
-Party never sells, holds or transfers money; no digital goods. Real-world events only: organiser's own Revolut/Twint/IBAN, ticketing link (Safari) or on site. Paying never unlocks anything in the app; the QR ticket is for door entry only.
+Party never sells, holds or moves money; no digital goods. Real-world events: organiser's own Revolut/Twint/IBAN, ticketing link (Safari) or on site. Paying unlocks nothing in the app; the QR ticket is for door entry.
 
 DISCUSSIONS (1.2)
-Event chats (event > "Discussion", native screen): only for guests who answered "Présent" / "Peut-être" and the organisers. DMs only with a real link (shared group or event); anyone else sends a message request: one text, no photo/link/number; "Accepter / Supprimer / Bloquer / Signaler", sender never told. Settings > Confidentialité > "Demandes de message". "Nouveau message": real links only, search by name, never by number; 2+ people make a private group, not read by admins. Tap a name: mini-profile (message, Bloquer, Signaler). Terms first, word filter, "Signaler" on each message (photo/voice kept for moderators, last 10 messages if ticked); "Bloquer" hides messages at once and alerts moderators. Reports within 24 h. Demo account "Apple-test 2" (number in the guide) shows a request from the other side (same fixed code). Contact: support@vendrediparty.ch.
+Event chats (native): only guests who answered "Présent" / "Peut-être" and organisers. DMs only with a real link (shared group or event); others send a message request: one text, no photo/link/number; "Accepter / Supprimer / Bloquer / Signaler". Settings > Confidentialité > "Demandes de message". "Nouveau message": real links only, search by name; 2+ people make a private group, not read by admins. Tap a name: mini-profile (message, Bloquer, Signaler). Terms first, word filter, "Signaler" on each message (photo/voice kept for moderators, last 10 messages if ticked); "Bloquer" hides messages at once and alerts moderators. Reports within 24 h. Demo "Apple-test 2" (number in the guide, same code) shows a request from the other side. Contact: support@vendrediparty.ch.
 
 AI (5.1.2(i))
-"Avec l'IA", "Ton avis" and receipts go to Anthropic (Claude) only after "J'accepte". Withdraw: Settings > Confidentialité.
+"Avec l'IA", "Ton avis" and receipts go to Anthropic (Claude) only after "J'accepte" (withdraw: Settings > Confidentialité).
 
 GAMES (18+)
-No drinking games. Games use points and dares only; first-party web content from our own domain, not third-party mini games; app rated 18+. No real-money gambling, purchases or prizes; no Casino.
+No drinking games: quizzes, card, word, party and 3D games with points only; first-party content. No gambling, purchases or prizes. Two Settings lines of this build still name Purify Test / the Music tab: fixed in the next build.
 
 DELETION
 Settings > "Gérer mon compte" > type SUPPRIMER > "Supprimer définitivement mon compte".
@@ -97,8 +97,9 @@ What you can do with it:
   **outside** the app for a real-world event.
 - **Discussions** — group chats and direct messages between people who know each other.
 - **Games** — party games played together on everyone's phone in a "game room", plus solo brain games. **No drinking
-  games**: games use points and dares only.
-- **Music** — at a party, guests add songs to the host's queue (the host's own speakers and music account).
+  games**: quizzes, card, word, party and 3D games with points only.
+- **Music** (no tab in the App Store app) — at a party at the host's place, a guest types the host's 6-digit code in
+  Jeux › **Code** and adds songs to the host's queue (the host's own speakers and music account).
 - **Settings** — profile, notifications (one switch per type), groups, shared expenses ("Pot commun"), privacy, terms,
   account deletion.
 
@@ -129,14 +130,14 @@ When the app opens, it shows the **Événements** (Events) tab. The bottom bar i
 
 | Tab (signed out) | Tab (signed in) | Built with |
 |---|---|---|
-| Musique (Music) | Musique | Native SwiftUI |
 | Jeux (Games) | Jeux | Web content (our site) |
 | Événements (Events) | Événements | Web content (our site) |
 | — | Discussions | Native SwiftUI |
 | Se connecter (Sign in) | Réglages (Settings) | Native SwiftUI |
 
 Native screens opened from the web tabs: "Créer avec l'IA" (AI event assistant), Apple QR scanner, "Add to Apple Wallet"
-sheet, Calendar, Contacts card, share sheet.
+sheet, Calendar, Contacts card, share sheet, and the Music screen (opened from Jeux › Code with a 6-digit party code:
+there is no Music tab in the App Store app).
 
 ### B4. Step-by-step tutorials
 
@@ -304,16 +305,19 @@ of any kind is attached to joining.
 #### B4.15 Games
 
 Tab **Jeux**:
-- **Salle de jeux** (game room): **Créer une salle** (or type a friend's 4-digit room code under "ou rejoindre"). Others
+- **Salle de jeux** (game room): **Créer une salle** (or type a friend's 4-digit code in **Code** › **Rejoindre**). Others
   join with the QR or the code. In the room, everyone votes for the next game; the host taps a game to launch it, and
   **🎮 Changer de jeu** brings everyone back to the room. **Quiz** can be played alone; most other games need 2+ phones.
 - **🧠 Jeux solo** › **Méninges** › **Faire chauffer**: daily brain warm-up (speed, memory, logic), 3 lives.
 - Each game has a **?** with its rules.
-- **No drinking games** (since the 1.4.3 review, 25.11): games use points and dares only. In the App Store app there is
-  no drinking category, label or option, and no "Hot" / "Mix" question mode; Beer pong, Biskit and Purify Test are not
-  offered. Drinking options are replaced by **points** ("⭐ Mode points", off by default: give or receive points; the
-  fewest points wins). **Pyramide is a points game**: "Léa gives 2 points to Tom", a points table during the game and
-  at the end, and a "🏔️ Défi du sommet" worth points at the top (optional final dare for the highest score). Pyramide cards are shown for 30 s in a native panel that screenshots turn black. Our server refuses to show or join any game with a drinking or Hot setting, even by code or QR.
+- **No drinking games** (since the 1.4.3 review, 25.11). Removed from the App Store app, permanently for this version:
+  every game linked to drinking by its origin, rules or texts (**Pyramide, Je n'ai jamais, Qui de nous ?, Roulette,
+  Beer pong, Biskit, Purify Test**), every drink option of the other games, the "Hot" / "Mix" question modes and the
+  "WTF" theme of Pour ou contre. They are not renamed or turned into points: they are simply absent. The remaining games
+  are Quiz, Qui est le plus… ?, L'Intrus, Président, Pour ou contre, Le Divan, Tu me connais ?, Le Masque, Le Reflet,
+  Qui es-tu vraiment ?, the 3D games and Méninges; their questions and words never mention alcohol, drunkenness or
+  drugs. Our server refuses the removed games to the App Store app at creation, by code, by QR, in a game room and
+  when reading a game.
 - There is **no gambling**: no bets, no money, no prizes, no purchases. Casino and Blackjack are hidden and refused by
   our server in the App Store app.
 - In the App Store app, games stay **unlimited without an account**; an account (phone number) is needed only for
@@ -321,10 +325,12 @@ Tab **Jeux**:
 
 #### B4.16 Music
 
-Tab **Musique**: **Scanner le QR de l'hôte** or type the party's 4-digit **Code** › **Entrer**, then search a song
-("Titre, artiste ou lien") and add it to the shared queue; "Me prévenir quand mon titre passe" starts a Live Activity.
-Music requires a **party running at the host's place** (the host's speakers and music account): outside a party, the
-screen only shows how to join. A short message to the host is possible ("Un message pour l'hôte ?").
+There is **no Music tab** in the App Store app. At a party at the host's place (the host's speakers and music account),
+a guest opens **Jeux**, types the host's **6-digit** party code in **Code** (4 digits = a game) or scans the host's QR:
+the native Music screen opens. Search a song ("Titre, artiste ou lien") and add it to the shared queue; "Me prévenir
+quand mon titre passe" starts a Live Activity. Without a running party there is nothing to join. In this build, the
+quick action "Ajouter un titre" (long-press on the icon) opens the same Code field, and the share extension ("Party" in
+the share sheet) adds a song only once you have joined a party with its code.
 
 #### B4.17 Shared expenses ("Pot commun")
 
@@ -357,13 +363,15 @@ photos, answers, votes, messages, the events the person created, game stats, AI 
 ### B5. Content that is loaded from our server
 
 Honestly stated: the **Events** and **Games** tabs (and a few settings pages for admins) are our own website,
-`https://party.bobycharbon.ch`, displayed in a `WKWebView`. It is the same HTML/JavaScript for every user and every
-platform (web, iPhone), maintained by us.
+`https://party.bobycharbon.ch`, displayed in a `WKWebView`, maintained by us. Our server recognises the App Store app
+(its User-Agent) and always gives **every user of this app** the same dedicated version: no drinking game or drink
+option, no party bar, no Casino / Blackjack, no Hot / Mix questions, no Music tab. Our public website and other
+platforms are separate; the app never opens their games.
 
 - What comes from the server: the whole Events module (lists, event pages, invitations, date polls, tickets, payments,
   carpool, event discussions, activity), all multiplayer games and Méninges, the admin "Annonce et
   maintenance" page.
-- What is native in the binary: tab bar, Music (guest and host), Settings and all its pages, Discussions, Groups,
+- What is native in the binary: tab bar, Music screen (guest and host, opened from Jeux › Code), Settings and all its pages, Discussions, Groups,
   "Ton avis", the AI event assistant, "Pot commun", offline screen, announcement banner, QR scanner, Wallet, Calendar,
   Contacts, Live Activity, share extension, quick action, push notifications.
 - The page can only call a fixed set of native features exposed by the app (`window.PartyNative`: tabs, push, Wallet,
@@ -372,7 +380,9 @@ platform (web, iPhone), maintained by us.
 - Only our domain, our authentication provider and the host's music sign-in open inside the app; **every other link
   opens in Safari** (no unrestricted web browsing).
 - Because the Events and Games tabs are web content, they can be improved without a new binary; any **major new
-  feature** delivered this way is described in these notes before it is turned on in production (2.3.1(a)).
+  feature** delivered this way is described in these notes before it is turned on in production (2.3.1(a)). Pronos,
+  Agenda and the companion are switched off for this app on our server; the removed games stay removed for version
+  1.0.0. They will only be turned on after a new app version describing them has been approved.
 
 ### B6. User-generated content and safety (1.2)
 
@@ -394,22 +404,28 @@ platform (web, iPhone), maintained by us.
 
 ### B7. Changes since the 1.4.3 rejection (25.11.2026)
 
-All on our server, live now and permanent for the App Store app (the same build is resubmitted):
-- Removed: the "Alcohol" games category and every drink label or icon; Beer pong, Biskit and Purify Test; the "Hot" and
-  "Mix" question modes; the party bar (menu, orders, bar notifications and settings).
-- Drinking options replaced by points in the remaining games ("⭐ Mode points"); Pyramid is a points game (points
-  table, fewest points wins) with a "🏔️ Défi du sommet" instead of a shot.
-- Remaining games use points and dares only; their questions and words never mention alcohol, drunkenness or drugs.
-- Our server refuses to show or join, from the App Store app, any game with a drinking or Hot setting, even by code or QR.
+All on our server and permanent for this version of the App Store app (same build resubmitted):
+- Removed from the App Store app: every game linked to drinking — **Pyramide, Je n'ai jamais, Qui de nous ?, Roulette,
+  Beer pong, Biskit, Purify Test** — and the former "Alcohol" games category; every drink option of the other games;
+  the "Hot" and "Mix" question modes and the "WTF" theme of Pour ou contre; the party bar (menu, orders, notifications,
+  settings); Casino and Blackjack; the Music tab (a music party is joined from Jeux › Code, 6 digits).
+- Nothing was renamed or converted: the removed games and options are simply absent from the app.
+- Remaining games use points only; their questions and words never mention alcohol, drunkenness or drugs, and texts
+  typed by players in a game of the app are refused if they do.
+- Our server recognises the App Store app and refuses the removed games to all its users: creation, code, QR, game
+  room and reading. Our public website is separate.
 - The demo event lists no alcohol and no longer asks you to order at a bar.
-- Party is for adults (18+) and is rated 18+. Our screenshots and App Store texts show no alcohol.
+- Party is for adults (18+) and is rated 18+. Our App Store texts show no alcohol.
+- Known leftovers in this build (fixed in the next build): Settings › "Mes stats de jeu" still names Purify Test (the
+  screen shows Méninges stats only), the in-app terms and privacy copies still mention the bar, and two Settings lines
+  still mention the Music tab.
 
 ### B8. Permissions (asked only when needed)
 
 | Permission | When it is asked |
 |---|---|
 | Notifications | When you turn notifications on (Settings or the event banner) |
-| Camera | Scanning a QR code (host, ticket) or taking a profile / event photo |
+| Camera | Scanning a QR code (party, game, ticket) or taking a profile / event photo |
 | Photos | Choosing a photo; "Add to Photos" on a long-press of an image |
 | Microphone + Speech recognition | Only while you dictate (AI assistant, feedback) or record a voice message |
 | Calendars | "Add the poll dates to my calendar" in a date poll |
@@ -420,7 +436,8 @@ No location, no tracking, no App Tracking Transparency prompt (nothing to track)
 ### B9. What is not in this app
 
 No in-app purchase, no subscription, no ads, no tracking or analytics SDK, no gambling or simulated gambling, no loot
-box, no prize, sweepstake or lottery, no cryptocurrency, no virtual currency for sale, no rewards for ratings or reviews, no drinking game. Paying an organiser never unlocks anything in the app; the QR
+box, no prize, sweepstake or lottery, no cryptocurrency, no virtual currency for sale, no rewards for ratings or reviews, no drinking game, no
+party bar, no Music tab. Paying an organiser never unlocks anything in the app; the QR
 ticket is for door entry only. No
 third-party sign-in (phone + SMS code only, so Sign in with Apple is not required by 4.8). The Apple TV app shares this
 record but is not part of this submission.

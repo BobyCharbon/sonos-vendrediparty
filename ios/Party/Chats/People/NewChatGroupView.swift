@@ -12,6 +12,8 @@ struct NewChatGroupView: View {
 
     /// Mêmes listes que la base (member_groups_emoji_check / _color_check) et que web/events/src/lib/groups.ts.
     static let emojis = ["👯", "🎉", "🪩", "⚽", "🏡", "🎲", "🥾", "🎸", "🍕", "🍻", "🍷", "🎂", "🌴", "🎮", "🎤", "🏀"]
+    /// Proposés au choix : dans l'app App Store, jamais 🍻 ni 🍷 (refus Apple 1.4.3, 25.11 ; le serveur les montre en 🎉).
+    static var pickable: [String] { AppConfig.isStoreApp ? emojis.filter { $0 != "🍻" && $0 != "🍷" } : emojis }
     static let colors: [(key: String, name: String)] = [("pink", "Rose"), ("coral", "Orange"), ("mint", "Vert"),
                                                        ("sky", "Bleu"), ("lavender", "Lavande"), ("lemon", "Citron")]
     static let maxName = 40
