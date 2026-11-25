@@ -6,6 +6,11 @@
 
 ## 1. Avant tout : la production
 
+- [ ] **Refus 1.4.3 (25.11)** : branche `fix-143` en prod ; avec l'User-Agent « PartyStore », l'écran Jeux n'a ni « 🍻 Alcool »,
+      ni gorgée, ni Beer pong / Biskit / Pyramide / Purify Test, ni mode Hot ; `/api/features` répond `bar: false` à l'app
+      App Store (et à tout appel natif `X-Party-Native: ios` en prod) ; `supabase/prod/2026-11-25-demo-sans-alcool-apply.sql`
+      appliqué ; fonction `send-push` redéployée (aucune notification du bar vers l'app App Store).
+
 - [ ] `https://party.bobycharbon.ch/api/features` = `compagnon: false`, `discussions: true`, `invites_v2: true`, `bar: true`, `agenda: false`, `pronos: false`, `patates: false`
       (contrôlé le 16.11.2026). Rien ne doit changer pendant la revue.
 - [ ] Corrections annoncées en place et visibles en prod (les notes les décrivent) : « Bloquer » masque aussitôt les
@@ -13,10 +18,10 @@
       bar offert partout ; articles tabac / drogues refusés ; classements des jeux sans gorgées ; CGU « 18 ans et plus » +
       section bar / paiements ; politique de confidentialité avec une section bar.
 - [ ] Données de démo prêtes en prod (encadré « À FAIRE AVANT ENVOI » de `notes-for-review.md`) : « Soirée démo »
-      (Apple-test invité, bar ouvert, articles sans alcool), groupe « Démo Apple » avec des messages, un message privé,
+      (Apple-test invité, aucun article alcoolisé ni texte « commander au bar »), groupe « Démo Apple » avec des messages, un message privé,
       si possible « Démo Apple · Sondage ».
 - [ ] Le jour de l'envoi : se connecter avec le compte de démo sur un iPhone (app TestFlight du build choisi) et refaire
-      le parcours « TRY IT » des notes : connexion, « Soirée démo » (réponse, billet, bar), Discussions › « Démo Apple »,
+      le parcours « TRY IT » des notes : connexion, « Soirée démo » (réponse, qui vient, discussion), Discussions › « Démo Apple »,
       Jeux › Créer une salle › Quiz, Méninges.
 - [ ] AUCUNE mise en prod, maintenance ou migration pendant la revue (24-48 h, plus si Apple pose une question).
 - [ ] Plafond mensuel de l'IA loin d'être atteint (Réglages › Administration › Assistant IA).
@@ -35,7 +40,7 @@
 
 ## 3. Fiche de la version (localisation Français)
 
-- [ ] Nom : **Vendredi Party** · Sous-titre : **Événements, soirées et jeux**.
+- [ ] Nom : **Vendredi Party** · Sous-titre : **Événements, groupes et jeux**.
 - [ ] Texte promotionnel, description, mots-clés : copiés de `fiche-app-store.md`.
 - [ ] Nouveautés : rien (1re version, Apple n'affiche pas ce champ).
 - [ ] URL d'assistance : `https://party.bobycharbon.ch/events/terms` · URL de confidentialité :
@@ -82,7 +87,8 @@
 - [ ] User-Generated Content : Oui · Messaging and Chat : Oui · Social Media : Non · Advertising : Non
 - [ ] Profanity or Crude Humor : Infrequent/Mild
 - [ ] Horror/Fear Themes : None
-- [ ] Alcohol, Tobacco, or Drug Use or References : **Frequent/Intense** (jeux à boire facultatifs, bar de la soirée)
+- [ ] Alcohol, Tobacco, or Drug Use or References : **Infrequent/Mild** (25.11, refus 1.4.3 : plus aucun jeu à boire, ni
+      gorgée, ni bar, ni Purify Test dans l'app App Store ; restent de rares mentions écrites par les membres)
 - [ ] Mature or Suggestive Themes : **Frequent/Intense**
 - [ ] Medical or Treatment Information : None · Health or Wellness Topics : None
 - [ ] Sexual Content or Nudity : Infrequent/Mild · Graphic Sexual Content and Nudity : None

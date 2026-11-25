@@ -94,6 +94,14 @@ const newBadge = (type) => NEW_GAMES.includes(type) ? `<span class="g-new" aria-
 // Méninges en tête : la première chose qu'on voit dans la liste (demande de l'admin, 03.11.2026).
 // Compagnon (Zicou) en bêta : éteint hors site de test (<html data-compagnon="off">), sa carte n'existe pas.
 const PET_ON = document.documentElement.dataset.compagnon !== "off";
+// App VendrediParty de l'App Store (« PartyStore », ios-app.js) : ni jeux d'argent simulés (05.11), ni jeu à boire,
+// gorgée, mot de boisson, drogue ou mode Hot (refus Apple 1.4.3 du 25.11). Le serveur refuse aussi ces jeux et ces
+// parties (app/store_app.py) ; le site, l'app BETA et Android gardent tout.
+const STORE = document.documentElement.classList.contains("party-store");
+const STORE_HIDDEN = STORE ? ["casino", "blackjack", "beerpong", "biskit", "pyramid", "purity"] : [];
+const CHEERS = STORE ? "🙋" : "🍻";  // « Je l'ai déjà fait » (Je n'ai jamais)
+// Icône de « Je n'ai jamais » : deux verres sur le web ; une bulle « ! » (un aveu) dans l'app App Store.
+if (STORE) GAME_ICONS.never = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 10h32a3 3 0 0 1 3 3v17a3 3 0 0 1-3 3H22l-9 8v-8H8a3 3 0 0 1-3-3V13a3 3 0 0 1 3-3z"/><path d="M24 15v8"/><path d="M24 28h.01"/></svg>`;
 const GAME_CATEGORIES = [
   ["brain", "✨ Chaque jour", ["pet", "brain"]],
   ["drinks", "🍻 Alcool", ["beerpong", "whoof", "never", "roulette", "biskit", "casino", "purity"]],
@@ -102,9 +110,11 @@ const GAME_CATEGORIES = [
   ["cards", "🃏 Jeux de cartes", ["pyramid", "blackjack", "president"]],
   ["mood", "🎉 Ambiance", ["quiz", "undercover", "likely"]]
 ];
+// App App Store : sans ses jeux cachés, la catégorie « Alcool » garde Qui de nous ?, Je n'ai jamais et la Roulette.
+if (STORE) GAME_CATEGORIES.find(([id]) => id === "drinks")[1] = "🙊 Entre amis";
 // Jeux rangés hors « Alcool » qui se jouent aussi avec des gorgées : étiquette 🍻 (chaque jeu n'apparaît qu'une fois).
 const DRINK_TAG_GAMES = ["pyramid", "blackjack", "quiz", "likely"];
-const drinkTag = (type) => DRINK_TAG_GAMES.includes(type) ? `<span class="g-drink" title="Se joue aussi avec de l'alcool" aria-label="Se joue aussi avec de l'alcool">🍻</span>` : "";
+const drinkTag = (type) => !STORE && DRINK_TAG_GAMES.includes(type) ? `<span class="g-drink" title="Se joue aussi avec de l'alcool" aria-label="Se joue aussi avec de l'alcool">🍻</span>` : "";
 const helpBtn = (type, inGame = false) => `<button type="button" class="g-help" data-rules="${type}" ${inGame ? "data-ingame" : ""} aria-label="Règles du jeu">?</button>`;
 
 // Règles détaillées, ouvertes par le « ? » de chaque jeu.
@@ -317,27 +327,27 @@ const GAME_RULES = {
     <p>Il faut au moins 2 joueurs, et on peut rejoindre en cours de route. On joue honnêtement ! Personne n'est obligé de boire de l'alcool : un verre d'eau compte aussi. Avec 0 gorgée, c'est la version sans alcool.</p>`,
   undercover: `
     <h3>Le but</h3>
-    <p>Les <b>civils</b> doivent démasquer les intrus. Les <b>undercovers</b> doivent se fondre dans la masse sans se faire repérer. <b>Mr. White</b> doit bluffer… et deviner le mot des civils.</p>
+    <p>Les <b>civils</b> doivent démasquer les intrus. Les <b>intrus</b> doivent se fondre dans la masse sans se faire repérer. <b>Le Fantôme</b> doit bluffer… et deviner le mot des civils.</p>
     <h3>Les rôles</h3>
     <ul>
       <li><b>Civils</b> (la majorité) : ils ont tous le même mot, par exemple « Raclette ».</li>
-      <li><b>Undercover</b> : il a un mot proche, par exemple « Fondue ». Il ne sait pas qu'il est undercover !</li>
-      <li><b>Mr. White</b> (option, dès 5 joueurs) : il n'a aucun mot et le sait.</li>
+      <li><b>Intrus</b> : il a un mot proche, par exemple « Fondue ». Il ne sait pas qu'il est l'intrus !</li>
+      <li><b>Le Fantôme</b> (option, dès 5 joueurs) : il n'a aucun mot et le sait.</li>
     </ul>
-    <p>Nombre d'undercovers : 1 jusqu'à 6 joueurs, 2 de 7 à 9 joueurs, 3 au-delà. Il faut au moins 3 joueurs.</p>
+    <p>Nombre d'intrus : 1 jusqu'à 6 joueurs, 2 de 7 à 9 joueurs, 3 au-delà. Il faut au moins 3 joueurs.</p>
     <h3>Une manche</h3>
     <ol>
       <li><b>Ton mot</b> : touche « Voir mon mot » en cachette. Il s'affiche 3 secondes puis se cache.</li>
-      <li><b>Les indices</b> : dans l'ordre de parole affiché, chacun dit à voix haute <b>un indice</b> sur son mot (un mot ou une courte phrase), sans jamais le dire. Pas trop précis pour ne pas aider les intrus, pas trop vague pour ne pas paraître suspect. Mr. White ne commence jamais.</li>
+      <li><b>Les indices</b> : dans l'ordre de parole affiché, chacun dit à voix haute <b>un indice</b> sur son mot (un mot ou une courte phrase), sans jamais le dire. Pas trop précis pour ne pas aider les intrus, pas trop vague pour ne pas paraître suspect. Le Fantôme ne commence jamais.</li>
       <li><b>Le vote</b> : chacun vote sur son téléphone pour la personne qu'il pense être un intrus. On peut changer son vote tant que tout le monde n'a pas voté.</li>
       <li><b>L'élimination</b> : le joueur qui a le plus de voix est éliminé et son rôle est révélé (pas son mot). En cas d'égalité, on revote entre les ex æquo ; nouvelle égalité, le hasard tranche.</li>
     </ol>
     <p>Un joueur éliminé ne parle plus et ne vote plus… et ne révèle rien !</p>
-    <h3>Mr. White démasqué</h3>
+    <h3>Le Fantôme démasqué</h3>
     <p>S'il est éliminé, il a une dernière chance : deviner le mot des civils. S'il trouve (accents et majuscules ignorés), il gagne seul la partie.</p>
     <h3>Fin de la partie</h3>
     <ul>
-      <li>Les <b>civils gagnent</b> quand tous les undercovers et Mr. White sont éliminés.</li>
+      <li>Les <b>civils gagnent</b> quand tous les intrus et le Fantôme sont éliminés.</li>
       <li>Les <b>intrus gagnent</b> s'il ne reste plus qu'un seul civil.</li>
     </ul>
     <p>À la fin, tous les rôles et les deux mots sont dévoilés. « Rejouer » relance avec de nouveaux mots.</p>
@@ -366,6 +376,44 @@ const GAME_RULES = {
     <h3>À savoir</h3>
     <p>Il faut au moins 2 joueurs, et on peut rejoindre en cours de route. Personne n'est obligé de boire de l'alcool : un verre d'eau compte aussi. Avec 0 gorgée, c'est la version sans alcool.</p>`,
 };
+// App App Store (refus Apple 1.4.3) : mêmes jeux, sans gorgées ni mode Hot / Mix (le serveur les refuse aussi).
+const STORE_MODES = `
+    <h3>Les modes</h3>
+    <ul>
+      <li><b>😇 Soft</b> : questions gentilles et drôles, pour tout le monde.</li>
+      <li><b>😬 Malaisant</b> : petites hontes, souvenirs embarrassants, secrets.</li>
+    </ul>`;
+if (STORE) Object.assign(GAME_RULES, {
+  never: `
+    <h3>Le but</h3>
+    <p>Découvrir ce que vos amis ont (ou n'ont jamais) fait… et raconter quand on avoue.</p>
+    <h3>Une phrase</h3>
+    <ol>
+      <li>Une phrase s'affiche, par exemple « Je n'ai jamais dansé sur une table ».</li>
+      <li>Chacun répond sur son téléphone : <b>🙋 Je l'ai déjà fait</b> ou <b>😇 Jamais</b>. Les réponses restent cachées tant que tout le monde n'a pas répondu (on peut changer d'avis jusque-là).</li>
+      <li>Quand tout le monde a répondu (ou quand l'animateur le décide), les réponses sont <b>révélées</b> : on voit qui l'a déjà fait.</li>
+      <li>On a le droit de demander des détails… et de raconter l'histoire ! Puis phrase suivante.</li>
+    </ol>${STORE_MODES}
+    <p>Aucune phrase ne revient avant que toutes celles du mode soient passées. L'animateur peut changer de phrase avec ⏭.</p>
+    <h3>À savoir</h3>
+    <p>Il faut au moins 2 joueurs, et on peut rejoindre en cours de route. On joue honnêtement, et personne n'est obligé de raconter.</p>`,
+  whoof: `
+    <h3>Le but</h3>
+    <p>Découvrir ce que vos amis pensent vraiment de vous.</p>
+    <h3>Une question</h3>
+    <ol>
+      <li>Une question s'affiche, par exemple « Qui de nous finira la soirée en pyjama ? ».</li>
+      <li>Chacun vote sur son téléphone pour la personne qui correspond le mieux. On peut voter pour soi. Les votes sont <b>anonymes</b>.</li>
+      <li>Quand tout le monde a voté (ou quand l'animateur le décide), le classement s'affiche.</li>
+      <li>Le désigné peut se défendre… ou raconter l'anecdote qui va avec. Puis question suivante !</li>
+    </ol>${STORE_MODES}
+    <p>Aucune question ne revient avant que toutes celles du mode soient passées. L'animateur peut changer de question avec ⏭.</p>
+    <h3>À savoir</h3>
+    <p>Il faut au moins 2 joueurs, et on peut rejoindre en cours de route.</p>`,
+  roulette: GAME_RULES.roulette.replace(/\s*<li>Qui boit[^<]*<\/li>\s*<li>Qui paie[^<]*<\/li>/, ""),
+  room: GAME_RULES.room.replace("Les points du Quiz et les gorgées de tous les jeux s'additionnent d'un jeu à l'autre.",
+    "Les points des jeux (Quiz, Qui est le plus…, Président, jeux 3D) s'additionnent d'un jeu à l'autre."),
+});
 
 document.getElementById("gamesRoot").innerHTML = `
     <div id="gName" class="hidden">
@@ -484,18 +532,18 @@ document.getElementById("gamesRoot").innerHTML = `
       <div class="gcard g-uc">
         <div class="g-head">
           <div class="g-icon">${GAME_ICONS.undercover}</div>
-          <div class="g-meta"><div class="g-title">Undercover</div><div class="g-tag">Trouve l'intrus avant qu'il ne te trouve.</div></div>
+          <div class="g-meta"><div class="g-title">L'Intrus</div><div class="g-tag">Trouve l'intrus avant qu'il ne te trouve.</div></div>
           ${helpBtn("undercover")}
         </div>
-        <p class="g-desc">Chacun reçoit un mot secret. Les undercovers ont un mot proche, Mr. White n'en a pas. Indices à voix haute, puis on vote pour éliminer.</p>
+        <p class="g-desc">Chacun reçoit un mot secret. Les intrus ont un mot proche, le Fantôme n'en a pas. Indices à voix haute, puis on vote pour éliminer.</p>
         <div class="g-chips"><span>3+ joueurs</span><span>Mot secret</span><span>Bluff</span></div>
-        <label class="g-opt"><span>Avec Mr. White <small>dès 5 joueurs</small></span><input type="checkbox" class="switch" data-opt="white" checked></label>
+        <label class="g-opt"><span>Avec le Fantôme <small>dès 5 joueurs</small></span><input type="checkbox" class="switch" data-opt="white" checked></label>
         <div class="g-label">Imposteurs</div>
         <div class="g-modes" data-opt-group="impostors">
           <button type="button" data-val="0" class="on">Auto</button><button type="button" data-val="1">1</button><button type="button" data-val="2">2</button><button type="button" data-val="3">3</button>
         </div>
         <label class="g-opt"><span>Les imposteurs savent qu'ils le sont <small>sinon chacun le devine en écoutant</small></span><input type="checkbox" class="switch" data-opt="reveal"></label>
-        <label class="g-opt"><span>💡 Indice pour Mr. White <small>la catégorie du mot : « un fruit », « un sport »…</small></span><input type="checkbox" class="switch" data-opt="white_hint"></label>
+        <label class="g-opt"><span>💡 Indice pour le Fantôme <small>la catégorie du mot : « un fruit », « un sport »…</small></span><input type="checkbox" class="switch" data-opt="white_hint"></label>
         <label class="g-opt"><span>💡 Indice pour les imposteurs <small>seulement s'ils savent qu'ils le sont</small></span><input type="checkbox" class="switch" data-opt="hint"></label>
         <label class="g-opt"><span>Je joue aussi <small>sinon tu es maître du jeu et tu vois les rôles</small></span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="undercover">Créer une partie</button>
@@ -849,13 +897,32 @@ document.addEventListener("click", (ev) => {
       // Compagnon (personnage à entretenir, app/static/pet/) s'ouvre par data-pet-open.
       const card = home.querySelector(`[data-create="${type}"], [data-brain-open="${type}"], [data-pet-open="${type}"]`)?.closest(".gcard");
       if (!card) continue;
+      if (STORE_HIDDEN.includes(type)) { card.remove(); continue; }  // app App Store : la carte n'existe pas
       card.querySelector(".g-title")?.insertAdjacentHTML("beforeend", drinkTag(type));
       sec.append(card);
     }
     after.after(sec);
     after = sec;
   }
+  if (STORE) storeScrubCards(home);
 })();
+
+// App App Store (refus Apple 1.4.3) : sur les cartes gardées, ni réglage de gorgées, ni mode Hot / Mix, ni mot de
+// boisson. La salle de jeux recopie ces cartes (openRoomSheet) : elle en hérite.
+function storeScrubCards(home) {
+  home.querySelectorAll("[data-opt=qzsips], [data-opt=lkalcohol], [data-opt=alcohol], [data-opt-group=sips], [data-opt-group=lksips]")
+    .forEach((el) => (el.closest(".g-opt") || el).remove());
+  home.querySelectorAll("[data-opt-group=mode] [data-val=hot], [data-opt-group=mode] [data-val=mix]").forEach((b) => b.remove());
+  home.querySelectorAll(".g-chips span").forEach((c) => { if (/alcool|gorgée|Hot/i.test(c.textContent)) c.remove(); });
+  const text = {
+    ".g-nv .g-tag": "Avoue… ou garde ton secret.",
+    ".g-nv .g-desc": "Une phrase tombe (« Je n'ai jamais dansé sur une table »). Chacun répond en secret « déjà fait » ou « jamais », puis tout est révélé : à ceux qui l'ont fait de raconter !",
+    ".g-wh .g-desc": "Une question tombe (« Qui de nous finira la soirée en pyjama ? »), chacun vote pour quelqu'un, puis on découvre qui a été désigné… et il raconte l'anecdote.",
+    ".g-lk .g-desc": "« Qui est le plus mauvais perdant ? » Tout le monde désigne quelqu'un en secret, en même temps, puis on découvre le plus désigné : il prend un point. Sans téléphone ? On vote sur celui de l'animateur.",
+    ".g-rl .g-desc": "Note les participants, lance la roue : celui qu'elle désigne a perdu. Pour savoir qui fait la vaisselle, qui choisit la musique, qui relève un défi… La roue tourne sur tous les téléphones.",
+  };
+  for (const [sel, t] of Object.entries(text)) { const el = home.querySelector(sel); if (el) el.textContent = t; }
+}
 
 // 🎮 Jeux : n'importe qui crée une partie (code + QR) et l'anime ; les autres la rejoignent avec son code.
 let myRoom = store("vp_room") || "";
@@ -869,7 +936,7 @@ function routeRoom(g) {
   return false;
 }
 let myGame = store("vp_game") || "", game = null, wordShown = "", wordUntil = 0, guessDraft = "", showRoles = false, autoJoin = false;
-const GAME_PHASES = { countdown: "Départ imminent", lobby: "Inscriptions", words: "Indices", vote: "Vote", white_guess: "Devinette de Mr. White",
+const GAME_PHASES = { countdown: "Départ imminent", lobby: "Inscriptions", words: "Indices", vote: "Vote", white_guess: "Devinette du Fantôme",
   reveal: "Résultat de la manche", end: "Partie terminée", question: "Question", results: "Résultats", spun: "Résultat", bet: "Mises", play: "Partie", card: "En séance",
   answer: "Réponse en secret", guess: "À voix haute", judge: "Points", scored: "Résultat du duo", q: "Question", rev: "Réponse", run: "En jeu" };
 const phaseLabel = (g) => (g.type === "roulette" || isBJ(g) || g.type === "casino") && g.phase === "lobby" ? "Préparation"
@@ -879,7 +946,7 @@ const phaseLabel = (g) => (g.type === "roulette" || isBJ(g) || g.type === "casin
   : g.type === "masque" ? { write: "Écriture en secret", guess: "Qui a écrit quoi ?", reveal: g.masque?.mask === "closed" ? "Les votes" : "Les masques tombent" }[g.phase] || GAME_PHASES[g.phase]
   : g.type === "reflet" ? { pick: "Devant le miroir", vote: "Vote secret", result: "Le reflet" }[g.phase] || GAME_PHASES[g.phase]
   : GAME_PHASES[g.phase];
-const WINNERS = { civils: "Les civils ont gagné 🎉", impostors: "Les undercovers ont gagné 🕵️", white: "Mr. White a trouvé le mot et gagne 🎩" };
+const WINNERS = { civils: "Les civils ont gagné 🎉", impostors: "Les intrus ont gagné 🕵️", white: "Le Fantôme a trouvé le mot et gagne 👻" };
 
 async function gapi(path, body) {
   const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 8000);
@@ -997,6 +1064,13 @@ async function refreshGame() {
       else if (autoJoin) toast(`Aucune partie avec le code ${code}. Vérifie-le auprès de l’animateur.`, "err");
       else toast("Cette partie n'existe plus", "err");
       autoJoin = false;
+    }
+    else if (STORE && e.status === 403 && typeof e.detail === "string") {
+      // App App Store : jeu caché ou partie avec gorgées / mode Hot (refusés par le serveur) : on le dit, on revient.
+      autoJoin = false;
+      setGame(myRoom && myGame !== myRoom ? myRoom : "");
+      toast(e.detail, "err");
+      return myGame ? refreshGame() : renderGame(null);
     }
     else if (!game) toast("Impossible de charger la partie, réessaie", "err");
     if (e.status === 404 || !game) renderGame(null);
@@ -1130,7 +1204,7 @@ function renderGame(g) {
     <div class="g-meta"><div class="g-title">${esc(g.name)}</div>
     <div class="g-tag">${g.mode ? esc(g.mode) + " · " : ""}${phaseLabel(g)}${g.round && g.phase !== "lobby" ? ` · ${{ undercover: "manche", roulette: "tirage", blackjack: "main", casino: "tour", divan: "carte", tmc: "duo", psy: "test", reflet: "passage" }[g.type] || "question"} ${g.type === "masque" ? g.masque?.n : g.type === "reflet" ? Math.min((g.reflet?.done_turns || 0) + 1, g.reflet?.total || 1) : g.round}` : ""} · ⏱ <span id="gTimer">${fmtDuration(g.elapsed)}</span></div></div>
     ${helpBtn(g.type, true)}</div>`;
-  const lastLine = g.last?.name ? `<p class="sub" style="margin:8px 0">${esc(g.last.name)} était <b>${esc(g.last.role)}</b>.${g.last.guess ? ` Mr. White a proposé « ${esc(g.last.guess)} »… raté !` : ""}</p>` : "";
+  const lastLine = g.last?.name ? `<p class="sub" style="margin:8px 0">${esc(g.last.name)} était <b>${esc(g.last.role)}</b>.${g.last.guess ? ` Le Fantôme a proposé « ${esc(g.last.guess)} »… raté !` : ""}</p>` : "";
   let body = "";
 
   if (g.type === "room") {
@@ -1164,22 +1238,22 @@ function renderGame(g) {
     body = `<div class="title">Tu es maître du jeu 🎲</div><div class="artist">Tu ne joues pas : tu fais avancer la partie${g.type === "undercover" ? " et tu peux voir les rôles (👁)" : ""}.</div>
       ${g.question ? `<div class="question" style="margin-top:10px">${esc(g.question)}</div>` : ""}${lastLine}
       ${g.phase === "words" && g.order.length ? `<p class="sub" style="margin:8px 0 0">Ordre de parole : ${g.order.map(esc).join(" → ")}</p>` : ""}
-      ${showRoles && g.words ? `<p class="sub" style="margin:8px 0 0">Civils : <b>${esc(g.words.civil)}</b> · Undercover : <b>${esc(g.words.undercover)}</b></p>` : ""}
+      ${showRoles && g.words ? `<p class="sub" style="margin:8px 0 0">Civils : <b>${esc(g.words.civil)}</b> · Intrus : <b>${esc(g.words.undercover)}</b></p>` : ""}
       ${resultsHtml(g)}`;
   } else if (g.phase === "lobby") {
     body = `<div class="title">Tu es inscrit ✓</div><div class="artist">${g.is_host ? "Lance la partie quand tout le monde est là." : `En attente que ${esc(g.host_name)} lance la partie…`}</div>`;
   } else if (g.type === "undercover") {
     const key = g.id + ":" + g.round;
     const hint = me?.hint ? `<div class="artist" style="margin-top:6px">💡 Indice : c'est ${esc(me.hint)}</div>` : "";
-    const secret = me?.role === "Mr. White" ? `<div class="word">🎩 Tu es Mr. White</div><div class="artist">Tu n'as pas de mot : écoute les autres et bluffe !</div>${hint}`
-      : me?.role === "Undercover" ? `<div class="word">🕵️ Tu es imposteur</div><div class="artist">Ton mot : <b>${esc(me?.word)}</b> · celui des civils est proche. Fonds-toi dans la masse !</div>${hint}`
+    const secret = me?.role === "Fantôme" ? `<div class="word">👻 Tu es le Fantôme</div><div class="artist">Tu n'as pas de mot : écoute les autres et bluffe !</div>${hint}`
+      : me?.role === "Intrus" ? `<div class="word">🕵️ Tu es imposteur</div><div class="artist">Ton mot : <b>${esc(me?.word)}</b> · celui des civils est proche. Fonds-toi dans la masse !</div>${hint}`
       : `<div class="artist">Ton mot</div><div class="word">${esc(me?.word)}</div>`;
     const wordBox = !me?.dealt ? "" : wordShown === key && Date.now() < wordUntil
       ? `<button type="button" data-gact="hide" class="secret">${secret}<div class="artist" style="margin-top:4px">Se cache dans <b id="wordCountdown">${Math.ceil((wordUntil - Date.now()) / 1000)}</b> s · touche pour cacher</div></button>`
       : `<button class="secondary" data-gact="show" data-key="${esc(key)}" style="width:100%">👁 Voir mon mot (en cachette)</button>`;
     if (g.phase === "end") {
       body = `<div class="title">${WINNERS[g.winner]}</div>
-        <p class="sub" style="margin:6px 0">Mot des civils : <b>${esc(g.words.civil)}</b> · Mot undercover : <b>${esc(g.words.undercover)}</b>${g.last?.guess ? ` · Mr. White a proposé « ${esc(g.last.guess)} »` : ""}</p>
+        <p class="sub" style="margin:6px 0">Mot des civils : <b>${esc(g.words.civil)}</b> · Mot undercover : <b>${esc(g.words.undercover)}</b>${g.last?.guess ? ` · Le Fantôme a proposé « ${esc(g.last.guess)} »` : ""}</p>
         <div class="artist">${g.is_host ? "Tu peux relancer une partie avec les mêmes joueurs." : "L'animateur peut relancer une partie."}</div>`;
     } else if (!me.alive && !(g.phase === "white_guess" && g.last?.me)) {
       body = `<div class="title">Tu es éliminé 👀</div><div class="artist">Regarde la suite… sans rien dire !</div>${lastLine}`;
@@ -1196,7 +1270,7 @@ function renderGame(g) {
       body = g.last?.me
         ? `<div class="title">Démasqué ! Dernière chance 🎩</div><div class="artist">Devine le mot des civils pour gagner :</div>
            <form data-gform="guess" class="row" style="margin-top:8px"><input class="grow" type="text" id="guessInput" maxlength="40" aria-label="Le mot des civils" placeholder="Le mot des civils…" autocomplete="off"><button>Valider</button></form>`
-        : `<div class="title">${esc(g.last.name)} était Mr. White !</div><div class="artist">Il tente de deviner le mot des civils…</div>`;
+        : `<div class="title">${esc(g.last.name)} était le Fantôme !</div><div class="artist">Il tente de deviner le mot des civils…</div>`;
     } else if (g.phase === "reveal") {
       body = `${lastLine}<div class="artist">${g.is_host ? "Lance la manche suivante quand vous êtes prêts." : "L'animateur lance la manche suivante…"}</div>`;
     }
@@ -1302,7 +1376,7 @@ function questionHtml(g, me) {
   const choices = !me || (g.type !== "never" && mine) ? "" : g.type === "never"
     ? `<div class="qs-yn" role="group" aria-label="Ta réponse">
         <button type="button" class="qs-opt ${mine === "yes" ? "on" : ""}" data-gact="vote" data-target="yes" aria-pressed="${mine === "yes"}">
-          <span class="qs-emo" aria-hidden="true">🍻</span><b>Je l'ai déjà fait</b>${sips ? `<small>Je bois ${sips} gorgée${sips > 1 ? "s" : ""}</small>` : ""}</button>
+          <span class="qs-emo" aria-hidden="true">${CHEERS}</span><b>Je l'ai déjà fait</b>${sips ? `<small>Je bois ${sips} gorgée${sips > 1 ? "s" : ""}</small>` : ""}</button>
         <button type="button" class="qs-opt ${mine === "no" ? "on" : ""}" data-gact="vote" data-target="no" aria-pressed="${mine === "no"}">
           <span class="qs-emo" aria-hidden="true">😇</span><b>Jamais</b>${sips ? `<small>Je ne bois pas</small>` : ""}</button>
       </div>`
@@ -2610,7 +2684,7 @@ function neverResultsHtml(g) {
   const col = (emo, label, list, cls) => `<div class="never-col ${cls}"><div class="never-head"><span aria-hidden="true">${emo}</span><b>${list.length}</b></div>
     <div class="never-lbl">${label}</div>
     <div class="chips">${list.map((r) => `<span class="pill">${whoName(g, r.name, r.pid)}</span>`).join("") || `<span class="artist">personne</span>`}</div></div>`;
-  return drink + `<div class="never-res">${col("🍻", "L'ont déjà fait", did, "did")}${col("😇", "Jamais", never, "nev")}</div>`;
+  return drink + `<div class="never-res">${col(CHEERS, "L'ont déjà fait", did, "did")}${col("😇", "Jamais", never, "nev")}</div>`;
 }
 
 // Commandes de l'animateur (créateur de la partie) et liste des joueurs.
@@ -2696,8 +2770,8 @@ function gameFlashes(g) {
   if (!prev || prev === sig) return;  // première vue (page rechargée) : pas d'annonce en différé
   const [pPhase, , pLast] = prev.split("|");
   if (g.type === "undercover") {
-    const win = { civils: "Les civils gagnent !", impostors: "Les undercovers gagnent !", white: "Mr. White gagne !" }[g.winner];
-    if (g.phase === "end" && pPhase !== "end" && win) return pyrFlash("summit", `🏆 ${win}`, g.words ? `Civils : ${esc(g.words.civil)} · Undercover : ${esc(g.words.undercover)}` : "");
+    const win = { civils: "Les civils gagnent !", impostors: "Les intrus gagnent !", white: "Le Fantôme gagne !" }[g.winner];
+    if (g.phase === "end" && pPhase !== "end" && win) return pyrFlash("summit", `🏆 ${win}`, g.words ? `Civils : ${esc(g.words.civil)} · Intrus : ${esc(g.words.undercover)}` : "");
     if (g.last?.name && g.last.name !== pLast) return pyrFlash(g.last.role === "Civil" ? "bad" : "good", `${esc(g.last.name)} est éliminé·e`, `C'était ${esc(g.last.role)} !`);
   }
   if (g.type === "whoof" && g.phase === "results" && pPhase !== "results" && g.results?.length) {
@@ -2707,7 +2781,7 @@ function gameFlashes(g) {
   }
   if (g.type === "never" && g.phase === "results" && pPhase !== "results" && g.results) {
     const did = g.results.filter((r) => r.answer === "yes").map((r) => esc(r.name));
-    return pyrFlash(did.length ? "good" : "summit", did.length ? `🍻 ${did.length} l'ont déjà fait` : "😇 Personne ne l'a fait", did.join(", "));
+    return pyrFlash(did.length ? "good" : "summit", did.length ? `${CHEERS} ${did.length} l'ont déjà fait` : "😇 Personne ne l'a fait", did.join(", "));
   }
 }
 
@@ -2748,7 +2822,6 @@ function roomTileHtml(c, R = {}, lead = false) {
     <span class="g-room-tile-i">${GAME_ICONS[c.type] || ""}</span><b>${esc(c.name)}${drinkTag(c.type)}</b></button>${help}</div>`;
 }
 // Tuiles groupées par catégorie, dans le même ordre que l'écran Jeux ; un jeu sans catégorie va à la fin.
-const STORE_HIDDEN = document.documentElement.classList.contains("party-store") ? ["casino", "blackjack"] : [];
 function roomCatalogHtml(catalog, R = {}, lead = false) {
   const byType = new Map(catalog.filter((c) => !STORE_HIDDEN.includes(c.type)).map((c) => [c.type, c]));
   const known = new Set(GAME_CATEGORIES.flatMap(([, , types]) => types));
@@ -2759,7 +2832,7 @@ function roomCatalogHtml(catalog, R = {}, lead = false) {
 }
 function roomHtml(g) {
   const R = g.room_info || {}, lead = g.is_host;
-  const cur = R.current;
+  const cur = STORE_HIDDEN.includes(R.current?.type) ? null : R.current;  // le serveur les retire déjà (app App Store)
   const resume = cur ? `<button class="py-main g-room-resume" data-room-goto="${esc(cur.code)}">🎮 ${esc(cur.name)} en cours · rejoindre</button>` : "";
   // Même écran pour l'animateur et les participants : les catégories et les jeux, avec les votes.
   const votes = Object.values(R.votes || {}).reduce((a, b) => a + b, 0);
@@ -2768,7 +2841,9 @@ function roomHtml(g) {
 }
 // Case « Le plus voté » de l'animateur (ou les ex æquo), chacun avec son bouton pour lancer directement.
 function roomBestHtml(g) {
-  const R = g.room_info || {};
+  const R = { ...(g.room_info || {}) };
+  R.top = (R.top || []).filter((t) => !STORE_HIDDEN.includes(t));
+  if (!R.top.length) return "";
   const named = (type) => (R.catalog || []).find((c) => c.type === type)?.name || type;
   return `<div class="g-room-best">
       <div class="g-room-best-h">⭐ ${R.top.length > 1 ? "Les plus votés (égalité)" : "Le plus voté"} · ${R.votes[R.top[0]]} vote${R.votes[R.top[0]] > 1 ? "s" : ""}</div>
@@ -2789,8 +2864,9 @@ function roomTallyHtml(R, resume) {
   const tally = board.length ? `<div class="g-room-block"><div class="g-room-h">🏆 Tableau de la soirée</div>
       ${board.map((r, i) => `<div class="g-room-row ${r.me ? "me" : ""}"><span class="qz-rank r${i + 1}">${i + 1}</span><b>${esc(r.name)}</b>
         <span class="g-room-pts">${r.pts.toLocaleString("fr-CH")} pts</span></div>`).join("")}</div>` : "";
-  const hist = (R.history || []).length ? `<div class="g-room-block"><div class="g-room-h">Déjà joué ce soir</div><div class="g-room-hist">
-      ${R.history.map((h) => `<span class="g-room-chip ${GAME_THEME[h.type] || ""}"><i>${GAME_ICONS[h.type] || ""}</i>${esc(h.name)}${h.winner ? ` · 🏆 ${esc(h.winner)}` : ""}</span>`).join("")}</div></div>` : "";
+  const played = (R.history || []).filter((h) => !STORE_HIDDEN.includes(h.type));
+  const hist = played.length ? `<div class="g-room-block"><div class="g-room-h">Déjà joué ce soir</div><div class="g-room-hist">
+      ${played.map((h) => `<span class="g-room-chip ${GAME_THEME[h.type] || ""}"><i>${GAME_ICONS[h.type] || ""}</i>${esc(h.name)}${h.winner ? ` · 🏆 ${esc(h.winner)}` : ""}</span>`).join("")}</div></div>` : "";
   return resume + tally + hist;
 }
 function openRoomSheet(type) {
@@ -3173,7 +3249,7 @@ function rulesFor(type, g) {
   const sips = g.options?.sips || 0;
   let facts = [];
   if (g.mode) facts.push(`Questions : <b>${esc(g.mode)}</b>`);
-  if (type === "undercover") facts.push(g.options?.white ? "Avec <b>Mr. White</b> (dès 5 joueurs)" : "<b>Sans</b> Mr. White");
+  if (type === "undercover") facts.push(g.options?.white ? "Avec <b>le Fantôme</b> (dès 5 joueurs)" : "<b>Sans</b> le Fantôme");
   if (type === "blackjack") facts.push(sips ? `Mode <b>gorgées</b> · mise de 1 à <b>${sipWord(sips)}</b>` : "Mode <b>jetons</b> · 100 jetons au départ");
   if (type === "pyramid") facts.push(`${g.pyr?.floors || g.options?.floors || 5} étages`,
     g.pyr?.hard ? "Distribution <b>hard</b> : 1, 2, 3, 4 gorgées" : "Distribution <b>soft</b> : 1 gorgée par carte",
@@ -3182,7 +3258,7 @@ function rulesFor(type, g) {
   if (type === "biskit") facts.push(g.bk?.alcohol ? `Avec alcool · gorgées <b>×${g.bk.mult}</b>` : "<b>Sans alcool</b> (points de gage)",
     g.bk?.biskit ? `Le Biskit : <b>${esc(g.bk.biskit)}</b>` : "", g.bk?.key ? `Dernière carte : <b>${esc(BK_RULES[g.bk.key][1])}</b> (surlignée plus bas)` : "");
   if (type === "casino") facts.push(sips ? `Mode <b>gorgées</b> · jusqu'à <b>${sipWord(sips)}</b> misées par tour` : "Mode <b>jetons</b> · 100 jetons au départ");
-  else if (type === "whoof" || type === "never") facts.push(sips ? `<b>${sipWord(sips)}</b> ${type === "whoof" ? "pour la personne désignée" : "pour ceux qui l'ont fait"}` : "<b>Sans alcool</b>");
+  else if (type === "whoof" || type === "never") facts.push(sips ? `<b>${sipWord(sips)}</b> ${type === "whoof" ? "pour la personne désignée" : "pour ceux qui l'ont fait"}` : STORE ? "" : "<b>Sans alcool</b>");
   facts.push(`Animée par <b>${esc(g.host_name || "?")}</b> · code <b>${esc(g.code)}</b>`);
   facts = facts.filter(Boolean);
   let body = GAME_RULES[type];
@@ -3192,7 +3268,7 @@ function rulesFor(type, g) {
 }
 
 // « ? » : règles détaillées du jeu.
-const GAME_NAMES = { masque: "Le Masque", reflet: "Le Reflet", psy: "Qui es-tu vraiment ?", beerpong: "Beer pong", undercover: "Undercover", whoof: "Qui de nous ?", likely: "Qui est le plus… ?", debate: "Pour ou contre", never: "Je n'ai jamais", roulette: "Roulette",
+const GAME_NAMES = { masque: "Le Masque", reflet: "Le Reflet", psy: "Qui es-tu vraiment ?", beerpong: "Beer pong", undercover: "L'Intrus", whoof: "Qui de nous ?", likely: "Qui est le plus… ?", debate: "Pour ou contre", never: "Je n'ai jamais", roulette: "Roulette",
   blackjack: "Blackjack", casino: "Casino", divan: "Le Divan", tmc: "Tu me connais ?", pyramid: "Pyramide", biskit: "Biskit Royal", quiz: "Quiz", purity: "Purify Test", room: "Salle de jeux", president: "Président", neon: "Néon Knockout", island: "L’île qui s’effondre", heist: "Braquage en miniature" };
 document.addEventListener("click", (ev) => {
   const open = ev.target.closest("[data-rules]");

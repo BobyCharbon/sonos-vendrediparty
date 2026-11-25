@@ -27,6 +27,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from . import store_app
 from . import beerpong, brain, brain_game, calendar_ics, debate, games, heist, island, likely, links, masque, neon, president, psy, purity, quiz, reflet
 from . import pet, pet_coll_store, pet_reactions, pet_store
 from . import tv_zicou
@@ -1402,16 +1403,32 @@ def require_account(token: str, guest_id: str, ip: str):
         raise HTTPException(403, "Ce compte ne correspond pas à ta place : recharge la page une fois connecté")
 
 
-# App VendrediParty de l'App Store (Release, ios/Party/AppConfig.swift) : Apple refuse les jeux d'argent simulés
-# à un compte développeur individuel. Casino et Blackjack y sont masqués (games.js) et refusés ici ; le site,
-# l'app BETA et Android les gardent.
-STORE_APP_MARK = "PartyStore"
-STORE_HIDDEN_GAMES = ("casino", "blackjack")
+# App VendrediParty de l'App Store (Release, ios/Party/AppConfig.swift) : ni jeux d'argent simulés (05.11), ni jeu à
+# boire, gorgées, drogue ou mode Hot (refus Apple 1.4.3 du 25.11, app/store_app.py). Masqués par la page (games.js)
+# et refusés ici ; le site, l'app BETA et Android gardent tout.
+STORE_APP_MARK = store_app.MARK
+STORE_HIDDEN_GAMES = store_app.HIDDEN_GAMES
 
 
 def check_store_game(request: Request, kind: str):
-    if kind in STORE_HIDDEN_GAMES and STORE_APP_MARK in request.headers.get("user-agent", ""):
-        raise HTTPException(403, "Ce jeu n'est pas proposé dans l'app de l'App Store : ouvre-le sur le site Party.")
+    if kind in STORE_HIDDEN_GAMES and store_app.is_store(request):
+        raise HTTPException(403, store_app.MESSAGE)
+
+
+def check_store_access(request: Request, g: dict):
+    """L'app App Store lit ou rejoint une partie (code, QR, salle) : refusée si elle a des gorgées, un jeu caché ou un
+    mode Hot ; sinon la partie (et sa salle) passe en version App Store pour la suite (questions sans boisson)."""
+    if not store_app.is_store(request):
+        return
+    if store_app.refused(g):
+        raise HTTPException(403, store_app.MESSAGE)
+    changed = False
+    for x in filter(None, (g, room_of(g))):
+        if not x.get("store") and (x["type"] == "room" or x["type"] in store_app.BANK_GAMES):
+            store_app.flag(x) if x["type"] != "room" else x.update(store=True)
+            changed = True
+    if changed:
+        save_games(g["code"], g.get("room") or "")
 
 
 @app.post("/api/games")
@@ -1433,6 +1450,8 @@ def create_game(body: GameCreate, request: Request):
     if len(store.session.games) >= 30:
         raise HTTPException(429, "Trop de parties en cours, réessaie plus tard")
     g = build_game(body)
+    if store_app.is_store(request):
+        store_app.flag(g)  # app App Store : sans gorgées ni mode Hot, questions sans boisson
     _game_creations[ip] = recent + [time.time()]
     game_presence(request, body.guest_id, body.name)
     title, text = f"🎮 {games.GAMES[g['type']]}", f"{g['host_name']} lance une partie · code {g['code']}"
@@ -1500,6 +1519,8 @@ def room_launch(room: dict, me: str, settings: dict):
     kind = settings.get("type")
     if kind not in games.GAMES or kind == "room":
         raise HTTPException(400, "Jeu inconnu")
+    if room.get("store") and kind in STORE_HIDDEN_GAMES:
+        raise HTTPException(403, store_app.MESSAGE)  # l'app App Store est dans la salle : pas de jeu caché
     if kind == "heist" and (len(room["players"]) > 8 or any(p.get("manual") for p in room["players"])):
         raise HTTPException(409, "Le braquage accueille 8 joueurs maximum, chacun avec son téléphone.")
     if kind == "island" and (len(room["players"]) > 8 or any(p.get("manual") for p in room["players"])):
@@ -1520,6 +1541,8 @@ def room_launch(room: dict, me: str, settings: dict):
     if len(store.session.games) >= 30:
         prune_games()
     child = build_game(body)
+    if room.get("store"):
+        store_app.flag(child)
     if fields["plays"] and not gate_free(host):
         guest_gate.record(host, child["code"])
     for p in room["players"]:
@@ -2356,13 +2379,15 @@ class ChatEveryone(ChatRef):
 
 
 @app.post("/api/account/chats")
-def account_chats(body: MemberToken):
-    return chats_call(body.token, lambda: group_chats.chats(body.token), 401)
+def account_chats(body: MemberToken, request: Request):
+    out = chats_call(body.token, lambda: group_chats.chats(body.token), 401)
+    return store_app.neutral_emojis(out) if store_app.is_store(request) else out
 
 
 @app.post("/api/account/chats/open")
-def account_chat_open(body: ChatRef):
-    return chats_call(body.token, lambda: group_chats.conversation(body.token, body.group_id, body.direct, body.prefetch))
+def account_chat_open(body: ChatRef, request: Request):
+    out = chats_call(body.token, lambda: group_chats.conversation(body.token, body.group_id, body.direct, body.prefetch))
+    return store_app.neutral_emojis(out) if store_app.is_store(request) else out
 
 
 @app.post("/api/account/chats/direct")
@@ -3411,7 +3436,7 @@ def game_state(code: str, request: Request, guest_id: str = "", name: str = ""):
 
 def read_game(code: str, request: Request, guest_id: str, name: str):
     g = get_game(code)
-    check_store_game(request, g["type"])
+    check_store_access(request, g)
     game_presence(request, guest_id, name)
     guest_id = canonical_gid(g, guest_id)
     sync_player_name(g, guest_id, name)
@@ -3520,7 +3545,7 @@ def game_action(code: str, body: GameAction, request: Request):
 def perform_game_action(code: str, body: GameAction, request: Request):
     check_guest_id(body.guest_id)
     g = get_game(code)
-    check_store_game(request, g["type"])
+    check_store_access(request, g)
     game_presence(request, body.guest_id, body.name)
     if body.action == "join":
         if g["type"] in ACCOUNT_GAMES:
@@ -5239,10 +5264,11 @@ def invites_page(html: str) -> str:
     return html.replace("<html", '<html data-invites="off"', 1)
 
 
-def bar_page(html: str) -> str:
-    """Bar de la soirée éteint (production, en construction) : <html data-bar="off">, lu par le module Événements
-    (ni bouton « Créer le bar », ni carte du bar, ni scanner du bar)."""
-    if bar_enabled():
+def bar_page(html: str, store: bool = False) -> str:
+    """Bar de la soirée éteint (production, en construction) ou app App Store (refus Apple 1.4.3, 25.11) :
+    <html data-bar="off">, lu par le module Événements (ni bouton « Créer le bar », ni carte du bar, ni scanner, ni
+    réglages de notification du bar)."""
+    if bar_enabled() and not store:
         return html
     return html.replace("<html", '<html data-bar="off"', 1)
 
@@ -5256,25 +5282,30 @@ def apps_page(html: str) -> str:
     return html
 
 
-def features_page(html: str) -> str:
+def features_page(html: str, store: bool = False) -> str:
     # Le bar en premier : son attribut se place après les autres (« <html data-compagnon=… » reste en tête, tests Zicou).
-    return discussions_page(compagnon_page(invites_page(bar_page(apps_page(html)))))
+    # App App Store (store_app) : <html data-store="1">, lu par le module Événements (aucun emoji de boisson).
+    html = bar_page(apps_page(html), store)
+    if store:
+        html = html.replace("<html", '<html data-store="1"', 1)
+    return discussions_page(compagnon_page(invites_page(html)))
 
 
-def page(name: str) -> Response:
-    """Page HTML avec des adresses de scripts et de styles versionnées (mises en cache jusqu'au prochain déploiement)."""
-    key = (name, compagnon_enabled(), discussions_enabled(), invites_v2_enabled(), bar_enabled(), agenda_enabled(), pronos_enabled())
+def page(name: str, store: bool = False) -> Response:
+    """Page HTML avec des adresses de scripts et de styles versionnées (mises en cache jusqu'au prochain déploiement).
+    store : app App Store (store_app.is_store), sans bar."""
+    key = (name, compagnon_enabled(), discussions_enabled(), invites_v2_enabled(), bar_enabled(), agenda_enabled(), pronos_enabled(), store)
     if key not in _pages:
-        html = features_page((STATIC / name).read_text(encoding="utf-8"))
+        html = features_page((STATIC / name).read_text(encoding="utf-8"), store)
         _pages[key] = re.sub(r'(/static/[\w./-]+\.(?:js|css))(?=")', rf"\1?v={BUILD_ID}", html)
     return Response(_pages[key], media_type="text/html; charset=utf-8", headers=NO_CACHE)
 
 
 @app.get("/")
-def index(tab: str = Query("", max_length=20), event: str = Query("", max_length=40)):
+def index(request: Request, tab: str = Query("", max_length=20), event: str = Query("", max_length=40)):
     """Page de Party. Lien de « Partager le lien » d'un événement (/?tab=events&event=<id>) : aperçu de l'événement
     s'il est public (titre, date, image), rien sinon."""
-    response = page("index.html")
+    response = page("index.html", store_app.is_store(request))
     event_id = event_preview.event_id_of_query(tab, event)
     if not event_id:
         return response
@@ -5487,7 +5518,7 @@ def join_page_meta(invite: str) -> str:
 
 
 @app.get("/events/{resource:path}")
-def events_web(resource: str):
+def events_web(resource: str, request: Request):
     """Module web local ; l'accès aux données reste protégé par Supabase Auth/RLS."""
     root = EVENTS_WEB.resolve()
     try:
@@ -5505,7 +5536,7 @@ def events_web(resource: str):
     elif resource.startswith(("_expo/", "assets/")) or Path(resource).suffix:
         raise HTTPException(404, "Ressource introuvable")
     elif (root / "index.html").is_file():
-        html = features_page((root / "index.html").read_text(encoding="utf-8"))
+        html = features_page((root / "index.html").read_text(encoding="utf-8"), store_app.is_store(request))
         if invite := APP_JOIN_PAGE.match(resource):
             html = html.replace("</head>", join_page_meta(invite.group(1)) + "</head>", 1)
         elif invites_v2_enabled() and (event_invite := event_invites.INVITE_PAGE.match(resource)):
@@ -5536,11 +5567,11 @@ IOS_BETA_APP_ID = "GS2B6GA9JA.ch.bobycharbon.party.beta"
 
 
 @app.get("/api/features")
-def features():
+def features(request: Request):
     """Fonctions en bêta pour les apps natives (la page web les lit sur <html data-compagnon> / data-discussions) :
     Compagnon (Zicou) et Discussions (groupes, messages directs)."""
     return JSONResponse({"compagnon": compagnon_enabled(), "discussions": discussions_enabled(),
-                         "invites_v2": invites_v2_enabled(), "bar": bar_enabled(),
+                         "invites_v2": invites_v2_enabled(), "bar": bar_enabled() and not store_app.is_store(request),
                          "patates": patates_enabled() and pronos_enabled(), "agenda": agenda_enabled(),
                          "pronos": pronos_enabled()},
                         headers=NO_CACHE)

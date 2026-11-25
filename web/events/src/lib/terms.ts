@@ -62,7 +62,7 @@ export const TERMS_SECTIONS: { title: string; paragraphs: string[] }[] = [
     paragraphs: [
       'Party ne vend rien et ne touche jamais d’argent : ni paiement, ni portefeuille, ni commission. Un organisateur peut indiquer un prix et un moyen de payer qui est le sien (Revolut, billetterie, sur place) ; le paiement se fait en dehors de Party, entre personnes. Un « J’ai payé » n’est confirmé que par l’organisateur.',
       'Le bar de la soirée est une option de l’organisateur pour une soirée privée entre amis, offerte ou à prix coûtant. Party note seulement qui a pris quoi et qui doit combien ; l’engagement à rembourser est une promesse entre personnes. L’organisateur est seul responsable de ses prix, de ce qu’il sert et du respect de la loi, en particulier sur l’alcool (âge minimum, pas d’alcool à une personne ivre). Tabac et drogues sont interdits.',
-      'Boire n’est jamais obligatoire ni récompensé : dans les jeux, un verre d’eau compte toujours et personne n’est classé selon ce qu’il boit.',
+      'Boire n’est jamais obligatoire ni récompensé : aucun jeu ne demande de boire et personne n’est classé selon ce qu’il boit.',
     ],
   },
   {

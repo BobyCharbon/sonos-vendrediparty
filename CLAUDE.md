@@ -447,6 +447,17 @@ l'admin. Toujours :
   jamais aux gorgées. CGU 2026-11-16 (18 ans et plus, « Paiements, billets et bar »). Pas de mise en prod pendant une revue.
   Tests : `tests/test_compliance_1611.py`, `tests/supabase_live/test_conformite_app_store_live.py`.
 
+## Refus Apple 1.4.3 (25.11) — à garder
+- Règle : JAMAIS de jeu à boire ni de gorgées dans l'app App Store (« PartyStore » dans l'User-Agent ; en prod, aussi tout appel
+  natif `X-Party-Native: ios`, la BETA ne parlant qu'au site de test). Ni boisson, ivresse, drogue, emoji 🍻🍺🥃🍸🍹🍷, mode Hot / Mix, ni bar.
+- Le SERVEUR le garantit (`app/store_app.py`) : jeux cachés (`HIDDEN_GAMES` : Casino, Blackjack, Beer pong, Biskit, Pyramide,
+  Purify Test) et toute partie avec gorgées ou mode Hot refusés (création, salle, code / QR, lecture) ; partie de l'app = `store`,
+  gorgées à 0, questions et mots filtrés (`drinky`) ; salle où l'app est entrée : rien de caché. Page : `STORE` / `STORE_HIDDEN`
+  (games.js). Bar : `data-bar="off"` et `/api/features` bar=false ; `send-push` n'envoie aucune notification `bar_*` à l'app App Store.
+- Undercover s'appelle « L'Intrus » et Mr. White « le Fantôme » partout (marque d'un tiers) ; identifiants inchangés.
+- Tout nouveau jeu, option ou texte : se demander s'il passe dans PartyStore. Tests : `tests/test_store_app.py`,
+  `tests/e2e/test_store_app_no_drinks.py`. Le web, la BETA et Android gardent tout.
+
 ## Zicou : bêta seulement (décision de l'admin, 04.11.2026)
 - Zicou est ÉTEINT hors site de test par `compagnon_enabled()` (`app/features.py` : `COMPAGNON_ENABLED`
   "1"/"0", sinon allumé seulement si l'adresse publique est `partytest.bobycharbon.ch`). Éteint : `/api/pet/*`,

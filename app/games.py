@@ -19,11 +19,12 @@ from . import beerpong, debate, heist, island, likely, masque, neon, president, 
 from .divan_cards import DIVAN_CARDS
 from .moderation import ContentRefused, require_clean
 from .seat_rename import rename_player  # noqa: F401  (games.rename_player : place renommée à la connexion d'un compte)
+from . import store_app
 from .tmc_questions import TMC_QUESTIONS
 from .party_questions import NEVER_AWKWARD, NEVER_HOT, NEVER_SOFT, WHOOF_AWKWARD, WHOOF_HOT, WHOOF_SOFT
 
 GAMES = {
-    "undercover": "Undercover",
+    "undercover": "L'Intrus",  # ex-« Undercover » (nom d'une app connue : 25.11), identifiant inchangé
     "whoof": "Qui de nous ?",
     "likely": "Qui est le plus… ?",
     "debate": "Pour ou contre",
@@ -135,7 +136,7 @@ DIVAN_LABELS = {"experiences": "Expériences", "emotions": "Émotions", "relatio
 # Catégories proposées par défaut ; le mode couple se choisit à part (il remplace les autres).
 DIVAN_DEFAULT = [c for c in DIVAN_CARDS if c != "couple"]
 
-ROLE_LABELS = {"civil": "Civil", "undercover": "Undercover", "white": "Mr. White"}
+ROLE_LABELS = {"civil": "Civil", "undercover": "Intrus", "white": "Fantôme"}  # ex-Undercover / Mr. White (25.11)
 
 
 class GameError(Exception):
@@ -926,6 +927,8 @@ def _divan_current(g: dict) -> dict | None:
 def _divan_draw(g: dict, rng):
     d = g["divan"]
     pool = [(c, q) for c in d["cats"] for q in DIVAN_CARDS[c]]
+    if g.get("store"):
+        pool = store_app.clean(pool, lambda x: x[1])
     used = set(d["used"])
     left = [x for x in pool if x[1] not in used] or pool
     cat, text = rng.choice(left)
@@ -1031,7 +1034,8 @@ def _tmc_pick(g: dict, rng):
 
 def _tmc_question(g: dict, rng) -> str:
     t = g["tmc"]
-    left = [q for q in TMC_QUESTIONS if q not in t["used"]] or TMC_QUESTIONS
+    bank = store_app.clean(TMC_QUESTIONS) if g.get("store") else TMC_QUESTIONS
+    left = [q for q in bank if q not in t["used"]] or bank
     q = rng.choice(left)
     t["used"] = (t["used"] + [q])[-(len(TMC_QUESTIONS) - 1):]
     return q
@@ -2219,7 +2223,10 @@ def _deal(g: dict, rng):
     # Nombre d'imposteurs choisi (sinon selon la tablée) ; les civils restent toujours majoritaires.
     undercovers = g["options"].get("impostors") or (1 if n <= 6 else 2 if n <= 9 else 3)
     undercovers = max(1, min(undercovers, (n - 1) // 2 - whites))
-    pairs = [i for i in range(len(WORD_PAIRS)) if i not in g["used"]] or list(range(len(WORD_PAIRS)))
+    every = list(range(len(WORD_PAIRS)))
+    if g.get("store"):  # app App Store : jamais une paire de boissons alcoolisées (store_app)
+        every = store_app.clean(every, lambda i: " ".join(WORD_PAIRS[i]))
+    pairs = [i for i in every if i not in g["used"]] or every
     pair_index = rng.choice(pairs)
     g["used"] = (g["used"] + [pair_index])[-60:]
     civil, under, hint = WORD_PAIRS[pair_index]
@@ -2418,6 +2425,8 @@ def next_step(g: dict, rng: random.Random = random):
 def _next_question(g: dict, rng):
     modes, phrasing = QUESTION_GAMES[g["type"]]
     pool = modes[g["options"].get("mode", "soft")][1]
+    if g.get("store"):
+        pool = store_app.clean(pool)
     left = [q for q in pool if q not in g["used"]] or pool
     q = rng.choice(left)
     g["used"] = (g["used"] + [q])[-(len(pool) - 1):]
@@ -2565,7 +2574,7 @@ def view(g: dict, gid: str) -> dict:
         out["words"] = g["words"]
     if me:
         out["me"] = {"pid": me["pid"], "alive": me["alive"], "waiting": bool(me.get("waiting")) and not ended, "vote": g["votes"].get(gid) if g["type"] == "never" else _pid(g, g["votes"].get(gid)),
-                     "role": "Mr. White" if me["role"] == "white" else "Undercover" if me["role"] == "undercover" and g["options"].get("reveal") else None,
+                     "role": ROLE_LABELS["white"] if me["role"] == "white" else ROLE_LABELS["undercover"] if me["role"] == "undercover" and g["options"].get("reveal") else None,
                      "word": me["word"],
                      # Indice (option) : ce que les mots ont en commun, pour Mr. White et les imposteurs qui se savent imposteurs.
                      "hint": (g.get("words") or {}).get("hint") if (me["role"] == "white" and g["options"].get("white_hint"))
@@ -2583,7 +2592,7 @@ def _summary_facts(g: dict) -> list[str]:
     if mode_label(g):
         facts.append(f"Questions : {mode_label(g)}")
     if t == "undercover":
-        facts.append("Avec Mr. White" if o.get("white") else "Sans Mr. White")
+        facts.append("Avec le Fantôme" if o.get("white") else "Sans le Fantôme")
     if t in ("whoof", "never", "blackjack", "casino"):
         facts.append(f"Alcool : {sips} gorgée{'s' if sips > 1 else ''}" if sips else "Sans alcool")
     if t in ("whoof", "never") and g["round"]:
@@ -2742,7 +2751,7 @@ def room_vote(room: dict, gid: str, kind: str):
         raise GameError("L'animateur choisit le jeu : il ne vote pas")
     if player(room, gid) is None:
         raise GameError("Rejoins la salle pour voter")
-    if kind not in GAMES or kind == "room":
+    if kind not in GAMES or kind == "room" or (room.get("store") and kind in store_app.HIDDEN_GAMES):
         raise GameError("Jeu inconnu")
     votes = room.setdefault("rvotes", {})
     if votes.get(gid) == kind:
@@ -2762,20 +2771,28 @@ def room_votes(room: dict) -> dict[str, int]:
 
 
 def room_view(room: dict, gid: str, child: dict | None) -> dict:
-    """Ce qu'affiche la salle : le jeu en cours, l'historique et le tableau de la soirée."""
+    """Ce qu'affiche la salle : le jeu en cours, l'historique et le tableau de la soirée. Salle où l'app App Store est
+    entrée (`store`, refus Apple 1.4.3) : aucun jeu caché (catalogue, en cours, votes, déjà joué), aucune gorgée."""
+    hidden = store_app.HIDDEN_GAMES if room.get("store") else ()
+    if child and child["type"] in hidden:
+        child = None
     names = {**room.get("rnames", {}), **{p["id"]: p["name"] for p in room["players"]}}
     ids = set(room["rtally"]) | set(room["rpts"]) | {p["id"] for p in room["players"]}
     board = [{"name": names.get(i, "?"), "me": i == gid, "drink": room["rtally"].get(i, {}).get("drink", 0),
               "give": room["rtally"].get(i, {}).get("give", 0), "pts": room["rpts"].get(i, 0)} for i in ids if i in names]
     # Classement aux points seulement, jamais aux gorgées (App Store 1.4.3 : ne jamais récompenser le fait de boire).
     board.sort(key=lambda r: (-r["pts"], r["name"]))
+    if room.get("store"):
+        for r in board:
+            r["drink"] = r["give"] = 0
     return {"current": {"code": child["code"], "type": child["type"], "name": GAMES[child["type"]], "phase": child["phase"],
                         "players": len(child["players"])} if child else None,
-            "history": list(reversed(room["rhistory"][-12:])), "board": board,
-            "votes": (votes := room_votes(room)), "my_vote": room.get("rvotes", {}).get(gid) if player(room, gid) else None,
+            "history": [h for h in reversed(room["rhistory"][-12:]) if h.get("type") not in hidden], "board": board,
+            "votes": (votes := {k: n for k, n in room_votes(room).items() if k not in hidden}),
+            "my_vote": room.get("rvotes", {}).get(gid) if player(room, gid) and room.get("rvotes", {}).get(gid) not in hidden else None,
             # Le ou les jeux les plus votés (égalité : tous), proposés à l'animateur.
             "top": sorted(k for k, n in votes.items() if n == max(votes.values())) if votes else [],
-            "catalog": [{"type": t, "name": n} for t, n in GAMES.items() if t != "room"]}
+            "catalog": [{"type": t, "name": n} for t, n in GAMES.items() if t != "room" and t not in hidden]}
 
 
 def summary(g: dict) -> dict:

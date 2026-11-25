@@ -8,7 +8,7 @@ GAME_RULES.likely = `
   <h3>Sans téléphone ?</h3>
   <p>L'animateur peut ajouter des participants sans téléphone : son écran dit à qui passer son téléphone. La personne touche « C'est moi », vote, et l'écran se cache aussitôt. Quelqu'un est absent ? L'animateur le passe.</p>
   <h3>La révélation</h3>
-  <p>Quand tout le monde a voté, le téléphone révèle le plus désigné et le nombre de voix de chacun, <b>jamais qui a voté pour qui</b>. Il prend un point ; avec l'option alcool, il boit ses gorgées. En cas d'égalité, tous les ex æquo sont désignés.</p>
+  <p>Quand tout le monde a voté, le téléphone révèle le plus désigné et le nombre de voix de chacun, <b>jamais qui a voté pour qui</b>. Il prend un point${STORE ? "" : " ; avec l'option alcool, il boit ses gorgées"}. En cas d'égalité, tous les ex æquo sont désignés.</p>
   <h3>Les questions</h3>
   <ul>
     <li><b>👨‍👩‍👧 Tous publics</b> : 365 questions, à jouer aussi avec les parents et les ados.</li>
@@ -16,7 +16,7 @@ GAME_RULES.likely = `
   </ul>
   <p>Aucune question ne revient dans la partie. Avant le premier vote, l'animateur peut en tirer une autre (🔀).</p>
   <h3>La fin</h3>
-  <p>Après 10, 20 ou 30 questions, le podium désigne « le plus susceptible de la soirée ». Personne n'est obligé de boire de l'alcool : un verre d'eau compte aussi.</p>`;
+  <p>Après 10, 20 ou 30 questions, le podium désigne « le plus susceptible de la soirée ».${STORE ? "" : " Personne n'est obligé de boire de l'alcool : un verre d'eau compte aussi."}</p>`;
 
 let lkReadyKey = "";  // le votant a touché « C'est moi » : la grille des prénoms s'affiche pour lui
 let lkSeen = "";
@@ -41,7 +41,7 @@ function lkSettingsHtml(g) {
   const v = g.likely, sips = g.options?.sips || 0;
   const packs = v.pack_list.map((p) => `<button type="button" class="${v.packs.includes(p.id) ? "on" : ""}" data-lk-pack="${p.id}" aria-pressed="${v.packs.includes(p.id)}">${esc(p.label)} <small>${p.size}</small></button>`).join("");
   const counts = v.counts.map((n) => `<button type="button" class="${v.count === n ? "on" : ""}" data-lk-count="${n}" aria-pressed="${v.count === n}">${n}</button>`).join("");
-  const stakes = [0, ...Array.from({ length: v.max_sips }, (_, i) => i + 1)].map((n) =>
+  const stakes = [0, ...Array.from({ length: STORE ? 0 : v.max_sips }, (_, i) => i + 1)].map((n) =>  // App Store : un point seulement
     `<button type="button" class="${sips === n ? "on" : ""}" data-lk-sips="${n}" aria-pressed="${sips === n}">${n ? `🍻 ${sipWord(n)}` : "⭐ 1 point"}</button>`).join("");
   return `<div class="lk-setup">
     <div class="g-label">Questions</div><div class="lk-chips">${packs}</div>

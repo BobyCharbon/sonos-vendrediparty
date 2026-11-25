@@ -26,5 +26,11 @@ export const barOn = typeof document === 'undefined' || document.documentElement
  * Agenda et Pronos : gardés en test (décision du 19.11) — Party sert la page avec <html data-agenda="off"> /
  * data-pronos="off" hors site de test (app/features.py) : ni entrée (Réglages, en-tête, groupe, fiche), ni page.
  */
+/**
+ * App VendrediParty de l'App Store (refus Apple 1.4.3, 25.11) : Party sert la page avec <html data-store="1">
+ * (app/store_app.py) : aucun emoji de boisson à l'écran (emojis 🍻 🍷 des groupes montrés en 🎉, absents du choix).
+ */
+export const storeApp = typeof document !== 'undefined' && document.documentElement.dataset.store === '1';
+
 export const agendaOn = typeof document === 'undefined' || document.documentElement.dataset.agenda !== 'off';
 export const pronosOn = typeof document === 'undefined' || document.documentElement.dataset.pronos !== 'off';

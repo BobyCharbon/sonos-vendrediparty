@@ -39,7 +39,7 @@ def test_views_hide_secrets():
     # Les guest_id (secrets) des joueurs n'apparaissent jamais : seulement des identifiants publics.
     assert not any(p["id"] in str(v) for p in g["players"])
     white = by_role(g, "white")[0]
-    assert games.view(g, white)["me"]["role"] == "Mr. White" and games.view(g, white)["me"]["word"] is None
+    assert games.view(g, white)["me"]["role"] == "Fantôme" and games.view(g, white)["me"]["word"] is None
     assert "me" not in games.view(g, "inconnu") and "words" not in games.view(g, "inconnu")
 
 
@@ -963,7 +963,7 @@ def test_admin_summary_has_details_without_secrets():
     games.start(g, random.Random(1))
     s = games.summary(g)
     assert s["host"] == "Hôte" and s["created_at"] and len(s["players_detail"]) == 4
-    assert "Avec Mr. White" in s["facts"]
+    assert "Avec le Fantôme" in s["facts"]
     assert g["words"]["civil"] not in str(s) and g["words"]["undercover"] not in str(s)
     c = games.new_game("casino", host="h", name="H")
     assert games.summary(c)["players_detail"][0]["extra"] == "💰 100"
@@ -1135,8 +1135,8 @@ def test_undercover_reveal_and_hint_options():
     hint = g["words"]["hint"]
     assert hint
     under, white, civil = by_role(g, "undercover")[0], by_role(g, "white")[0], by_role(g, "civil")[0]
-    assert games.view(g, under)["me"]["role"] == "Undercover" and games.view(g, under)["me"]["hint"] == hint
-    assert games.view(g, white)["me"]["role"] == "Mr. White" and games.view(g, white)["me"]["hint"] == hint
+    assert games.view(g, under)["me"]["role"] == "Intrus" and games.view(g, under)["me"]["hint"] == hint
+    assert games.view(g, white)["me"]["role"] == "Fantôme" and games.view(g, white)["me"]["hint"] == hint
     assert games.view(g, civil)["me"]["role"] is None and games.view(g, civil)["me"]["hint"] is None
     g["options"].update(reveal=False)  # sans révélation : l'imposteur ne sait rien, et n'a donc pas d'indice
     assert games.view(g, under)["me"]["role"] is None and games.view(g, under)["me"]["hint"] is None

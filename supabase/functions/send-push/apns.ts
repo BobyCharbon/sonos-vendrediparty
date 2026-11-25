@@ -4,6 +4,12 @@
 // ch.bobycharbon.party en prod, ch.bobycharbon.party.beta sur la base de test) ; APNS_SANDBOX=1 pour un build Xcode.
 
 export const APNS_TOKEN = /^apns:([0-9a-f]{64,200})$/;
+
+/** App VendrediParty de l'App Store (topic sans « .beta ») : aucune notification du bar (refus Apple 1.4.3, 25.11 :
+ *  le bar n'existe pas dans cette app). La BETA et le Web Push les gardent. */
+export function storeAppSkips(topic: string, kind: string): boolean {
+  return topic === 'ch.bobycharbon.party' && kind.startsWith('bar_');
+}
 const JWT_LIFETIME_MS = 50 * 60_000;
 const PRODUCTION = 'api.push.apple.com', SANDBOX = 'api.sandbox.push.apple.com';
 

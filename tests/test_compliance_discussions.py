@@ -75,7 +75,7 @@ def test_privacy_policy_tells_the_discussions_v2_rules_word_for_word_on_web_and_
 
 
 def test_terms_of_2026_11_18_have_the_direct_messages_section_without_a_new_version():
-    web, ios = terms_sections(web=True), terms_sections(web=False)
+    web, ios = terms_sections(web=True), ios_terms_after_refus_143()
     assert web == ios
     text = " ".join(t + " " + " ".join(ps) for t, ps in web)
     for words in TERMS:
@@ -132,3 +132,10 @@ def test_app_store_checklist_keeps_the_admin_decisions_in_view():
         assert words in checklist, words
     guide = read("docs/app-store/notes-for-review.md")
     assert read("ios/appstore/review-notes.txt").strip() in guide  # partie A = fichier envoyé
+
+
+def ios_terms_after_refus_143():
+    """Refus Apple 1.4.3 (25.11) : le web ne dit plus « dans les jeux, un verre d'eau compte toujours » (simple précision,
+    même version des CGU) ; l'iPhone garde l'ancienne phrase jusqu'au prochain build (TermsView.swift, non touché)."""
+    old, new = "dans les jeux, un verre d'eau compte toujours et", "aucun jeu ne demande de boire et"
+    return [(t, [p.replace(old, new) for p in ps]) for t, ps in terms_sections(web=False)]

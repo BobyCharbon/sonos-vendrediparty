@@ -9,7 +9,7 @@ script le 16.11.2026. Vérifié dans le code (develop) et sur la prod en lecture
 | Champ | Valeur | Source / remarque |
 |---|---|---|
 | Nom (30 car.) | **Vendredi Party** (14) | Choix de l'admin du 16.11 (« Party » et « Party ! » seuls sont pris, commit 1580f6a). Secours si refusé : « Party ! Événements & soirées » (28). Sous l'icône : « Party ! » (`PARTY_DISPLAY_NAME`, project.yml). |
-| Sous-titre (30 car.) | **Événements, soirées et jeux** (27) | Pour une bande d'amis comme pour une association qui organise des événements. |
+| Sous-titre (30 car.) | **Événements, groupes et jeux** (27 ; 25.11, refus 1.4.3 : plus « soirées ») | Pour une bande d'amis comme pour une association qui organise des événements. |
 | Identifiant de lot | `ch.bobycharbon.party` | project.yml (Release) |
 | SKU | `party-ios` | ios/README.md |
 | Version | 1.0.0 | `MARKETING_VERSION` |
@@ -30,10 +30,9 @@ script le 16.11.2026. Vérifié dans le code (develop) et sur la prod en lecture
 
 ## Texte promotionnel (170 car.)
 
-> Organise tes soirées en un geste : invitations par lien, sondage de dates, billets dans Cartes, covoiturage, bar de
-> la soirée et salle de jeux pour toute la bande.
+> Organise tes événements en un geste : invitations par lien, sondage de dates, billets dans Cartes, covoiturage, discussions et salle de jeux pour toute la bande.
 
-(163 caractères ; modifiable à tout moment sans nouvelle version.)
+(161 caractères ; 25.11 : plus de bar ; modifiable à tout moment sans nouvelle version.)
 
 ## Description (4 000 car.)
 
@@ -49,9 +48,6 @@ Vendredi Party réunit tes soirées et tes événements dans une seule app, pour
 • Covoiturage entre participants, liste « qui amène quoi », mini-sondages et discussion de l'événement.
 • Billets QR dans l'app Cartes d'Apple, scannés à l'entrée par l'organisateur.
 • Événement payant ? Chacun paie l'organisateur directement, en dehors de l'app (lien de paiement, virement ou sur place), puis le note dans Party.
-
-BAR DE LA SOIRÉE
-L'organisateur prépare la carte des boissons servies sur place. Chacun montre son QR au comptoir et voit ce qu'il doit à l'organisateur, à rembourser entre amis. Party ne vend rien et ne touche jamais l'argent.
 
 DISCUSSIONS
 Discute avec tes groupes et en message privé : texte, photos, messages vocaux. Signaler et bloquer en un geste, conditions d'utilisation claires et modération par notre équipe.
@@ -74,16 +70,16 @@ Sans publicité, sans suivi publicitaire, sans achat intégré. Réservé aux pe
 ```
 
 Longueur : 2 541 caractères (limite 4 000). Aucun nom de marque tierce, aucun mot sur l'alcool, Zicou, Casino ou Blackjack.
-« Sur place » et le bar sont décrits sans promesse : la musique demande une soirée en cours chez un hôte équipé ; le bar
-et les billets n'existent que si l'organisateur les allume.
+« Sur place » est décrit sans promesse : la musique demande une soirée en cours chez un hôte équipé ; les billets
+n'existent que si l'organisateur les allume. Refus 1.4.3 (25.11) : plus de bar dans la fiche ni dans l'app App Store.
 
 ## Mots-clés (100 car.)
 
 ```text
-fête,soirée,événement,association,invitation,sondage,quiz,apéro,anniversaire,covoiturage,billet
+fête,soirée,événement,association,invitation,sondage,quiz,anniversaire,covoiturage,billet,groupe
 ```
 
-(95 caractères ; sans espaces ; ni « party » ni « vendredi », déjà dans le nom ; aucune marque : ni Spotify, Sonos, YouTube, Twint, Revolut,
+(96 caractères ; 25.11 : « apéro » retiré, refus 1.4.3 ; sans espaces ; ni « party » ni « vendredi », déjà dans le nom ; aucune marque : ni Spotify, Sonos, YouTube, Twint, Revolut,
 Claude, Apple — règle 2.3.7 ; aucun mot d'alcool.)
 
 ## Nouveautés de cette version
@@ -92,7 +88,6 @@ Version 1.0.0 = **première version** : Apple n'affiche pas ce champ (et `tools/
 Texte prêt pour la prochaine version (1.0.1), à mettre dans `ios/appstore/whats-new-fr.txt` le moment venu :
 
 ```text
-• Bar de la soirée : la carte des boissons, ton QR au comptoir et ton solde dans Cartes.
 • Discussions : tes groupes et tes messages privés, avec photos et messages vocaux.
 • Paiement d'un événement plus clair : lien de paiement, billetterie ou sur place.
 • Corrections et améliorations.
@@ -116,7 +111,7 @@ partie périmé (sa capture « 2-games-3d » vise une section cachée depuis l'a
 | 4 | Feuille « Inviter » (Une personne / Plusieurs, lien) | Carte Invités › + Inviter | Invite avec un simple lien |
 | 5 | Sondage de dates (Oui / Si besoin / Non) | Pastille Sondages › un sondage fictif | Trouvez la date ensemble |
 | 6 | Ton billet (QR + badge « Ajouter à Cartes Apple ») | Événement à billets, billet remis | Ton billet dans Cartes |
-| 7 | Bar de la soirée côté invité (carte **sans alcool** : sirop, jus, eau…) | Ouvrir le bar › | Le bar de la soirée, sans prise de tête |
+| 7 | Discussion de l'événement (messages fictifs) | Fiche › Discussion | Toute la soirée se prépare ici |
 | 8 | Discussions : une conversation de groupe fictive | Onglet Discussions | Discute avec tes groupes |
 | 9 | Salle de jeux (tuiles d'« Ambiance » / « Jeux de cartes ») ou une question de Quiz | Jeux › Créer une salle | Une salle de jeux pour toute la bande |
 | 10 | Musique pendant une soirée (file avec des titres) ou Méninges | Musique (soirée en cours) / Jeux › Méninges | La musique choisie par tous |

@@ -14,6 +14,7 @@ d'animateur restent dans main.py.
 import random
 from statistics import pstdev
 
+from . import store_app
 from .debate_questions import LIGHT, MORAL, RELATIONS, SOCIETY, WTF
 from .moderation import ContentRefused, require_clean
 
@@ -85,6 +86,8 @@ def _draw(S: dict, rng, bank_only: bool = False) -> dict:
     if S["queue"] and not bank_only:
         return S["queue"].pop(0)
     pool = [(t, q) for t in S["themes"] for q in THEMES[t][1]]
+    if S.get("store"):  # app App Store : aucun dilemme qui parle d'alcool (store_app)
+        pool = store_app.clean(pool, lambda x: x[1])
     left = [x for x in pool if x[1] not in S["used"]]
     if not left:
         S["used"], left = [], pool

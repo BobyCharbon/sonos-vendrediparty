@@ -1,7 +1,7 @@
 // Chaque appel est authentifié par un secret conservé dans Vault.
 // Une livraison par appareil, avec reprise sur erreur et suivi des reçus Expo.
 import { createClient } from 'npm:@supabase/supabase-js@2.117.3';
-import { APNS_TOKEN, apnsConfig, sendApns } from './apns.ts';
+import { APNS_TOKEN, apnsConfig, sendApns, storeAppSkips } from './apns.ts';
 
 const EXPO_URL = 'https://exp.host/--/api/v2/push';
 type Delivery = {
@@ -64,8 +64,16 @@ Deno.serve(async (req: Request) => {
       if (!claimed.length) break;
       // App iOS native : directement chez Apple (pas de reçu à attendre). Sans clé APNs configurée, on réessaie plus tard.
       const apns = apnsConfig((name) => Deno.env.get(name));
-      for (const row of claimed.filter((r) => APNS_TOKEN.test(r.token))) {
+      const native = claimed.filter((r) => APNS_TOKEN.test(r.token));
+      // App App Store (refus Apple 1.4.3, 25.11) : le bar y est caché, aucune notification du bar n'y part.
+      const kinds = new Map<string, string>();
+      if (apns && native.length && storeAppSkips(apns.topic, 'bar_served')) {
+        const rows = checked(await db.from('notifications').select('id, kind').in('id', native.map((r) => r.notification_id))) as { id: string; kind: string }[];
+        for (const n of rows) kinds.set(n.id, n.kind);
+      }
+      for (const row of native) {
         if (!apns) { await failOrRetry(row, 'ApnsNotConfigured'); continue; }
+        if (storeAppSkips(apns.topic, kinds.get(row.notification_id) ?? '')) { await failOrRetry(row, 'StoreAppNoBar', true); continue; }
         const sent = await sendApns(apns, row.token, row.notification_id, row.title, row.body, row.data ?? {});
         if (sent.ok) {
           checked(await db.from('notification_deliveries').update({

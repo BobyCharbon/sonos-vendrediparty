@@ -121,7 +121,8 @@ def test_review_notes_describe_every_big_feature_delivered_by_the_web():
         "nom qui ouvre le profil": "open the profile",
         "heure des réponses et des votes": "shows its time",
         "surnom à 12 caractères": "12 characters",
-        "Pyramide : 30 s, cartes protégées des captures": "hidden from screenshots",
+        "refus 1.4.3 : plus de jeu à boire (25.11)": "No drinking games",
+        "refus 1.4.3 : ce qui a été retiré": "Changes since the 1.4.3 rejection",
     }
     missing = [name for name, word in features.items() if word.lower() not in notes.lower()]
     assert not missing, missing

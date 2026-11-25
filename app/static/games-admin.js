@@ -8,7 +8,7 @@
   const notify = (msg, kind) => (typeof toast === "function" ? toast(msg, kind) : alert(msg));
   const hhmm = (t) => new Date(t * 1000).toLocaleTimeString("fr-CH", { hour: "2-digit", minute: "2-digit" });
   const duration = (sec) => { const m = Math.max(0, Math.floor(sec / 60)); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")}`; };
-  const PHASES = { lobby: "Inscriptions", words: "Indices", vote: "Vote", white_guess: "Devinette de Mr. White",
+  const PHASES = { lobby: "Inscriptions", words: "Indices", vote: "Vote", white_guess: "Devinette du Fantôme",
     reveal: "Résultat de la manche", end: "Terminée", question: "Question", results: "Résultats",
     answer: "Réponse en secret", guess: "À voix haute", judge: "Points", scored: "Résultat du duo",
     bet: "Mises", play: "Partie en cours", spun: "Résultat", card: "En séance", deal: "Distribution", pyramid: "Pyramide",

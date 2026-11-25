@@ -34,7 +34,7 @@ import { chatTimeline, directAsGroupMessage, EVENT_TAGS, eventChatPrefs, eventTa
 import { trackRead } from '@/lib/chatList';
 import { useLivePing, useQuery, useRealtime, type RealtimeRow } from '@/lib/data';
 import { discussionsOn } from '@/lib/features';
-import { groupName } from '@/lib/groups';
+import { groupEmoji, groupName } from '@/lib/groups';
 import { useMiniProfile } from '@/lib/miniProfile';
 import { openNativeDirect } from '@/lib/nativeChat';
 import { saveRsvp } from '@/lib/rsvp';
@@ -917,7 +917,7 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
   const look: HeaderLook = direct
     ? { kind: 'direct', userId: data?.other ?? id, photo: data?.other ? people.get(data.other)?.avatar_url ?? null : null }
     : event ? { kind: 'event', start: data?.eventStart ?? null }
-      : { kind: 'group', emoji: data?.group.emoji || '🎉', color: data?.group.color ?? null, photo_path: data?.group.photo_path ?? null, system_key: data?.group.system_key ?? null };
+      : { kind: 'group', emoji: groupEmoji(data?.group.emoji) || '🎉', color: data?.group.color ?? null, photo_path: data?.group.photo_path ?? null, system_key: data?.group.system_key ?? null };
   const header = (
     <>
       <Stack.Screen options={{ title, headerShown: false }} />

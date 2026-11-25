@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { ViewStyle } from 'react-native';
 
+import { storeApp } from './features';
 import { must, supabase } from './supabase';
 
 /**
@@ -10,6 +11,13 @@ import { must, supabase } from './supabase';
  * Mêmes listes que la base (migration 20261117100000, contraintes member_groups_emoji_check / _color_check).
  */
 export const GROUP_EMOJIS = ['👯', '🎉', '🪩', '⚽', '🏡', '🎲', '🥾', '🎸', '🍕', '🍻', '🍷', '🎂', '🌴', '🎮', '🎤', '🏀'] as const;
+
+/** Emojis proposés au choix : sans 🍻 ni 🍷 dans l'app App Store (refus 1.4.3). */
+export const PICKABLE_EMOJIS: readonly string[] = storeApp ? GROUP_EMOJIS.filter((e) => e !== '🍻' && e !== '🍷') : GROUP_EMOJIS;
+/** Emoji montré pour un groupe : 🍻 / 🍷 deviennent 🎉 dans l'app App Store (la base garde le choix du groupe). */
+export function groupEmoji(emoji?: string | null): string {
+  return storeApp && (emoji === '🍻' || emoji === '🍷') ? '🎉' : emoji ?? '';
+}
 
 export const GROUP_COLORS = {
   pink: { name: 'Rose', main: '#FF4F9A', from: '#FF8FC0', to: '#FF4F9A', dim: '#3A1730', text: '#FF8FC0' },

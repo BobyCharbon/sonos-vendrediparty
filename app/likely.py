@@ -11,6 +11,7 @@ les gorgées, l'ordre des joueurs et les droits d'animateur restent dans games.p
 """
 import random
 
+from . import store_app
 from .likely_questions import FAMILY, FRIENDS
 
 PACKS: dict[str, tuple[str, list[str]]] = {
@@ -53,7 +54,7 @@ def configure(g: dict, settings: dict):
         sips = settings["sips"]
         if not isinstance(sips, int) or not 0 <= sips <= MAX_SIPS:
             raise LikelyError(f"Entre 0 et {MAX_SIPS} gorgées")
-        g["options"]["sips"] = sips
+        g["options"]["sips"] = 0 if g.get("store") else sips  # app App Store : jamais de gorgées (store_app)
 
 
 def start(g: dict, rng=random):
@@ -66,7 +67,8 @@ def start(g: dict, rng=random):
 
 
 def _pool(S: dict) -> list[str]:
-    return [q for p in S["packs"] for q in PACKS[p][1]]
+    pool = [q for p in S["packs"] for q in PACKS[p][1]]
+    return store_app.clean(pool) if S.get("store") else pool
 
 
 def _ask(g: dict, rng):

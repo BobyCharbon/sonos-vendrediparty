@@ -52,7 +52,7 @@ def test_during_the_party_the_tv_shows_the_track_the_next_requests_the_event_and
     assert [t['title'] for t in data['upcoming']] == [f'Titre {i}' for i in range(1, 7)]  # les 6 prochains
     assert data['upcoming'][0] == {'title': 'Titre 1', 'artist': 'A', 'art': '', 'by': 'Tom'}
     assert data['event'] == 'Vendredi chez Boby'
-    assert data['games'] == [{'code': code, 'name': 'Undercover', 'players': 1}]
+    assert data['games'] == [{'code': code, 'name': "L'Intrus", 'players': 1}]
 
 
 def test_the_tv_says_when_the_music_cannot_be_reached(tv, monkeypatch):

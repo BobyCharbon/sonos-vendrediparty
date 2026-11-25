@@ -62,7 +62,7 @@ Résultat attendu : **18+**. Libellés anglais d'App Store Connect (ils peuvent 
 | Advertising | Non | Aucune publicité |
 | Profanity or Crude Humor | Peu fréquent / léger | Questions « hot » de « Je n'ai jamais », « Qui de nous ? », Président (« … ou Trou du cul ») |
 | Horror/Fear Themes | Aucun | |
-| Alcohol, Tobacco, or Drug Use or References | **Fréquent / intense** | Catégorie « 🍻 Alcool » (Beer pong, Biskit Royal, Je n'ai jamais, Qui de nous ?, Roulette, Purify Test), mode gorgées de Pyramide, Quiz, Qui est le plus… ; catégorie Drogues de Purify Test |
+| Alcohol, Tobacco, or Drug Use or References | **Peu fréquent / léger** (25.11) | Refus Apple 1.4.3 : aucun jeu à boire, gorgée, bar ni Purify Test dans l'app App Store (app/store_app.py) ; restent de rares mentions écrites par les membres |
 | Mature or Suggestive Themes | Fréquent / intense | Questions « hot », Purify Test (🔞 Adultes) |
 | Medical or Treatment Information | Aucun | |
 | Health or Wellness Topics | Aucun | |
