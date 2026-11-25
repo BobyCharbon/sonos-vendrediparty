@@ -1,6 +1,6 @@
 import XCTest
 
-/// Recette du refus Apple 1.4.3 (25.11.2026), configuration Release (= app App Store, « PartyStore »), serveur Party local
+/// Recette du refus Apple 1.4.3 (25.11.2026, jeux à boire BLOQUÉS dans l'app, Musique par code), configuration Release (= app App Store, « PartyStore »), serveur Party local
 /// de la branche, base de TEST, drapeaux de la prod (bar allumé sur le serveur, Zicou éteint). Chaque écran est photographié
 /// (avec son arbre d'accessibilité) dans REFUS_DIR ; tout mot de boisson, jeu caché ou mode Hot fait échouer le test.
 ///   TEST_RUNNER_REFUS_DIR=… [TEST_RUNNER_REFUS_PHONE=0790000001] [TEST_RUNNER_REFUS_EVENT=<titre>] xcodebuild test-without-building
@@ -15,7 +15,8 @@ final class RecetteRefus143UITests: XCTestCase {
     static let forbidden = ["gorgée", "Gorgée", "boire", " boit", "alcool", "Alcool", "bière", "Bière", "vodka", "Vodka",
                             "tequila", "Tequila", "tournée", "ivre", "🍻", "🍺", "🥃", "🍸", "🍹", "🍷", "Bar de la soirée",
                             "Bar : ", "Beer pong", "Purify", "Biskit", "Casino", "Blackjack", "🔥 Hot", "🎲 Mix",
-                            "Undercover", "Mr. White", "🍬", "bonbon"]
+                            "Undercover", "Mr. White", "🍬", "bonbon", "Pyramide", "Je n'ai jamais", "Qui de nous", "Roulette",
+                            "shot", "Shot", "verre", "cuite", "vomi", "drogue", "Pronos", "confettis"]
 
     override func setUpWithError() throws {
         guard let path = env["REFUS_DIR"] else { throw XCTSkip("Recette à la demande (REFUS_DIR)") }
@@ -77,24 +78,85 @@ final class RecetteRefus143UITests: XCTestCase {
         for _ in 0..<pages { app.swipeDown(velocity: .fast) }
     }
 
-    /// Pyramide en points (décision du 25.11) : la partie est préparée et menée par refus_143_pyramide.py (même identité
-    /// d'invité, REFUS_PYR_GID / REFUS_PYR_CODE) ; ici, une capture toutes les 4 s : distribution, mémorisation, sommet, tableau des points.
-    func testPyramidPoints() throws {
-        guard let gid = env["REFUS_PYR_GID"], let code = env["REFUS_PYR_CODE"] else { throw XCTSkip("REFUS_PYR_GID / CODE") }
+    /// Jeux bloqués dans l'app (décision de l'admin du 25.11) : jamais dans la salle ; leur code (partie créée sur le web,
+    /// REFUS_PYR_CODE / REFUS_BISKIT_CODE) est refusé avec un message neutre. Musique : onglet caché, code à 6 chiffres
+    /// (REFUS_MUSIC_PIN) dans Jeux › Code, puis « Revenir à la soirée Musique ».
+    func testHiddenGameCodesAndMusicCode() {
+        app = XCUIApplication()
+        app.launchEnvironment["PARTY_DEBUG_JS"] = "localStorage.setItem('vp_install_dismissed','1');localStorage.setItem('vp_name','Léa');localStorage.removeItem('vp_room');localStorage.removeItem('vp_game');"
+        app.launch()
+        sleep(6)
+        step = 20
+        XCTAssertTrue(tab("Jeux").waitForExistence(timeout: 30))
+        XCTAssertFalse(app.tabBars.buttons["Musique"].exists, "onglet Musique visible")
+        tab("Jeux").tap()
+        sleep(3)
+        record("barre-sans-musique")
+        let field = app.webViews.textFields.matching(NSPredicate(format: "placeholderValue == '4 ou 6 chiffres'")).firstMatch
+        for (name, key) in [("pyramide", "REFUS_PYR_CODE"), ("biskit", "REFUS_BISKIT_CODE"), ("musique", "REFUS_MUSIC_PIN")] {
+            guard let code = env[key] else { continue }
+            tab("Jeux").tap()
+            sleep(2)
+            for _ in 0..<4 where !(field.exists && field.isHittable) { app.swipeDown(velocity: .fast) }
+            guard field.waitForExistence(timeout: 10) else { record("champ-code-absent-\(name)"); XCTFail("champ Code"); continue }
+            field.tap()
+            app.typeText(code)
+            if name != "musique" {  // 6 chiffres : la soirée s'ouvre seule ; 4 chiffres : « Rejoindre »
+                let join = web("Rejoindre")
+                if join.exists { join.tap() }
+            }
+            // Refus : un message passager (toast de ~3 s), lu tout de suite ; Musique : la page s'ouvre.
+            if name == "musique" { sleep(4) }
+            let refused = NSPredicate(format: "label CONTAINS %@", "pas disponible dans l'app")
+            let shown = name == "musique" || app.descendants(matching: .any).matching(refused).firstMatch.waitForExistence(timeout: 4)
+            record("code-\(name)")
+            if name == "musique" {
+                XCTAssertFalse(app.tabBars.buttons["Musique"].exists, "onglet Musique apparu")
+                tab("Jeux").tap()
+                sleep(3)
+                record("jeux-revenir-musique")
+                XCTAssertTrue(app.webViews.buttons.matching(NSPredicate(format: "label CONTAINS 'soirée Musique'")).firstMatch.exists,
+                              "« Revenir à la soirée Musique »")
+            } else {
+                XCTAssertTrue(shown, "message neutre pour \(name)")
+                // Vider le champ pour le code suivant.
+                field.tap()
+                app.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 6))
+            }
+        }
+    }
+
+    /// Une partie complète d'un jeu gardé, lancée dans une salle (Qui est le plus… ?), menée jusqu'au podium par
+    /// refus_143_likely.py avec la même identité d'invité (REFUS_GID, REFUS_ROOM, REFUS_GAME) ; une capture toutes les ~12 s,
+    /// puis le menu ☰ (Participants).
+    func testRoomGameToPodium() throws {
+        guard let gid = env["REFUS_GID"], let room = env["REFUS_ROOM"], let code = env["REFUS_GAME"] else { throw XCTSkip("REFUS_GID / ROOM / GAME") }
         app = XCUIApplication()
         app.launchEnvironment["PARTY_DEBUG_JS"] = "localStorage.setItem('vp_install_dismissed','1');localStorage.setItem('vp_name','Léa');"
-            + "localStorage.setItem('vp_guest','\(gid)');localStorage.setItem('vp_game','\(code)');localStorage.removeItem('vp_room');"
+            + "localStorage.setItem('vp_guest','\(gid)');localStorage.setItem('vp_room','\(room)');localStorage.setItem('vp_game','\(code)');"
         app.launch()
-        sleep(5)
-        // Partie en cours : l'app s'ouvre dessus, en plein écran (sans barre d'onglets) ; sinon, l'onglet Jeux.
+        sleep(6)
         if tab("Jeux").exists && tab("Jeux").isHittable { tab("Jeux").tap() }
         sleep(3)
         step = 60
-        try? "ready".write(to: dir.appendingPathComponent("pyramide-prete.txt"), atomically: true, encoding: .utf8)
-        let frames = Int(env["REFUS_PYR_FRAMES"] ?? "40") ?? 40
-        for i in 0..<frames {
-            record(String(format: "pyramide-%02d", i))
-            sleep(3)
+        try? "ready".write(to: dir.appendingPathComponent("partie-prete.txt"), atomically: true, encoding: .utf8)
+        let done = dir.appendingPathComponent("partie-finie.txt")
+        for i in 0..<60 {
+            if i % 3 == 0 { record(String(format: "partie-%02d", i)) } else { sleep(4) }
+            if FileManager.default.fileExists(atPath: done.path) { break }
+        }
+        sleep(3)
+        record("podium")
+        let burger = app.webViews.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Menu'")).firstMatch
+        if burger.waitForExistence(timeout: 5) {
+            burger.tap()
+            sleep(2)
+            record("menu-participants")
+            app.swipeUp(velocity: .slow)
+            record("menu-participants-bas")
+        } else {
+            record("menu-introuvable")
+            XCTFail("bouton ☰ introuvable")
         }
     }
 
@@ -117,7 +179,8 @@ final class RecetteRefus143UITests: XCTestCase {
         scrollAndRecord("salle-categories", pages: 5)
 
         // Réglages de chaque jeu gardé (la feuille de la salle) : aucune option de gorgées, aucun mode Hot / Mix.
-        for game in ["Je n'ai jamais", "Qui de nous", "Qui est le plus", "Quiz", "L'Intrus", "Roulette", "Pour ou contre"] {
+        for game in ["Qui est le plus", "Quiz", "L'Intrus", "Pour ou contre", "Le Divan", "Tu me connais", "Le Masque", "Le Reflet",
+                     "Qui es-tu vraiment", "Président", "Néon Knockout", "L’île qui", "Braquage"] {
             let tile = web(game)
             for _ in 0..<8 where !(tile.exists && tile.isHittable) { app.swipeUp(velocity: .slow) }
             guard tile.exists else { record("absent-\(game)"); XCTFail("tuile \(game) absente"); continue }
@@ -131,18 +194,6 @@ final class RecetteRefus143UITests: XCTestCase {
             sleep(2)
             for _ in 0..<6 { app.swipeDown(velocity: .fast) }
         }
-
-        // Je n'ai jamais lancé pour la salle (mode Malaisant) : la partie, sans gorgée.
-        let never = web("Je n'ai jamais")
-        for _ in 0..<8 where !(never.exists && never.isHittable) { app.swipeUp(velocity: .slow) }
-        if never.exists {
-            never.tap()
-            sleep(2)
-            let launch = web("Lancer")
-            for _ in 0..<4 where !(launch.exists && launch.isHittable) { app.swipeUp(velocity: .slow) }
-            if launch.exists { launch.tap(); sleep(4); record("never-lance") }
-        }
-
     }
 
     /// Événements (connecté) : la fiche d'un événement qui a un bar sur le web, sans bar ici ; réglages des notifications.
@@ -188,7 +239,7 @@ final class RecetteRefus143UITests: XCTestCase {
             sleep(8)
         }
         record("evenements")
-        let title = env["REFUS_EVENT"] ?? "Soirée recette 1.4.3 iPhone"
+        let title = env["REFUS_EVENT"] ?? "Soirée recette 1.4.3"
         let card = app.webViews.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", title)).firstMatch
         for _ in 0..<6 where !(card.exists && card.isHittable) { app.swipeUp(velocity: .slow) }
         if card.exists {
@@ -209,6 +260,18 @@ final class RecetteRefus143UITests: XCTestCase {
             sleep(4)
             record("notifications")
             scrollAndRecord("notifications-bas", pages: 3)
+        }
+        tab("Réglages").tap()
+        tab("Réglages").tap()
+        sleep(2)
+        record("reglages")
+        scrollAndRecord("reglages-bas", pages: 3)
+        let stats = app.staticTexts["Mes stats de jeu"].firstMatch
+        for _ in 0..<6 where !(stats.exists && stats.isHittable) { app.swipeUp(velocity: .slow) }
+        if stats.exists {
+            stats.tap()
+            sleep(4)
+            record("stats-de-jeu")
         }
     }
 }
