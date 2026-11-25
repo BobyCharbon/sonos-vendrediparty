@@ -121,3 +121,19 @@ def test_store_app_hides_the_music_tab_and_joins_a_music_party_by_a_six_digit_co
     assert page.locator('#tabs [data-tab="music"]').is_visible()
     assert page.get_attribute("#gCode", "maxlength") == "4"
     ctx.close()
+
+
+def test_store_app_game_stats_show_only_brain_and_the_browser_keeps_purify(browser, server):
+    # Tour 3 (25.11) : « Mes stats de jeu » ouvert par un lien (?tab=stats) dans l'app : Méninges seul, aucun Purify Test.
+    for store in (True, False):
+        ctx, page = open_games(browser, server, store=store)
+        page.evaluate("showTab('stats')")
+        page.wait_for_selector('[data-view="stats"]:not(.hidden)')
+        purify = page.locator('[data-stats-tab="purity"]')
+        if store:
+            assert purify.count() == 0
+            assert page.locator("#purityStats").is_hidden() and page.locator("#brainStats").is_visible()
+            assert "Purify" not in page.evaluate("document.querySelector('[data-view=stats]').innerText")
+        else:
+            assert purify.count() == 1 and page.locator("#purityStats").is_visible()
+        ctx.close()

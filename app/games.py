@@ -67,7 +67,7 @@ WORD_PAIRS = [
     ("Raclette", "Fondue", "un plat au fromage"), ("Croissant", "Pain au chocolat", "une viennoiserie"), ("Sushi", "Ramen", "un plat japonais"),
     ("Kebab", "Tacos", "un plat à emporter"), ("Vélo", "Trottinette", "un engin à roues sans moteur"), ("Moto", "Scooter", "un deux-roues à moteur"),
     ("Voiture", "Camion", "un véhicule à moteur"), ("Bateau", "Sous-marin", "un véhicule sur l'eau"), ("Pirate", "Viking", "un navigateur d'autrefois"),
-    ("Château", "Palais", "une demeure royale"), ("Roi", "Prince", "un membre de la royauté"), ("iPhone", "Android", "un smartphone"),
+    ("Château", "Palais", "une demeure royale"), ("Roi", "Prince", "un membre de la royauté"), ("Tablette", "Ordinateur", "un écran"),
     ("Mojito", "Caïpirinha", "un cocktail"), ("Champagne", "Prosecco", "un vin pétillant"), ("Whisky", "Rhum", "un alcool fort"),
     ("Tequila", "Vodka", "un alcool qui se boit en shot"), ("DJ", "Chanteur", "un métier de la musique"), ("Concert", "Festival", "un événement musical"),
     ("Boîte de nuit", "Bar", "un lieu de sortie"), ("Karaoké", "Blind test", "une animation musicale"), ("Neige", "Grêle", "une précipitation glacée"),

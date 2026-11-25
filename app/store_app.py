@@ -51,7 +51,7 @@ DRINK_RE = re.compile(
 STORE_EXCLUDE = re.compile(
     r"sans savoir comment j['’]y étais arrivé|dormi dans ma voiture après une soirée|oublié avec qui j['’]étais venu"
     r"|oublier comment il est rentré|se réveiller chez quelqu['’]un d['’]autre|organiser l['’]after|la veille d['’]un examen"
-    r"|plus jamais.{0,20}recommencer|dont tu ne te souviens plus du prénom|soirée légendaire|lendemain de soirée"
+    r"|plus jamais.{0,20}recommencer|dont tu ne te souviens plus du prénom|soirée légendaire|lendemain de soirée|lendemain d['’]une f[êe]te"
     r"|sans se souvenir|trou noir|black-?out|si (?:tu étais|c['’]était) une boisson",
     re.IGNORECASE)
 

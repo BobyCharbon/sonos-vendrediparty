@@ -27,7 +27,7 @@ def test_terms_say_adults_only_and_that_party_never_touches_money_on_web_and_iph
     web = (ROOT / "web/events/src/lib/terms.ts").read_text()
     ios = (ROOT / "ios/Party/Settings/Moderation/TermsView.swift").read_text()
     for text in (web, ios):
-        assert "18 novembre 2026" in text and "Réservé aux adultes" in text and "Paiements, billets et bar" in text
+        assert "25 novembre 2026" in text and "Réservé aux adultes" in text and "Paiements, billets et bar" in text
         assert "18 ans ou plus" in text and "Tabac et drogues sont interdits" in text
     assert "tu confirmes avoir 18 ans ou plus" in (ROOT / "web/events/src/components/TermsSheet.tsx").read_text()
     assert "tu confirmes avoir 18 ans ou plus" in (ROOT / "ios/Party/Settings/Moderation/ModerationSheets.swift").read_text()

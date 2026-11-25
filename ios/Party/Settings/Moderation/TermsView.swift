@@ -1,10 +1,10 @@
 import SwiftUI
 
-/// Conditions d'utilisation (version 2026-11-18) : même texte que le module web (web/events/src/lib/terms.ts).
+/// Conditions d'utilisation (version 2026-11-25) : même texte que le module web (web/events/src/lib/terms.ts).
 struct TermsView: View {
     @ObservedObject var store: ModerationStore
 
-    static let updated = "18 novembre 2026"
+    static let updated = "25 novembre 2026"
     /// Responsable et contact de Party (web/events/src/lib/contact.ts) ; l'admin peut en afficher un autre.
     static let supportEmail = "support@vendrediparty.ch"
     static let sections: [(String, [String])] = [

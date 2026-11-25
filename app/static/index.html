@@ -560,7 +560,9 @@ function tabTransition(tab) {
 }
 // 🏆 Mes stats de jeu : un onglet par jeu ; chaque jeu enregistre son affichage dans STATS_TABS (purity.js…).
 const STATS_TABS = {};
-let statsTab = "purity";
+// App App Store : pas de Purify Test (alcool, drogue : Apple 1.4.3) ; les stats n'ont que Méninges.
+if (STORE_APP) document.querySelector('[data-stats-tab="purity"]')?.remove();
+let statsTab = STORE_APP ? "brain" : "purity";
 function showStats(name = statsTab) {
   statsTab = name;
   document.querySelectorAll("[data-stats-tab]").forEach((b) => {

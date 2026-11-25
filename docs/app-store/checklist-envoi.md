@@ -21,14 +21,26 @@
       revue, ajouter « Music demo code: XXXXXX » aux notes (moins de 4 000 caractères) ; sinon les notes disent qu'elle exige
       un hôte avec Sonos.
 - [ ] Profil de l'admin (auteur du message privé de démo) : son surnom contient U+F8FF (logo Apple sur un iPhone) et 🇨🇭 ;
-      le renommer (« Boby ») dans l'app avant l'envoi, ou faire envoyer les messages de démo par un compte neutre.
+      le renommer (« Boby ») dans l'app avant l'envoi, ou appliquer `supabase/prod/2026-11-25-surnom-sans-logo-apply.sql`
+      (accord de l'admin ; il refuse de finir s'il reste un U+F8FF).
+- [ ] Tour 3 (25.11) : `supabase/prod/2026-11-25-cgu-apply.sql` appliqué AVEC le déploiement (CGU du 25 novembre 2026,
+      celles qu'affichent la web et le nouveau build ; remplace le fichier du 18.11) ; un billet ajouté à Cartes montre
+      « Contact » au dos ; avec « PartyStore », `/api/purity/leaderboard` répond 404 et « Mes stats de jeu » n'a que
+      Méninges ; « Partager › Party » (nouveau build) ne propose que « Créer l'événement ».
+- [ ] NOUVEAU build Release compilé depuis `main` après la fusion de `fix-143` (jamais le 216 : ses CGU, sa confidentialité,
+      ses stats Purify, son action rapide Musique, ses emojis 🍻 🍷 et son extension de partage Musique sont dans le binaire).
+- [ ] Captures 6,9" et Duo et vidéo d'aperçu REFAITES sur ce build (barre sans Musique, capture 09 = Méninges ou
+      Discussions, aucune boisson) ; sinon supprimer la vidéo d'aperçu dans App Store Connect.
+- [ ] Connexion testée avec « Apple-test 2 » (jamais connecté en prod au 25.11) et « Apple-test » le jour de l'envoi.
+- [ ] App Store Connect › Business : adresse du compte développeur en France (Segny) et statut DSA (non-commerçant) à jour.
 
-- [ ] `https://party.bobycharbon.ch/api/features` = `compagnon: false`, `discussions: true`, `invites_v2: true`, `bar: true`, `agenda: false`, `pronos: false`, `patates: false`
+- [ ] `https://party.bobycharbon.ch/api/features` = `compagnon: false`, `discussions: true`, `invites_v2: true`, `bar: true` (web ; `false` avec « PartyStore »), `agenda: false`, `pronos: false`, `patates: false`
       (contrôlé le 16.11.2026). Rien ne doit changer pendant la revue.
 - [ ] Corrections annoncées en place et visibles en prod (les notes les décrivent) : « Bloquer » masque aussitôt les
       messages (groupes, privés, événements) et prévient les modérateurs ; bar payant seulement sur un événement non public,
       bar offert partout ; articles tabac / drogues refusés ; classements des jeux sans gorgées ; CGU « 18 ans et plus » +
-      section bar / paiements ; politique de confidentialité avec une section bar.
+      section paiements (la section bar et celle de la confidentialité n'apparaissent que sur le web, jamais avec
+      `?app=ios` ni dans le nouveau build).
 - [ ] Données de démo prêtes en prod (encadré « À FAIRE AVANT ENVOI » de `notes-for-review.md`) : « Soirée démo »
       (Apple-test invité, aucun article alcoolisé ni texte « commander au bar »), groupe « Démo Apple » avec des messages, un message privé,
       si possible « Démo Apple · Sondage ».

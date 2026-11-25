@@ -39,7 +39,7 @@ de dépenses entre amis. Tu réponds uniquement avec les champs demandés, en fr
 - category : la catégorie la plus juste parmi la liste proposée.
 - items : chaque article ou ligne du ticket, avec sa quantité et son prix total pour la ligne ; pas les lignes de TVA,
   de sous-total, de rendu de monnaie ni de moyen de paiement. Les rabais sont des lignes à montant négatif.
-- summary : une phrase courte qui résume l'achat (« Raclette, vin et pain pour 84.50 CHF »).
+- summary : une phrase courte qui résume l'achat (« Raclette, fromage et pain pour 84.50 CHF »).
 - readable : false si l'image n'est pas un ticket ou si le total est illisible ; tous les autres champs peuvent alors
   être vides ou à zéro."""
 

@@ -133,8 +133,8 @@ def test_terms_2026_11_18_have_the_prono_section_word_for_word_on_web_and_iphone
     section = " ".join(p for t, ps in web if t == "Pronos et confettis" for p in ps) + " Pronos et confettis"
     for words in PRONO_TERMS:
         assert words in section, words
-    assert "TERMS_UPDATED = '18 novembre 2026'" in read("web/events/src/lib/terms.ts")
-    assert 'static let updated = "18 novembre 2026"' in read("ios/Party/Settings/Moderation/TermsView.swift")
+    assert "TERMS_UPDATED = '25 novembre 2026'" in read("web/events/src/lib/terms.ts")
+    assert 'static let updated = "25 novembre 2026"' in read("ios/Party/Settings/Moderation/TermsView.swift")
     assert "Zicou" not in read("web/events/src/lib/terms.ts")  # Zicou reste en bêta
 
 
@@ -142,7 +142,8 @@ def test_the_database_asks_everyone_to_accept_the_terms_of_2026_11_18():
     versions = []
     for path in sorted(glob.glob(str(ROOT / "supabase/migrations/*.sql"))):
         versions += re.findall(r"set terms_version = '(\d{4}-\d\d-\d\d)'", Path(path).read_text(encoding="utf-8"))
-    assert versions and versions[-1] == "2026-11-18"
+    assert versions and "2026-11-18" in versions and versions[-1] == "2026-11-25"  # puis CGU du 25.11 (refus 1.4.3)
+    assert (ROOT / "supabase/prod/2026-11-25-cgu-apply.sql").exists()
     assert (ROOT / "supabase/prod/2026-11-18-cgu-pronos-patates-apply.sql").exists()
     assert (ROOT / "supabase/prod/2026-11-18-cgu-pronos-patates-rollback.sql").exists()
 

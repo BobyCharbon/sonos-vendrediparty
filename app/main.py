@@ -3560,6 +3560,10 @@ def log_game_report(g: dict, reporter: str, reported: dict, request: Request):
     journal.record("game.report", name(reporter) or "Joueur", {"name": f'{games.GAMES.get(g["type"], g["type"])} ({g["code"]})', "id": g["code"]},
                    {"text": reported.get("text", ""), "author": name(author) if author else reported.get("by", ""),
                     "author_id": author}, client_ip(request))
+    # Apple 1.2 (« timely responses ») : le signalement arrive aussi aussitôt chez l'admin (notification « Retours »).
+    notify_admin({"title": f'🚩 Signalement · {games.GAMES.get(g["type"], g["type"])}',
+                  "body": (reported.get("text") or "")[:140], "url": "/admin#feedback", "tag": f"report-{g['code']}"},
+                 kind="feedback")
 
 
 @app.post("/api/games/{code}")
@@ -3763,9 +3767,16 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     return with_gate(full_view(g, me), me, request, g["code"])
 
 
+def no_purity_in_store(request: Request):
+    """App App Store : pas de Purify Test (alcool, drogue : Apple 1.4.3), ni ses stats ni son classement."""
+    if store_app.is_store(request):
+        raise HTTPException(404, "Introuvable")
+
+
 @app.get("/api/purity/leaderboard")
-def purity_leaderboard():
+def purity_leaderboard(request: Request):
     """Classement général du Purify Test (record d'impureté de chaque compte) ; sans identifiant de compte."""
+    no_purity_in_store(request)
     return purity.leaderboard()
 
 
@@ -3776,6 +3787,7 @@ class PurityPublic(AccountToken):
 @app.post("/api/purity/me/public")
 def purity_me_public(body: PurityPublic, request: Request):
     """Son choix « apparaître dans le classement général du Purify Test » (désactivé par défaut)."""
+    no_purity_in_store(request)
     ip = client_ip(request)
     if msg := account_limiter.blocked(ip):
         raise HTTPException(429, msg)
@@ -3789,6 +3801,7 @@ def purity_me_public(body: PurityPublic, request: Request):
 @app.post("/api/purity/me")
 def purity_me(body: AccountToken, request: Request):
     """Réglages : stats Purify Test du compte connecté (dernier test par catégorie, record), pour lui seul."""
+    no_purity_in_store(request)
     ip = client_ip(request)
     if msg := account_limiter.blocked(ip):
         raise HTTPException(429, msg)

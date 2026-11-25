@@ -13,7 +13,12 @@ final class ShareModel: ObservableObject {
         case failed(String)
         /// Lien mis de côté : l'app crée l'événement avec l'IA à sa prochaine ouverture.
         case eventReady
+        /// App App Store : seulement « Créer l'événement » (pas de file Musique, l'onglet est caché ; Apple 2.3.1(a)).
+        case eventOffer
     }
+
+    /// App App Store (identifiant sans « .beta ») : l'extension ne sert qu'à créer un événement à partir d'un lien.
+    static var isStoreApp: Bool { !(Bundle.main.bundleIdentifier ?? "").contains(".beta") }
 
     @Published private(set) var phase: Phase = .loading
     @Published private(set) var adding: String?
@@ -27,6 +32,10 @@ final class ShareModel: ObservableObject {
     func start(shared: String) async {
         let query = SharedLink.query(from: shared)
         link = query.hasPrefix("http") ? query : nil
+        if Self.isStoreApp {
+            phase = link == nil ? .failed("Partage le lien d'une page (invitation, lieu, billetterie) pour créer un événement.") : .eventOffer
+            return
+        }
         guard let snapshot = SharedSession.load() else {
             phase = .needsApp
             return

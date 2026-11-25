@@ -3,7 +3,7 @@ import { storeApp } from './features';
 /** Texte des conditions d'utilisation (version 2026-11-18, = private.moderation_settings.terms_version).
  * Le même texte est repris dans l'app iPhone (ios/Party/Settings/Moderation/TermsView.swift) : changer les deux,
  * puis la version dans la base (les comptes acceptent alors la nouvelle version avant leur prochain contenu). */
-export const TERMS_UPDATED = '18 novembre 2026';
+export const TERMS_UPDATED = '25 novembre 2026';
 
 const ALL_SECTIONS: { title: string; paragraphs: string[] }[] = [
   {

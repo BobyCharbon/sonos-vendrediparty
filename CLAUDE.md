@@ -488,6 +488,14 @@ l'admin. Toujours :
   sans ressource externe) ; `?app=ios` sur `/events/terms` et `/events/privacy` sert le texte de l'app dans Safari.
   Confidentialité de l'app (web et iOS) : sans paragraphe ni mention des Pronos. Test anti-alcool de TOUS les jeux :
   `tests/test_store_app.py` (`test_every_game_*`).
+- Tour 3 (25.11) : « Mes stats de jeu » de l'app sans Purify Test (bouton retiré, `statsTab = "brain"`) et `/api/purity/*`
+  en 404 pour l'app (`no_purity_in_store`) ; un « Signaler » de jeu prévient aussi l'admin (`notify_admin`, type « Retours »,
+  Apple 1.2) ; pass Wallet avec « Contact » au dos (éditeur, support@, `<PARTY_PUBLIC_URL>/support` ; Apple 1.5) ; extension
+  « Partager › Party » de l'app App Store : seulement « Créer l'événement » (`ShareModel.isStoreApp`, nouveau build) ;
+  L'Intrus sans « iPhone / Android » (2.3.10) ; exemple de l'IA des tickets sans « vin » ; carte du Divan « lendemain d'une
+  fête » exclue. CGU version 2026-11-25 (`20261125100000`, prod : `supabase/prod/2026-11-25-cgu-apply.sql` AVEC le
+  déploiement) ; surnom de l'admin sans U+F8FF (logo Apple) ni 🇨🇭 : `supabase/prod/2026-11-25-surnom-sans-logo-apply.sql`.
+  Jamais de code à 6 chiffres dans les notes de revue (test) : la Musique se montre par une vidéo jointe.
 - Tout nouveau jeu, option ou texte : se demander s'il passe dans PartyStore. Tests : `tests/test_store_app.py`,
   `tests/e2e/test_store_app_no_drinks.py`. Le web, la BETA et Android gardent tout.
 

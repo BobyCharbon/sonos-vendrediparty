@@ -443,3 +443,49 @@ def test_support_page_and_app_versions_of_terms_and_privacy_for_the_store_listin
     from pathlib import Path
     meta = json.loads((Path(__file__).resolve().parents[1] / "ios/appstore/metadata-fr.json").read_text(encoding="utf-8"))
     assert meta["supportUrl"].endswith("/support") and meta["privacyPolicyUrl"].endswith("/events/privacy?app=ios")
+
+
+def test_round_three_no_purify_stats_in_the_app_and_the_web_keeps_them():
+    # « Mes stats de jeu » : le Purify Test (alcool, drogue) n'existe pas dans l'app, ni ses routes.
+    html = (__import__("pathlib").Path(main.__file__).parent / "static/index.html").read_text(encoding="utf-8")
+    assert "if (STORE_APP) document.querySelector('[data-stats-tab=\"purity\"]')?.remove();" in html
+    assert 'let statsTab = STORE_APP ? "brain" : "purity";' in html
+    assert client(STORE_UA).get("/api/purity/leaderboard").status_code == 404
+    assert client(STORE_UA).post("/api/purity/me", json={"token": "x" * 40}).status_code == 404
+    assert client(WEB_UA).get("/api/purity/leaderboard").status_code == 200
+
+
+def test_round_three_a_game_report_reaches_the_admin_at_once(monkeypatch):
+    sent = []
+    monkeypatch.setattr(main, "notify_admin", lambda payload, kind="messages": sent.append((payload, kind)))
+    monkeypatch.setattr(main.journal, "record", lambda *a, **k: None)
+    monkeypatch.setattr(main, "client_ip", lambda request: "1.2.3.4")
+    g = {"type": "tmc", "code": "4321", "players": [{"id": "a", "name": "Léa"}]}
+    main.log_game_report(g, "a", {"text": "Une réponse vexante", "author": "a"}, None)
+    assert sent and sent[0][1] == "feedback" and "Signalement" in sent[0][0]["title"]
+    assert sent[0][0]["body"] == "Une réponse vexante"
+
+
+def test_round_three_wallet_ticket_carries_the_issuer_contact(monkeypatch):
+    from app import wallet
+    monkeypatch.setenv("PARTY_PUBLIC_URL", "https://exemple.test")
+    back = wallet._fields({"title": "Soirée"}, {"code": "ABCD"}, "Léa")["backFields"]
+    contact = next(f for f in back if f["key"] == "contact")
+    assert "support@vendrediparty.ch" in contact["value"] and "https://exemple.test/support" in contact["value"]
+    assert "Ludovic Trombert" in contact["value"]
+
+
+def test_round_three_texts_judged_risky_are_gone_from_the_app():
+    # Divan : nuit de fête et son lendemain ; L'Intrus : jamais une autre plateforme mobile (2.3.10).
+    assert store_app.drinky("Comment as-tu assuré le lendemain d'une fête qui a duré toute la nuit ?")
+    assert not any("Android" in w for pair in games.WORD_PAIRS for w in pair)
+    from app import assistant
+    assert "vin" not in assistant.RECEIPT_SYSTEM.split("summary :", 1)[1].split("\n", 1)[0]
+
+
+def test_round_three_share_extension_only_creates_an_event_in_the_store_app():
+    root = __import__("pathlib").Path(main.__file__).resolve().parents[1] / "ios/PartyShare"
+    model = (root / "ShareModel.swift").read_text(encoding="utf-8")
+    assert "static var isStoreApp" in model and ".eventOffer" in model
+    start = model.split("func start(shared: String) async {", 1)[1].split("func prepareEvent", 1)[0]
+    assert start.index("if Self.isStoreApp") < start.index("api.search(query)")  # aucune recherche de titre
