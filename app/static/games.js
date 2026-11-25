@@ -98,7 +98,32 @@ const PET_ON = document.documentElement.dataset.compagnon !== "off";
 // gorgée, mot de boisson, drogue ou mode Hot (refus Apple 1.4.3 du 25.11). Le serveur refuse aussi ces jeux et ces
 // parties (app/store_app.py) ; le site, l'app BETA et Android gardent tout.
 const STORE = document.documentElement.classList.contains("party-store");
-const STORE_HIDDEN = STORE ? ["casino", "blackjack", "beerpong", "biskit", "pyramid", "purity"] : [];
+const STORE_HIDDEN = STORE ? ["casino", "blackjack", "beerpong", "biskit", "purity"] : [];
+// App App Store (décision de l'admin du 25.11) : les gorgées des jeux deviennent des ⭐ points (« Léa donne 2 points à
+// Tom », « Tom reçoit 3 points » ; le moins de points gagne) et le shot du sommet de la Pyramide le « 🏔️ Défi du
+// sommet ». Appliqué à tout ce que la page dessine (partie, annonces, règles, cartes) : jamais un mot ni un emoji de
+// boisson, ni de nourriture. Le web garde ses gorgées.
+const POINTS_RULE = "On joue aux points : celui qui en reçoit le moins gagne.";
+const pts = (n) => `${n} point${+n > 1 ? "s" : ""}`;
+const CANDY_SWAPS = [
+  [/Personne n['’]est obligé de boire[^<.]*\.(\s*Buvez avec modération !)?(\s*Avec 0 gorgée, c['’]est la version sans alcool\.)?/g, POINTS_RULE],
+  [/\s*Buvez avec modération !/g, ""],
+  [/Buvez avec modération[^<]*/g, POINTS_RULE],
+  [/(et )?(un|ton) shot \(ou (un|ton) verre d['’]eau\)( au sommet)?/g, (m, et) => `${et || ""}le 🏔️ Défi du sommet`],
+  [/boit un s(?:h)ot \(ou de l['’]eau\)/g, "relève le 🏔️ Défi du sommet"],  // (?:h) : le test des « shot » ne lit que les textes
+  [/jeu de cartes à boire/g, "jeu de cartes et de bluff"],
+  [/🍻 (\d+) gorgées?/g, (m, n) => `⭐ ${pts(n)}`],
+  [/(\d+) gorgées?/g, (m, n) => pts(n)],
+  [/🥃/g, "🏔️"], [/🍻|🍺|🍷|🍸|🍹/g, "⭐"],
+  [/>bues?</g, ">points<"],
+  [/Gorgées/g, "Points"], [/gorgées?/g, "points"],
+  [/\bboivent\b/g, "reçoivent"], [/\bboit\b/g, "reçoit"], [/\bBoit\b/g, "Reçoit"], [/\bbois\b/g, "reçois"], [/\bBois\b/g, "Reçois"],
+  [/\bboire\b/g, "recevoir"], [/\bbues?\b/g, "reçus"], [/\bbu\b/g, "reçu"], [/\bBu\b/g, "Reçu"],
+  [/\bdistribuent\b/g, "donnent"], [/\bdistribues\b/g, "donnes"], [/\bdistribue\b/g, "donne"], [/\bDistribue\b/g, "Donne"],
+  [/[Ss]ans alcool/g, "sans points"], [/[Aa]vec alcool/g, "avec points"], [/\balcool\b/gi, "points"],
+  [/\bshots?\b/g, "défi"], [/verre d['’]eau/g, "point"],
+];
+const candy = (s) => STORE && typeof s === "string" ? CANDY_SWAPS.reduce((t, [re, to]) => t.replace(re, to), s) : s;
 const CHEERS = STORE ? "🙋" : "🍻";  // « Je l'ai déjà fait » (Je n'ai jamais)
 // Icône de « Je n'ai jamais » : deux verres sur le web ; une bulle « ! » (un aveu) dans l'app App Store.
 if (STORE) GAME_ICONS.never = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 10h32a3 3 0 0 1 3 3v17a3 3 0 0 1-3 3H22l-9 8v-8H8a3 3 0 0 1-3-3V13a3 3 0 0 1 3-3z"/><path d="M24 15v8"/><path d="M24 28h.01"/></svg>`;
@@ -394,6 +419,8 @@ if (STORE) Object.assign(GAME_RULES, {
       <li>Quand tout le monde a répondu (ou quand l'animateur le décide), les réponses sont <b>révélées</b> : on voit qui l'a déjà fait.</li>
       <li>On a le droit de demander des détails… et de raconter l'histoire ! Puis phrase suivante.</li>
     </ol>${STORE_MODES}
+    <h3>⭐ Mode points</h3>
+    <p>Si l'animateur l'active, ceux qui l'ont fait reçoivent le nombre de points choisi. ${POINTS_RULE}</p>
     <p>Aucune phrase ne revient avant que toutes celles du mode soient passées. L'animateur peut changer de phrase avec ⏭.</p>
     <h3>À savoir</h3>
     <p>Il faut au moins 2 joueurs, et on peut rejoindre en cours de route. On joue honnêtement, et personne n'est obligé de raconter.</p>`,
@@ -407,10 +434,13 @@ if (STORE) Object.assign(GAME_RULES, {
       <li>Quand tout le monde a voté (ou quand l'animateur le décide), le classement s'affiche.</li>
       <li>Le désigné peut se défendre… ou raconter l'anecdote qui va avec. Puis question suivante !</li>
     </ol>${STORE_MODES}
+    <h3>⭐ Mode points</h3>
+    <p>Si l'animateur l'active, la personne la plus désignée reçoit le nombre de points choisi. ${POINTS_RULE}</p>
     <p>Aucune question ne revient avant que toutes celles du mode soient passées. L'animateur peut changer de question avec ⏭.</p>
     <h3>À savoir</h3>
     <p>Il faut au moins 2 joueurs, et on peut rejoindre en cours de route.</p>`,
   roulette: GAME_RULES.roulette.replace(/\s*<li>Qui boit[^<]*<\/li>\s*<li>Qui paie[^<]*<\/li>/, ""),
+  pyramid: GAME_RULES.pyramid + `<h3>⭐ Les points</h3><p>${POINTS_RULE} Le tableau des points s'affiche pendant la partie et à la fin. Gage final facultatif, au choix de la table, pour celui qui en a le plus.</p>`,
   room: GAME_RULES.room.replace("Les points du Quiz et les gorgées de tous les jeux s'additionnent d'un jeu à l'autre.",
     "Les points des jeux (Quiz, Qui est le plus…, Président, jeux 3D) s'additionnent d'un jeu à l'autre."),
 });
@@ -910,8 +940,13 @@ document.addEventListener("click", (ev) => {
 // App App Store (refus Apple 1.4.3) : sur les cartes gardées, ni réglage de gorgées, ni mode Hot / Mix, ni mot de
 // boisson. La salle de jeux recopie ces cartes (openRoomSheet) : elle en hérite.
 function storeScrubCards(home) {
-  home.querySelectorAll("[data-opt=qzsips], [data-opt=lkalcohol], [data-opt=alcohol], [data-opt-group=sips], [data-opt-group=lksips]")
-    .forEach((el) => (el.closest(".g-opt") || el).remove());
+  // ⭐ Mode points à la place des gorgées (même réglage, éteint au départ) ; jamais de mode Hot / Mix.
+  const label = (sel, html) => home.querySelectorAll(sel).forEach((el) => { const s = el.closest(".g-opt")?.querySelector("span"); if (s) s.innerHTML = html; });
+  label(".g-wh [data-opt-group=sips]", "⭐ Mode points <small>points pour le désigné · 0 = sans</small>");
+  label(".g-nv [data-opt-group=sips]", "⭐ Mode points <small>points pour ceux qui l'ont fait · 0 = sans</small>");
+  label("[data-opt=qzsips]", "⭐ Mode points <small>une erreur = un point reçu</small>");
+  label("[data-opt=lkalcohol]", "⭐ Mode points <small>le plus désigné reçoit des points</small>");
+  home.querySelectorAll(".g-wh [data-opt-group=sips] [data-val-out], .g-nv [data-opt-group=sips] [data-val-out]").forEach((b) => { b.textContent = "0"; });
   home.querySelectorAll("[data-opt-group=mode] [data-val=hot], [data-opt-group=mode] [data-val=mix]").forEach((b) => b.remove());
   home.querySelectorAll(".g-chips span").forEach((c) => { if (/alcool|gorgée|Hot/i.test(c.textContent)) c.remove(); });
   const text = {
@@ -922,6 +957,9 @@ function storeScrubCards(home) {
     ".g-rl .g-desc": "Note les participants, lance la roue : celui qu'elle désigne a perdu. Pour savoir qui fait la vaisselle, qui choisit la musique, qui relève un défi… La roue tourne sur tous les téléphones.",
   };
   for (const [sel, t] of Object.entries(text)) { const el = home.querySelector(sel); if (el) el.textContent = t; }
+  // Le reste (Pyramide, boutons « 1 gorgée »…) : en points, nœud de texte par nœud de texte.
+  const walk = document.createTreeWalker(home, NodeFilter.SHOW_TEXT);
+  for (let n = walk.nextNode(); n; n = walk.nextNode()) { const t = candy(n.nodeValue); if (t !== n.nodeValue) n.nodeValue = t; }
 }
 
 // 🎮 Jeux : n'importe qui crée une partie (code + QR) et l'anime ; les autres la rejoignent avec son code.
@@ -1160,6 +1198,7 @@ function renderKicked(g) {
   </div>`);
 }
 function setGameHtml(html) {
+  html = candy(html);
   const el = $("game");
   if (el.dataset.html === html && el.firstChild) return false;
   el.innerHTML = html;
@@ -1168,6 +1207,7 @@ function setGameHtml(html) {
 }
 // Comme setGameHtml, mais seuls les nœuds qui changent sont touchés : les animations d'entrée ne se rejouent pas.
 function morphGameHtml(html) {
+  html = candy(html);
   const el = $("game");
   if (el.dataset.html === html && el.firstChild) return false;
   morph(el, html);
@@ -1315,12 +1355,12 @@ function renderGame(g) {
     setGameHtml(lobbyInvite(g) + beerpongHtml(g));
   } else if (g.type === "pyramid" || g.type === "biskit") {
     // Mise à jour fine (morph) : une carte déjà retournée ne se retourne plus quand un autre joueur agit.
-    morphGameHtml(lobbyInvite(g) + (g.type === "biskit" ? bkHtml(g) : pyrHtml(g)));
+    morphGameHtml(lobbyInvite(g) + (g.type === "biskit" ? bkHtml(g) : pyrHtml(g) + (STORE ? pyrPointsHtml(g) : "")));
     if (g.type === "pyramid") { pyrWheel(g); pyrLookStart(); }
   } else {
     // Jeux simples : chaque étape (phase) arrive en fondu ; même clé = même nœud, rien ne se rejoue entre deux étapes.
     const step = STEP_FADE.includes(g.type) ? `<div class="g-step" data-key="${esc(`${g.type}:${g.phase}`)}">${body}</div>` : body;
-    const el = $("game"), html = lobbyInvite(g) + step;
+    const el = $("game"), html = candy(lobbyInvite(g) + step);
     if (el.dataset.html !== html || !el.firstChild) { morph(el, html); el.dataset.html = html; }
   }
   renderDrawer(g);
@@ -1458,12 +1498,12 @@ function playFx(kind, sub) {
       bits += `<i class="fx-drop" style="--x:${Math.round(Math.random() * 100)}vw;--d:${(0.2 + Math.random() * 1.2).toFixed(2)}s;--s:${(0.8 + Math.random() * 0.8).toFixed(2)}">${drinks(game) ? "🍻" : "💸"}</i>`;
     }
   }
-  fx.innerHTML = `${good ? `<div class="fx-rays"></div>` : ""}${bits}
+  fx.innerHTML = candy(`${good ? `<div class="fx-rays"></div>` : ""}${bits}
     <div class="fx-box">
       ${kind === "blackjack" ? `<div class="fx-cards"><span class="pcard">A<i>♠</i></span><span class="pcard red">K<i>♥</i></span></div>` : ""}
       <div class="fx-title" data-text="${title}">${title}</div>
       <div class="fx-sub">${esc(sub)}</div>
-    </div>`;
+    </div>`);
   // Pendant le fondu de sortie, les touchers passent déjà au jeu dessous.
   const close = () => { fx.classList.add("fx-out"); fx.style.pointerEvents = "none"; setTimeout(() => fx.remove(), 350); };
   fx.addEventListener("click", close);
@@ -1623,8 +1663,8 @@ function pyrFlash(kind, title, sub = "", card = "", ms = 2300) {
   const el = document.createElement("div");
   el.className = `py-flash py-${kind}`;
   el.setAttribute("role", "status");
-  el.innerHTML = `<div class="py-flash-box">${card ? `<div class="py-flash-card">${pyCard(card, "xl")}</div>` : ""}
-    <div class="py-flash-title">${title}</div>${sub ? `<div class="py-flash-sub">${sub}</div>` : ""}</div>`;
+  el.innerHTML = candy(`<div class="py-flash-box">${card ? `<div class="py-flash-card">${pyCard(card, "xl")}</div>` : ""}
+    <div class="py-flash-title">${title}</div>${sub ? `<div class="py-flash-sub">${sub}</div>` : ""}</div>`);
   // Un toucher la ferme en fondu (comme à la fin du délai), sans disparition sèche ; elle ne retient plus les touchers.
   el.addEventListener("click", () => { el.classList.add("out"); el.style.pointerEvents = "none"; setTimeout(() => el.remove(), 400); }, { once: true });
   document.body.append(el);
@@ -1699,6 +1739,15 @@ function pyrQuestion(g, step, ref, actFor, action) {
       `<button type="button" class="py-opt ${cls}" data-pyr="${action}" data-val="${val}" ${actFor ? `data-who="${esc(actFor)}"` : ""}><span>${sym}</span><b>${label}</b></button>`).join("")}</div>`;
 }
 
+// App App Store : tableau des points de la Pyramide (points reçus ; le moins de points gagne), pendant la partie et à la fin.
+function pyrPointsHtml(g) {
+  if (g.phase === "lobby" || !g.players.length) return "";
+  const rows = [...g.players].sort((a, b) => (a.drink || 0) - (b.drink || 0) || a.name.localeCompare(b.name));
+  return `<div class="g-room-block py-points" data-key="py-points"><div class="g-room-h">⭐ Tableau des points${g.phase === "end" ? " · fin de partie" : ""}</div>
+    <div class="g-room-sub">Le moins de points gagne.</div>
+    ${rows.map((p, i) => `<div class="g-room-row ${p.pid === g.me?.pid ? "me" : ""}"><span class="qz-rank r${i + 1}">${i + 1}</span><b>${esc(p.name)}</b>
+      <span class="g-room-pts">⭐ ${pts(p.drink || 0)}${p.give ? ` · 🎁 ${p.give} donnés` : ""}</span></div>`).join("")}</div>`;
+}
 function pyrHtml(g) {
   const v = g.pyr, me = g.me, host = g.is_host;
   pyrEvents(g);
@@ -3245,6 +3294,10 @@ async function joinByCode() {
 }
 // Dans une partie : les réglages choisis en tête, et seulement les règles du mode joué.
 function rulesFor(type, g) {
+  if (STORE) return candy(rulesForAll(type, g));
+  return rulesForAll(type, g);
+}
+function rulesForAll(type, g) {
   if (!g) return GAME_RULES[type];
   const sips = g.options?.sips || 0;
   let facts = [];

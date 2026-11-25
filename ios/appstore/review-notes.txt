@@ -2,7 +2,7 @@ ABOUT
 "Vendredi Party" (icon "Party !"): free app by the Swiss association Vendredi Party, for friends and associations: real-world events, party games, music, chats. French, 18+. No ads, no tracking, no in-app purchase. Guide attached (PDF).
 
 CHANGES SINCE THE 1.4.3 REJECTION (server side, live now, permanent)
-Removed: the "Alcohol" games category and all drink labels/icons; Beer pong, Biskit, Pyramide, Purify Test; every sips option; "Hot"/"Mix" questions; the party bar. The server refuses any game with a drinking or Hot setting, even by code or QR. Demo event: no alcohol.
+Removed: the "Alcohol" games category and all drink labels/icons; Beer pong, Biskit, Purify Test; "Hot"/"Mix" questions; the party bar. Drinking options replaced by points; Pyramid is a points game. The server refuses any game with a drinking or Hot setting, even by code or QR. Demo event: no alcohol.
 
 SIGN-IN
 Phone + 6-digit SMS code, no password. Demo account "Apple-test": number and code in the sign-in fields (fixed code, no SMS). Last tab "Se connecter" > "Suisse +41" > number > code.

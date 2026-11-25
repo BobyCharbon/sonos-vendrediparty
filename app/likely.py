@@ -54,7 +54,7 @@ def configure(g: dict, settings: dict):
         sips = settings["sips"]
         if not isinstance(sips, int) or not 0 <= sips <= MAX_SIPS:
             raise LikelyError(f"Entre 0 et {MAX_SIPS} gorgées")
-        g["options"]["sips"] = 0 if g.get("store") else sips  # app App Store : jamais de gorgées (store_app)
+        g["options"]["sips"] = sips  # app App Store : des ⭐ points (store_app, games.js candy)
 
 
 def start(g: dict, rng=random):

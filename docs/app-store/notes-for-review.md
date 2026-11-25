@@ -36,14 +36,14 @@
 
 ---
 
-## PART A — Text for the "Notes" field (3,950 characters, limit 4,000)
+## PART A — Text for the "Notes" field (3,984 characters, limit 4,000)
 
 ```text
 ABOUT
 "Vendredi Party" (icon "Party !"): free app by the Swiss association Vendredi Party, for friends and associations: real-world events, party games, music, chats. French, 18+. No ads, no tracking, no in-app purchase. Guide attached (PDF).
 
 CHANGES SINCE THE 1.4.3 REJECTION (server side, live now, permanent)
-Removed: the "Alcohol" games category and all drink labels/icons; Beer pong, Biskit, Pyramide, Purify Test; every sips option; "Hot"/"Mix" questions; the party bar. The server refuses any game with a drinking or Hot setting, even by code or QR. Demo event: no alcohol.
+Removed: the "Alcohol" games category and all drink labels/icons; Beer pong, Biskit, Purify Test; "Hot"/"Mix" questions; the party bar. Drinking options replaced by points; Pyramid is a points game. The server refuses any game with a drinking or Hot setting, even by code or QR. Demo event: no alcohol.
 
 SIGN-IN
 Phone + 6-digit SMS code, no password. Demo account "Apple-test": number and code in the sign-in fields (fixed code, no SMS). Last tab "Se connecter" > "Suisse +41" > number > code.
@@ -309,11 +309,14 @@ Tab **Jeux**:
 - **🧠 Jeux solo** › **Méninges** › **Faire chauffer**: daily brain warm-up (speed, memory, logic), 3 lives.
 - Each game has a **?** with its rules.
 - **No drinking games** (since the 1.4.3 review, 25.11): games use points and dares only. In the App Store app there is
-  no drinking category, label or option, and no "Hot" / "Mix" question mode; Beer pong, Biskit, Pyramide and Purify Test
-  are not offered. Our server refuses to show or join any game with a drinking or Hot setting, even by code or QR.
+  no drinking category, label or option, and no "Hot" / "Mix" question mode; Beer pong, Biskit and Purify Test are not
+  offered. Drinking options are replaced by **points** ("⭐ Mode points", off by default: give or receive points; the
+  fewest points wins). **Pyramide is a points game**: "Léa gives 2 points to Tom", a points table during the game and
+  at the end, and a "🏔️ Défi du sommet" worth points at the top (optional final dare for the highest score). Pyramide cards are shown for 30 s in a native panel that screenshots turn black. Our server refuses to show or join any game with a drinking or Hot setting, even by code or QR.
 - There is **no gambling**: no bets, no money, no prizes, no purchases. Casino and Blackjack are hidden and refused by
   our server in the App Store app.
-- Without an account you can play a few games per party (then a phone number is asked, anti-abuse).
+- In the App Store app, games stay **unlimited without an account**; an account (phone number) is needed only for
+  events, groups and chats.
 
 #### B4.16 Music
 
@@ -391,9 +394,10 @@ platform (web, iPhone), maintained by us.
 ### B7. Changes since the 1.4.3 rejection (25.11.2026)
 
 All on our server, live now and permanent for the App Store app (the same build is resubmitted):
-- Removed: the "Alcohol" games category and every drink label or icon; Beer pong, Biskit, Pyramide and Purify Test;
-  every sips / drinking option in the remaining games; the "Hot" and "Mix" question modes; the party bar (menu, orders,
-  bar notifications and settings).
+- Removed: the "Alcohol" games category and every drink label or icon; Beer pong, Biskit and Purify Test; the "Hot" and
+  "Mix" question modes; the party bar (menu, orders, bar notifications and settings).
+- Drinking options replaced by points in the remaining games ("⭐ Mode points"); Pyramid is a points game (points
+  table, fewest points wins) with a "🏔️ Défi du sommet" instead of a shot.
 - Remaining games use points and dares only; their questions and words never mention alcohol, drunkenness or drugs.
 - Our server refuses to show or join, from the App Store app, any game with a drinking or Hot setting, even by code or QR.
 - The demo event lists no alcohol and no longer asks you to order at a bar.

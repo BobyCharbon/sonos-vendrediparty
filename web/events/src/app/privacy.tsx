@@ -4,10 +4,10 @@ import { Linking } from 'react-native';
 import { Button, Screen, Section, T, Title } from '@/components/ui';
 import { RESPONSIBLE, SUPPORT_EMAIL } from '@/lib/contact';
 
-/** Politique de confidentialité (Apple 5.1.1(i), nLPD art. 19) : lisible par tous, sans compte. Chaque donnée, son but,
+/** Politique de confidentialité (Apple 5.1.1(i), RGPD art. 13, nLPD art. 19 ; éditeur établi en France depuis le 25.11) : lisible par tous, sans compte. Chaque donnée, son but,
  * qui la reçoit (sous-traitants) et combien de temps elle est gardée. À tenir à jour avec App Privacy (App Store
  * Connect) et Data safety (Play Console) à chaque nouvelle donnée. */
-const UPDATED = '19 novembre 2026';
+const UPDATED = '25 novembre 2026';
 
 type Block = { title: string; paragraphs: string[] };
 
@@ -15,7 +15,7 @@ const BLOCKS: Block[] = [
   {
     title: 'Qui est responsable ?',
     paragraphs: [
-      `Party (Vendredi Party : l’app iPhone, l’app Apple TV et le site) est édité par ${RESPONSIBLE}, en Suisse, responsable du traitement de tes données au sens de la loi fédérale sur la protection des données (nLPD).`,
+      `Party (Vendredi Party : l’app iPhone, l’app Apple TV et le site) est édité par ${RESPONSIBLE}, établi en France (Union européenne), responsable du traitement de tes données au sens du règlement général sur la protection des données (RGPD).`,
       `Pour toute question ou demande sur tes données : ${SUPPORT_EMAIL}. Réponse en principe sous 30 jours.`,
       'Party est réservé aux personnes de 18 ans et plus. Party ne fait aucune publicité, ne revend aucune donnée et n’utilise aucun outil tiers de mesure d’audience ni de suivi (« tracking »).',
     ],
@@ -118,7 +118,7 @@ const BLOCKS: Block[] = [
       'Apple : notifications de l’iPhone (APNs), billets Apple Wallet, app Apple TV, et la dictée vocale sur iPhone (transcription de ta voix, seulement quand tu dictes).',
       'Google : la recherche d’un lieu dans l’assistant des événements (le texte du lieu), et la dictée vocale dans Chrome (transcription de ta voix, seulement quand tu dictes).',
       'Infomaniak (Suisse) : messagerie de l’adresse de contact, quand tu nous écris.',
-      'Le serveur de Party est hébergé en Suisse. Twilio, Anthropic, GitHub, Spotify, Apple et Google peuvent traiter des données hors de Suisse, notamment aux États-Unis, avec les garanties prévues par la nLPD (Swiss-U.S. Data Privacy Framework ou clauses contractuelles types).',
+      'Le serveur de Party est hébergé en Suisse. Twilio, Anthropic, GitHub, Spotify, Apple et Google peuvent traiter des données hors de Suisse, notamment aux États-Unis, avec les garanties prévues par le RGPD et la nLPD (Data Privacy Framework ou clauses contractuelles types).',
     ],
   },
   {
@@ -132,18 +132,18 @@ const BLOCKS: Block[] = [
     title: 'Tes droits',
     paragraphs: [
       'Tu peux à tout moment : voir et corriger tes données dans l’app ; retirer un accord (IA, contacts, notifications) ; supprimer ton compte dans Réglages › Gérer mon compte. La suppression efface ton compte, tes photos de profil, tes contenus (réponses, votes, messages directs avec leurs photos et vocaux, demandes de message, réglages des discussions, pronos et confettis, covoiturage, demandes, ton calendrier abonné), les événements que tu as créés, tes stats de jeux, tes accords pour l’IA et le journal de tes appels à l’IA ; tes avis sur l’app restent, sans ton nom.',
-      `Pour obtenir une copie de tes données ou toute autre demande : ${SUPPORT_EMAIL}. Tu peux aussi t’adresser au Préposé fédéral à la protection des données et à la transparence (PFPDT).`,
+      `Pour obtenir une copie de tes données ou toute autre demande : ${SUPPORT_EMAIL}. Tu peux aussi te plaindre auprès de la CNIL (France), l’autorité de contrôle de l’éditeur ; si tu vis en Suisse, auprès du Préposé fédéral à la protection des données et à la transparence (PFPDT).`,
     ],
   },
   {
-    title: 'Si tu vis dans l’Union européenne (RGPD, DSA)',
+    title: 'Droit applicable (RGPD, nLPD, DSA)',
     paragraphs: [
-      'Party est aussi proposé en France, en Belgique et au Luxembourg : pour les personnes qui y vivent, le règlement général sur la protection des données (RGPD) s’applique en plus de la nLPD.',
+      'Party est édité en France : le règlement général sur la protection des données (RGPD) s’applique à tous ses utilisateurs. Pour les personnes qui vivent en Suisse, la loi fédérale sur la protection des données (nLPD) s’applique aussi.',
       'Bases légales : le service que tu demandes (compte, événements, jeux, notifications que tu actives) ; ton consentement, que tu retires à tout moment (IA, contacts, calendrier de l’iPhone, photo) ; l’intérêt légitime de Party (sécurité, journaux techniques, modération et signalements) ; une obligation légale quand une autorité le demande. Aucune décision automatisée ni profilage ne produit d’effet juridique sur toi.',
-      `Tes droits : accès, rectification, effacement, limitation, opposition et portabilité (une copie de tes données dans un format lisible), à demander à ${SUPPORT_EMAIL}. Tu peux aussi te plaindre auprès de l’autorité de ton pays : la CNIL (France), l’Autorité de protection des données (Belgique) ou la CNPD (Luxembourg).`,
-      'Transferts : l’Union européenne reconnaît que la Suisse protège les données de façon adéquate ; pour les sous-traitants hors de Suisse, voir « Qui reçoit tes données ».',
+      `Tes droits : accès, rectification, effacement, limitation, opposition et portabilité (une copie de tes données dans un format lisible), à demander à ${SUPPORT_EMAIL}. L’autorité de contrôle de l’éditeur est la CNIL (France) ; tu peux aussi te plaindre auprès de l’autorité de ton pays : l’Autorité de protection des données (Belgique), la CNPD (Luxembourg) ou le PFPDT (Suisse).`,
+      'Transferts : l’Union européenne reconnaît que la Suisse, où sont hébergés le serveur de Party et la base de données, protège les données de façon adéquate ; pour les sous-traitants hors de l’Union européenne et de Suisse, voir « Qui reçoit tes données ».',
       `Règlement sur les services numériques (DSA) : point de contact unique pour les utilisateurs et les autorités : ${SUPPORT_EMAIL}, en français. Un contenu illicite se signale dans l’app (« Signaler ») ou à cette adresse.`,
-      `Représentant dans l’Union européenne (RGPD art. 27, DSA art. 13) : Ludovic Trombert, 420 route des Rosellets, 01170 Segny, France ; ${SUPPORT_EMAIL}.`,
+      `Éditeur : Ludovic Trombert, 420 route des Rosellets, 01170 Segny, France ; ${SUPPORT_EMAIL}. Établi dans l’Union européenne, il n’a pas de représentant à désigner (RGPD art. 27, DSA art. 13).`,
     ],
   },
   {

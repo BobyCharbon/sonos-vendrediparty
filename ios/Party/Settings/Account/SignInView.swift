@@ -169,10 +169,10 @@ struct DeleteAccountView: View {
 /// Confidentialité : le texte du module web, en natif, et l'accord pour l'IA (tous les comptes connectés).
 struct PrivacyView: View {
     /// Même texte que la politique du module web (web/events/src/app/privacy.tsx) : changer les deux ensemble.
-    static let updated = "19 novembre 2026"
+    static let updated = "25 novembre 2026"
     static let sections: [(String, [String])] = [
         ("Qui est responsable ?", [
-            "Party (Vendredi Party : l'app iPhone, l'app Apple TV et le site) est édité par Ludovic Trombert, en Suisse, responsable du traitement de tes données au sens de la loi fédérale sur la protection des données (nLPD).",
+            "Party (Vendredi Party : l'app iPhone, l'app Apple TV et le site) est édité par Ludovic Trombert, établi en France (Union européenne), responsable du traitement de tes données au sens du règlement général sur la protection des données (RGPD).",
             "Pour toute question ou demande sur tes données : support@vendrediparty.ch. Réponse en principe sous 30 jours.",
             "Party est réservé aux personnes de 18 ans et plus. Party ne fait aucune publicité, ne revend aucune donnée et n'utilise aucun outil tiers de mesure d'audience ni de suivi (« tracking »).",
         ]),
@@ -245,7 +245,7 @@ struct PrivacyView: View {
             "Apple : notifications de l'iPhone (APNs), billets Apple Wallet, app Apple TV, et la dictée vocale sur iPhone (transcription de ta voix, seulement quand tu dictes).",
             "Google : la recherche d'un lieu dans l'assistant des événements (le texte du lieu), et la dictée vocale dans Chrome (transcription de ta voix, seulement quand tu dictes).",
             "Infomaniak (Suisse) : messagerie de l'adresse de contact, quand tu nous écris.",
-            "Le serveur de Party est hébergé en Suisse. Twilio, Anthropic, GitHub, Spotify, Apple et Google peuvent traiter des données hors de Suisse, notamment aux États-Unis, avec les garanties prévues par la nLPD (Swiss-U.S. Data Privacy Framework ou clauses contractuelles types).",
+            "Le serveur de Party est hébergé en Suisse. Twilio, Anthropic, GitHub, Spotify, Apple et Google peuvent traiter des données hors de Suisse, notamment aux États-Unis, avec les garanties prévues par le RGPD et la nLPD (Data Privacy Framework ou clauses contractuelles types).",
         ]),
         ("Combien de temps", [
             "Ton compte et ce qui s'y rattache : jusqu'à ce que tu le supprimes. Notifications : 90 jours. Signalements traités : un an. Compteur des invités : 6 mois sans visite. Ancien compte d'invité au prénom seul (créé avant le 10.11.2026, profil jamais complété ; depuis, le profil complet est toujours demandé) : effacé avec ses réponses 7 jours après le dernier événement auquel il était invité. Activité de la soirée : le temps de la soirée et au plus 3 jours. Covoiturage, demandes d'accord et liens d'invitation : jusqu'à la suppression de l'événement (ou de ton compte). Bar de la soirée : 6 mois après sa fermeture. Pronos (réponses, confettis lancés, contestations, réactions) : jusqu'à la suppression du prono, de son groupe ou de son événement. Ton sac de confettis et son historique : jusqu'à la suppression de ton compte. Messages directs : jusqu'à la suppression du compte de l'un des deux. Photos et messages vocaux des discussions : 90 jours. Demandes de message refusées ou supprimées : effacées aussitôt ; ignorées : effacées au bout de 30 jours. Copies jointes à un signalement (message, photo, vocal, 10 messages précédents) : effacées avec le signalement, au plus tard un an après.",
@@ -253,15 +253,15 @@ struct PrivacyView: View {
         ]),
         ("Tes droits", [
             "Tu peux à tout moment : voir et corriger tes données dans l'app ; retirer un accord (IA, contacts, notifications) ; supprimer ton compte dans Réglages › Gérer mon compte. La suppression efface ton compte, tes photos de profil, tes contenus (réponses, votes, messages directs avec leurs photos et vocaux, demandes de message, réglages des discussions, pronos et confettis, covoiturage, demandes, ton calendrier abonné), les événements que tu as créés, tes stats de jeux, tes accords pour l'IA et le journal de tes appels à l'IA ; tes avis sur l'app restent, sans ton nom.",
-            "Pour obtenir une copie de tes données ou toute autre demande : support@vendrediparty.ch. Tu peux aussi t'adresser au Préposé fédéral à la protection des données et à la transparence (PFPDT).",
+            "Pour obtenir une copie de tes données ou toute autre demande : support@vendrediparty.ch. Tu peux aussi te plaindre auprès de la CNIL (France), l'autorité de contrôle de l'éditeur ; si tu vis en Suisse, auprès du Préposé fédéral à la protection des données et à la transparence (PFPDT).",
         ]),
-        ("Si tu vis dans l'Union européenne (RGPD, DSA)", [
-            "Party est aussi proposé en France, en Belgique et au Luxembourg : pour les personnes qui y vivent, le règlement général sur la protection des données (RGPD) s'applique en plus de la nLPD.",
+        ("Droit applicable (RGPD, nLPD, DSA)", [
+            "Party est édité en France : le règlement général sur la protection des données (RGPD) s'applique à tous ses utilisateurs. Pour les personnes qui vivent en Suisse, la loi fédérale sur la protection des données (nLPD) s'applique aussi.",
             "Bases légales : le service que tu demandes (compte, événements, jeux, notifications que tu actives) ; ton consentement, que tu retires à tout moment (IA, contacts, calendrier de l'iPhone, photo) ; l'intérêt légitime de Party (sécurité, journaux techniques, modération et signalements) ; une obligation légale quand une autorité le demande. Aucune décision automatisée ni profilage ne produit d'effet juridique sur toi.",
-            "Tes droits : accès, rectification, effacement, limitation, opposition et portabilité (une copie de tes données dans un format lisible), à demander à support@vendrediparty.ch. Tu peux aussi te plaindre auprès de l'autorité de ton pays : la CNIL (France), l'Autorité de protection des données (Belgique) ou la CNPD (Luxembourg).",
-            "Transferts : l'Union européenne reconnaît que la Suisse protège les données de façon adéquate ; pour les sous-traitants hors de Suisse, voir « Qui reçoit tes données ».",
+            "Tes droits : accès, rectification, effacement, limitation, opposition et portabilité (une copie de tes données dans un format lisible), à demander à support@vendrediparty.ch. L'autorité de contrôle de l'éditeur est la CNIL (France) ; tu peux aussi te plaindre auprès de l'autorité de ton pays : l'Autorité de protection des données (Belgique), la CNPD (Luxembourg) ou le PFPDT (Suisse).",
+            "Transferts : l'Union européenne reconnaît que la Suisse, où sont hébergés le serveur de Party et la base de données, protège les données de façon adéquate ; pour les sous-traitants hors de l'Union européenne et de Suisse, voir « Qui reçoit tes données ».",
             "Règlement sur les services numériques (DSA) : point de contact unique pour les utilisateurs et les autorités : support@vendrediparty.ch, en français. Un contenu illicite se signale dans l'app (« Signaler ») ou à cette adresse.",
-            "Représentant dans l'Union européenne (RGPD art. 27, DSA art. 13) : Ludovic Trombert, 420 route des Rosellets, 01170 Segny, France ; support@vendrediparty.ch.",
+            "Éditeur : Ludovic Trombert, 420 route des Rosellets, 01170 Segny, France ; support@vendrediparty.ch. Établi dans l'Union européenne, il n'a pas de représentant à désigner (RGPD art. 27, DSA art. 13).",
         ]),
         ("Signalements et blocages", [
             "Quand tu signales un contenu, les modérateurs reçoivent ta raison, ton commentaire et une copie de ce contenu. Pour un message : ce seul message, avec sa photo ou son vocal copiés dans un espace réservé aux modérateurs, et les 10 messages précédents (texte, auteur, heure) seulement si tu coches « Joindre les 10 messages précédents ». La personne signalée ne sait pas qui l'a signalée. Si un modérateur masque ton contenu, une notification te dit pourquoi et où le contester. Les blocages restent jusqu'à ce que tu débloques.",

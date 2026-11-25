@@ -450,10 +450,12 @@ l'admin. Toujours :
 ## Refus Apple 1.4.3 (25.11) — à garder
 - Règle : JAMAIS de jeu à boire ni de gorgées dans l'app App Store (« PartyStore » dans l'User-Agent ; en prod, aussi tout appel
   natif `X-Party-Native: ios`, la BETA ne parlant qu'au site de test). Ni boisson, ivresse, drogue, emoji 🍻🍺🥃🍸🍹🍷, mode Hot / Mix, ni bar.
-- Le SERVEUR le garantit (`app/store_app.py`) : jeux cachés (`HIDDEN_GAMES` : Casino, Blackjack, Beer pong, Biskit, Pyramide,
-  Purify Test) et toute partie avec gorgées ou mode Hot refusés (création, salle, code / QR, lecture) ; partie de l'app = `store`,
-  gorgées à 0, questions et mots filtrés (`drinky`) ; salle où l'app est entrée : rien de caché. Page : `STORE` / `STORE_HIDDEN`
-  (games.js). Bar : `data-bar="off"` et `/api/features` bar=false ; `send-push` n'envoie aucune notification `bar_*` à l'app App Store.
+- Le SERVEUR le garantit (`app/store_app.py`) : jeux cachés (`HIDDEN_GAMES` : Casino, Blackjack, Beer pong, Biskit,
+  Purify Test) et toute partie du web avec gorgées ou mode Hot refusés (création, salle, code / QR, lecture) ; partie de l'app =
+  `store` : ses gorgées sont des ⭐ points (« ⭐ Mode points » ; Pyramide gardée en points avec un tableau, le moins de points
+  gagne, sommet « 🏔️ Défi du sommet » ; jamais de bonbons ni de nourriture ; décision du 25.11), questions et mots filtrés (`drinky`) ; salle où l'app est entrée : rien de caché. Page : `STORE`,
+  `STORE_HIDDEN`, `candy()` sur tout ce qu'elle dessine (games.js).
+- Invités : dans l'app App Store, les jeux sont illimités sans compte (`games_free`, main.py) ; le web garde son plafond. Bar : `data-bar="off"` et `/api/features` bar=false ; `send-push` n'envoie aucune notification `bar_*` à l'app App Store.
 - Undercover s'appelle « L'Intrus » et Mr. White « le Fantôme » partout (marque d'un tiers) ; identifiants inchangés.
 - Tout nouveau jeu, option ou texte : se demander s'il passe dans PartyStore. Tests : `tests/test_store_app.py`,
   `tests/e2e/test_store_app_no_drinks.py`. Le web, la BETA et Android gardent tout.

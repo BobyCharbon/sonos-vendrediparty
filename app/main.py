@@ -1440,7 +1440,7 @@ def create_game(body: GameCreate, request: Request):
         raise HTTPException(403, msg)
     if body.type in ACCOUNT_GAMES:
         require_account(body.token, body.guest_id, ip)
-    if body.type != "room" and not gate_free(body.guest_id, request) and guest_gate.blocked(body.guest_id):
+    if body.type != "room" and not games_free(body.guest_id, request) and guest_gate.blocked(body.guest_id):
         raise gate_games_refused(body.guest_id, "")
     # Page publique : 5 créations par adresse toutes les 10 minutes, 30 parties au plus.
     recent = [t for t in _game_creations.get(ip, []) if time.time() - t < 600]
@@ -1458,7 +1458,7 @@ def create_game(body: GameCreate, request: Request):
     # Seul l'hôte est prévenu (son réglage) ; les invités, jamais : chacun invite qui il veut (choix de l'admin du 05.11.2026).
     notify_admin({"title": title, "body": text, "url": "/admin#games", "tag": f"game-{g['code']}"}, kind="games")
     store.session.games[g["code"]] = g
-    if g["type"] != "room" and not gate_free(body.guest_id, request):
+    if g["type"] != "room" and not games_free(body.guest_id, request):
         guest_gate.record(body.guest_id, g["code"])  # sa nouvelle partie compte (une salle, non)
     save_games(g["code"])
     return with_gate(full_view(g, body.guest_id), body.guest_id, request, g["code"])
@@ -1536,14 +1536,14 @@ def room_launch(room: dict, me: str, settings: dict):
     hp = games.player(room, host)
     fields = {k: v for k, v in settings.items() if k in GameCreate.model_fields and k not in ("guest_id", "name", "type", "token")}
     fields["plays"] = bool(hp) and fields.get("plays", True) and (not accounts_only or seat_linked(room, host)) \
-        and (gate_free(host) or not guest_gate.blocked(host))  # invité au bout de ses parties : il anime sans jouer
+        and (games_free(host) or not guest_gate.blocked(host))  # invité au bout de ses parties : il anime sans jouer
     body = GameCreate(guest_id=host, name=room.get("host_name") or "Animateur", type=kind, **fields)
     if len(store.session.games) >= 30:
         prune_games()
     child = build_game(body)
     if room.get("store"):
         store_app.flag(child)
-    if fields["plays"] and not gate_free(host):
+    if fields["plays"] and not games_free(host):
         guest_gate.record(host, child["code"])
     for p in room["players"]:
         if p["id"] == host or (accounts_only and not seat_linked(room, p["id"])):
@@ -1588,6 +1588,19 @@ def gate_free(gid: str, request: Request | None = None) -> bool:
             or (request is not None and is_admin(request)))
 
 
+# App App Store (décision de l'admin du 25.11) : les jeux y restent illimités en invité ; le web garde son plafond. Le
+# compte reste exigé pour les événements, les groupes et les discussions. Une identité vue dans l'app y reste libre (une
+# salle lancée par l'animateur sur le web n'arrête pas un joueur de l'app).
+_store_guests: set[str] = set()
+
+
+def games_free(gid: str, request: Request | None = None) -> bool:
+    """Parties sans plafond : comptes, hôte, admin (gate_free) et invités de l'app App Store."""
+    if gid and store_app.is_store(request):
+        _store_guests.add(gid)
+    return gate_free(gid, request) or gid in _store_guests
+
+
 def gate_games_refused(gid: str, code: str) -> HTTPException:
     st = guest_gate.status(gid, code)
     return HTTPException(403, {"message": GATE_GAMES_MSG, "account_required": "games", "played": st["played"],
@@ -1597,7 +1610,7 @@ def gate_games_refused(gid: str, code: str) -> HTTPException:
 def gate_enter(g: dict, gid: str, request: Request | None) -> bool:
     """L'invité entre dans une partie (jamais une salle) : refusé s'il a joué ses parties en invité, sinon compté.
     Déjà assis dans cette partie : rien ne change (une partie commencée n'est jamais interrompue)."""
-    if g["type"] == "room" or gate_free(gid, request) or games.player(g, gid):
+    if g["type"] == "room" or games_free(gid, request) or games.player(g, gid):
         return True
     if guest_gate.blocked(gid, g["code"]):
         return False
@@ -1607,7 +1620,7 @@ def gate_enter(g: dict, gid: str, request: Request | None) -> bool:
 
 def with_gate(v: dict, gid: str, request: Request | None, code: str = "") -> dict:
     """Vue d'une partie + où en est l'invité (message doux après sa 1re partie, compte requis ensuite)."""
-    if v is None or gate_free(gid, request):
+    if v is None or games_free(gid, request):
         return v
     st = guest_gate.status(gid, code)
     if v.get("me") or v.get("is_owner") or v.get("type") == "room":
@@ -3608,7 +3621,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     if a == "join" and (msg := ban_message(me, client_ip(request))):
         raise HTTPException(403, msg)
     # Invité au bout de ses parties en invité : une NOUVELLE partie demande un compte (sa place, elle, reste).
-    if a == "join" and g["type"] != "room" and not games.player(g, me) and not gate_free(me, request) \
+    if a == "join" and g["type"] != "room" and not games.player(g, me) and not games_free(me, request) \
             and guest_gate.blocked(me, g["code"]):
         raise gate_games_refused(me, g["code"])
     if a == "end":
@@ -3699,7 +3712,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     g["updated_at"] = time.time()
     if a in REPORT_ACTIONS and action_result:
         log_game_report(g, me, action_result, request)
-    if a == "join" and g["type"] != "room" and not gate_free(me, request):
+    if a == "join" and g["type"] != "room" and not games_free(me, request):
         guest_gate.record(me, g["code"])
     # Salle de jeux : rejoindre, quitter, exclure ou passer la main vaut aussi pour le jeu en cours (et inversement).
     other = room_child(g) if g["type"] == "room" else room_of(g)

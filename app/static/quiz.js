@@ -147,9 +147,9 @@ GAME_RULES.quiz = `
   <h3>🪜 Paliers</h3>
   <p>15 questions de plus en plus difficiles, 30 s chacune. Les paliers <b>1 000</b> et <b>32 000</b> sont assurés : en cas d'erreur, tu redescends au dernier palier atteint. Deux jokers : <b>50/50</b> (retire deux mauvaises réponses) et <b>🔄 Changer</b> la question. Tu peux t'arrêter à tout moment et garder ce que tu as.</p>
   <h3>🌍 Classement général</h3>
-  <p>Chaque partie compte : les points, les victoires et les records s'additionnent d'une partie à l'autre dans le classement général.</p>${STORE ? "" : `
+  <p>Chaque partie compte : les points, les victoires et les records s'additionnent d'une partie à l'autre dans le classement général.</p>
   <h3>🍻 Option alcool</h3>
-  <p>Si l'animateur l'active, chaque mauvaise réponse se boit.</p>`}`;
+  <p>Si l'animateur l'active, chaque mauvaise réponse se boit.</p>`;
 
 const QZ_COLORS = ["qz-a", "qz-b", "qz-c", "qz-d"];
 const QZ_SHAPES = ["▲", "◆", "●", "■"];

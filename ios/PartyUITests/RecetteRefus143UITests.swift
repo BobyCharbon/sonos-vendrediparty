@@ -14,8 +14,8 @@ final class RecetteRefus143UITests: XCTestCase {
 
     static let forbidden = ["gorgée", "Gorgée", "boire", " boit", "alcool", "Alcool", "bière", "Bière", "vodka", "Vodka",
                             "tequila", "Tequila", "tournée", "ivre", "🍻", "🍺", "🥃", "🍸", "🍹", "🍷", "Bar de la soirée",
-                            "Bar : ", "Beer pong", "Pyramide", "Purify", "Biskit", "Casino", "Blackjack", "🔥 Hot", "🎲 Mix",
-                            "Undercover", "Mr. White"]
+                            "Bar : ", "Beer pong", "Purify", "Biskit", "Casino", "Blackjack", "🔥 Hot", "🎲 Mix",
+                            "Undercover", "Mr. White", "🍬", "bonbon"]
 
     override func setUpWithError() throws {
         guard let path = env["REFUS_DIR"] else { throw XCTSkip("Recette à la demande (REFUS_DIR)") }
@@ -75,6 +75,27 @@ final class RecetteRefus143UITests: XCTestCase {
             record("\(name)-\(i)")
         }
         for _ in 0..<pages { app.swipeDown(velocity: .fast) }
+    }
+
+    /// Pyramide en points (décision du 25.11) : la partie est préparée et menée par refus_143_pyramide.py (même identité
+    /// d'invité, REFUS_PYR_GID / REFUS_PYR_CODE) ; ici, une capture toutes les 4 s : distribution, mémorisation, sommet, tableau des points.
+    func testPyramidPoints() throws {
+        guard let gid = env["REFUS_PYR_GID"], let code = env["REFUS_PYR_CODE"] else { throw XCTSkip("REFUS_PYR_GID / CODE") }
+        app = XCUIApplication()
+        app.launchEnvironment["PARTY_DEBUG_JS"] = "localStorage.setItem('vp_install_dismissed','1');localStorage.setItem('vp_name','Léa');"
+            + "localStorage.setItem('vp_guest','\(gid)');localStorage.setItem('vp_game','\(code)');localStorage.removeItem('vp_room');"
+        app.launch()
+        sleep(5)
+        // Partie en cours : l'app s'ouvre dessus, en plein écran (sans barre d'onglets) ; sinon, l'onglet Jeux.
+        if tab("Jeux").exists && tab("Jeux").isHittable { tab("Jeux").tap() }
+        sleep(3)
+        step = 60
+        try? "ready".write(to: dir.appendingPathComponent("pyramide-prete.txt"), atomically: true, encoding: .utf8)
+        let frames = Int(env["REFUS_PYR_FRAMES"] ?? "40") ?? 40
+        for i in 0..<frames {
+            record(String(format: "pyramide-%02d", i))
+            sleep(3)
+        }
     }
 
     func testGamesHaveNoDrinking() {

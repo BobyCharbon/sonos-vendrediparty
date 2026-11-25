@@ -133,6 +133,9 @@ Pour chaque type : **lié à l'identité : oui · suivi : non · finalité : App
       commerciale) ; sans déclaration, pas de distribution en France, Belgique et Luxembourg.
 - [x] **Représentant légal dans l'UE** (décision de l'admin du 19.11) : Ludovic Trombert, établi en France (01), nommé
       dans la politique de confidentialité (web et iPhone, section UE) avec l'adresse et support@vendrediparty.ch.
+      **25.11** : l'éditeur est établi en France, donc dans l'UE : aucun représentant à désigner ; la politique dit
+      « éditeur établi en France », autorité de contrôle CNIL (le PFPDT pour les personnes en Suisse). Texte iPhone aligné
+      (prochain build).
 - [ ] Droits sur le contenu : « contient du contenu de tiers » = Oui, avec les droits (titres et pochettes lus par les API
       de musique, lieux par Google).
 - [ ] Contrats « Apps gratuites » acceptés (Business) par le titulaire du compte.
