@@ -186,5 +186,5 @@ def test_age_rating_declares_no_simulated_gambling_while_pronos_are_off():
 def ios_terms_after_refus_143():
     """Refus Apple 1.4.3 (25.11) : le web ne dit plus « dans les jeux, un verre d'eau compte toujours » (simple précision,
     même version des CGU) ; l'iPhone garde l'ancienne phrase jusqu'au prochain build (TermsView.swift, non touché)."""
-    old, new = "dans les jeux, un verre d'eau compte toujours et", "aucun jeu ne demande de boire et"
+    old, new = "Boire n'est jamais obligatoire ni récompensé : dans les jeux, un verre d'eau compte toujours et personne n'est classé selon ce qu'il boit.", "Boire n'est jamais obligatoire ni récompensé, et personne n'est classé selon ce qu'il boit ; dans l'app iPhone, les jeux se jouent en points."
     return [(t, [p.replace(old, new) for p in ps]) for t, ps in terms_sections(web=False)]

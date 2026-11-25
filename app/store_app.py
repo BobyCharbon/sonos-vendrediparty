@@ -30,7 +30,8 @@ DRINK_RE = re.compile(
     r"gorg[ée]es?|\bboire\b|\bboi[st]\b|\bboivent\b|\bbuvez\b|\bbu\b|\bshots?\b|alcool|bi[èe]res?\b|\bvins?\b|vodka|tequila"
     r"|whisky|\brhums?\b|\bgin\b|tourn[ée]e|\bcuites?\b|\bivres?\b|ivresse|bourr[ée]e?s?\b|gueule de bois|ap[ée]ro"
     r"|cocktail|champagne|mojito|ca[iï]pirinha|sangria|spritz|pastis|j[äa]germeister|liqueur|\bbars?\b|\bverres?\b"
-    r"|drogue|cannabis|coca[iï]ne|\bjoint\b|ecstasy|mdma|\blsd\b|cigarette|nicotine|🍻|🍺|🥃|🍸|🍹|🍷|🍾|🥂",
+    r"|drogue|cannabis|coca[iï]ne|\bjoint\b|ecstasy|mdma|\blsd\b|cigarette|nicotine|\bvomi|tchin|\bbeer\b|bouteilles?\b"
+    r"|🍻|🍺|🥃|🍸|🍹|🍷|🍾|🥂",
     re.IGNORECASE)
 
 
@@ -77,6 +78,8 @@ def refused(g: dict) -> bool:
         return True
     if g["type"] in ("whoof", "never") and g["options"].get("mode") in HIDDEN_MODES:
         return True
+    if g["type"] == "pyramid" and not g.get("store"):
+        return True  # Pyramide du web (gorgées) : jamais, même en salle d'attente ; seule celle de l'app ou d'une salle store
     return g["type"] in BANK_GAMES and not g.get("store") and g.get("phase") != "lobby"
 
 

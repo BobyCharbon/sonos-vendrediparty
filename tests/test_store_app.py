@@ -83,9 +83,12 @@ def test_a_web_game_already_running_without_the_filter_is_refused_but_a_lobby_is
     lobby = main.store.session.games[create(WEB_UA, "never", "web-host-b", mode="awkward").json()["code"]]
     assert client(STORE_UA).get(f"/api/games/{lobby['code']}?guest_id=store-p1").status_code == 200
     assert lobby["store"]  # la suite est tirée sans boisson
+    # Pyramide créée sur le web (des gorgées) : jamais ouverte à l'app, même en salle d'attente (contrôle final du 25.11).
     web_pyr = main.store.session.games[create(WEB_UA, "pyramid", "web-host-c").json()["code"]]
-    web_pyr["phase"] = "deal"  # Pyramide lancée sur le web : des gorgées, jamais ouverte à l'app
+    assert web_pyr["phase"] == "lobby"
     assert client(STORE_UA).get(f"/api/games/{web_pyr['code']}?guest_id=store-p1").status_code == 403
+    r = client(STORE_UA).post(f"/api/games/{web_pyr['code']}", json={"guest_id": "store-p1", "action": "join", "name": "Léa"})
+    assert r.status_code == 403 and not web_pyr.get("store")
 
 
 def test_store_app_cannot_launch_hidden_games_from_a_game_room():
@@ -227,3 +230,9 @@ def test_store_app_guests_play_without_limit_while_the_web_keeps_its_cap(monkeyp
     code = create(WEB_UA, "whoof", "web-host-xyz").json()["code"]
     r = client(STORE_UA).post(f"/api/games/{code}", json={"guest_id": "store-guest-01", "action": "join", "name": "Léa"})
     assert r.status_code == 200, r.text
+
+
+def test_the_filter_also_catches_vomit_cheers_beer_and_bottles():
+    for text in ("J'ai déjà vomi en soirée", "Tchin-tchin !", "S'Beer", "vomir"):
+        assert store_app.drinky(text), text
+    assert not store_app.drinky("Soirée jeux de société")

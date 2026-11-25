@@ -36,14 +36,14 @@
 
 ---
 
-## PART A — Text for the "Notes" field (3,984 characters, limit 4,000)
+## PART A — Text for the "Notes" field (3,983 characters, limit 4,000)
 
 ```text
 ABOUT
-"Vendredi Party" (icon "Party !"): free app by the Swiss association Vendredi Party, for friends and associations: real-world events, party games, music, chats. French, 18+. No ads, no tracking, no in-app purchase. Guide attached (PDF).
+"Vendredi Party" (icon "Party !"): free app by Ludovic Trombert, an individual developer based in France, for friends and associations: real-world events, party games, music, chats. French, 18+. No ads, no tracking, no in-app purchase. Guide attached (PDF). The up-to-date privacy policy is the web page (linked in the app); the in-app copy is refreshed in the next build.
 
 CHANGES SINCE THE 1.4.3 REJECTION (server side, live now, permanent)
-Removed: the "Alcohol" games category and all drink labels/icons; Beer pong, Biskit, Purify Test; "Hot"/"Mix" questions; the party bar. Drinking options replaced by points; Pyramid is a points game. The server refuses any game with a drinking or Hot setting, even by code or QR. Demo event: no alcohol.
+Removed: the "Alcohol" games category and all drink labels/icons; Beer pong, Biskit, Purify Test; "Hot"/"Mix" questions; the party bar. Drinking options replaced by points; Pyramid is a points game. The server refuses any web game with drinks or Hot questions, even by code or QR. Demo event: no alcohol.
 
 SIGN-IN
 Phone + 6-digit SMS code, no password. Demo account "Apple-test": number and code in the sign-in fields (fixed code, no SMS). Last tab "Se connecter" > "Suisse +41" > number > code.
@@ -58,16 +58,16 @@ NATIVE (4.2)
 Native tab bar; SwiftUI: Music, Settings, Discussions, Groups, event chat, "Ton avis", AI assistant, "Pot commun". Push (one switch per type), Live Activity, Wallet, QR scanner, Calendar, optional Contacts (hashed), dictation.
 
 WEB CONTENT (2.5.2)
-Events and Games tabs are our own site in a WKWebView, same for all users, using only the native features above. Other sites open in Safari. Not in this version (switched off on our server, not reachable in the app): Pronos, Agenda, companion. Each will be described in a reviewed version before it opens.
+Events and Games tabs are our own site in a WKWebView, same for all users, using only the native features above. Other sites open in Safari. Not in this version (off on our server): Pronos, Agenda, companion; each will be described before it opens.
 
 EVENTS
-"Qui est invité": public, invitation or groups. Links for one person or "Plusieurs"; guests create, copy and stop own links, see counts only. Not public: someone coming through a guest's link waits ("À accepter"). Date poll. Personal calendar feed. Carpool (no money). QR ticket + Wallet. Groups: "Inviter avec un lien". Everyone signs in (name, nickname of 12 characters max). The page updates live; tap a name to open the profile; each answer shows its time. Admins: "Nouveau compte" alert, announcement or maintenance message.
+"Qui est invité": public, invitation or groups. Links for one person or "Plusieurs"; guests create, copy and stop own links, see counts only. Not public: someone coming through a guest's link waits ("À accepter"). Date poll. Personal calendar feed. Carpool (no money). QR ticket + Wallet. Groups: "Inviter avec un lien". Everyone signs in (name, nickname of 12 characters max); games stay unlimited without an account. The page updates live; tap a name to open the profile; each answer shows its time. Admins: "Nouveau compte" alert, announcement or maintenance message.
 
 PAYMENTS (3.1.3(e))
 Party never sells, holds or transfers money; no digital goods. Real-world events only: organiser's own Revolut/Twint/IBAN, ticketing link (Safari) or on site. Paying never unlocks anything in the app; the QR ticket is for door entry only.
 
 DISCUSSIONS (1.2)
-Event chats (event > "Discussion", native screen): only for guests who answered "Présent" / "Peut-être" and the organisers; mentions-only alerts by default, mute, reply from notification. Group photo optional, with "Signaler". DMs only with a real link (shared group or event); anyone else sends a message request: one text, no photo/link/number; "Accepter / Supprimer / Bloquer / Signaler", sender never told. Settings > Confidentialité > "Demandes de message" (everyone / no one). "Nouveau message": real links only, search by name, never by number; 2+ people make a private group, not read by admins. Tap a name: mini-profile (message, Bloquer, Signaler). Terms first, word filter, "Signaler" on each message (photo/voice kept for moderators, last 10 messages if ticked); "Bloquer" hides messages at once and alerts moderators. Reports within 24 h. Demo account "Apple-test 2" (number in the guide) shows a request from the other side (same fixed code). Contact: support@vendrediparty.ch.
+Event chats (event > "Discussion", native screen): only for guests who answered "Présent" / "Peut-être" and the organisers. DMs only with a real link (shared group or event); anyone else sends a message request: one text, no photo/link/number; "Accepter / Supprimer / Bloquer / Signaler", sender never told. Settings > Confidentialité > "Demandes de message". "Nouveau message": real links only, search by name, never by number; 2+ people make a private group, not read by admins. Tap a name: mini-profile (message, Bloquer, Signaler). Terms first, word filter, "Signaler" on each message (photo/voice kept for moderators, last 10 messages if ticked); "Bloquer" hides messages at once and alerts moderators. Reports within 24 h. Demo account "Apple-test 2" (number in the guide) shows a request from the other side (same fixed code). Contact: support@vendrediparty.ch.
 
 AI (5.1.2(i))
 "Avec l'IA", "Ton avis" and receipts go to Anthropic (Claude) only after "J'accepte". Withdraw: Settings > Confidentialité.
@@ -85,9 +85,10 @@ Settings > "Gérer mon compte" > type SUPPRIMER > "Supprimer définitivement mon
 
 ### B1. What Party is
 
-Party ("Vendredi Party" on the App Store, "Party !" under the icon) is a free, non-commercial app made by a group of
-friends in Switzerland. Our association, **Vendredi Party**, uses it to organise its evenings, and anyone can use it to
-organise their own real-world events with friends.
+Party ("Vendredi Party" on the App Store, "Party !" under the icon) is a free, non-commercial app published by
+**Ludovic Trombert, an individual developer based in France**. "Vendredi Party" is the name of our group of friends, who
+use it to organise their evenings; anyone can use it to organise their own real-world events with friends. The
+up-to-date privacy policy is the web page (linked in the app); the in-app copy will be refreshed in the next build.
 
 What you can do with it:
 

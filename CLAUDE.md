@@ -455,7 +455,10 @@ l'admin. Toujours :
   `store` : ses gorgées sont des ⭐ points (« ⭐ Mode points » ; Pyramide gardée en points avec un tableau, le moins de points
   gagne, sommet « 🏔️ Défi du sommet » ; jamais de bonbons ni de nourriture ; décision du 25.11), questions et mots filtrés (`drinky`) ; salle où l'app est entrée : rien de caché. Page : `STORE`,
   `STORE_HIDDEN`, `candy()` sur tout ce qu'elle dessine (games.js).
-- Invités : dans l'app App Store, les jeux sont illimités sans compte (`games_free`, main.py) ; le web garde son plafond. Bar : `data-bar="off"` et `/api/features` bar=false ; `send-push` n'envoie aucune notification `bar_*` à l'app App Store.
+- Invités : dans l'app App Store, les jeux sont illimités sans compte (`games_free`, main.py) ; le web garde son plafond.
+- Événement PUBLIC dont le titre, la description, le lieu ou les mini-sondages parlent d'alcool : absent de la liste et de la
+  recherche de l'app App Store, sauf pour ses invités, participants et organisateurs (`web/events/src/lib/storeEvents.ts`).
+  Pyramide créée sur le web : jamais ouverte à l'app (seule celle de l'app ou d'une salle `store`). Bar : `data-bar="off"` et `/api/features` bar=false ; `send-push` n'envoie aucune notification `bar_*` à l'app App Store.
 - Undercover s'appelle « L'Intrus » et Mr. White « le Fantôme » partout (marque d'un tiers) ; identifiants inchangés.
 - Tout nouveau jeu, option ou texte : se demander s'il passe dans PartyStore. Tests : `tests/test_store_app.py`,
   `tests/e2e/test_store_app_no_drinks.py`. Le web, la BETA et Android gardent tout.

@@ -80,7 +80,8 @@ def test_the_browser_keeps_its_games(browser, server):
 
 
 def test_store_app_pyramid_plays_with_points(browser, server):
-    """Pyramide dans l'app : distribution et mémorisation en points, tableau des points, sans un mot de boisson."""
+    """Pyramide dans l'app : distribution et mémorisation en points, tableau des points, menu ☰ « Participants », sans un
+    mot de boisson."""
     import httpx
     from app import games
     ctx, page = open_games(browser, server, store=True)
@@ -103,6 +104,13 @@ def test_store_app_pyramid_plays_with_points(browser, server):
     state = httpx.get(server.url + f"/api/games/{g['code']}?guest_id={me}", headers=ua).json()
     assert state["phase"] == "look"
     texts.append(page.evaluate("document.body.innerText"))
+    # Menu ☰ « Participants » (contrôle final du 25.11) : les points reçus, jamais 🍻.
+    page.evaluate("openDrawer()")
+    page.wait_for_timeout(600)
+    drawer = page.evaluate("document.getElementById('gDrawerPlayers').innerText")
+    assert "Participants" in drawer, drawer
+    assert drinks_in(drawer) == [], drawer
+    texts.append(drawer)
     joined = "\n".join(texts)
     assert "⭐ Tableau des points" in joined and " point" in joined
     assert drinks_in(joined) == [], drinks_in(joined)

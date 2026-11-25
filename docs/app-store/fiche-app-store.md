@@ -18,7 +18,7 @@ script le 16.11.2026. Vérifié dans le code (develop) et sur la prod en lecture
 | Catégorie secondaire | **Divertissement** (Entertainment) | Jeux de soirée, musique. Ne pas prendre « Jeux » (exigences et classements propres aux jeux). |
 | Prix | Gratuit | Aucun achat intégré |
 | Disponibilité | Les 26 pays francophones de l'App Store (décision du 09.11.2026) | Liste exacte : À VÉRIFIER dans Prix et disponibilité |
-| Droits d'auteur | **© 2026 Ludovic Trombert** | Éditeur nommé dans la politique de confidentialité (PrivacyView, privacy.tsx) |
+| Droits d'auteur | **© 2026 Ludovic Trombert** | Éditeur : Ludovic Trombert, développeur indépendant établi en France (25.11 : aucune association) ; nommé dans la politique de confidentialité (PrivacyView, privacy.tsx) |
 
 ## URL
 
