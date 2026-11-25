@@ -13,7 +13,7 @@ export type AiConsentStatus = {
 };
 
 /** Même texte que la feuille d'accord (version 2 : app/static/index.html #fbAiConsent, FeedbackAI.consentText d'iOS). */
-export const AI_CONSENT_TEXT = 'Quand tu utilises l’IA, Party envoie ce que tu lui confies à Anthropic (Claude) : le texte de ton avis (et la transcription de ta voix) ; avec l’assistant des événements, ta description, tes captures d’écran, tes photos et les liens que tu donnes ; pour un ticket du pot commun, sa photo. Pour corriger l’app, ton avis peut aussi être copié sur GitHub et lu par Claude, sans ton prénom ni ton numéro. Jamais ton numéro.';
+export const AI_CONSENT_TEXT = 'Quand tu utilises l’IA, Party envoie ce que tu lui confies à Anthropic (Claude) : le texte de ton avis (et la transcription de ta voix) ; avec l’assistant des événements, ta description, tes captures d’écran, tes photos et les liens que tu donnes ; pour un ticket du pot commun, sa photo. Pour corriger l’app, ton avis peut aussi être publié sur GitHub, où tout le monde peut le lire, puis lu par Claude, sans ton prénom ni ton numéro. Jamais ton numéro.';
 
 const FALLBACK = 'L’accord pour l’IA n’a pas pu être lu. Vérifie ta connexion et réessaie.';
 

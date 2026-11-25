@@ -344,7 +344,8 @@ l'événement" from a shared link (the AI assistant drafts the event, you review
 
 #### B4.17 Shared expenses ("Pot commun")
 
-Réglages › **Pot commun**: shared expense lists between friends (who paid, who owes what). Receipts can be scanned
+Réglages › **Pot commun**: private shared expense lists between friends, joined only by link (who paid, who owes
+what); names, titles and notes pass the app's word filter. Receipts can be scanned
 (VisionKit; optional AI reading with consent). It only records amounts; repayments happen outside the app: "Rembourser"
 only shows the friend's own IBAN, Revolut, PayPal or Twint (opens Safari or copies it). No money goes through Party and
 nothing digital is unlocked.
@@ -455,11 +456,15 @@ New build, and our server, permanent for this version of the App Store app:
 - Pronos, Agenda and the companion stay off in this build even if our server turns them on for the website; the
   "Pot commun" button that shows a friend's payment details is now "Rembourser" (no card icon).
 - The privacy policy states that Party's server is hosted in France by the publisher (database by Supabase, Zurich),
-  and the AI consent sheet also says that feedback may be copied to GitHub, without name or number, to fix the app.
+  and the AI consent sheet says that feedback given to the AI may be published on GitHub, where anyone can read it,
+  without name or number, to fix the app; that consent is asked again (new version of the text).
 - Only the iOS app is submitted: no tvOS version is attached to this submission.
 - Public events whose title, description, place or polls mention a drink, a bar outing (happy hour, afterwork, pub crawl…),
   tobacco, shisha or vaping are not listed in the app (only their guests and organisers see them).
 - An index of the games (all first-party, with a universal link) is in B4.15 (4.7.4).
+- "Pot commun" names, expense titles and notes now pass the same word filter as the rest of the app (1.2).
+- The App Store description now lists both extensions: "Partager › Party" (an event from a link) and the Live Activity
+  of a music party.
 
 ### B8. Permissions (asked only when needed)
 

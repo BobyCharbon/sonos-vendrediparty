@@ -60,13 +60,15 @@ ET AUSSI
 • Pot commun : qui a payé quoi, qui doit combien.
 • Notifications réglables une à une, pause en un geste.
 • Ton avis : une idée, un bug ? Écris-le directement aux organisateurs.
+• Depuis n'importe quelle app, Partager › Party crée un événement à partir d'un lien.
+• Soirée Musique chez un hôte (son code à 6 chiffres dans Jeux) : propose des titres, et l'écran verrouillé t'indique quand le tien passe (Activité en direct).
 
 Connexion simple par numéro de téléphone et code SMS, sans mot de passe. Suppression du compte directement dans l'app.
 
 Sans publicité, sans suivi publicitaire, sans achat intégré. Réservé aux personnes de 18 ans et plus.
 ```
 
-Longueur : 2 109 caractères (limite 4 000). Aucun nom de marque tierce, aucun mot sur l'alcool, Zicou, Casino ou Blackjack.
+Longueur : 2 368 caractères (limite 4 000). Aucun nom de marque tierce, aucun mot sur l'alcool, Zicou, Casino ou Blackjack.
 « Sur place » est décrit sans promesse : la musique demande une soirée en cours chez un hôte équipé ; les billets
 n'existent que si l'organisateur les allume. Refus 1.4.3 (25.11) : plus de bar dans la fiche ni dans l'app App Store.
 

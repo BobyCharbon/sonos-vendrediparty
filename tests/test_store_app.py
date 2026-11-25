@@ -562,7 +562,11 @@ def test_round_four_nickname_prod_file_also_cleans_notifications_already_sent():
     body = apply.split("begin;", 1)[1]
     assert body.index("update public.notifications") < body.index("raise exception")
     assert "from public.notifications" in body.split("do $$", 1)[1]
-    assert rollback.count("update public.notifications") == 27 and "efa3bf" in rollback
+    # Le retour arrière ne recopie JAMAIS le texte d'une notification (extraits de messages privés, dépôt public).
+    assert "public.notifications" not in rollback and "efa3bf" in rollback
+    # Pot commun : le nom d'un membre est une copie du surnom (pot « Cobalt Project Paintball » d'Apple-test).
+    assert body.index("update public.tc_members") < body.index("raise exception")
+    assert "from public.tc_members" in body.split("do $$", 1)[1] and "update public.tc_members" in rollback
 
 
 def test_round_five_native_app_keeps_pronos_agenda_zicou_and_bar_off_whatever_the_server_says():
@@ -591,7 +595,11 @@ def test_round_five_group_pronos_page_is_guarded_privacy_and_consent_are_exact()
         assert "hébergé en Suisse" not in text and "hébergé en France" in text, path
         assert "où sont hébergés le serveur de Party" not in text, path
     for path in ("app/static/index.html", "web/events/src/lib/aiConsent.ts", "ios/Party/Feedback/FeedbackAI.swift"):
-        assert "copié sur GitHub et lu par Claude, sans ton prénom ni ton numéro" in (_root() / path).read_text(encoding="utf-8"), path
+        assert "publié sur GitHub, où tout le monde peut le lire, puis lu par Claude, sans ton prénom ni ton numéro" in (_root() / path).read_text(encoding="utf-8"), path
+    # Le texte a changé (GitHub public dit en clair) : un accord d'avant ne vaut plus (5.1.2(ii)).
+    from app import ai_feedback
+    assert ai_feedback.CONSENT_VERSION >= 3
+    assert "static let consentVersion = 3" in (_root() / "ios/Party/Feedback/FeedbackAI.swift").read_text(encoding="utf-8")
 
 
 def test_round_five_listing_notes_and_checklist():
@@ -603,3 +611,17 @@ def test_round_five_listing_notes_and_checklist():
     assert '"Rembourser" shows' in notes and '"Payer" shows' not in notes
     checklist = (_root() / "docs/app-store/checklist-envoi.md").read_text(encoding="utf-8")
     assert "- [x] Captures iPhone Duo" not in checklist and "AUCUNE version tvOS" in checklist
+
+
+def test_round_seven_shared_expenses_are_filtered_and_the_listing_names_both_extensions():
+    mig = (_root() / "supabase/migrations/20261125110000_pot_commun_filtre.sql").read_text(encoding="utf-8")
+    prod = (_root() / "supabase/prod/2026-11-25-pot-commun-filtre-apply.sql").read_text(encoding="utf-8")
+    for table in ("tc_groups", "tc_members", "tc_expenses"):
+        trigger = f"create trigger {table}_moderation before insert or update of"
+        assert trigger in mig and trigger in prod, table
+    assert "private.item_text_verdict(new.note, 'Note')" in mig and "'20261125110000'" in prod
+    import json
+    desc = json.loads((_root() / "ios/appstore/metadata-fr.json").read_text(encoding="utf-8"))["description"]
+    assert "Partager › Party" in desc and "Activité en direct" in desc and len(desc) <= 4000
+    guide = (_root() / "docs/app-store/notes-for-review.md").read_text(encoding="utf-8")
+    assert "names, titles and notes pass the app's word filter" in guide

@@ -511,7 +511,7 @@ l'admin. Toujours :
   « absent ». Pot commun : « Rembourser » (plus « Payer » ni carte bancaire, 3.1.3(e)). Apple TV : aucune ligne « Boit » /
   « Distribue » / gorgées dans l'app App Store (`Outcome.of`, `CardGames`) ; aucune version tvOS jointe à la 1.0.0.
   Garde web des Pronos élargi à `/group/<id>/pronos`. Confidentialité : serveur hébergé en France chez l'éditeur, base
-  Supabase à Zurich ; feuille d'accord IA : l'avis peut aussi être copié sur GitHub et lu par Claude (sans prénom ni numéro).
+  Supabase à Zurich ; feuille d'accord IA : l'avis peut aussi être publié sur GitHub (visible par tous) et lu par Claude.
   Fiche : « pour toutes tes soirées entre amis » (jamais « pour une bande d'amis » : app pour tous).
 - Tour 6 (25.11) : `DRINK_RE` (store_app.py) et sa copie `storeEvents.ts` comprennent aussi les mots d'une sortie à boire
   et du tabac (happy hour, afterwork, pinte, Oktoberfest, ti-punch, binouze, pub crawl, margarita, shooters, Ricard,
@@ -519,6 +519,13 @@ l'admin. Toujours :
   (test `test_the_filter_catches_everyday_party_drink_and_tobacco_words`). Page publique de l'Agenda : responsable =
   l'éditeur établi en France (jamais « Vendredi Party (Suisse) »). Guide : index des jeux avec lien universel (4.7.4),
   publication directe dans « Démo Apple » (public / sur invitation : validation). Partie A ≤ 4 000 caractères.
+- Tour 7 (25.11) : un fichier de retour arrière de `supabase/prod/` ne recopie JAMAIS le texte d'un message ou d'une
+  notification (dépôt GitHub PUBLIC ; historique de fix-143 réécrit pour retirer les 27 notifications) ; le fichier du
+  surnom corrige aussi les 3 noms `tc_members` (Pot commun d'Apple-test). Pot commun filtré : nom du pot, noms des membres,
+  titres et notes des dépenses (`private.moderate_tc_text`, migration 20261125110000, prod
+  `2026-11-25-pot-commun-filtre-apply.sql`). Accord IA version 3 (`CONSENT_VERSION`, `consentVersion` iOS) : « publié sur
+  GitHub, où tout le monde peut le lire » ; tout changement de ce qui est envoyé ou de qui le lit = version +1. Fiche :
+  « ET AUSSI » cite l'extension Partager › Party et l'Activité en direct de la Musique (4.4).
 - Tout nouveau jeu, option ou texte : se demander s'il passe dans PartyStore. Tests : `tests/test_store_app.py`,
   `tests/e2e/test_store_app_no_drinks.py`. Le web, la BETA et Android gardent tout.
 

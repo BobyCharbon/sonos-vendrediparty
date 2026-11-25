@@ -97,7 +97,7 @@ const BLOCKS: Block[] = [
     paragraphs: [
       'Quand tu écris un avis (idée, bug), l’administrateur reçoit ton texte, ton prénom, l’écran où tu étais et ton appareil (modèle, version du système et de l’app). Il peut te répondre dans l’app.',
       'Si tu modifies ton avis, les versions précédentes sont gardées avec leur date (au plus les 20 dernières) pour que l’administrateur voie ce qui a changé. Elles partent avec l’avis.',
-      'Pour corriger l’app, l’administrateur peut confier un avis à une IA de développement : l’avis est alors copié sur GitHub (où le code de Party est gardé), puis lu par Claude (Anthropic). Cela n’arrive que si tu as donné ton accord pour l’IA, et toujours sans ton prénom ni ton numéro. Sans accord, ton avis reste chez l’administrateur.',
+      'Pour corriger l’app, l’administrateur peut confier un avis à une IA de développement : l’avis est alors publié sur GitHub (où le code de Party est gardé, visible par tous), puis lu par Claude (Anthropic). Cela n’arrive que si tu as donné ton accord pour l’IA, et toujours sans ton prénom ni ton numéro. Sans accord, ton avis reste chez l’administrateur.',
     ],
   },
   {
@@ -115,7 +115,7 @@ const BLOCKS: Block[] = [
       'Supabase : base de données et connexion, hébergées en Suisse (Zurich).',
       'Twilio : envoi du code de connexion par SMS (ton numéro).',
       'Anthropic : l’IA, seulement avec ton accord (voir plus haut).',
-      'GitHub : garde le code de Party ; y sont copiés, sans ton prénom, les avis confiés à l’IA de développement, seulement avec ton accord pour l’IA.',
+      'GitHub : garde le code de Party ; y sont publiés, visibles par tous et sans ton prénom, les avis confiés à l’IA de développement, seulement avec ton accord pour l’IA.',
       'Spotify : recherche et lecture des titres de la soirée.',
       'Apple : notifications de l’iPhone (APNs), billets Apple Wallet, app Apple TV, et la dictée vocale sur iPhone (transcription de ta voix, seulement quand tu dictes).',
       'Google : la recherche d’un lieu, dans l’assistant et dans le formulaire d’un événement (le texte tapé et l’adresse IP de ton appareil), la police de caractères des pages (l’adresse IP de ton appareil), et la dictée vocale dans Chrome (transcription de ta voix, seulement quand tu dictes).',

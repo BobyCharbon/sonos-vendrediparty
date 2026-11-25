@@ -32,7 +32,9 @@
 - [ ] Captures 6,9" et Duo et vidéo d'aperçu REFAITES sur ce build (barre sans Musique, capture 09 = Méninges ou
       Discussions, aucune boisson) ; sinon supprimer la vidéo d'aperçu dans App Store Connect.
 - [ ] Tour 4 (25.11) : `2026-11-25-surnom-sans-logo-apply.sql` retire aussi U+F8FF des 27 notifications déjà envoyées
-      (contrôle : 0 ligne `notifications` avec chr(63743)) ; vidéo Musique tournée sur un vrai iPhone (Jeux › Code à 6
+      et (tour 7) des 3 noms du Pot commun (`tc_members`, dont « Cobalt Project Paintball ») ; contrôle : 0 ligne
+      `notifications` / `tc_members` avec chr(63743). Son retour arrière ne remet PAS les notifications (leur texte n'entre
+      jamais dans le dépôt public) ; vidéo Musique tournée sur un vrai iPhone (Jeux › Code à 6
       chiffres, recherche, ajout d'un titre, Live Activity) JOINTE à l'envoi (les notes disent « see attached video ») ;
       le jour de l'envoi, valider dans l'heure toute proposition d'Apple-test (les événements publics passent par la
       modération) ; PDF du guide régénéré (partie B).
@@ -55,6 +57,14 @@
       l'IA : le dépôt `BobyCharbon/sonos-vendrediparty` est PUBLIC ; passer le dépôt en privé, ou mettre `GITHUB_REPO` sur
       un dépôt privé à part (la politique dit seulement « copié sur GitHub »). Guide PDF régénéré au tour 6 (B2, B4.3,
       B4.4 : publication directe dans « Démo Apple », validation pour public / sur invitation ; index des jeux 4.7.4).
+- [ ] Tour 7 (25.11) : `supabase/prod/2026-11-25-pot-commun-filtre-apply.sql` appliqué AVEC le déploiement (Pot commun
+      filtré : noms, titres, notes ; testé sur la base de TEST). Accord IA version 3 (« publié sur GitHub, où tout le monde
+      peut le lire ») : chacun le redonne avant le prochain envoi à l'IA ; si le dépôt passe en privé, le texte reste vrai
+      par excès (on peut le rendre plus court plus tard, version 4). Fiche : section « ET AUSSI » de `metadata-fr.json`
+      recopiée dans App Store Connect (extension Partager › Party, Activité en direct de la Musique, 4.4). Historique de
+      `fix-143` réécrit le 25.11 (les 27 notifications sorties du retour arrière) : vérifier avant tout push que
+      `git log -p origin/main..fix-143 -- supabase/prod/2026-11-25-surnom-sans-logo-rollback.sql | grep -c "update public.notifications"`
+      vaut 0.
 - [ ] Connexion testée avec « Apple-test 2 » (jamais connecté en prod au 25.11) et « Apple-test » le jour de l'envoi.
 - [ ] App Store Connect › Business : adresse du compte développeur en France (Segny) et statut DSA (non-commerçant) à jour.
 
