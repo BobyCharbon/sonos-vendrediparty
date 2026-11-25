@@ -29,14 +29,14 @@
 >    « Bloquer » masque aussitôt les messages et prévient les modérateurs ; aucun jeu à boire, aucune gorgée, aucun mode Hot / Mix
 >    ni bar dans l'app App Store (refus 1.4.3, 25.11, `app/store_app.py`) ; CGU « 18 ans et plus ». Si l'une manque en prod : corriger ce
 >    texte avant l'envoi (Apple compare les notes et l'app).
-> 8. Copier la **partie A** dans App Store Connect › App Review Information › **Notes** (3986 caractères, limite 4 000 ; 25.11 : refus 1.4.3) ET
+> 8. Copier la **partie A** dans App Store Connect › App Review Information › **Notes** (3994 caractères, limite 4 000 ; 25.11 : refus 1.4.3) ET
 >    dans `ios/appstore/review-notes.txt` (même texte) (c'est ce fichier que `tools/appstore_submit.py` envoie ; la partie A garde tous
 >    les mots exigés par `tests/test_ios_app.py::test_review_notes_describe_every_big_feature_delivered_by_the_web`).
 > 9. Exporter la **partie B** en PDF (sans cet encadré) et la joindre dans App Review Information › **Attachment**.
 
 ---
 
-## PART A — Text for the "Notes" field (3,998 characters, limit 4,000)
+## PART A — Text for the "Notes" field (3,994 characters, limit 4,000)
 
 ```text
 ABOUT
@@ -61,7 +61,7 @@ WEB CONTENT (2.5.2)
 Events and Games tabs: our own site in a WKWebView. Other sites: Safari. Games > Code: 4 digits = a game; 6 digits = a host's music party (native Music screen, no tab; needs the host's Sonos: see attached video). Not in this version: Pronos, Agenda, companion. This build never opens them; only a future version, submitted for review, could add them.
 
 EVENTS
-Links for one person or "Plusieurs"; guests make, copy and stop own links (counts only). Not public: a guest's guest waits ("À accepter"). Date poll. Personal calendar feed. Carpool (no money), QR ticket + Wallet: organiser options (Modifier). Groups: "Inviter avec un lien". Sign-in for events (name, nickname of 12 characters max); games stay unlimited without an account. Updates live; tap a name to open the profile; each answer shows its time. Admins: "Nouveau compte", announcement or maintenance.
+Links for one person or "Plusieurs"; guests make, copy and stop own links (counts only). Not public: a guest's guest waits ("À accepter"). Date poll. Calendar feed. Carpool (no money), QR ticket + Wallet: organiser options (Modifier). Groups: "Inviter avec un lien". Sign-in for events (name, nickname of 12 characters max); games stay unlimited without an account. Updates live; tap a name to open the profile; each answer shows its time. Admins: "Nouveau compte", announcement or maintenance.
 
 PAYMENTS (3.1.3(e))
 Party never sells, holds or moves money. Events: organiser's own Revolut/Twint/IBAN, ticketing link (Safari) or on site. Paying unlocks nothing in the app; the QR ticket is for door entry. "Pot commun": split real costs; "Rembourser" shows the friend's own IBAN/Revolut/Twint.
@@ -73,7 +73,7 @@ AI (5.1.2(i))
 "Avec l'IA", "Ton avis" and receipts go to Anthropic (Claude) only after "J'accepte" (withdraw: Settings > Confidentialité).
 
 GAMES (18+)
-No drinking games: quizzes, card, word, party and 3D games, points only; first-party content. No gambling, purchases or prizes. Written answers: filter + "Signaler"; the host can ban a player.
+No drinking games: quizzes, card, word, party and 3D games, points only; first-party content. No gambling, purchase, prize. Written answers: filter + "Signaler"; anyone can leave, the host can ban.
 
 DELETION
 Settings > "Gérer mon compte" > "Supprimer mon compte" (type SUPPRIMER).
@@ -114,7 +114,7 @@ has a **fixed code** (also in "Sign-in information", Password field): no SMS is 
 
 | Item | What it is |
 |---|---|
-| Demo account | Nickname "Apple-test" (Apple Review), complete profile. Ordinary member role (its new events wait for an admin's approval, see B4.3). |
+| Demo account | Nickname "Apple-test" (Apple Review), complete profile. Ordinary member role: an event reserved to the group "Démo Apple" is published at once (**Publier**); a public or invitation-only event is sent to our moderators first (**Envoyer pour validation**, see B4.3). |
 | Event **"Soirée démo Vendredi Party"** (12 Dec.) | Organised by us, invitation only; the demo account is invited AND co-organiser: answer (**Présent**), see who comes, event discussion; organiser side: ZONE ORGANISATEUR (guests and their answers). Tickets, payment and carpool are off on this event (options of the organiser, described below for completeness). |
 | Group **"Démo Apple"** | The demo account + one of our admins, with a few messages. |
 | Direct message | One message from our admin to the demo account. |
@@ -170,11 +170,12 @@ Tab **Événements**:
 1. Événements › **+ Proposer**.
 2. Choose **Simple** or **Avancé** (advanced: tags, places, price, date poll, polls, who brings what, forum…).
 3. Fill in **Titre**, **Description**, **Quand** (date), **Où** (place search or text).
-4. Tap **Envoyer pour validation** (the demo account's role needs an admin's approval; an organiser sees **Publier**),
-   or **Enregistrer en brouillon**.
+4. To publish at once: in **Qui voit l'événement**, tick the group **Démo Apple** (and nothing else), then tap **Publier**.
+   A public or invitation-only event shows **Envoyer pour validation** instead (our moderators check it first, 1.2).
+   **Enregistrer en brouillon** keeps it as a draft.
 5. The first time you publish content, the **Terms of use** sheet appears: accept to continue.
-6. While waiting, the event is in **Brouillons** with the badge "En attente de validation". Once an admin approves it,
-   it is online. We approve demo-account proposals quickly during the review.
+6. An event sent for approval waits in **Brouillons** with the badge "En attente de validation". Once a moderator
+   approves it, it is online. We approve demo-account proposals quickly during the review.
 
 #### B4.4 Create an event with the AI assistant ("Créer avec l'IA")
 
@@ -187,8 +188,8 @@ Tab **Événements**:
 4. "L'IA prépare ton événement…" (20–40 s). If something is missing, "Il me manque quelques infos": answer below.
    A place must be confirmed on the map ("Touche le bon").
 5. Summary "**C'est juste ?**" › **Oui, continuer** (or **Corriger**).
-6. Step 2 "**Qui est invité**" (web page): one tap on a visibility option publishes it — or sends it for approval for the
-   demo account:
+6. Step 2 "**Qui est invité**" (web page): **👥 Des groupes** › tick "Démo Apple" › "Publier pour …" publishes it at once;
+   for the demo account, a public or invitation-only event is sent for approval (moderators check it first):
    - **🌍 Public + lien public**, **👥 Des groupes** (tick groups, then "Publier pour …"),
      **✉️ Sur invitation seulement**.
    The AI never chooses who is invited or who sees the event, never turns on tickets, carpool or group announcements,
@@ -321,6 +322,13 @@ Tab **Jeux**:
   our server in the App Store app.
 - In the App Store app, games stay **unlimited without an account**; an account (phone number) is needed only for
   events, groups and chats.
+- **Players**: any player can leave a game at any time; the host can remove and ban a player; written answers can be
+  reported ("Signaler") and are then hidden for the whole table.
+- **Index of games (4.7.4)**: all games are first-party, written and hosted by the developer; there are no third-party
+  mini apps or games. Universal link to the games: https://party.bobycharbon.ch/?tab=games (opens the **Jeux** tab of
+  the app). Games offered in the App Store app: Quiz, Qui est le plus… ?, L'Intrus, Président, Pour ou contre, Le Divan,
+  Tu me connais ?, Le Masque, Le Reflet, Qui es-tu vraiment ?, the 3D games Néon Knockout, L’île qui s’effondre and
+  Braquage en miniature (13 games), and Méninges (solo).
 
 #### B4.16 Music
 
@@ -449,6 +457,9 @@ New build, and our server, permanent for this version of the App Store app:
 - The privacy policy states that Party's server is hosted in France by the publisher (database by Supabase, Zurich),
   and the AI consent sheet also says that feedback may be copied to GitHub, without name or number, to fix the app.
 - Only the iOS app is submitted: no tvOS version is attached to this submission.
+- Public events whose title, description, place or polls mention a drink, a bar outing (happy hour, afterwork, pub crawl…),
+  tobacco, shisha or vaping are not listed in the app (only their guests and organisers see them).
+- An index of the games (all first-party, with a universal link) is in B4.15 (4.7.4).
 
 ### B8. Permissions (asked only when needed)
 

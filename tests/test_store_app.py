@@ -259,6 +259,20 @@ def test_the_filter_also_catches_vomit_cheers_beer_and_bottles():
     assert not store_app.drinky("Soirée jeux de société")
 
 
+def test_the_filter_catches_everyday_party_drink_and_tobacco_words():
+    """Tour 6 : titres d'événement publics qui passaient le filtre (1.4.3 cite aussi le tabac) ; même liste côté écran."""
+    for text in ("Happy hour du vendredi", "Afterwork au bureau", "After-work", "Une pinte au pub", "Oktoberfest 2027",
+                 "Ti-punch party", "Binouze entre potes", "Pub crawl à Lyon", "Margarita night", "Soirée shooters",
+                 "Soirée Ricard", "Soirée Heineken", "Soirée chicha", "Narguilé au parc", "Soirée Jäger", "Pils et IPA",
+                 "On vapote ensemble", "Puff party"):
+        assert store_app.drinky(text), text
+    for text in ("Soirée jeux de société", "Pique-nique", "Rendez-vous au parc", "Soirée pyjama", "Publication"):
+        assert not store_app.drinky(text), text
+    ts = (__import__("pathlib").Path(main.__file__).resolve().parents[1] / "web/events/src/lib/storeEvents.ts").read_text()
+    for word in ("happy hour", "after-?work", "oktoberfest", "binouze", "chicha", "narguil[ée]", "heineken", "ricard"):
+        assert f"'{word}'" in ts, word
+
+
 # ── Test anti-alcool de TOUS les jeux (décision de l'admin du 25.11) : l'app n'en montre aucun mot ; le web garde tout ──
 
 def _texts(x):

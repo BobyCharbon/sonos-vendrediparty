@@ -62,7 +62,7 @@ def test_the_public_page_is_self_contained_and_never_indexed(db, client):
     assert "fonts.googleapis" not in page and "@import" not in page
     csp = r.headers["content-security-policy"]
     assert "default-src 'none'" in csp and "frame-ancestors 'none'" in csp
-    assert "Responsable : Vendredi Party (Suisse)" in page and "aide@exemple.ch" in page     # notice, contact des réglages
+    assert "Responsable : Ludovic Trombert, développeur indépendant établi en France" in page and "(Suisse)" not in page and "aide@exemple.ch" in page     # notice, contact des réglages
     assert "type=\"checkbox\"" not in page                                             # aucune case de consentement
     assert 'name="site"' in page                                                        # champ piège
     assert "obligatoire pour ce rendez-vous" in page and 'name="phone"' not in page     # champs choisis seulement

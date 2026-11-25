@@ -44,6 +44,17 @@
       Si la vidéo Musique n'est pas jointe : retirer « see attached video » des notes AVANT l'envoi (et adapter le test
       `test_round_four_review_notes_*`). Nouveau build : Pronos, Agenda, Zicou et bar éteints dans l'app quoi que dise le
       serveur ; Pot commun « Rembourser » ; Apple TV sans ligne « Boit » / gorgées (pour une future version tvOS).
+- [ ] Tour 6 (25.11) : filtre des événements publics de l'app élargi (happy hour, afterwork, pinte, Oktoberfest, ti-punch,
+      binouze, pub crawl, margarita, shooters, Ricard, Heineken, chicha, narguilé, vapoter, puff, Jäger, pils, IPA ;
+      `DRINK_RE` + `storeEvents.ts`) : pendant la revue, ne valider AUCUN nouvel événement public qui parle de boisson.
+      « Anniversaire de P-A, Maxou et Boby » (sondages sur l'alcool fort) : le passer « Sur invitation » ou retirer ses deux
+      sondages ; « S'Beer » et « Soirée Halloween » (passés) : les archiver ou annuler ; jamais Apple-test invité à ces
+      événements. Clé `storage_secret_key` à AJOUTER par l'admin dans le coffre Supabase de prod (absente au 25.11 : sans
+      elle, `chat_files_gc` n'efface rien et les photos / vocaux des comptes supprimés restent, contrairement à la
+      politique) ; contrôle : une ligne dans `private.chat_files_gc_runs` après le démarrage du serveur. Avis confiés à
+      l'IA : le dépôt `BobyCharbon/sonos-vendrediparty` est PUBLIC ; passer le dépôt en privé, ou mettre `GITHUB_REPO` sur
+      un dépôt privé à part (la politique dit seulement « copié sur GitHub »). Guide PDF régénéré au tour 6 (B2, B4.3,
+      B4.4 : publication directe dans « Démo Apple », validation pour public / sur invitation ; index des jeux 4.7.4).
 - [ ] Connexion testée avec « Apple-test 2 » (jamais connecté en prod au 25.11) et « Apple-test » le jour de l'envoi.
 - [ ] App Store Connect › Business : adresse du compte développeur en France (Segny) et statut DSA (non-commerçant) à jour.
 
@@ -98,7 +109,7 @@
 - [ ] **User name** : `+41 79 000 09 99` (compte « Apple-test »).
 - [ ] **Password** : le code fixe à 6 chiffres (Supabase prod › Authentication › Phone › Test OTP ; le fichier
       `~/sb-work/apple/demo.txt` n'existe pas sur ce Mac : le reprendre là où il est). **Jamais dans le dépôt.**
-- [ ] **Notes** : la partie A de `notes-for-review.md` (3991 caractères, limite 4 000 ; = `ios/appstore/review-notes.txt`). La recopier aussi dans
+- [ ] **Notes** : la partie A de `notes-for-review.md` (3994 caractères, limite 4 000 ; = `ios/appstore/review-notes.txt`). La recopier aussi dans
       `ios/appstore/review-notes.txt` avant d'utiliser `tools/appstore_submit.py` (il envoie ce fichier), puis lancer
       `.venv/bin/python -m pytest -q tests/test_ios_app.py -p no:cacheprovider` (la partie A contient les mots exigés).
 - [ ] **Pronos, Agenda, compagnon : PAS dans cette version** (éteints sur le serveur) : les notes le disent (« Not in this version »),

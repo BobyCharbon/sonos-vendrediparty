@@ -45,6 +45,8 @@ DRINK_RE = re.compile(
     r"|\braki\b|mezcal|chartreuse|fernet|pimm|\bkvas\b|barolo|gamay|syrah|cornalin|humagne|d[ée]zaley|\bperlan\b"
     r"|johannisberg|arvine|perdrix|amaretto|poire williams|ros[ée] de provence|gin-tonic"
     r"|trafiquant|narcos|escobar|\bweeds\b|breaking bad|trainspotting|\bcoke\b|h[ée]ro[iï]ne\b|\bcrack\b|opium|dealer"
+    r"|happy hour|after-?work|\bpintes?\b|oktoberfest|ti-?punch|binouze|pub crawl|margarita|\bshooters?\b|ricard"
+    r"|heineken|chicha|narguil[ée]|\bvapot|\bvape\b|\bpuffs?\b|\bj[äa]ger\b|\bpils\b|\bipa\b"
     r"|🍻|🍺|🥃|🍸|🍹|🍷|🍾|🥂",
     re.IGNORECASE)
 # Phrases qui supposent l'ivresse sans aucun mot de la liste (relues le 25.11) : jamais tirées dans l'app.

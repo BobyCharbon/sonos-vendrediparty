@@ -513,6 +513,12 @@ l'admin. Toujours :
   Garde web des Pronos élargi à `/group/<id>/pronos`. Confidentialité : serveur hébergé en France chez l'éditeur, base
   Supabase à Zurich ; feuille d'accord IA : l'avis peut aussi être copié sur GitHub et lu par Claude (sans prénom ni numéro).
   Fiche : « pour toutes tes soirées entre amis » (jamais « pour une bande d'amis » : app pour tous).
+- Tour 6 (25.11) : `DRINK_RE` (store_app.py) et sa copie `storeEvents.ts` comprennent aussi les mots d'une sortie à boire
+  et du tabac (happy hour, afterwork, pinte, Oktoberfest, ti-punch, binouze, pub crawl, margarita, shooters, Ricard,
+  Heineken, chicha, narguilé, vapoter, puff, Jäger, pils, IPA) : toute nouvelle liste de mots va dans LES DEUX fichiers
+  (test `test_the_filter_catches_everyday_party_drink_and_tobacco_words`). Page publique de l'Agenda : responsable =
+  l'éditeur établi en France (jamais « Vendredi Party (Suisse) »). Guide : index des jeux avec lien universel (4.7.4),
+  publication directe dans « Démo Apple » (public / sur invitation : validation). Partie A ≤ 4 000 caractères.
 - Tout nouveau jeu, option ou texte : se demander s'il passe dans PartyStore. Tests : `tests/test_store_app.py`,
   `tests/e2e/test_store_app_no_drinks.py`. Le web, la BETA et Android gardent tout.
 

@@ -16,6 +16,8 @@ export const DRINK_RE = new RegExp(
     '\\blsd\\b', 'cigarette', 'nicotine', '\\bvomi', 'tchin', 'beer', 'bouteilles?', '🍻', '🍺', '🥃', '🍸', '🍹', '🍷', '🍾', '🥂',
     // Ajoutés le 25.11 (vins, alcools, régions viticoles, tabac, casino, drogue dans les titres d'œuvres).
     'ap[ée]ritif','arros[ée]','pot de d[ée]part','buvette','\\bboirai','cuv[ée]e','vigneron','vendange','viticole','vignoble','c[ée]page','absinthe','tabac','casino','poker','blackjack','cidre','\\bkir\\b','kirsch','cognac','calvados','armagnac','grappa','\\bsak[ée]\\b','prosecco','\\bcava\\b','guinness','eau-de-vie','eaux-de-vie','damassine','fendant','chasselas','merlot','pinot','chouchen','soju','baijiu','limoncello','ouzo','campari','aperol','cacha[çc]a','bourbon','cervoise','[ée]thanol','porto\\b','bordeaux','bourgogne','beaujolais','chardonnay','sauvignon','riesling','lambrusco','chianti','rioja','brasserie','brasseur','houblon','malt\\b','distill','spiritueux','digestif','\\braki\\b','mezcal','chartreuse','fernet','pimm','\\bkvas\\b','barolo','gamay','syrah','cornalin','humagne','d[ée]zaley','\\bperlan\\b','johannisberg','arvine','perdrix','amaretto','poire williams','ros[ée] de provence','gin-tonic','trafiquant','narcos','escobar','\\bweeds\\b','breaking bad','trainspotting','\\bcoke\\b','h[ée]ro[iï]ne\\b','\\bcrack\\b','opium','dealer',
+    // Ajoutés au tour 6 (25.11) : mots courants d'un titre de soirée, tabac et vapotage (1.4.3).
+    'happy hour','after-?work','\\bpintes?\\b','oktoberfest','ti-?punch','binouze','pub crawl','margarita','\\bshooters?\\b','ricard','heineken','chicha','narguil[ée]','\\bvapot','\\bvape\\b','\\bpuffs?\\b','\\bj[äa]ger\\b','\\bpils\\b','\\bipa\\b',
   ].join('|'),
   'iu',
 );
