@@ -99,7 +99,7 @@ function Gate() {
   const toLink = useRef<string | null>(null);
   // Agenda et Pronos gardés en test (19.11) : leurs pages ramènent à l'accueil hors site de test (lien, notification).
   useEffect(() => {
-    if ((!agendaOn && /^\/agenda(\/|$)/.test(path)) || (!pronosOn && /^\/prono/.test(path))) router.replace('/');
+    if ((!agendaOn && /^\/agenda(\/|$)/.test(path)) || (!pronosOn && /^\/(?:prono|group\/[^/]+\/pronos)/.test(path))) router.replace('/');
   }, [path]);
   useEffect(() => {
     if (path === toLink.current) toLink.current = null;  // le lien est atteint

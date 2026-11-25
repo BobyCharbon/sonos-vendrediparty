@@ -36,7 +36,7 @@
 
 ---
 
-## PART A — Text for the "Notes" field (3,986 characters, limit 4,000)
+## PART A — Text for the "Notes" field (3,998 characters, limit 4,000)
 
 ```text
 ABOUT
@@ -58,13 +58,13 @@ NATIVE (4.2)
 Native tab bar; SwiftUI Settings, Discussions, Groups, event chat, "Ton avis", AI assistant, "Pot commun". Push (a switch per type), Live Activity (music, host's party only), Wallet (tickets), QR scanner, Calendar, Contacts (optional, hashed), dictation. Share sheet > Party: event from a link (AI).
 
 WEB CONTENT (2.5.2)
-Events and Games tabs: our own site in a WKWebView. Other sites: Safari. Games > Code: 4 digits = a game; 6 digits = a host's music party (native Music screen, no tab; needs the host's Sonos: see attached video). Not in this version: Pronos, Agenda, companion. Absent from this app; only a future version, submitted for review, could add them.
+Events and Games tabs: our own site in a WKWebView. Other sites: Safari. Games > Code: 4 digits = a game; 6 digits = a host's music party (native Music screen, no tab; needs the host's Sonos: see attached video). Not in this version: Pronos, Agenda, companion. This build never opens them; only a future version, submitted for review, could add them.
 
 EVENTS
 Links for one person or "Plusieurs"; guests make, copy and stop own links (counts only). Not public: a guest's guest waits ("À accepter"). Date poll. Personal calendar feed. Carpool (no money), QR ticket + Wallet: organiser options (Modifier). Groups: "Inviter avec un lien". Sign-in for events (name, nickname of 12 characters max); games stay unlimited without an account. Updates live; tap a name to open the profile; each answer shows its time. Admins: "Nouveau compte", announcement or maintenance.
 
 PAYMENTS (3.1.3(e))
-Party never sells, holds or moves money. Events: organiser's own Revolut/Twint/IBAN, ticketing link (Safari) or on site. Paying unlocks nothing in the app; the QR ticket is for door entry. "Pot commun": split real costs; "Payer" shows the friend's own IBAN/Revolut/Twint.
+Party never sells, holds or moves money. Events: organiser's own Revolut/Twint/IBAN, ticketing link (Safari) or on site. Paying unlocks nothing in the app; the QR ticket is for door entry. "Pot commun": split real costs; "Rembourser" shows the friend's own IBAN/Revolut/Twint.
 
 DISCUSSIONS (1.2)
 Event chats: only guests who answered "Présent" / "Peut-être" and organisers. DMs only with a real link (shared group or event); others send a message request: one text, no photo/link/number: "Accepter / Supprimer / Bloquer / Signaler". Settings > Confidentialité > "Demandes de message". "Nouveau message": real links only, search by name; 2+ people make a private group, not read by admins. Terms first, word filter, "Signaler" on each message (photo/voice kept for moderators, last 10 messages if ticked); "Bloquer" hides messages at once and alerts moderators. Tap a name: mini-profile. Reports within 24 h. Demo "Apple-test 2" (see guide) sees the request from the other side. Contact: support@vendrediparty.ch.
@@ -337,7 +337,7 @@ l'événement" from a shared link (the AI assistant drafts the event, you review
 #### B4.17 Shared expenses ("Pot commun")
 
 Réglages › **Pot commun**: shared expense lists between friends (who paid, who owes what). Receipts can be scanned
-(VisionKit; optional AI reading with consent). It only records amounts; repayments happen outside the app: "Payer"
+(VisionKit; optional AI reading with consent). It only records amounts; repayments happen outside the app: "Rembourser"
 only shows the friend's own IBAN, Revolut, PayPal or Twint (opens Safari or copies it). No money goes through Party and
 nothing digital is unlocked.
 
@@ -444,6 +444,11 @@ New build, and our server, permanent for this version of the App Store app:
   of "Pot commun" and says what stays for others, without any link to you, after an account is deleted.
 - Quiz questions naming another phone platform are not drawn in the app.
 - Music: a short video recorded on a real iPhone is attached (a music party needs the host's Sonos).
+- Pronos, Agenda and the companion stay off in this build even if our server turns them on for the website; the
+  "Pot commun" button that shows a friend's payment details is now "Rembourser" (no card icon).
+- The privacy policy states that Party's server is hosted in France by the publisher (database by Supabase, Zurich),
+  and the AI consent sheet also says that feedback may be copied to GitHub, without name or number, to fix the app.
+- Only the iOS app is submitted: no tvOS version is attached to this submission.
 
 ### B8. Permissions (asked only when needed)
 

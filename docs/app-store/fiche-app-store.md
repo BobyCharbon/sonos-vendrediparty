@@ -37,7 +37,7 @@ script le 16.11.2026. Vérifié dans le code (develop) et sur la prod en lecture
 ## Description (4 000 car.)
 
 ```text
-Vendredi Party réunit tes soirées et tes événements dans une seule app, pour une bande d'amis : on s'organise, on s'invite et on joue ensemble.
+Vendredi Party réunit tes soirées et tes événements dans une seule app, pour toutes tes soirées entre amis : on s'organise, on s'invite et on joue ensemble.
 
 ÉVÉNEMENTS
 • Crée un événement avec le formulaire, ou décris-le simplement à l'assistant IA (texte, voix ou photo d'une affiche) : il prépare la fiche, tu vérifies et tu publies.

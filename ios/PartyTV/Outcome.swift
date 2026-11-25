@@ -138,6 +138,12 @@ extension Outcome {
         if o.lines(.drink).isEmpty && o.lines(.give).isEmpty, let sipsNow = fromSipsLog(g), !["biskit", "pyramid", "beerpong"].contains(g["type"].string ?? "") {
             o.lines = o.lines.filter { $0.kind != .lose || $0.amount != nil } + sipsNow.lines
         }
+        // App App Store (refus 1.4.3) : jamais une ligne « boit » ou « distribue », même pour une partie du web avec gorgées.
+        if StoreGames.isStoreApp {
+            let kept = o.lines.filter { $0.kind != .drink && $0.kind != .give }
+            if (kept.isEmpty && !o.lines.isEmpty) || o.headline.contains("🍻") { return nil }
+            o.lines = kept
+        }
         return o
     }
 

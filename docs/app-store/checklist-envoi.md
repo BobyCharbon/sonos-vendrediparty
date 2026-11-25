@@ -36,6 +36,14 @@
       chiffres, recherche, ajout d'un titre, Live Activity) JOINTE à l'envoi (les notes disent « see attached video ») ;
       le jour de l'envoi, valider dans l'heure toute proposition d'Apple-test (les événements publics passent par la
       modération) ; PDF du guide régénéré (partie B).
+- [ ] Tour 5 (25.11) : AUCUNE version tvOS (app Apple TV « Party », même identifiant) jointe à l'envoi de la 1.0.0 iOS :
+      elle affiche encore « 🍻 Boit », « 🍺 gorgées » et « Un shot » (ios/PartyTV, binaire). Avant toute version tvOS : nouveau
+      build qui cache ces lignes. Retirer Apple-test du « Cobalt Project Paintball » (vrai événement, vraies personnes) :
+      il ne garde que la démo et « Démo Apple ». Vérifier où est hébergé le serveur (IP chez Orange France) : la confidentialité
+      dit désormais « chez l'éditeur, en France » ; si c'est faux, corriger privacy.tsx et SignInView.swift avant l'envoi.
+      Si la vidéo Musique n'est pas jointe : retirer « see attached video » des notes AVANT l'envoi (et adapter le test
+      `test_round_four_review_notes_*`). Nouveau build : Pronos, Agenda, Zicou et bar éteints dans l'app quoi que dise le
+      serveur ; Pot commun « Rembourser » ; Apple TV sans ligne « Boit » / gorgées (pour une future version tvOS).
 - [ ] Connexion testée avec « Apple-test 2 » (jamais connecté en prod au 25.11) et « Apple-test » le jour de l'envoi.
 - [ ] App Store Connect › Business : adresse du compte développeur en France (Segny) et statut DSA (non-commerçant) à jour.
 
@@ -192,7 +200,7 @@ Pour chaque type : **lié à l'identité : oui · suivi : non · finalité : App
 
 ## 20.11.2026 : contrôle complet avant le nouvel envoi
 - [x] En-tête (3840 × 1646) et Résultats de recherche (3840 × 2560) : `visuels/app-store-connect/` (zones sûres d'Apple).
-- [x] Captures iPhone Duo (10) et vidéo d'aperçu (grand écran) déposées.
+- [ ] Captures iPhone Duo (10) et vidéo d'aperçu (grand écran) : à REFAIRE sur le nouveau build (barre sans Musique, 25.11), ou supprimer l'aperçu.
 - [x] Classification par âge : nouvelles questions « Position partagée » = Non, « Rencontres et relations » = Non (18+).
 - [x] Confidentialité (15 types, sans suivi), conformité (DSA déclaré ; Chine hors distribution), prix et 26 pays,
       pas de Mac ni de Vision Pro, comptes de démo et codes fixes valables jusqu'à fin 2027.

@@ -549,3 +549,43 @@ def test_round_four_nickname_prod_file_also_cleans_notifications_already_sent():
     assert body.index("update public.notifications") < body.index("raise exception")
     assert "from public.notifications" in body.split("do $$", 1)[1]
     assert rollback.count("update public.notifications") == 27 and "efa3bf" in rollback
+
+
+def test_round_five_native_app_keeps_pronos_agenda_zicou_and_bar_off_whatever_the_server_says():
+    store = (_root() / "ios/Party/Settings/SettingsStore.swift").read_text(encoding="utf-8")
+    for flag in ("compagnon = !store &&", "bar = !store &&", "agendaOn = !store &&", "pronosOn = !store &&"):
+        assert flag in store, flag
+    assert "let store = AppConfig.isStoreApp" in store
+    pot = (_root() / "ios/Party/Tricount/TricountGroupView.swift").read_text(encoding="utf-8")
+    assert 'Label("Rembourser", systemImage: "arrow.uturn.left")' in pot and '"creditcard"' not in pot
+    # Apple TV (même fiche) : aucune ligne « Boit » / « Distribue » / gorgées dans l'app App Store.
+    tv = (_root() / "ios/PartyTV/Outcome.swift").read_text(encoding="utf-8")
+    assert "$0.kind != .drink && $0.kind != .give" in tv
+    cards = (_root() / "ios/PartyTV/CardGames.swift").read_text(encoding="utf-8")
+    assert '!StoreGames.isStoreApp, let sips = P["step_sips"]' in cards and 'drink > 0 && !StoreGames.isStoreApp' in cards
+
+
+def test_round_five_group_pronos_page_is_guarded_privacy_and_consent_are_exact():
+    layout = (_root() / "web/events/src/app/_layout.tsx").read_text(encoding="utf-8")
+    assert r"/^\/(?:prono|group\/[^/]+\/pronos)/" in layout
+    import re
+    guard = re.compile(r"^\/(?:prono|group\/[^/]+\/pronos)")
+    assert guard.match("/group/ab637a9d-0000-0000-0000-000000000000/pronos") and guard.match("/prono/new")
+    assert not guard.match("/group/ab637a9d-0000-0000-0000-000000000000/settings")
+    for path in ("web/events/src/app/privacy.tsx", "ios/Party/Settings/Account/SignInView.swift"):
+        text = (_root() / path).read_text(encoding="utf-8")
+        assert "hébergé en Suisse" not in text and "hébergé en France" in text, path
+        assert "où sont hébergés le serveur de Party" not in text, path
+    for path in ("app/static/index.html", "web/events/src/lib/aiConsent.ts", "ios/Party/Feedback/FeedbackAI.swift"):
+        assert "copié sur GitHub et lu par Claude, sans ton prénom ni ton numéro" in (_root() / path).read_text(encoding="utf-8"), path
+
+
+def test_round_five_listing_notes_and_checklist():
+    import json
+    meta = json.loads((_root() / "ios/appstore/metadata-fr.json").read_text(encoding="utf-8"))
+    assert "pour une bande d'amis" not in meta["description"] and "toutes tes soirées entre amis" in meta["description"]
+    notes = (_root() / "ios/appstore/review-notes.txt").read_text(encoding="utf-8")
+    assert "Absent from this app" not in notes and "This build never opens them" in notes
+    assert '"Rembourser" shows' in notes and '"Payer" shows' not in notes
+    checklist = (_root() / "docs/app-store/checklist-envoi.md").read_text(encoding="utf-8")
+    assert "- [x] Captures iPhone Duo" not in checklist and "AUCUNE version tvOS" in checklist

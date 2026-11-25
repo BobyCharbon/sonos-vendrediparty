@@ -156,11 +156,18 @@ final class SettingsStore: ObservableObject {
 
     private func loadParty() async {
         let features = try? await api.features()
-        compagnon = features?.compagnon ?? false
+        // App App Store (refus 1.4.3, 2.5.19) : Zicou, bar, Agenda et Pronos restent éteints quoi que dise le serveur ;
+        // seule une version décrite à Apple pourra les rallumer.
+        #if E2E_HOOKS
+        let store = false  // recettes Release (Pronos, Agenda) : jamais dans le build de l'App Store
+        #else
+        let store = AppConfig.isStoreApp
+        #endif
+        compagnon = !store && (features?.compagnon ?? false)
         discussions = features?.discussions ?? false
-        bar = features?.bar ?? false
-        agendaOn = features?.agenda ?? false
-        pronosOn = features?.pronos ?? false
+        bar = !store && (features?.bar ?? false)
+        agendaOn = !store && (features?.agenda ?? false)
+        pronosOn = !store && (features?.pronos ?? false)
         if let me = await web?.guestIdentity() {
             guest = try? await api.notifyPrefs(guestID: me.id)
             zicouReactions = compagnon && me.id.hasPrefix("acct-")

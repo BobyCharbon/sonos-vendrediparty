@@ -506,6 +506,13 @@ l'admin. Toujours :
   serveur » (2.5.19). Pour la mise à jour qui les rouvrira : seulement au-dessus d'une version donnée (« PartyApp-iOS/x.y »
   lu dans l'User-Agent), JAMAIS pour la 1.0.0 ; ne jamais passer `STORE_POINTS` à true pour toutes les versions.
   `metadata-fr.json` › `ageRating` déclare aussi Profanity, Sexual Content et Cartoon Violence (Infrequent/Mild).
+- Tour 5 (25.11) : le nouveau build éteint lui-même Zicou, bar, Agenda et Pronos dans l'app App Store, quoi que dise le
+  serveur (`SettingsStore.loadParty`, sauf `E2E_HOOKS` des recettes) : notes « This build never opens them », jamais
+  « absent ». Pot commun : « Rembourser » (plus « Payer » ni carte bancaire, 3.1.3(e)). Apple TV : aucune ligne « Boit » /
+  « Distribue » / gorgées dans l'app App Store (`Outcome.of`, `CardGames`) ; aucune version tvOS jointe à la 1.0.0.
+  Garde web des Pronos élargi à `/group/<id>/pronos`. Confidentialité : serveur hébergé en France chez l'éditeur, base
+  Supabase à Zurich ; feuille d'accord IA : l'avis peut aussi être copié sur GitHub et lu par Claude (sans prénom ni numéro).
+  Fiche : « pour toutes tes soirées entre amis » (jamais « pour une bande d'amis » : app pour tous).
 - Tout nouveau jeu, option ou texte : se demander s'il passe dans PartyStore. Tests : `tests/test_store_app.py`,
   `tests/e2e/test_store_app_no_drinks.py`. Le web, la BETA et Android gardent tout.
 
