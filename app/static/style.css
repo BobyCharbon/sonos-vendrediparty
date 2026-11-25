@@ -611,6 +611,7 @@ button.cs-spin { height: 54px; font-size: 1rem; background: #f2c14e; color: #2b1
 .tm-answer { margin-top: 10px; padding: 12px; border-radius: 14px; background: rgba(0,0,0,.25); text-align: center; }
 .tm-answer small { display: block; font-size: .75rem; opacity: .75; text-transform: uppercase; letter-spacing: .08em; }
 .tm-answer b { font-size: 1.5rem; overflow-wrap: anywhere; }
+.tm-report { display: block; margin: 8px auto 0; padding: 6px 12px; font-size: .85rem; }
 .tm-speak { margin-top: 12px; padding: 14px; border-radius: 14px; background: var(--g-accent); color: var(--g-ink); font-weight: 800; font-size: 1.15rem; text-align: center; }
 .tm-judge { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; }
 .tm-judge button { padding-left: 4px; padding-right: 4px; }

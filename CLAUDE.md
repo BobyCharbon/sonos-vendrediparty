@@ -478,6 +478,16 @@ l'admin. Toujours :
   recherche de l'app App Store, sauf pour ses invités, participants et organisateurs (`web/events/src/lib/storeEvents.ts`).
   Bar : `data-bar="off"` et `/api/features` bar=false ; `send-push` n'envoie aucune notification `bar_*` à l'app App Store.
 - Undercover s'appelle « L'Intrus » et Mr. White « le Fantôme » partout (marque d'un tiers) ; identifiants inchangés.
+- Tour 2 (25.11) : le build 216 ne repart JAMAIS (CGU, confidentialité, stats Purify, phrase caméra, emojis 🍻 🍷, action
+  rapide Musique écrits dans le binaire) : nouveau build depuis fix-143. Serveur : `/api/features` (et `data-pronos` /
+  `data-agenda`, routes `/api/account/pronos|agenda/*`) éteint Pronos, confettis et Agenda pour l'app App Store quel que soit
+  le site (seule une version revue les rouvrira, en lisant la version de l'app) ; abonnements natifs sans tag « bar »
+  (`account_subscriptions`) ; titres de Musique jamais limités en invité dans l'app (`guest_tracks`) ; questions « si tu étais
+  une boisson » exclues (`STORE_EXCLUDE`), Le Masque filtré (`deck(S, store)`, `masque` dans `BANK_GAMES`) ; « 🚩 Signaler »
+  sur la réponse de Tu me connais ? (`treport`, journal `game.report`). Fiche : URL d'assistance `/support` (page du serveur,
+  sans ressource externe) ; `?app=ios` sur `/events/terms` et `/events/privacy` sert le texte de l'app dans Safari.
+  Confidentialité de l'app (web et iOS) : sans paragraphe ni mention des Pronos. Test anti-alcool de TOUS les jeux :
+  `tests/test_store_app.py` (`test_every_game_*`).
 - Tout nouveau jeu, option ou texte : se demander s'il passe dans PartyStore. Tests : `tests/test_store_app.py`,
   `tests/e2e/test_store_app_no_drinks.py`. Le web, la BETA et Android gardent tout.
 

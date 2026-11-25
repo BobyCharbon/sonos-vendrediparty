@@ -2396,7 +2396,9 @@ function tmcHtml(g) {
       : `<div class="artist" style="margin-top:6px">${g.is_host ? "Quand c'est dit, révèle la réponse (ou laisse " + S + " la révéler)." : `${S} va révéler sa réponse…`}</div>`;
     return duo + q + mine + `<div class="tm-speak ${anim}">🗣 ${d.role === "guesser" ? "À toi ! Dis à voix haute ce que" : `${G}, à toi ! Dis à voix haute ce que`} ${S} a répondu.</div>${reveal}`;
   }
-  const reveal = `<div class="tm-answer ${g.phase === "judge" ? anim : ""}"><small>${S} avait écrit</small><b>${esc(d.answer || "—")}</b></div>`;
+  // « Signaler » la réponse montrée à la table (Apple 1.2 / 4.7.1) : retirée aussitôt pour tous, journal de l'admin.
+  const flag = d.can_report ? `<button type="button" class="secondary tm-report" data-gact="treport" aria-label="Signaler cette réponse">🚩 Signaler</button>` : "";
+  const reveal = `<div class="tm-answer ${g.phase === "judge" ? anim : ""}"><small>${S} avait écrit</small>${d.reported ? `<span class="artist">Réponse retirée après un signalement.</span>` : `<b>${esc(d.answer || "—")}</b>`}${flag}</div>`;
   let zone = "";
   if (g.phase === "judge") {
     zone = d.can_judge

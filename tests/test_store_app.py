@@ -289,12 +289,13 @@ def test_every_game_of_the_app_draws_nothing_about_drinking_and_the_web_keeps_it
         "undercover": [" ".join(p) for p in games.WORD_PAIRS],
         "quiz": [" ".join([q["q"], q["a"], *q["w"]]) for t in THEMES for q in BANK.get(t, [])],
     }
+    banks["masque"] = [c[2] for c in MASQUE_CARDS]  # tour 2 : « si c'était une boisson ? » (deck filtré dans l'app)
     for kind, bank in banks.items():
         shown = store_app.clean(bank)
         assert len(shown) > len(bank) // 2, kind  # le filtre n'a pas vidé la banque (sinon clean rendrait tout)
         assert not [t for t in shown if store_app.drinky(t)], kind
-    # Banques non filtrées (Masque, Reflet, Qui es-tu vraiment ?) : propres telles quelles.
-    for kind, bank in (("masque", MASQUE_CARDS), ("reflet", REFLET_CARDS),
+    # Banques non filtrées (Reflet, Qui es-tu vraiment ?) : propres telles quelles.
+    for kind, bank in (("reflet", REFLET_CARDS),
                        ("psy", [getattr(psy, a) for a in dir(psy) if a.isupper()])):
         assert not [t for t in _texts(bank) if store_app.drinky(t)], kind
     # Le web garde ses jeux à boire et leurs textes (rien n'a changé pour lui).
@@ -347,3 +348,98 @@ def test_shared_expenses_never_show_a_drink_emoji_in_the_app():
     assert tc.CATEGORIES["drinks"][1] == "🥤" and tc.CATEGORIES["health"][1] == "🩺"
     assert main.store_emoji("🍻", type("R", (), {"headers": {"user-agent": STORE_UA}})()) == "🎉"
     assert main.store_emoji("🍻", type("R", (), {"headers": {"user-agent": WEB_UA}})()) == "🍻"
+
+
+def test_every_game_the_app_can_open_shows_no_drink_word_in_its_view():
+    """Tour 2 : chaque jeu gardé dans l'app, créé par l'app, puis lu par l'app (vue JSON complète, lobby) : aucun mot de
+    boisson, de gorgée ni de drogue. Le web garde les mêmes jeux avec leurs gorgées."""
+    for kind in [t for t in games.GAMES if t not in store_app.HIDDEN_GAMES and t != "room"]:
+        gid = f"store-all-{kind}"
+        r = create(STORE_UA, kind, gid)
+        assert r.status_code == 200, (kind, r.text)
+        view = client(STORE_UA).get(f"/api/games/{r.json()['code']}?guest_id={gid}").json()
+        assert not [t for t in _texts(view) if store_app.drinky(t)], kind
+
+
+def test_questions_asking_to_be_a_drink_are_never_drawn_in_the_app():
+    from app import masque
+    from app.masque_cards import MASQUE_CARDS
+    for text in ("Si tu étais une boisson, laquelle serais-tu ?", "Ton état d'esprit de ce soir, si c'était une boisson ?"):
+        assert store_app.drinky(text)
+    g = store_game("masque")
+    S = masque.state(g)
+    S.update(cats=sorted({c[0] for c in MASQUE_CARDS}), levels=sorted({c[1] for c in MASQUE_CARDS}))
+    assert not [i for i in masque.deck(S, True) if store_app.drinky(MASQUE_CARDS[i][2])]
+    assert any(store_app.drinky(MASQUE_CARDS[i][2]) for i in masque.deck(S))  # le web garde sa carte
+    assert "masque" in store_app.BANK_GAMES
+
+
+def test_a_tmc_answer_can_be_reported_and_disappears_for_the_table(monkeypatch):
+    logged = []
+    monkeypatch.setattr(main, "log_game_report", lambda g, me, res, req: logged.append(res))
+    code = create(STORE_UA, "tmc", "store-tmc-host").json()["code"]
+    c = client(STORE_UA)
+    for gid in ("store-tmc-b", "store-tmc-c"):
+        assert c.post(f"/api/games/{code}", json={"guest_id": gid, "name": gid, "action": "join"}).status_code == 200
+    g = main.store.session.games[code]
+    games.tmc_next(g, random.Random(1))
+    d = g["tmc"]["duo"]
+    games.tmc_answer(g, d["subject"], "Une réponse vexante")
+    games.tmc_reveal(g, d["subject"])
+    other = next(p["id"] for p in g["players"] if p["id"] != d["subject"])
+    view = c.get(f"/api/games/{code}?guest_id={other}").json()["tmc"]["duo"]
+    assert view["can_report"] and view["answer"] == "Une réponse vexante"
+    assert not c.get(f"/api/games/{code}?guest_id={d['subject']}").json()["tmc"]["duo"]["can_report"]
+    r = c.post(f"/api/games/{code}", json={"guest_id": other, "action": "treport"})
+    assert r.status_code == 200, r.text
+    view = c.get(f"/api/games/{code}?guest_id={other}").json()["tmc"]["duo"]
+    assert view["reported"] and view["answer"] is None and not view["can_report"]
+    assert logged == [{"text": "Une réponse vexante", "author": d["subject"]}]
+    with pytest.raises(games.GameError):
+        games.tmc_report(g, d["subject"])
+
+
+def test_pronos_agenda_and_drink_tags_stay_off_for_the_store_app(monkeypatch, tmp_path):
+    monkeypatch.setattr(main, "pronos_enabled", lambda: True)
+    monkeypatch.setattr(main, "agenda_enabled", lambda: True)
+    monkeypatch.setattr(main, "patates_enabled", lambda: True)
+    store = client(STORE_UA).get("/api/features").json()
+    assert (store["pronos"], store["agenda"], store["patates"]) == (False, False, False)
+    web = client(WEB_UA).get("/api/features").json()
+    assert (web["pronos"], web["agenda"], web["patates"]) == (True, True, True)
+    assert client(STORE_UA).post("/api/account/pronos/rpc", json={}).status_code == 404
+    assert client(STORE_UA).post("/api/account/agenda/rpc", json={}).status_code == 404
+    html = main.features_page("<html><body></body></html>", True)
+    assert 'data-pronos="off"' in html and 'data-agenda="off"' in html
+    rows = {"categories": [{"name": "Soirées"}, {"name": "Apéro"}], "tags": [{"name": "bar"}, {"name": "sport"}],
+            "category_ids": [], "tag_ids": []}
+    monkeypatch.setattr(main.accounts, "subscriptions", lambda token: {k: list(v) for k, v in rows.items()})
+    out = client(STORE_UA).post("/api/account/subscriptions", json={"token": "t"}).json()
+    assert [t["name"] for t in out["tags"]] == ["sport"] and [c["name"] for c in out["categories"]] == ["Soirées"]
+    assert len(client(WEB_UA).post("/api/account/subscriptions", json={"token": "t"}).json()["tags"]) == 2
+
+
+def test_music_songs_never_need_an_account_in_the_store_app(monkeypatch):
+    monkeypatch.setattr(main.guest_gate, "settings", lambda: {"tracks": 0, "games": 3})
+    store_req = type("R", (), {"headers": {"user-agent": STORE_UA}})()
+    web_req = type("R", (), {"headers": {"user-agent": WEB_UA}})()
+    monkeypatch.setattr(main, "is_admin", lambda r: False)
+    assert main.guest_tracks("guest-x", store_req) is None
+    assert main.guest_tracks("guest-x", web_req)["left"] == 0
+
+
+def test_support_page_and_app_versions_of_terms_and_privacy_for_the_store_listing(monkeypatch, tmp_path):
+    r = client(WEB_UA).get("/support")
+    assert r.status_code == 200 and "support@vendrediparty.ch" in r.text and "établi en France" in r.text
+    assert "http" not in r.text.split("<body>")[1].replace("mailto:", "")  # aucune ressource ni lien externe
+    assert not store_app.drinky(r.text) and "Pronos" not in r.text and "suisse" not in r.text.lower()
+    (tmp_path / "index.html").write_text("<html><head></head><body></body></html>", encoding="utf-8")
+    monkeypatch.setattr(main, "EVENTS_WEB", tmp_path)
+    for path in ("terms?app=ios", "privacy?app=ios"):
+        assert 'data-store="1"' in client(WEB_UA).get(f"/events/{path}").text
+    assert 'data-store="1"' not in client(WEB_UA).get("/events/terms").text
+    assert 'data-store="1"' not in client(WEB_UA).get("/events/groups?app=ios").text
+    import json
+    from pathlib import Path
+    meta = json.loads((Path(__file__).resolve().parents[1] / "ios/appstore/metadata-fr.json").read_text(encoding="utf-8"))
+    assert meta["supportUrl"].endswith("/support") and meta["privacyPolicyUrl"].endswith("/events/privacy?app=ios")

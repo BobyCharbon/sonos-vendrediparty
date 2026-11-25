@@ -170,12 +170,19 @@ struct DeleteAccountView: View {
 struct PrivacyView: View {
     /// Même texte que la politique du module web (web/events/src/app/privacy.tsx) : changer les deux ensemble.
     static let updated = "25 novembre 2026"
-    /// App App Store (refus Apple 1.4.3, 25.11) : ni le bar ni le Purify Test, absents de l'app (même filtre que privacy.tsx).
+    /// App App Store (refus Apple 1.4.3, 25.11) : ni le bar, ni le Purify Test, ni les Pronos (éteints dans cette version),
+    /// absents de l'app (même filtre que privacy.tsx).
     static var shown: [(String, [String])] {
         guard AppConfig.isStoreApp else { return sections }
+        let cuts = [
+            ("(Quiz, Méninges, Purify Test)", "(Quiz, Méninges)"),
+            (" Bar de la soirée : 6 mois après sa fermeture.", ""),
+            (" Pronos (réponses, confettis lancés, contestations, réactions) : jusqu'à la suppression du prono, de son groupe ou de son événement. Ton sac de confettis et son historique : jusqu'à la suppression de ton compte.", ""),
+            (", pronos et confettis,", ","),
+        ]
         return sections.map { title, paragraphs in
-            (title, paragraphs.filter { !$0.hasPrefix("Bar de la soirée") && !$0.hasPrefix("Purify Test") }
-                .map { $0.replacingOccurrences(of: "(Quiz, Méninges, Purify Test)", with: "(Quiz, Méninges)") })
+            (title, paragraphs.filter { !$0.hasPrefix("Bar de la soirée") && !$0.hasPrefix("Purify Test") && !$0.hasPrefix("Pronos :") }
+                .map { p in cuts.reduce(p) { $0.replacingOccurrences(of: $1.0, with: $1.1) } })
         }
     }
 

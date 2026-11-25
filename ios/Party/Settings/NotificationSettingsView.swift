@@ -8,7 +8,9 @@ struct NotificationSettingsView: View {
     var body: some View {
         List {
             device
-            music
+            // App App Store : pas d'onglet Musique, la section n'apparaît qu'une fois une soirée rejointe (code à 6
+            // chiffres du champ Code de l'onglet Jeux) ou en hôte.
+            if !AppConfig.isStoreApp || store.guest != nil || store.hostMode { music }
             games
             feedback
             events
@@ -41,7 +43,7 @@ struct NotificationSettingsView: View {
                 .foregroundStyle(.primary)
             }
             toggle("device", "iphone.radiowaves.left.and.right", .green, "Notifications sur cet iPhone",
-                   "Événements, discussions, musique et jeux arrivent ici", isOn: store.deviceSubscribed,
+                   AppConfig.isStoreApp ? "Événements, discussions et jeux arrivent ici" : "Événements, discussions, musique et jeux arrivent ici", isOn: store.deviceSubscribed,
                    enabled: store.deviceToggleEnabled) { on in await store.setDevice(on) }
         } header: {
             Text("Général")

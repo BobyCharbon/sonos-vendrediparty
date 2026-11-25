@@ -156,10 +156,14 @@ const BLOCKS: Block[] = [
 ];
 
 export default function Privacy() {
-  // App App Store (refus Apple 1.4.3, 25.11) : ni le bar ni le Purify Test, absents de l'app ; le site garde tout.
+  // App App Store (refus Apple 1.4.3, 25.11) : ni le bar, ni le Purify Test, ni les Pronos (éteints dans cette version),
+  // absents de l'app ; le site garde tout. Même filtre dans l'app iPhone (PrivacyView.shown, SignInView.swift).
   const shown: Block[] = storeApp
-    ? BLOCKS.map((b) => ({ ...b, paragraphs: b.paragraphs.filter((p) => !p.startsWith('Bar de la soirée') && !p.startsWith('Purify Test'))
-        .map((p) => p.replace('(Quiz, Méninges, Purify Test)', '(Quiz, Méninges)')) }))
+    ? BLOCKS.map((b) => ({ ...b, paragraphs: b.paragraphs.filter((p) => !p.startsWith('Bar de la soirée') && !p.startsWith('Purify Test') && !p.startsWith('Pronos :'))
+        .map((p) => p.replace('(Quiz, Méninges, Purify Test)', '(Quiz, Méninges)')
+          .replace(' Bar de la soirée : 6 mois après sa fermeture.', '')
+          .replace(' Pronos (réponses, confettis lancés, contestations, réactions) : jusqu’à la suppression du prono, de son groupe ou de son événement. Ton sac de confettis et son historique : jusqu’à la suppression de ton compte.', '')
+          .replace(', pronos et confettis,', ',')) }))
     : BLOCKS;
   return (
     <Screen edges={[]}>

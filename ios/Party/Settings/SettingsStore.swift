@@ -402,7 +402,7 @@ final class SettingsStore: ObservableObject {
         do {
             try await work()
         } catch PartyAPIError.needsCode {
-            notice = Notice(text: "Entre d'abord le code de la soirée (onglet Musique)", isError: true)
+            notice = Notice(text: AppConfig.isStoreApp ? "Entre d'abord le code de la soirée (champ Code de l'onglet Jeux)" : "Entre d'abord le code de la soirée (onglet Musique)", isError: true)
         } catch {
             notice = Notice(text: error.localizedDescription, isError: true)
         }

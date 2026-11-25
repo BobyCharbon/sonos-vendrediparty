@@ -66,8 +66,10 @@ def _name(g: dict, gid: str) -> str:
     return p["name"] if p else "?"
 
 
-def deck(S: dict) -> list[int]:
-    return [i for i, (cat, level, _) in enumerate(MASQUE_CARDS) if cat in S["cats"] and level in S["levels"]]
+def deck(S: dict, store: bool = False) -> list[int]:
+    """Cartes des catégories et niveaux choisis ; partie de l'app App Store : sans boisson (store_app.drinky)."""
+    return [i for i, (cat, level, text) in enumerate(MASQUE_CARDS) if cat in S["cats"] and level in S["levels"]
+            and not (store and store_app.drinky(text))]
 
 
 def configure(g: dict, settings: dict):
@@ -105,7 +107,7 @@ def start(g: dict, rng=random):
 def _deal(g: dict, rng=random):
     """Nouvelle question, jamais deux fois la même dans la soirée (tant que le paquet n'est pas épuisé)."""
     S = state(g)
-    cards = deck(S)
+    cards = deck(S, g.get("store"))
     if not cards:
         raise MasqueError("Aucune question pour ce choix")
     fresh = [i for i in cards if i not in S["used"]]

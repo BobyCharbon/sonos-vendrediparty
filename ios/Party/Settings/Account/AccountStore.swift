@@ -114,7 +114,7 @@ final class AccountStore: ObservableObject {
 
     func loadStats() async {
         guard let token = await web?.accountToken() else {
-            statsError = "Connecte-toi avec ton numéro pour retrouver tes stats Purify Test."
+            statsError = AppConfig.isStoreApp ? "Connecte-toi avec ton numéro pour retrouver tes stats de Méninges." : "Connecte-toi avec ton numéro pour retrouver tes stats Purify Test."
             return
         }
         do {

@@ -1106,6 +1106,24 @@ def tmc_judge(g: dict, gid: str, amount: int):
     g["phase"] = "scored"
 
 
+TMC_REPORTED = "Réponse retirée après un signalement."
+
+
+def tmc_report(g: dict, gid: str) -> dict | None:
+    """« Signaler » la réponse révélée (tout joueur sauf celui qui l'a écrite, Apple 1.2 / 4.7.1) : elle disparaît
+    aussitôt pour toute la table, sans dire qui l'a signalée ; renvoie {text, author} pour le journal (None si déjà retirée)."""
+    d = g["tmc"]["duo"]
+    if g["phase"] not in ("judge", "scored") or not d or not player(g, gid):
+        raise GameError("Pas maintenant")
+    if gid == d["subject"]:
+        raise GameError("C'est ta réponse")
+    text = d["answers"].get(d["subject"])
+    if d.get("reported") or not text:
+        return None
+    d["answers"][d["subject"]], d["reported"] = None, True
+    return {"text": text, "author": d["subject"]}
+
+
 def tmc_finish(g: dict):
     if g["phase"] in ("lobby", "end"):
         raise GameError("Pas maintenant")
@@ -1140,7 +1158,9 @@ def tmc_view(g: dict, gid: str) -> dict:
                "mine": d["answers"].get(gid),  # la personne interrogée revoit sa propre réponse
                # Sujet sans téléphone : l'animateur lui prête le sien pour écrire en secret.
                "proxy": g["phase"] == "answer" and is_lead(g, gid) and is_manual(g, d["subject"]),
-               "answer": d["answers"].get(d["subject"]) if reveal else None,
+               "answer": d["answers"].get(d["subject"]) if reveal else None, "reported": bool(d.get("reported")),
+               "can_report": g["phase"] in ("judge", "scored") and gid != d["subject"] and bool(player(g, gid))
+               and not d.get("reported") and bool(d["answers"].get(d["subject"])),
                "verdict": d["verdict"], "can_judge": g["phase"] == "judge" and is_lead(g, gid),
                "can_reveal": g["phase"] == "guess" and (gid == d["subject"] or is_lead(g, gid))}
     # Classement : points, et nombre de questions où chacun a deviné.

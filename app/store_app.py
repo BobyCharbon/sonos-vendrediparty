@@ -24,7 +24,7 @@ HIDDEN_GAMES = ("casino", "blackjack", "beerpong", "biskit", "purity", "pyramid"
 HIDDEN_MODES = ("hot", "mix")
 # Jeux dont le texte vient d'une banque (questions, mots, cartes) filtrée dans une partie `store` : une partie de l'un
 # d'eux lancée ailleurs n'est ouverte à l'app qu'avant le début (puis `store`).
-BANK_GAMES = ("likely", "undercover", "quiz", "tmc", "divan", "debate")
+BANK_GAMES = ("likely", "undercover", "quiz", "tmc", "divan", "debate", "masque")
 # Thème de Pour ou contre caché dans l'app (nudité, strip-tease, « moment intime » : Apple 1.1.4, 1.4.5).
 HIDDEN_THEMES = ("wtf",)
 # Paquets de Qui est le plus… cachés dans l'app (soirées, lendemains : ivresse sans le mot, Apple 1.4.3).
@@ -52,7 +52,7 @@ STORE_EXCLUDE = re.compile(
     r"sans savoir comment j['’]y étais arrivé|dormi dans ma voiture après une soirée|oublié avec qui j['’]étais venu"
     r"|oublier comment il est rentré|se réveiller chez quelqu['’]un d['’]autre|organiser l['’]after|la veille d['’]un examen"
     r"|plus jamais.{0,20}recommencer|dont tu ne te souviens plus du prénom|soirée légendaire|lendemain de soirée"
-    r"|sans se souvenir|trou noir|black-?out",
+    r"|sans se souvenir|trou noir|black-?out|si (?:tu étais|c['’]était) une boisson",
     re.IGNORECASE)
 
 

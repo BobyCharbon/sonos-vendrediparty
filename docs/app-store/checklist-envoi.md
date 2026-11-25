@@ -11,10 +11,17 @@
       Purify Test / Casino / Blackjack, ni mode Hot / Mix, ni thème WTF ; un code de Pyramide créée sur le web répond 403 ;
       la barre d'onglets n'a pas « Musique » ; Jeux › Code à 6 chiffres ouvre la soirée Musique ; `/api/features` répond `bar: false` à l'app
       App Store (et à tout appel natif `X-Party-Native: ios` en prod) ; `supabase/prod/2026-11-25-demo-sans-alcool-apply.sql`
-      appliqué ; fonction `send-push` redéployée (aucune notification du bar vers l'app App Store).
+      appliqué ; fonction `send-push` redéployée (aucune notification du bar vers l'app App Store). Tour 2 : avec « PartyStore »,
+      `/api/features` répond aussi `pronos: false`, `agenda: false`, `patates: false` (même si le site les allume) ;
+      `https://party.bobycharbon.ch/support` répond 200 ; `/events/terms?app=ios` et `/events/privacy?app=ios`, ouvertes dans
+      Safari, n'ont ni bar, ni alcool, ni Pronos.
 - [ ] Code de la soirée Musique à **6 chiffres** : l'actuel code de prod a encore 4 chiffres (gardé sur le web) ; l'hôte
       tire un nouveau code (Admin de la soirée › Nouveau code) avant l'envoi, sinon l'app ne peut pas rejoindre la soirée
-      par le champ Code (4 chiffres = un jeu ; le QR marche toujours).
+      par le champ Code (4 chiffres = un jeu ; le QR marche toujours). Si une soirée Musique reste ouverte pendant toute la
+      revue, ajouter « Music demo code: XXXXXX » aux notes (moins de 4 000 caractères) ; sinon les notes disent qu'elle exige
+      un hôte avec Sonos.
+- [ ] Profil de l'admin (auteur du message privé de démo) : son surnom contient U+F8FF (logo Apple sur un iPhone) et 🇨🇭 ;
+      le renommer (« Boby ») dans l'app avant l'envoi, ou faire envoyer les messages de démo par un compte neutre.
 
 - [ ] `https://party.bobycharbon.ch/api/features` = `compagnon: false`, `discussions: true`, `invites_v2: true`, `bar: true`, `agenda: false`, `pronos: false`, `patates: false`
       (contrôlé le 16.11.2026). Rien ne doit changer pendant la revue.
@@ -33,8 +40,9 @@
 
 ## 2. Build et version
 
-- [ ] Dernier build TestFlight **compilé depuis `main`** (site de production), configuration Release, **pas le build 7**
-      du 26.10. Build « traité » (Processing terminé) dans TestFlight.
+- [ ] **NOUVEAU build** compilé depuis `main` après la fusion de `fix-143` (site de production), configuration Release ;
+      **jamais le build 216** (ses CGU, sa confidentialité, ses stats Purify, sa phrase caméra, ses emojis 🍻 🍷 et son action
+      rapide Musique sont écrits dans le binaire), ni le build 7 du 26.10. Build « traité » (Processing terminé) dans TestFlight.
 - [ ] Version **1.0.0** (`MARKETING_VERSION`), build choisi dans la section « Build » de la version.
 - [ ] Export compliance : `ITSAppUsesNonExemptEncryption = false` dans Info.plist → aucune question (HTTPS du système
       seulement). Si App Store Connect la pose quand même : « Non » au chiffrement propre.
@@ -48,8 +56,8 @@
 - [ ] Nom : **Vendredi Party** · Sous-titre : **Événements, groupes et jeux**.
 - [ ] Texte promotionnel, description, mots-clés : copiés de `fiche-app-store.md`.
 - [ ] Nouveautés : rien (1re version, Apple n'affiche pas ce champ).
-- [ ] URL d'assistance : `https://party.bobycharbon.ch/events/terms` · URL de confidentialité :
-      `https://party.bobycharbon.ch/events/privacy` (ouvertes une fois dans Safari) · URL marketing : **vide** (décision du 25.11 :
+- [ ] URL d'assistance : `https://party.bobycharbon.ch/support` · URL de confidentialité :
+      `https://party.bobycharbon.ch/events/privacy?app=ios` (ouvertes une fois dans Safari) · URL marketing : **vide** (décision du 25.11 :
       jamais vers le site et ses jeux, jamais `vendrediparty.ch` ; `metadata-fr.json` l'efface).
 - [ ] Droits d'auteur : `© 2026 Ludovic Trombert`.
 - [ ] Catégories : Style de vie / Divertissement.
@@ -65,7 +73,7 @@
 - [ ] **User name** : `+41 79 000 09 99` (compte « Apple-test »).
 - [ ] **Password** : le code fixe à 6 chiffres (Supabase prod › Authentication › Phone › Test OTP ; le fichier
       `~/sb-work/apple/demo.txt` n'existe pas sur ce Mac : le reprendre là où il est). **Jamais dans le dépôt.**
-- [ ] **Notes** : la partie A de `notes-for-review.md` (3763 caractères, limite 4 000 ; = `ios/appstore/review-notes.txt`). La recopier aussi dans
+- [ ] **Notes** : la partie A de `notes-for-review.md` (3991 caractères, limite 4 000 ; = `ios/appstore/review-notes.txt`). La recopier aussi dans
       `ios/appstore/review-notes.txt` avant d'utiliser `tools/appstore_submit.py` (il envoie ce fichier), puis lancer
       `.venv/bin/python -m pytest -q tests/test_ios_app.py -p no:cacheprovider` (la partie A contient les mots exigés).
 - [ ] **Pronos, Agenda, compagnon : PAS dans cette version** (éteints sur le serveur) : les notes le disent (« Not in this version »),

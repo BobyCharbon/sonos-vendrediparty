@@ -9,7 +9,7 @@ script le 16.11.2026. Vérifié dans le code (develop) et sur la prod en lecture
 | Champ | Valeur | Source / remarque |
 |---|---|---|
 | Nom (30 car.) | **Vendredi Party** (14) | Choix de l'admin du 16.11 (« Party » et « Party ! » seuls sont pris, commit 1580f6a). Secours si refusé : « Party ! Événements & soirées » (28). Sous l'icône : « Party ! » (`PARTY_DISPLAY_NAME`, project.yml). |
-| Sous-titre (30 car.) | **Événements, groupes et jeux** (27 ; 25.11, refus 1.4.3 : plus « soirées ») | Pour une bande d'amis comme pour une association qui organise des événements. |
+| Sous-titre (30 car.) | **Événements, groupes et jeux** (27 ; 25.11, refus 1.4.3 : plus « soirées ») | Pour une bande d'amis (25.11 : jamais « association »). |
 | Identifiant de lot | `ch.bobycharbon.party` | project.yml (Release) |
 | SKU | `party-ios` | ios/README.md |
 | Version | 1.0.0 | `MARKETING_VERSION` |
@@ -24,8 +24,8 @@ script le 16.11.2026. Vérifié dans le code (develop) et sur la prod en lecture
 
 | Champ | Valeur | État |
 |---|---|---|
-| URL de confidentialité (obligatoire) | `https://party.bobycharbon.ch/events/privacy` | Répond 200 (16.11) ; page dessinée en JavaScript : l'ouvrir une fois dans Safari pour vérifier le texte (mis à jour le 14.11, section bar annoncée par le coordinateur : À VÉRIFIER). |
-| URL d'assistance (obligatoire) | `https://party.bobycharbon.ch/events/terms` | Répond 200 ; conditions d'utilisation + contact `support@vendrediparty.ch` (MX Infomaniak en place). Une vraie page « Aide / contact » serait mieux : **À FOURNIR (facultatif)**. |
+| URL de confidentialité (obligatoire) | `https://party.bobycharbon.ch/events/privacy?app=ios` | « ?app=ios » : texte de l'app App Store, sans bar, Purify Test ni Pronos (25.11). Répond 200 (16.11) ; page dessinée en JavaScript : l'ouvrir une fois dans Safari pour vérifier le texte (mis à jour le 14.11, section bar annoncée par le coordinateur : À VÉRIFIER). |
+| URL d'assistance (obligatoire) | `https://party.bobycharbon.ch/support` | Page d'assistance (25.11) : contact `support@vendrediparty.ch`, éditeur établi en France, questions fréquentes, liens vers les CGU et la politique en version app (`?app=ios`). |
 | URL marketing (facultative) | **Vide** | Décision du 25.11 (refus 1.4.3) : jamais vers le site, qui garde ses jeux à boire. `metadata-fr.json` l'efface. Jamais `vendrediparty.ch` (aucun site, seulement la messagerie). |
 
 ## Texte promotionnel (170 car.)
@@ -73,7 +73,7 @@ n'existent que si l'organisateur les allume. Refus 1.4.3 (25.11) : plus de bar d
 ## Mots-clés (100 car.)
 
 ```text
-fête,soirée,événement,association,invitation,sondage,quiz,anniversaire,covoiturage,billet,groupe
+fête,soirée,événement,invitation,sondage,quiz,anniversaire,covoiturage,billet,groupe
 ```
 
 (96 caractères ; 25.11 : « apéro » retiré, refus 1.4.3 ; sans espaces ; ni « party » ni « vendredi », déjà dans le nom ; aucune marque : ni Spotify, Sonos, YouTube, Twint, Revolut,

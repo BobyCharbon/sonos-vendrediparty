@@ -70,7 +70,7 @@ const ALL_SECTIONS: { title: string; paragraphs: string[] }[] = [
   {
     title: 'Signaler et bloquer',
     paragraphs: [
-      '« Signaler » existe sur chaque message, demande de message, profil, groupe, photo et réponse de jeu montrée à la table. Un modérateur reçoit le signalement avec une copie du contenu concerné : pour un message, ce seul message avec sa photo ou son vocal, et les 10 messages précédents seulement si tu coches « Joindre les 10 messages précédents » ; la personne signalée ne sait pas qui l’a signalée. Les signalements sont traités sous 24 heures.',
+      '« Signaler » existe sur chaque message, demande de message, profil, groupe et photo, et sur les réponses écrites montrées à la table dans les jeux (Le Masque, Tu me connais ?, dilemmes proposés de Pour ou contre) ; dans tous les jeux, l’animateur peut retirer ou exclure un joueur. Un modérateur reçoit le signalement avec une copie du contenu concerné : pour un message, ce seul message avec sa photo ou son vocal, et les 10 messages précédents seulement si tu coches « Joindre les 10 messages précédents » ; la personne signalée ne sait pas qui l’a signalée. Les signalements sont traités sous 24 heures.',
       'Tu peux bloquer quelqu’un depuis sa fiche ou une conversation : il ne peut plus t’écrire, t’envoyer de demande de message, te citer, t’inviter ni voir ta fiche. La liste « Personnes bloquées » est dans Réglages › Confidentialité.',
     ],
   },
