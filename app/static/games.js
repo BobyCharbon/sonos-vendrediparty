@@ -1168,7 +1168,8 @@ function morphNode(x, y) {
 const STEP_FADE = ["undercover", "whoof", "never", "blackjack", "roulette", "divan", "tmc", "casino"];  // étapes en fondu
 const QUESTION_TYPES = ["whoof", "never"];  // jeux à questions (« Qui de nous ? », « Je n'ai jamais »)
 // Raccourci : patch.gameHost = html  ⇔  morph($("gameHost"), html)
-const patch = new Proxy({}, { set(_, id, html) { morph($(id), html); return true; } });
+// candy : dans l'app App Store, les gorgées s'affichent en points ici aussi (compteur du haut, listes…).
+const patch = new Proxy({}, { set(_, id, html) { morph($(id), candy(html)); return true; } });
 // Retiré de la partie par l'animateur ou l'admin : message 5 secondes, puis retour à l'accueil des jeux.
 let kickTimer = 0, kickCode = "";
 function renderKicked(g) {

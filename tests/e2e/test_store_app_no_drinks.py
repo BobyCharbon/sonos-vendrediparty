@@ -107,3 +107,27 @@ def test_store_app_pyramid_plays_with_points(browser, server):
     assert "⭐ Tableau des points" in joined and " point" in joined
     assert drinks_in(joined) == [], drinks_in(joined)
     ctx.close()
+
+
+def test_store_app_never_with_points_mode_shows_no_drinking(browser, server):
+    """« Je n'ai jamais » avec le ⭐ Mode points allumé : les points donnés s'affichent (compteur du haut compris), sans un
+    mot ni emoji de boisson (bug trouvé en recette simulateur le 25.11 : le compteur 🍻 du haut n'était pas traduit)."""
+    import httpx
+    ctx, page = open_games(browser, server, store=True)
+    ua = {"User-Agent": UA + " PartyStore"}
+    me = page.evaluate("guestId")
+    g = httpx.post(server.url + "/api/games", headers=ua, json={"guest_id": me, "name": "Léa", "type": "never", "sips": 2}).json()
+    act = lambda gid, action, **kw: httpx.post(server.url + f"/api/games/{g['code']}", headers=ua,
+                                               json={"guest_id": gid, "action": action, **kw})
+    assert act("store-tom-02", "join", name="Tom").status_code == 200
+    assert act(me, "start").status_code == 200
+    page.evaluate("(c) => { setGame(c); refreshGame(); }", g["code"])
+    page.wait_for_timeout(1500)
+    question = page.evaluate("document.body.innerText")
+    for gid in (me, "store-tom-02"):
+        assert act(gid, "vote", target="yes").status_code == 200
+    page.wait_for_timeout(2500)
+    shown = question + "\n" + page.evaluate("document.body.innerText")
+    assert "2 points" in shown, shown[-800:]
+    assert drinks_in(shown) == [], drinks_in(shown)
+    ctx.close()
