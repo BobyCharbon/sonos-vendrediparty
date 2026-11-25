@@ -496,6 +496,16 @@ l'admin. Toujours :
   fête » exclue. CGU version 2026-11-25 (`20261125100000`, prod : `supabase/prod/2026-11-25-cgu-apply.sql` AVEC le
   déploiement) ; surnom de l'admin sans U+F8FF (logo Apple) ni 🇨🇭 : `supabase/prod/2026-11-25-surnom-sans-logo-apply.sql`.
   Jamais de code à 6 chiffres dans les notes de revue (test) : la Musique se montre par une vidéo jointe.
+- Tour 4 (25.11) : Quiz de l'app sans question qui cite une autre plateforme mobile (`clean_platforms`, Android / .apk ;
+  2.3.10). Confidentialité (web et iOS au prochain build) : chaque sous-traitant tenu par contrat à une protection au moins
+  égale (5.1.1(i)), paragraphe et durée du Pot commun, ce qui reste pour les autres après la suppression du compte (groupes
+  créés, sondages, « qui amène quoi », nom dans un Pot commun). Le fichier prod du surnom retire aussi U+F8FF des
+  notifications déjà envoyées (anciennes valeurs dans son retour arrière). Notes : jamais « for friends » seul ni « groupe
+  d'amis » (app pour tous, Intro des Guidelines) ; un événement réservé au groupe « Démo Apple » est publié tout de suite
+  (les publics passent par la modération) ; Pronos / Agenda / Zicou « absents de cette app », jamais « éteints sur le
+  serveur » (2.5.19). Pour la mise à jour qui les rouvrira : seulement au-dessus d'une version donnée (« PartyApp-iOS/x.y »
+  lu dans l'User-Agent), JAMAIS pour la 1.0.0 ; ne jamais passer `STORE_POINTS` à true pour toutes les versions.
+  `metadata-fr.json` › `ageRating` déclare aussi Profanity, Sexual Content et Cartoon Violence (Infrequent/Mild).
 - Tout nouveau jeu, option ou texte : se demander s'il passe dans PartyStore. Tests : `tests/test_store_app.py`,
   `tests/e2e/test_store_app_no_drinks.py`. Le web, la BETA et Android gardent tout.
 

@@ -80,6 +80,7 @@ def _pool(g: dict, diff: str | int) -> list[dict]:
     qs = [q for t in themes for q in qb.BANK.get(t, [])]
     if g.get("store"):  # app App Store : aucune question sur l'alcool (store_app)
         qs = store_app.clean(qs, lambda q: " ".join([q["q"], q["a"], *q["w"]]))
+        qs = store_app.clean_platforms(qs, lambda q: " ".join([q["q"], q["a"], *q["w"]]))  # Apple 2.3.10
     if str(diff) in ("1", "2", "3"):
         qs = [q for q in qs if q["d"] == int(diff)] or qs
     return qs

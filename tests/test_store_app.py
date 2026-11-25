@@ -489,3 +489,63 @@ def test_round_three_share_extension_only_creates_an_event_in_the_store_app():
     assert "static var isStoreApp" in model and ".eventOffer" in model
     start = model.split("func start(shared: String) async {", 1)[1].split("func prepareEvent", 1)[0]
     assert start.index("if Self.isStoreApp") < start.index("api.search(query)")  # aucune recherche de titre
+
+
+# ── Tour 4 (25.11) ──
+
+def _root():
+    return __import__("pathlib").Path(main.__file__).resolve().parents[1]
+
+
+def test_round_four_quiz_of_the_app_names_no_other_phone_platform_and_the_web_keeps_it():
+    """Apple 2.3.10 : dans l'app, le Quiz ne tire jamais une question qui cite Android ou un .apk ; le web garde tout."""
+    text = lambda q: " ".join([q["q"], q["a"], *q["w"]])
+    qz = store_game("quiz")
+    shown = quiz._pool(qz, "")
+    assert shown and not [q for q in shown if store_app.OTHER_PLATFORM_RE.search(text(q))]
+    assert not [q for q in shown if store_app.drinky(text(q))]  # toujours sans alcool
+    web = games.new_game("quiz", "h", "Hôte")
+    assert any(store_app.OTHER_PLATFORM_RE.search(text(q)) for q in quiz._pool(web, ""))
+
+
+def test_round_four_privacy_names_processor_guarantees_shared_expenses_and_what_stays_after_deletion():
+    """Apple 5.1.1(i) et 5.1.1(v) : web et iPhone (prochain build) disent la même chose."""
+    web = (_root() / "web/events/src/app/privacy.tsx").read_text(encoding="utf-8").replace("’", "'")
+    ios = (_root() / "ios/Party/Settings/Account/SignInView.swift").read_text(encoding="utf-8")
+    for text in (web, ios):
+        assert "protection au moins égale à celle décrite dans cette politique" in text
+        assert "Pot commun : les dépenses, les membres du pot" in text and "Party ne touche jamais l'argent" in text
+        assert "Pot commun (dépenses, membres, photos de tickets) : jusqu'à la suppression de la dépense ou du pot" in text
+        assert "Restent pour les autres, sans lien avec toi" in text and "les groupes que tu as créés" in text
+
+
+def test_round_four_review_notes_present_an_app_for_everyone_and_nothing_dormant():
+    notes = (_root() / "ios/appstore/review-notes.txt").read_text(encoding="utf-8").strip()
+    guide = (_root() / "docs/app-store/notes-for-review.md").read_text(encoding="utf-8")
+    assert len(notes) <= 4000 and notes in guide
+    assert "for anyone organising real-world events with friends" in notes
+    assert "group of friends" not in guide and "for friends:" not in notes
+    assert "wait for our approval" not in notes and 'tick group "Démo Apple" > Publish: live at once' in notes
+    assert "off for this app on our server" not in notes and "switched off for this app on our server" not in guide
+    assert "submitted for review" in notes.split("Not in this version", 1)[1].split("\n", 1)[0]
+    assert "see attached video" in notes
+    assert "grouped as Général, Musique" not in guide
+    checklist = (_root() / "docs/app-store/checklist-envoi.md").read_text(encoding="utf-8")
+    assert "le bar « Soirée démo »" not in checklist
+
+
+def test_round_four_age_rating_declares_every_answer_of_the_checklist():
+    import json
+    rating = json.loads((_root() / "ios/appstore/metadata-fr.json").read_text(encoding="utf-8"))["ageRating"]
+    for key in ("profanityOrCrudeHumor", "sexualContentOrNudity", "violenceCartoonOrFantasy"):
+        assert rating[key] == "INFREQUENT_OR_MILD", key
+    assert rating["ageRatingOverrideV2"] == "EIGHTEEN_PLUS" and rating["gamblingSimulated"] == "NONE"
+
+
+def test_round_four_nickname_prod_file_also_cleans_notifications_already_sent():
+    apply = (_root() / "supabase/prod/2026-11-25-surnom-sans-logo-apply.sql").read_text(encoding="utf-8")
+    rollback = (_root() / "supabase/prod/2026-11-25-surnom-sans-logo-rollback.sql").read_text(encoding="utf-8")
+    body = apply.split("begin;", 1)[1]
+    assert body.index("update public.notifications") < body.index("raise exception")
+    assert "from public.notifications" in body.split("do $$", 1)[1]
+    assert rollback.count("update public.notifications") == 27 and "efa3bf" in rollback

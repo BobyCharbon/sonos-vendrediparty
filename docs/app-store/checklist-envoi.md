@@ -31,6 +31,11 @@
       ses stats Purify, son action rapide Musique, ses emojis 🍻 🍷 et son extension de partage Musique sont dans le binaire).
 - [ ] Captures 6,9" et Duo et vidéo d'aperçu REFAITES sur ce build (barre sans Musique, capture 09 = Méninges ou
       Discussions, aucune boisson) ; sinon supprimer la vidéo d'aperçu dans App Store Connect.
+- [ ] Tour 4 (25.11) : `2026-11-25-surnom-sans-logo-apply.sql` retire aussi U+F8FF des 27 notifications déjà envoyées
+      (contrôle : 0 ligne `notifications` avec chr(63743)) ; vidéo Musique tournée sur un vrai iPhone (Jeux › Code à 6
+      chiffres, recherche, ajout d'un titre, Live Activity) JOINTE à l'envoi (les notes disent « see attached video ») ;
+      le jour de l'envoi, valider dans l'heure toute proposition d'Apple-test (les événements publics passent par la
+      modération) ; PDF du guide régénéré (partie B).
 - [ ] Connexion testée avec « Apple-test 2 » (jamais connecté en prod au 25.11) et « Apple-test » le jour de l'envoi.
 - [ ] App Store Connect › Business : adresse du compte développeur en France (Segny) et statut DSA (non-commerçant) à jour.
 
@@ -128,6 +133,8 @@
 - [ ] Contests : **Frequent/Intense** (choix du coordinateur du 16.11 : parties en compétition, classements et tableau de la
       soirée ; l'ancien `app-store-connect.md` disait « None ». Aucun lot ni tirage. La note reste 18+ dans les deux cas.)
 - [ ] Résultat affiché : 18+. Si Apple calcule moins, choisir 18+.
+- [ ] Tour 4 (25.11) : Profanity, Sexual Content et Cartoon Violence sont aussi dans `metadata-fr.json` (Infrequent/Mild,
+      envoyés par `tools/appstore_submit.py`) : relire à l'écran qu'ils ne sont pas restés à « None ».
 
 ## 6. App Privacy (Confidentialité de l'app)
 
@@ -179,7 +186,7 @@ Pour chaque type : **lié à l'identité : oui · suivi : non · finalité : App
 - [ ] « Ajouter pour vérification » › « Soumettre ». Publication : manuelle (conseillé) pour choisir le moment.
 - [ ] Pendant la revue : surveiller l'e-mail et le Resolution Center ; valider vite les propositions d'Apple-test ;
       répondre en anglais, poliment, avec des captures si besoin.
-- [ ] Après la revue : vérifier que le compte de démo existe encore et que le bar « Soirée démo » n'a pas été fermé ;
+- [ ] Après la revue : vérifier que le compte de démo et la « Soirée démo » existent encore ;
       mettre à jour `ios/appstore/app-store-connect.md` et `metadata-fr.json` (drapeaux discussions / bar allumés, Audio
       Data, Purchase History, Customer Support, Contests, URL marketing) — fichiers hors de ce dossier, non modifiés ici.
 

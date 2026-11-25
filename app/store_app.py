@@ -91,6 +91,14 @@ def clean(pool: list, text=lambda x: x) -> list:
     return [x for x in pool if not drinky(text(x))] or pool
 
 
+# Autres plateformes mobiles (Apple 2.3.10) : jamais dans une question tirée dans l'app (Quiz › Informatique & IA).
+OTHER_PLATFORM_RE = re.compile(r"android|\.apk\b|google play|play store|windows phone|harmonyos", re.IGNORECASE)
+
+
+def clean_platforms(pool: list, text=lambda x: x) -> list:
+    return [x for x in pool if not OTHER_PLATFORM_RE.search(text(x))] or pool
+
+
 def flag(g: dict):
     """Partie de l'app App Store : aucune gorgée (ni « mode points » qui les remplacerait), aucun mode Hot / Mix, aucun
     thème ou paquet caché ; questions filtrées (les modules qui ne voient que leur état le lisent)."""

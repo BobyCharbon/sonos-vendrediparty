@@ -29,45 +29,45 @@
 >    « Bloquer » masque aussitôt les messages et prévient les modérateurs ; aucun jeu à boire, aucune gorgée, aucun mode Hot / Mix
 >    ni bar dans l'app App Store (refus 1.4.3, 25.11, `app/store_app.py`) ; CGU « 18 ans et plus ». Si l'une manque en prod : corriger ce
 >    texte avant l'envoi (Apple compare les notes et l'app).
-> 8. Copier la **partie A** dans App Store Connect › App Review Information › **Notes** (3991 caractères, limite 4 000 ; 25.11 : refus 1.4.3) ET
+> 8. Copier la **partie A** dans App Store Connect › App Review Information › **Notes** (3986 caractères, limite 4 000 ; 25.11 : refus 1.4.3) ET
 >    dans `ios/appstore/review-notes.txt` (même texte) (c'est ce fichier que `tools/appstore_submit.py` envoie ; la partie A garde tous
 >    les mots exigés par `tests/test_ios_app.py::test_review_notes_describe_every_big_feature_delivered_by_the_web`).
 > 9. Exporter la **partie B** en PDF (sans cet encadré) et la joindre dans App Review Information › **Attachment**.
 
 ---
 
-## PART A — Text for the "Notes" field (3,992 characters, limit 4,000)
+## PART A — Text for the "Notes" field (3,986 characters, limit 4,000)
 
 ```text
 ABOUT
-"Vendredi Party" (icon "Party !"): free app by Ludovic Trombert, an individual developer based in France, for friends: real-world events, party games, chats. French, 18+. No ads, tracking or in-app purchase. Guide attached (PDF). Terms and privacy up to date.
+"Vendredi Party" (icon "Party !"): free app by Ludovic Trombert, an individual developer based in France, for anyone organising real-world events with friends: party games, chats. French, 18+. No ads, tracking or in-app purchase. Guide attached (PDF).
 
 CHANGES SINCE THE 1.4.3 REJECTION (new build + server, permanent for this version)
-Removed from the App Store app: every game linked to drinking (Pyramide, Je n'ai jamais, Qui de nous ?, Roulette, Beer pong, Biskit, Purify Test), every drink option, Hot/Mix questions, the party bar, Casino, Blackjack and the Music tab. Not renamed or re-skinned: our server recognises this app (User-Agent) and refuses them to all its users, even by code or QR. Our website is separate; the app never opens its games. No drink words, demo included.
+Removed from the App Store app: every game linked to drinking (Pyramide, Je n'ai jamais, Qui de nous ?, Roulette, Beer pong, Biskit, Purify Test), every drink option, Hot/Mix questions, the party bar, Casino, Blackjack and the Music tab. Not renamed or re-skinned: our server recognises this app and refuses them, even by code or QR. Our website is separate; the app never opens its games. No drink words, demo included.
 
 SIGN-IN
 Phone + 6-digit SMS code. Demo "Apple-test": number and code in the sign-in fields (fixed code, no SMS). Tab "Se connecter" > "Suisse +41" > number > code.
 
 TRY IT
 1. Events > "Soirée démo Vendredi Party" (co-organiser): answer "Présent", see who comes, use the event chat.
-2. Events > "Avec l'IA" or "+ Proposer" (new events wait for our approval).
+2. Events > "+ Proposer" or "Avec l'IA" > "Qui est invité" > tick group "Démo Apple" > Publish: live at once. Public events: moderators check first (1.2).
 3. Discussions > "Démo Apple": long-press > "Signaler"; "Nouveau message"; "Demandes".
 4. Games > "Créer une salle" > Quiz, or Méninges.
 
 NATIVE (4.2)
-Native tab bar; SwiftUI: Settings, Discussions, Groups, event chat, "Ton avis", AI assistant, "Pot commun". Push (a switch per type), Live Activity (music, host's party only), Wallet (tickets), QR scanner, Calendar, Contacts (optional, hashed), dictation. Share sheet > Party: event from a link (AI).
+Native tab bar; SwiftUI Settings, Discussions, Groups, event chat, "Ton avis", AI assistant, "Pot commun". Push (a switch per type), Live Activity (music, host's party only), Wallet (tickets), QR scanner, Calendar, Contacts (optional, hashed), dictation. Share sheet > Party: event from a link (AI).
 
 WEB CONTENT (2.5.2)
-Events and Games tabs: our own site in a WKWebView. Other sites: Safari. Games > Code: 4 digits = a game; 6 digits = a host's music party (native Music screen, no tab; needs the host's Sonos). Not in this version: Pronos, Agenda, companion (off for this app on our server).
+Events and Games tabs: our own site in a WKWebView. Other sites: Safari. Games > Code: 4 digits = a game; 6 digits = a host's music party (native Music screen, no tab; needs the host's Sonos: see attached video). Not in this version: Pronos, Agenda, companion. Absent from this app; only a future version, submitted for review, could add them.
 
 EVENTS
-"Qui est invité": public, invite or groups. Links for one person or "Plusieurs"; guests make, copy and stop own links (counts only). Not public: a guest's guest waits ("À accepter"). Date poll. Personal calendar feed. Carpool (no money), QR ticket + Wallet: organiser options, off in the demo (Modifier). Groups: "Inviter avec un lien". Sign-in for events (name, nickname of 12 characters max); games stay unlimited without an account. Updates live; tap a name to open the profile; each answer shows its time. Admins: "Nouveau compte", announcement or maintenance.
+Links for one person or "Plusieurs"; guests make, copy and stop own links (counts only). Not public: a guest's guest waits ("À accepter"). Date poll. Personal calendar feed. Carpool (no money), QR ticket + Wallet: organiser options (Modifier). Groups: "Inviter avec un lien". Sign-in for events (name, nickname of 12 characters max); games stay unlimited without an account. Updates live; tap a name to open the profile; each answer shows its time. Admins: "Nouveau compte", announcement or maintenance.
 
 PAYMENTS (3.1.3(e))
-Party never sells, holds or moves money. Real-world events: organiser's own Revolut/Twint/IBAN, ticketing link (Safari) or on site. Paying unlocks nothing in the app; the QR ticket is for door entry. "Pot commun": split real costs; "Payer" shows the friend's own IBAN/Revolut/Twint.
+Party never sells, holds or moves money. Events: organiser's own Revolut/Twint/IBAN, ticketing link (Safari) or on site. Paying unlocks nothing in the app; the QR ticket is for door entry. "Pot commun": split real costs; "Payer" shows the friend's own IBAN/Revolut/Twint.
 
 DISCUSSIONS (1.2)
-Event chats (native): only guests who answered "Présent" / "Peut-être" and organisers. DMs only with a real link (shared group or event); others send a message request: one text, no photo/link/number; "Accepter / Supprimer / Bloquer / Signaler". Settings > Confidentialité > "Demandes de message". "Nouveau message": real links only, search by name; 2+ people make a private group, not read by admins. Terms first, word filter, "Signaler" on each message (photo/voice kept for moderators, last 10 messages if ticked); "Bloquer" hides messages at once and alerts moderators. Tap a name: mini-profile. Reports within 24 h. Demo "Apple-test 2" (number in the guide, same code) shows a request from the other side. Contact: support@vendrediparty.ch.
+Event chats: only guests who answered "Présent" / "Peut-être" and organisers. DMs only with a real link (shared group or event); others send a message request: one text, no photo/link/number: "Accepter / Supprimer / Bloquer / Signaler". Settings > Confidentialité > "Demandes de message". "Nouveau message": real links only, search by name; 2+ people make a private group, not read by admins. Terms first, word filter, "Signaler" on each message (photo/voice kept for moderators, last 10 messages if ticked); "Bloquer" hides messages at once and alerts moderators. Tap a name: mini-profile. Reports within 24 h. Demo "Apple-test 2" (see guide) sees the request from the other side. Contact: support@vendrediparty.ch.
 
 AI (5.1.2(i))
 "Avec l'IA", "Ton avis" and receipts go to Anthropic (Claude) only after "J'accepte" (withdraw: Settings > Confidentialité).
@@ -76,7 +76,7 @@ GAMES (18+)
 No drinking games: quizzes, card, word, party and 3D games, points only; first-party content. No gambling, purchases or prizes. Written answers: filter + "Signaler"; the host can ban a player.
 
 DELETION
-Settings > "Gérer mon compte" > type SUPPRIMER > "Supprimer définitivement mon compte".
+Settings > "Gérer mon compte" > "Supprimer mon compte" (type SUPPRIMER).
 ```
 
 ---
@@ -86,8 +86,7 @@ Settings > "Gérer mon compte" > type SUPPRIMER > "Supprimer définitivement mon
 ### B1. What Party is
 
 Party ("Vendredi Party" on the App Store, "Party !" under the icon) is a free, non-commercial app published by
-**Ludovic Trombert, an individual developer based in France**. "Vendredi Party" is the name of our group of friends, who
-use it to organise their evenings; anyone can use it to organise their own real-world events with friends. The
+**Ludovic Trombert, an individual developer based in France**. Party is for anyone who organises real-world events and game nights with friends. The
 in-app terms and privacy policy are up to date (publisher based in France).
 
 What you can do with it:
@@ -329,7 +328,8 @@ There is **no Music tab** in the App Store app. At a party at the host's place (
 a guest opens **Jeux**, types the host's **6-digit** party code in **Code** (4 digits = a game) or scans the host's QR:
 the native Music screen opens. Search a song ("Titre, artiste ou lien") and add it to the shared queue; "Me prévenir
 quand mon titre passe" starts a Live Activity. Without a running party there is nothing to join: Music needs a host
-playing on Sonos at home, so it cannot be opened without one (we can send a short device video on request). Search
+playing on Sonos at home, so it cannot be opened without one: a short video recorded on a real iPhone is attached to
+the submission (Jeux › Code with 6 digits, search, add a song, Live Activity). Search
 results are credited to Spotify ("Résultats Spotify", each song opens in Spotify); song suggestions never require an
 account. The share extension ("Party" in the share sheet) does not touch Music in this app: it only offers "Créer
 l'événement" from a shared link (the AI assistant drafts the event, you review it before publishing).
@@ -347,8 +347,8 @@ Réglages › **Ton avis**: send an idea or a bug report to the organisers; opti
 
 #### B4.19 Notifications
 
-Réglages › **Notifications**: one switch per type, grouped as Général, Musique, Jeux, Ton avis, Événements (new event,
-reminders, event discussions…), Discussions des groupes, Amis, Comptes et modération, Quand j'organise. The moon icon
+Réglages › **Notifications**: one switch per type, grouped as Général, Jeux, Ton avis, Événements (new event,
+reminders, event discussions…), Discussions des groupes, Amis, Comptes et modération, Quand j'organise (Musique only once a music party is joined). The moon icon
 (top right of Réglages) pauses notifications for a while. Each event page has **🔔 Sourdine** (mute). The app works
 without notifications. iOS permission is asked only when you turn them on (e.g. the banner "Ne rate rien de cet
 événement" on an event page).
@@ -385,8 +385,8 @@ platforms are separate; the app never opens their games.
   opens in Safari** (no unrestricted web browsing).
 - Because the Events and Games tabs are web content, they can be improved without a new binary; any **major new
   feature** delivered this way is described in these notes before it is turned on in production (2.3.1(a)). Pronos,
-  Agenda and the companion are switched off for this app on our server; the removed games stay removed for version
-  1.0.0. They will only be turned on after a new app version describing them has been approved.
+  Agenda and the companion are not available in this app, and the removed games stay removed for version 1.0.0. They
+  would only come in a future app version submitted for review and approved, never for this version.
 
 ### B6. User-generated content and safety (1.2)
 
@@ -426,7 +426,8 @@ New build, and our server, permanent for this version of the App Store app:
   Méninges only; the camera prompt names party, game and ticket codes only; no drink emoji in the group or "Pot commun"
   pickers; no "Ajouter un titre" shortcut on the icon; Music notification settings only appear once a music party is
   joined; the Music screen credits Spotify ("Résultats Spotify", "Open in Spotify").
-- Our server also keeps Pronos, Agenda and the companion off for the App Store app, whatever the website does; the
+- Pronos, Agenda and the companion are not available in this app (only a future version, submitted for review,
+  could add them); the
   "bar" tag is not listed in Settings › Notifications; song suggestions at a music party never require an account.
 - Le Masque and Tu me connais ? draw no question about drinks; Tu me connais ? answers can be reported ("Signaler").
 - Support URL: a dedicated support page (contact, publisher, FAQ); privacy URL: the app version of the policy.
@@ -436,6 +437,13 @@ New build, and our server, permanent for this version of the App Store app:
 - A report made inside a game ("Signaler") also notifies our moderator at once, besides the moderation log.
 - The demo organiser's nickname no longer contains a special character shown as a logo, nor a flag.
 - Terms version of 25 November 2026: every account accepts the displayed text again before its next content.
+- Notifications already received no longer show that special character either.
+- Events created with the demo account and reserved to the group "Démo Apple" are published at once; public events
+  are checked by our moderators first (anti-abuse, 1.2).
+- The privacy policy confirms that each processor protects data at least as well as the policy, describes the data
+  of "Pot commun" and says what stays for others, without any link to you, after an account is deleted.
+- Quiz questions naming another phone platform are not drawn in the app.
+- Music: a short video recorded on a real iPhone is attached (a music party needs the host's Sonos).
 
 ### B8. Permissions (asked only when needed)
 

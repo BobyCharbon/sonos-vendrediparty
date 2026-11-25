@@ -142,8 +142,8 @@ soirée à **6 chiffres** (ou le QR de l'hôte) ouvre l'écran natif Musique ›
 prévenir quand mon titre passe » (Live Activity). Il faut une soirée en cours (enceintes et compte de musique de l'hôte).
 
 ## 8. Réglages
-- **Notifications** : un interrupteur par type (Général, Musique, Jeux, Ton avis, Événements, Discussions des groupes,
-  Amis, Comptes et modération, Quand j'organise) ; la lune en haut à droite met tout en pause.
+- **Notifications** : un interrupteur par type (Général, Jeux, Ton avis, Événements, Discussions des groupes,
+  Amis, Comptes et modération, Quand j'organise ; Musique seulement après avoir rejoint une soirée Musique) ; la lune en haut à droite met tout en pause.
 - **Pot commun** : dépenses partagées (rien n'est payé dans l'app), scan de ticket (IA facultative, avec accord).
 - **Mes amis dans Party**, **Mes stats de jeu**, **Ton avis**.
 - **Confidentialité** : Noms de mes contacts, **Personnes bloquées**, **Conditions d'utilisation** (contact
