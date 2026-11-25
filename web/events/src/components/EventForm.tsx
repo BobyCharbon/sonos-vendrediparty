@@ -5,6 +5,7 @@ import { Pressable, View } from 'react-native';
 import { useAuth, useMe } from '@/lib/auth';
 import { fetchTaxonomy, useQuery } from '@/lib/data';
 import { dateProblem, placesProblem, plusOnesProblem, priceProblem } from '@/lib/eventChecks';
+import { EventCover } from './CoverSheet';
 import { useLeaveGuard } from './LeaveGuard';
 import { parseLocalDateTime, toLocalInput } from '@/lib/format';
 import { NO_REPEAT, REPEAT_CHOICES, repeatLabel, repeatOf, untilDate, type Repeat, type Series } from '@/lib/recurrence';
@@ -330,7 +331,7 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
       supabase.from('profiles').select('id, display_name, role').eq('status', 'active').order('display_name'),
       supabase.from('member_groups').select('id, name, created_by, system_key, events_need_approval, member_group_members(user_id)').order('name'),
       supabase.from('group_settings').select('require_approval').single(),
-      eventId ? supabase.from('events').select('status, created_by').eq('id', eventId).single() : Promise.resolve(null),
+      eventId ? supabase.from('events').select('status, created_by, cover_url, cover_credit, cover_credit_url').eq('id', eventId).single() : Promise.resolve(null),
       // Co-organisateurs : seulement des rôles qui peuvent modifier un événement publié (sinon ni Modifier ni Annuler).
       supabase.from('role_permissions').select('role').in('perm', ['events.edit_own_published', 'events.manage_all']),
     ]);
@@ -362,6 +363,7 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
       settings: must(settings) as { require_approval: boolean },
       status: current ? (must(current) as { status: EventRow['status'] }).status : null,
       createdBy: current ? (must(current) as { created_by?: string | null }).created_by ?? null : null,
+      cover: current ? (must(current) as Pick<EventRow, 'cover_url' | 'cover_credit' | 'cover_credit_url'>) : null,
       editors: new Set((must(editorRoles) as { role: string }[]).map((r) => r.role)),
     };
   }, [eventId]);
@@ -740,6 +742,11 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
       ) : null}
 
       <Section title="L’essentiel">
+        {/* Couverture (25.11) : changée tout de suite par le serveur, jamais par l'enregistrement du formulaire. */}
+        {eventId && ctx.cover ? (
+          <EventCover eventId={eventId} url={ctx.cover.cover_url} credit={ctx.cover.cover_credit} creditUrl={ctx.cover.cover_credit_url}
+            canEdit onChanged={reloadCtx} />
+        ) : null}
         <Field label="Titre" value={d.title} onChangeText={(title) => set({ title })} maxLength={120} placeholder="Karting, soirée raclette…" />
         <Field label="Description" value={d.description} onChangeText={(description) => set({ description })} multiline />
         <T muted size={13} weight="medium">Catégorie</T>

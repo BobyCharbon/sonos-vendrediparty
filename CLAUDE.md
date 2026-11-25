@@ -900,3 +900,23 @@ réglage de prod :
   → `?souvenirs=review` (fiche) ; send-push et send-web-push. Réglages › Notifications › Souvenirs. Recette simulateur :
   `PARTY_E2E_SOUVENIR_CAMERA=1` (image de test, DEBUG / E2E_HOOKS seulement), `ios/PartyUITests/RecetteSouvenirsUITests.swift`.
   Tests : `SouvenirsTests`, `tests/test_souvenirs_ios.py`.
+
+## Couverture d'événement (demande de l'admin du 25.11, migration 20261125120000)
+- « 🖼️ Changer la couverture » (fiche et formulaire Modifier ; mêmes droits que Modifier : créateur, co-organisateurs,
+  `events.manage_all`, `events.edit_others` hors brouillon) → `CoverSheet` : 📷 Ma photo (recadrage 16:9, `PhotoCropper`
+  `aspect`), 🔎 Proposées (Pexels si `PEXELS_API_KEY`, sinon Openverse cc0 / pdm / by), 🌐 Officielle (Claude + recherche web
+  d'Anthropic trouve la page de l'organisateur / salle / billetterie, puis son og:image ; jamais moteur de recherche, réseau
+  social ni banque d'images), 🎨 Affiche Party, Retirer. JAMAIS d'image générée par un modèle d'image.
+- Serveur seul (`app/event_covers.py`, `/api/account/event-cover/*`) : toute image téléchargée (link_reader, adresses
+  publiques) puis réencodée par `Covers.keep` (EXIF / GPS retirés) ; vignettes en `data:` ; l'app choisit par `pick`
+  (30 min, la personne et l'événement), jamais par une adresse. CGU exigées (`my_terms` → 403 terms_required). Écriture
+  avec le jeton de la personne (RLS + garde de statut : un créateur sans `edit_own_published` repasse en validation).
+  4 recherches / minute, 40 / jour par personne. Crédit `events.cover_credit` / `cover_credit_url` sous la couverture.
+- Sans boisson : requêtes, titres et textes alternatifs filtrés (`DRINK_RE`) puis tri par Claude (vision) quand l'IA est
+  permise (droit `ai.use` + accord) ; sinon requêtes tirées de mots connus, jamais le texte de la personne. Image officielle :
+  IA exigée ; dans l'app App Store (« PartyStore »), refusée pour un événement ou une page à boisson.
+- Didacticiel : bulle « Nouveau » une fois par appareil (localStorage `party-cover-tip-off`). Temps réel : `event_changed`.
+- Avant la prod : clé Pexels dans les piles (sinon Openverse), politique de confidentialité (Pexels / Openverse reçoivent des
+  mots-clés, Anthropic le titre / texte / lieu et la recherche web), migration en prod.
+- Tests : `tests/test_event_covers.py`, `tests/test_event_cover_browser.py`, recette `tests/supabase_live/test_couverture_browser_live.py`,
+  `ios/PartyUITests/RecetteCouvertureUITests.swift`.

@@ -44,6 +44,9 @@ export type EventRow = {
   title: string;
   description: string;
   cover_url: string | null;
+  /** Crédit de la couverture (« Photo : Nom / Pexels », « Visuel : domaine ») et sa source (migration 20261125120000). */
+  cover_credit?: string | null;
+  cover_credit_url?: string | null;
   category_id: string | null;
   created_by: string;
   status: EventStatus;

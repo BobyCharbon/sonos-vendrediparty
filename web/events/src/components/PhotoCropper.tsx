@@ -7,37 +7,39 @@ const OUT = 1024; // côté de la photo envoyée (px) : nette sur tous les écra
 /**
  * Recadrage libre dans un cercle : glisser pour déplacer, pincer (ou molette) pour zoomer de très loin à très près,
  * pivoter par quarts de tour. Le résultat est une image carrée de 1024 px, prête à être envoyée.
+ * `aspect` (largeur / hauteur, ex. 16 / 9 pour une couverture) : cadre rectangulaire, image de 1600 px de large.
  */
-export function PhotoCropper({ src, onCancel, onDone, label = 'Recadrer ta photo de profil' }: { src: string; onCancel: () => void; onDone: (uri: string) => void; label?: string }) {
+export function PhotoCropper({ src, onCancel, onDone, label = 'Recadrer ta photo de profil', aspect = 1 }: { src: string; onCancel: () => void; onDone: (uri: string) => void; label?: string; aspect?: number }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [img, setImg] = useState<HTMLImageElement | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState({ x: 0, y: 0, scale: 1, rot: 0 });
   const [fit, setFit] = useState({ min: 0.1, max: 10 });
   const pointers = useRef(new Map<number, { x: number; y: number }>());
-  const size = Math.min(typeof window === 'undefined' ? 320 : window.innerWidth - 48, 360);
+  const size = Math.min(typeof window === 'undefined' ? 320 : window.innerWidth - 48, aspect > 1 ? 520 : 360);
+  const height = Math.round(size / aspect);
 
   useEffect(() => {
     const image = new Image();
     image.src = src;
     image.decode().then(() => {
       // Couvre le cercle au départ ; on peut dézoomer jusqu'à voir la photo entière en petit, ou zoomer ×8.
-      const cover = size / Math.min(image.naturalWidth, image.naturalHeight);
-      const contain = size / Math.max(image.naturalWidth, image.naturalHeight);
+      const cover = Math.max(size / image.naturalWidth, height / image.naturalHeight);
+      const contain = Math.min(size / image.naturalWidth, height / image.naturalHeight);
       setFit({ min: contain * 0.4, max: cover * 8 });
       setView({ x: 0, y: 0, scale: cover, rot: 0 });
       setImg(image);
     }).catch(() => setError('Ce format de photo ne peut pas être lu sur cet appareil (par exemple HEIC hors iPhone). Choisis une image JPEG, PNG ou WebP.'));
-  }, [src, size]);
+  }, [src, size, height]);
 
   useEffect(() => {
     const c = canvas.current;
     if (!c || !img) return;
     const ratio = window.devicePixelRatio || 1;
     c.width = size * ratio;
-    c.height = size * ratio;
-    draw(c.getContext('2d')!, img, view, size, ratio, true);
-  }, [img, view, size]);
+    c.height = height * ratio;
+    draw(c.getContext('2d')!, img, view, size, height, ratio, aspect === 1);
+  }, [img, view, size, height, aspect]);
 
   const clamp = (s: number) => Math.min(fit.max, Math.max(fit.min, s));
   const zoomBy = (factor: number) => setView((v) => ({ ...v, scale: clamp(v.scale * factor) }));
@@ -66,9 +68,10 @@ export function PhotoCropper({ src, onCancel, onDone, label = 'Recadrer ta photo
   function done() {
     if (!img) return;
     const out = document.createElement('canvas');
-    out.width = OUT;
-    out.height = OUT;
-    draw(out.getContext('2d')!, img, view, size, OUT / size, false);
+    const outW = aspect === 1 ? OUT : 1600;
+    out.width = outW;
+    out.height = Math.round(outW / aspect);
+    draw(out.getContext('2d')!, img, view, size, height, outW / size, false);
     out.toBlob((blob) => {
       if (blob) onDone(URL.createObjectURL(blob));
       else setError('La photo ne peut pas être préparée. Réessaie avec une autre image.');
@@ -89,7 +92,7 @@ export function PhotoCropper({ src, onCancel, onDone, label = 'Recadrer ta photo
       {error ? <div role="alert" style={{ maxWidth: size, color: colors.coral, textAlign: 'center' }}>{error}</div> : (
         <canvas ref={canvas} aria-label="Aperçu du recadrage" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}
           onWheel={(e) => zoomBy(e.deltaY < 0 ? 1.08 : 1 / 1.08)}
-          style={{ width: size, height: size, touchAction: 'none', cursor: 'grab', borderRadius: 16, background: colors.bg }} />
+          style={{ width: size, height, touchAction: 'none', cursor: 'grab', borderRadius: 16, background: colors.bg }} />
       )}
       {img ? (
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', width: size }}>
@@ -108,13 +111,13 @@ export function PhotoCropper({ src, onCancel, onDone, label = 'Recadrer ta photo
   );
 }
 
-/** Dessine la photo (déplacée, zoomée, pivotée) dans un carré ; à l'écran, l'extérieur du cercle est assombri. */
-function draw(ctx: CanvasRenderingContext2D, img: HTMLImageElement, v: { x: number; y: number; scale: number; rot: number }, size: number, k: number, preview: boolean) {
+/** Dessine la photo (déplacée, zoomée, pivotée) dans le cadre ; à l'écran (cercle), l'extérieur du cercle est assombri. */
+function draw(ctx: CanvasRenderingContext2D, img: HTMLImageElement, v: { x: number; y: number; scale: number; rot: number }, size: number, height: number, k: number, preview: boolean) {
   const side = size * k;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = colors.bg;
-  ctx.fillRect(0, 0, side, side);
-  ctx.setTransform(k, 0, 0, k, (size / 2 + v.x) * k, (size / 2 + v.y) * k);
+  ctx.fillRect(0, 0, side, height * k);
+  ctx.setTransform(k, 0, 0, k, (size / 2 + v.x) * k, (height / 2 + v.y) * k);
   ctx.rotate((v.rot * Math.PI) / 180);
   ctx.scale(v.scale, v.scale);
   ctx.imageSmoothingQuality = 'high';

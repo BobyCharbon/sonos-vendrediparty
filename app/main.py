@@ -59,6 +59,7 @@ from .account_data import LocalStores, activity_forgetter, forget_local
 from .ai_event_edit import EventEditor
 from . import ai_feedback
 from .covers import Covers
+from .event_covers import EventCovers
 from .notice import NoticeError, NoticeStore, make as make_notice
 from .ai_events import MAX_IMAGE_B64 as AI_EVENT_MAX_IMAGE, MAX_TEXT as AI_EVENT_MAX_TEXT, MAX_TURNS as AI_EVENT_MAX_TURNS, EventAssistant
 from .places import MAX_QUERY as PLACE_MAX_QUERY, Places
@@ -1677,6 +1678,8 @@ assistant = Assistant(accounts, UsageLog(DATA_DIR / "ai_usage.json"),
 covers = Covers(DATA_DIR, PUBLIC_URL)
 event_assistant = EventAssistant(assistant, accounts, covers)
 event_editor = EventEditor(event_assistant)
+# Couverture changée après coup (25.11) : ma photo, photos libres de droits (Pexels, sinon Openverse), image officielle.
+event_covers = EventCovers(accounts, assistant, covers, os.environ.get("PEXELS_API_KEY", ""))
 # « Ton avis » écrit avec l'IA : ouvert à tous ceux qui écrivent un avis (sans droit ai.use), après leur accord.
 feedback_writer = ai_feedback.FeedbackWriter(assistant, ai_consents, games.GAMES)
 places = Places(os.environ.get("GOOGLE_MAPS_API_KEY", ""))  # sans clé : l'app cherche dans les Plans d'Apple
@@ -2595,6 +2598,57 @@ def event_cover(name: str):
     if path is None:
         raise HTTPException(404, "Image introuvable")
     return FileResponse(path, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=31536000, immutable"})
+
+
+class CoverRef(MemberToken):
+    event_id: str = Field(pattern=r"^[0-9a-f-]{36}$")
+
+
+class CoverPhoto(CoverRef):
+    photo: str = Field(min_length=1, max_length=8_500_000)  # base64 d'une photo recadrée (6 Mo au plus)
+
+
+class CoverPick(CoverRef):
+    pick: str = Field(min_length=8, max_length=40)
+
+
+@app.post("/api/account/event-cover/photo")
+def account_event_cover_photo(body: CoverPhoto):
+    """📷 Ma photo : recadrée en 16:9 par l'app, réencodée ici (EXIF et GPS retirés)."""
+    try:
+        data = base64.b64decode(body.photo.partition(",")[2] if body.photo.startswith("data:") else body.photo, validate=True)
+    except ValueError:
+        raise HTTPException(400, "Photo illisible") from None
+    return account_call(lambda: event_covers.upload(body.token, body.event_id, data))
+
+
+@app.post("/api/account/event-cover/suggest")
+def account_event_cover_suggest(body: CoverRef):
+    """🔎 Photos libres de droits proposées (vignettes en data:, à choisir par leur numéro)."""
+    return account_call(lambda: event_covers.suggest(body.token, body.event_id))
+
+
+@app.post("/api/account/event-cover/official")
+def account_event_cover_official(body: CoverRef, request: Request):
+    """🌐 Image officielle : page de l'organisateur, de la salle ou de la billetterie trouvée par Claude."""
+    store = STORE_APP_MARK in request.headers.get("user-agent", "")
+    return account_call(lambda: event_covers.official(body.token, body.event_id, store))
+
+
+@app.post("/api/account/event-cover/choose")
+def account_event_cover_choose(body: CoverPick):
+    return account_call(lambda: event_covers.choose(body.token, body.event_id, body.pick))
+
+
+@app.post("/api/account/event-cover/poster")
+def account_event_cover_poster(body: CoverRef):
+    """🎨 Affiche Party (titre, date, lieu) : le défaut."""
+    return account_call(lambda: event_covers.poster(body.token, body.event_id))
+
+
+@app.post("/api/account/event-cover/remove")
+def account_event_cover_remove(body: CoverRef):
+    return account_call(lambda: event_covers.remove(body.token, body.event_id))
 
 
 @app.post("/api/account/ai/event/draft")

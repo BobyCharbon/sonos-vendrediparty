@@ -1,6 +1,6 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Image, Linking, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { AIEventSteps } from '@/components/AIEventSteps';
 import { AttendanceEditor } from '@/components/AttendanceEditor';
@@ -21,6 +21,7 @@ import { parseIds } from '@/components/InviteStep';
 import { LinkedText } from '@/components/LinkedText';
 import { NameLinks } from '@/components/NameLinks';
 import { CarpoolCard } from '@/components/CarpoolCard';
+import { EventCover } from '@/components/CoverSheet';
 import { EventPronos } from '@/components/pronos/EventPronos';
 import { MySouvenirs } from '@/components/souvenirs/MySouvenirs';
 import { SouvenirsCard } from '@/components/souvenirs/SouvenirsCard';
@@ -310,9 +311,9 @@ export default function EventScreen() {
       {/* Notifications éteintes sur cet appareil : le dire en haut, avec « Activer » (avis c77d117ab172, 13.11). */}
       {published && me.id ? <NotifyBanner /> : null}
       {/* Affiche de l’événement (lue sur la page de l’événement par l’assistant IA) */}
-      {ev.cover_url?.startsWith('https://') ? (
-        <Image source={{ uri: ev.cover_url }} style={st.cover} resizeMode="cover" accessibilityLabel="Affiche de l’événement" />
-      ) : null}
+      {/* Couverture (25.11) : l'organisation la change (ma photo, photos libres de droits, image officielle, affiche). */}
+      <EventCover eventId={ev.id} url={ev.cover_url} credit={ev.cover_credit} creditUrl={ev.cover_credit_url}
+        canEdit={canEdit && ev.status !== 'cancelled'} onChanged={reload} />
       {/* En-tête : l’essentiel en un coup d’œil */}
       <View style={{ gap: 10 }}>
         {/* En haut : les étiquettes, et à droite qui vient et combien (donne envie d’en être). Le titre, dessous,
@@ -671,7 +672,6 @@ function EventSkeleton() {
 }
 
 const st = StyleSheet.create({
-  cover: { width: '100%', aspectRatio: 16 / 9, borderRadius: radius.md, backgroundColor: colors.surface2, marginBottom: 14 },
   keyRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   // Étiquettes à gauche (au moins une catégorie), pastille à droite ; trop étroit : la pastille passe dessous.
   badges: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 110 },
