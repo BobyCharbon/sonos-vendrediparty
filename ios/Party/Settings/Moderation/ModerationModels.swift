@@ -9,6 +9,8 @@ struct ReportTarget: Identifiable, Equatable {
         case groupMessage = "group_message", directMessage = "direct_message", eventMessage = "event_message"
         case profile, profilePhoto = "profile_photo", event, groupPhoto = "group_photo"
         case petName = "pet_name", petItem = "pet_item", petOffer = "pet_offer", petShowcase = "pet_showcase", petWord = "pet_word"
+        /// Pot commun (contrôle Apple du 26.11) : une dépense ; la copie des modérateurs garde la photo de son ticket.
+        case tcExpense = "tc_expense"
     }
 
     let kind: Kind

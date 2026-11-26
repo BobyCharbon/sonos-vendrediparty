@@ -86,7 +86,7 @@ final class WalletHandler: NSObject, WKScriptMessageHandlerWithReply {
     func userContentController(_ controller: WKUserContentController,
                                didReceive message: WKScriptMessage) async -> (Any?, String?) {
         let origin = message.frameInfo.securityOrigin
-        guard let page = URL(string: "\(origin.protocol)://\(origin.host)"), AppConfig.isInternal(page) else {
+        guard let page = URL(string: "\(origin.protocol)://\(origin.host)"), AppConfig.mayUseBridge(page) else {
             return (nil, "Origine refusée")
         }
         guard let link = message.body as? String, let url = URL(string: link) else { return (nil, "Adresse invalide") }

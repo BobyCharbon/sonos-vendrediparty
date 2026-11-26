@@ -14,6 +14,7 @@ struct ExpenseEditor: View {
     @State private var scanned: TC.Receipt?
     @State private var showReceipt = false
     @State private var confirmDelete = false
+    @State private var reporting: ReportTarget?
     @FocusState private var amountFocused: Bool
 
     private var advanced: Bool { store.advanced || draft.split != .equal || draft.transfer }
@@ -93,6 +94,10 @@ struct ExpenseEditor: View {
                 if receipt != nil || savedReceipt != nil { receiptSection }
                 if draft.id != nil {
                     Section {
+                        if let id = draft.id {
+                            Button("Signaler cette dépense") { reporting = Self.report(expense: id, title: draft.title) }
+                                .accessibilityIdentifier("tc-report-expense")
+                        }
                         Button("Supprimer cette dépense", role: .destructive) { confirmDelete = true }
                     }
                 }
@@ -103,16 +108,12 @@ struct ExpenseEditor: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Annuler") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Enregistrer") {
-                        Task {
-                            if await store.save(draft, receipt: receipt) { Haptics.success(); dismiss() } else { Haptics.error() }
-                        }
-                    }
+                    Button("Enregistrer") { Task { await save() } }
                     .bold().disabled(store.busy)
                     .accessibilityIdentifier("tc-save")
                 }
             }
-            .onAppear { if draft.id == nil { amountFocused = true } }
+            .onAppear { store.needsTerms = false; if draft.id == nil { amountFocused = true } }
             .onChange(of: photo) { item in
                 Task { receipt = try? await item?.loadTransferable(type: Data.self).flatMap(Self.jpeg) }
             }
@@ -122,7 +123,24 @@ struct ExpenseEditor: View {
                 }
             }
             .overlay(alignment: .bottom) { TCNotice(text: $store.notice) }
+            .sheet(item: $reporting) { ReportSheet(store: store.moderation, target: $0) }
+            // Conditions d'utilisation exigées par la base (terms_required) : la feuille, puis nouvel essai.
+            .tcTermsGate(store) { await save() }
         }
+    }
+
+    private func save() async {
+        if await store.save(draft, receipt: receipt) { Haptics.success(); dismiss() } else { Haptics.error() }
+    }
+
+    /// Signaler (contrôle Apple du 26.11) : la dépense, ou la photo de son ticket (même type tc_expense, cible = la dépense).
+    static func report(expense id: String, title: String) -> ReportTarget {
+        let name = title.trimmingCharacters(in: .whitespaces)
+        return ReportTarget(kind: .tcExpense, id: id, label: name.isEmpty ? "cette dépense" : "la dépense « \(name) »")
+    }
+
+    static func report(receipt id: String) -> ReportTarget {
+        ReportTarget(kind: .tcExpense, id: id, label: "la photo du ticket")
     }
 
     /// Photo du ticket gardée avec la dépense (scannée ou ajoutée) : le lien signé que renvoie le serveur.
@@ -144,6 +162,10 @@ struct ExpenseEditor: View {
                 }
             }
             .accessibilityIdentifier("tc-receipt")
+            if receipt == nil, savedReceipt != nil, let id = draft.id {
+                Button("Signaler la photo du ticket") { reporting = Self.report(receipt: id) }
+                    .accessibilityIdentifier("tc-report-receipt")
+            }
         }
         .sheet(isPresented: $showReceipt) {
             NavigationStack {
@@ -308,6 +330,7 @@ struct PaymentProfileView: View {
         }
         .onChange(of: store.payment) { saved in if let saved { p = saved } }
         .overlay(alignment: .bottom) { TCNotice(text: $store.notice) }
+        .tcTermsGate(store) { _ = await store.savePayment(p) }
     }
 
     private func link(_ kind: String, _ placeholder: String, _ symbol: String) -> some View {

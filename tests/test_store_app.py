@@ -708,3 +708,58 @@ def test_apple_check_round_one_texts_promise_only_what_the_reviewer_can_try():
     titles = [l.split(" ", 2)[1] for l in part_b.splitlines() if l.startswith("#### B4.")]
     assert titles == [f"B4.{n}" for n in range(1, len(titles) + 1)], titles  # numérotation continue
 
+
+
+def test_round_one_native_app_souvenirs_bridge_terms_and_shared_expense_reports():
+    """Contrôle Apple du 26.11, tour 1 (app iPhone) : Souvenirs absents de l'app App Store, pont natif réservé au site
+    de l'app (jamais accounts.spotify.com), CGU et « Signaler » du Pot commun, IBAN déclaré au manifeste."""
+    import plistlib
+    ios = _root() / "ios/Party"
+    bridge = (ios / "NativeBridge.swift").read_text(encoding="utf-8")
+    assert 'private static let souvenirsScript = AppConfig.storeLocked ? "null"' in bridge
+    line = next(l for l in bridge.splitlines() if "SouvenirsBridge(model: model)" in l)
+    assert "if !AppConfig.storeLocked" in bridge[: bridge.index(line)].splitlines()[-1]
+    web = (ios / "WebModel.swift").read_text(encoding="utf-8")
+    assert "souvenirs = AppConfig.storeLocked ? nil : SouvenirsStore(" in web
+    assert "func openSouvenirs(_ route: SouvenirRoute) {\n        if AppConfig.storeLocked { return }" in web
+    conv = (ios / "Chats/ConversationView.swift").read_text(encoding="utf-8")
+    assert "if chat.isEvent, !AppConfig.storeLocked { SouvenirChatBanner(" in conv
+    # Pont : seulement l'hôte du site (et TEST dans la BETA) ; le script ne pose rien ailleurs, les gestionnaires refusent.
+    config = (ios / "AppConfig.swift").read_text(encoding="utf-8")
+    hosts = config.split("static var bridgeHosts")[1].split("}")[0]
+    assert "spotify" not in hosts and "supabase" not in hosts
+    assert "indexOf(String(location.hostname).toLowerCase()) < 0) return;" in bridge
+    swift = "\n".join(p.read_text(encoding="utf-8") for p in ios.rglob("*.swift"))
+    assert "AppConfig.isInternal(message.frameInfo" not in swift and "AppConfig.isInternal(page)" not in swift
+    # Bloquer depuis une conversation : le fil se relit aussitôt.
+    assert "publisher(for: .partyBlockChanged)) { _ in Task { await store.open(group) } }" in conv
+    # Conditions en grand et « Ton avis ».
+    sheets = (ios / "Settings/Moderation/ModerationSheets.swift").read_text(encoding="utf-8")
+    assert "Tolérance zéro : un contenu choquant est retiré et son auteur peut être banni." in sheets
+    assert "Les points des jeux n'ont aucune valeur en argent." in sheets and "objets du jeu" not in sheets
+    assert ("Sans elles, tu peux continuer à découvrir les événements publics. Écrire, publier, choisir ton surnom ou "
+            "jouer avec d'autres te les redemanderont.") in sheets
+    assert "Écris à l'équipe de Party" in (ios / "Settings/SettingsView.swift").read_text(encoding="utf-8")
+    # Pot commun : Signaler (dépense, ticket) et CGU avant d'enregistrer.
+    editor = (ios / "Tricount/ExpenseEditor.swift").read_text(encoding="utf-8")
+    assert "kind: .tcExpense" in editor and "tc_receipt" not in editor and ".tcTermsGate(store) { await save() }" in editor
+    assert "TermsAcceptSheet(store: store.moderation" in (ios / "Tricount/TricountStore.swift").read_text(encoding="utf-8")
+    tc_store = (ios / "Tricount/TricountStore.swift").read_text(encoding="utf-8")
+    assert "catch PartyAPIError.termsRequired {\n            needsTerms = true" in tc_store
+    assert "Signaler la photo du ticket" in (ios / "Tricount/TricountGroupView.swift").read_text(encoding="utf-8")
+    with open(ios / "PrivacyInfo.xcprivacy", "rb") as f:
+        types = {e["NSPrivacyCollectedDataType"] for e in plistlib.load(f)["NSPrivacyCollectedDataTypes"]}
+    assert {"NSPrivacyCollectedDataTypePaymentInfo", "NSPrivacyCollectedDataTypeOtherFinancialInfo"} <= types
+
+
+def test_round_one_store_permission_texts_never_name_souvenirs_nor_the_agenda():
+    from tests.test_compliance_1411 import targets, usage_texts
+    party = targets()["Party"]
+    store, beta = usage_texts(party), usage_texts(party, "STORE_beta")
+    for key, text in store.items():
+        assert "Souvenirs" not in text and "Agenda" not in text and "chiffrée" not in text, key
+    assert store["NSCalendarsFullAccessUsageDescription"] == store["NSCalendarsUsageDescription"] == (
+        "Pour mettre les dates d'un sondage dans ton calendrier, puis retirer celles qui ne sont pas retenues. "
+        "Party ne lit que les entrées qu'elle a ajoutées ; rien ne quitte ton iPhone.")
+    assert "Agenda" in beta["NSCalendarsFullAccessUsageDescription"] and "Souvenirs" in beta["NSCameraUsageDescription"]
+    assert 'PARTY_VARIANT: "STORE$(PARTY_BUNDLE_SUFFIX:c99extidentifier)"' in party["text"]

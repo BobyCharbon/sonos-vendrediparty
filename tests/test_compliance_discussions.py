@@ -111,7 +111,7 @@ def test_iphone_settings_have_the_same_switches():
 
 def test_contacts_permission_says_they_are_also_suggested_for_new_messages():
     text = usage_texts(targets()["Party"])["NSContactsUsageDescription"]
-    assert "quand tu écris un nouveau message" in text and "empreinte chiffrée" in text
+    assert "quand tu écris un nouveau message" in text and "empreinte des numéros" in text and "chiffrée" not in text
     assert text.startswith("Pour")
 
 

@@ -11,6 +11,7 @@ struct TricountGroupView: View {
     @State private var showMembers = false
     @State private var showSettings = false
     @State private var confirmLeave = false
+    @State private var reporting: ReportTarget?
     @Environment(\.dismiss) private var dismiss
 
     enum Tab: String, CaseIterable, Identifiable {
@@ -37,6 +38,7 @@ struct TricountGroupView: View {
         .task { await store.open(id) }
         .refreshable { await store.open(id) }
         .overlay(alignment: .bottom) { TCNotice(text: $store.notice) }
+        .tcTermsGate(store)
     }
 
     private func content(_ g: TC.Group) -> some View {
@@ -93,6 +95,7 @@ struct TricountGroupView: View {
             ExpenseEditor(store: store, group: g, draft: box.draft)
         }
         .sheet(item: $paying) { t in PaySheet(store: store, group: g, transfer: t) }
+        .sheet(item: $reporting) { ReportSheet(store: store.moderation, target: $0) }
         .sheet(isPresented: $showMembers) { MembersSheet(store: store) }
         .sheet(isPresented: $showSettings) { GroupSettingsSheet(store: store, group: g) }
         .confirmationDialog("Quitter ce pot commun ?", isPresented: $confirmLeave, titleVisibility: .visible) {
@@ -158,6 +161,19 @@ struct TricountGroupView: View {
                         ForEach(days[day] ?? []) { e in
                             Button { if !g.archived { editing = TricountDraft(expense: e, group: g) } } label: { ExpenseRow(store: store, expense: e, group: g) }
                                 .buttonStyle(PressableStyle(scale: 0.98))
+                                // Signaler (contrôle Apple du 26.11) : aussi dans un pot archivé, où la dépense ne s'ouvre plus.
+                                .contextMenu {
+                                    if !e.isTransfer {
+                                        Button { reporting = ExpenseEditor.report(expense: e.id, title: e.title) } label: {
+                                            Label("Signaler la dépense", systemImage: "flag")
+                                        }
+                                    }
+                                    if e.receipt_url != nil {
+                                        Button { reporting = ExpenseEditor.report(receipt: e.id) } label: {
+                                            Label("Signaler la photo du ticket", systemImage: "flag")
+                                        }
+                                    }
+                                }
                                 .motionTransition()
                             if e.id != days[day]?.last?.id { Divider().padding(.leading, 62) }
                         }
@@ -366,7 +382,7 @@ struct PaySheet: View {
                 }
                 Section {
                     Button {
-                        Task { await store.settle(transfer); dismiss() }
+                        Task { await store.settle(transfer); if !store.needsTerms { dismiss() } }
                     } label: { Label("J'ai remboursé \(transfer.to_name)", systemImage: "checkmark.circle.fill") }
                 }
             }
@@ -375,6 +391,7 @@ struct PaySheet: View {
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Fermer") { dismiss() } } }
         }
         .presentationDetents([.medium, .large])
+        .tcTermsGate(store) { await store.settle(transfer) }
     }
 
     static func label(_ kind: String) -> String {
@@ -443,6 +460,7 @@ struct MembersSheet: View {
                 Button("OK") { if let m = renaming { Task { await store.renameMember(m.id, renameText) } } }
             }
         }
+        .tcTermsGate(store)
     }
 }
 
@@ -474,7 +492,7 @@ struct GroupSettingsSheet: View {
                 } footer: { Text("Les montants déjà saisis gardent leur monnaie ; les totaux s'affichent dans la monnaie du pot commun.") }
                 Section {
                     Button(group.archived ? "Désarchiver" : "Archiver (lecture seule)") {
-                        Task { await store.update(archived: !group.archived); dismiss() }
+                        Task { await store.update(archived: !group.archived); if !store.needsTerms { dismiss() } }
                     }
                 }
             }
@@ -483,10 +501,13 @@ struct GroupSettingsSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Annuler") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Enregistrer") { Task { await store.update(name: name, emoji: emoji, currency: currency); dismiss() } }
+                    Button("Enregistrer") {
+                        Task { await store.update(name: name, emoji: emoji, currency: currency); if !store.needsTerms { dismiss() } }
+                    }
                 }
             }
             .onAppear { name = group.name; emoji = group.emoji; currency = group.currency }
         }
+        .tcTermsGate(store)
     }
 }

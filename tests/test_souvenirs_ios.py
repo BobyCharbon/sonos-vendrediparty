@@ -15,10 +15,11 @@ EVENT = "0a0b0c0d-0000-4000-8000-000000000024"
 
 
 def test_camera_and_photos_texts_name_the_souvenirs():
-    plist = (ROOT / "ios/project.yml").read_text(encoding="utf-8")
-    camera = next(l for l in plist.splitlines() if "NSCameraUsageDescription" in l)
-    add = next(l for l in plist.splitlines() if "NSPhotoLibraryAddUsageDescription" in l)
-    assert "Souvenirs" in camera and "Souvenirs" in add
+    """BETA seulement : l'app App Store n'a pas les Souvenirs et ne les cite pas (contrôle Apple du 26.11)."""
+    from tests.test_compliance_1411 import targets, usage_texts
+    beta, store = usage_texts(targets()["Party"], "STORE_beta"), usage_texts(targets()["Party"])
+    for key in ("NSCameraUsageDescription", "NSPhotoLibraryAddUsageDescription"):
+        assert "Souvenirs" in beta[key] and "Souvenirs" not in store[key]
 
 
 def test_the_fake_camera_of_the_recette_never_reaches_the_app_store_build():

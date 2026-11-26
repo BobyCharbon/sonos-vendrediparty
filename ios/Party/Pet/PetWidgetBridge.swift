@@ -11,6 +11,7 @@ enum PetWidgetBridge {
     /// Champs gardés (le reste de la réponse ne quitte pas la page).
     static let script = """
     (function () {
+      if (\(NativeBridge.bridgeHostsJS).indexOf(String(location.hostname).toLowerCase()) < 0) return;
       if (window.__partyPetWatch || typeof window.fetch !== "function") return;
       window.__partyPetWatch = true;
       var send = function (p) {
@@ -109,7 +110,7 @@ enum PetWidgetBridge {
 private final class PetMessageHandler: NSObject, WKScriptMessageHandler {
     @MainActor
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard message.frameInfo.isMainFrame, AppConfig.isInternal(message.frameInfo.securityOrigin.url) else { return }
+        guard message.frameInfo.isMainFrame, AppConfig.mayUseBridge(message.frameInfo.securityOrigin.url) else { return }
         if (message.body as? [String: Any])?["off"] as? Bool == true {
             PetWidgetBridge.forget()   // Compagnon fermé sur ce site : widgets neutres, ni éclosion ni actions Zicou
             return

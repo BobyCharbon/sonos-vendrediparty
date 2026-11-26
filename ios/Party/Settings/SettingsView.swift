@@ -151,7 +151,7 @@ struct SettingsView: View {
                     // Sorti de la barre d'onglets le 4.11 (onglet Zicou) : sa pastille est reportée ici.
                     if Self.showsFeedback(isHost: isHost, account: store.account?.feedback == true, entry: feedbackEntry) {
                         page(.tab("feedback"), "bubble.left.and.bubble.right.fill", .green, Self.feedbackTitle(isHost: isHost, entry: feedbackEntry),
-                             isHost ? "Les idées et bugs des invités ; ton avis aussi" : "Une idée, un bug ? Écris à l'organisateur",
+                             isHost ? "Les idées et bugs des invités ; ton avis aussi" : "Une idée, un bug ? Écris à l'équipe de Party",
                              badge: feedbackEntry?.badge)
                         .accessibilityIdentifier("settings-feedback")
                     }

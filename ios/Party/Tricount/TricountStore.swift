@@ -18,8 +18,14 @@ final class TricountStore: ObservableObject {
         didSet { UserDefaults.standard.set(advanced, forKey: "tricountAdvanced") }
     }
 
+    /// La base exige les conditions d'utilisation avant d'enregistrer (terms_required) : la feuille des CGU s'ouvre.
+    @Published var needsTerms = false
+
     private let api: PartyAPI
     private weak var web: WebStorage?
+
+    /// Signaler une dépense ou la photo d'un ticket, et les conditions d'utilisation : la modération commune.
+    private(set) lazy var moderation = ModerationStore(api: api, web: web)
 
     init(api: PartyAPI, web: WebStorage?) {
         self.api = api
@@ -208,7 +214,7 @@ final class TricountStore: ObservableObject {
     func settle(_ t: TC.Settle) async {
         guard let id = group?.id else { return }
         await apply { token in try await api.settleTricount(token: token, id: id, from: t.from, to: t.to, cents: t.amount_cents) }
-        notice = "✅ Remboursement enregistré"
+        if !needsTerms { notice = "✅ Remboursement enregistré" }
         await refreshOverview()
     }
 
@@ -245,6 +251,8 @@ final class TricountStore: ObservableObject {
             if loading { error = nil }
         } catch PartyAPIError.needsCode {
             error = "Ta connexion a expiré : reconnecte-toi dans Réglages"
+        } catch PartyAPIError.termsRequired {
+            needsTerms = true
         } catch is CancellationError {
             return
         } catch {
@@ -361,5 +369,19 @@ struct TricountDraft: Equatable {
         if !category.isEmpty { body["category"] = category }
         if let receiptPath { body["receipt_path"] = receiptPath }
         return .success(body)
+    }
+}
+
+extension View {
+    /// Conditions d'utilisation exigées par la base pour le Pot commun (fonctions tc_*, terms_required → 403) : la
+    /// feuille des CGU, puis `retry` une fois acceptées (sinon « réessaie »). Posée sur chaque écran et chaque feuille du
+    /// Pot commun : celle du dessus s'ouvre.
+    func tcTermsGate(_ store: TricountStore, retry: (() async -> Void)? = nil) -> some View {
+        sheet(isPresented: Binding(get: { store.needsTerms }, set: { store.needsTerms = $0 })) {
+            TermsAcceptSheet(store: store.moderation, title: "Avant de continuer") { accepted in
+                guard accepted else { return }
+                if let retry { Task { await retry() } } else { store.notice = "C'est accepté : tu peux réessayer" }
+            }
+        }
     }
 }

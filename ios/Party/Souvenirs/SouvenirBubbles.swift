@@ -210,7 +210,7 @@ final class SouvenirsBridge: NSObject, WKScriptMessageHandlerWithReply {
 
     @MainActor
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) async -> (Any?, String?) {
-        guard AppConfig.isInternal(message.frameInfo.securityOrigin.url) else { return (nil, "Origine refusée") }
+        guard AppConfig.mayUseBridge(message.frameInfo.securityOrigin.url) else { return (nil, "Origine refusée") }
         guard let request = SouvenirBridgeRequest.parse(message.body), let model else { return (nil, "Demande inconnue") }
         switch request {
         case .open(let route):

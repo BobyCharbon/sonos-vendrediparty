@@ -32,6 +32,8 @@ enum NativeBridge {
         }
         """
     private static let agendaScript = AppConfig.storeLocked ? "null" : AgendaBridge.script
+    /// Souvenirs : aucun écran natif dans l'app App Store (contrôle Apple du 26.11) : null, sans gestionnaire.
+    private static let souvenirsScript = AppConfig.storeLocked ? "null" : SouvenirsBridge.script
     private static let secretScript = AppConfig.storeLocked ? "null" : """
         {
           update: function (state) {
@@ -40,8 +42,12 @@ enum NativeBridge {
         }
         """
 
+    /// Hôtes du pont, en tableau JavaScript : le script est injecté dans toutes les frames, mais ne pose rien ailleurs.
+    static let bridgeHostsJS = "[" + AppConfig.bridgeHosts.map { "\"\($0)\"" }.joined(separator: ",") + "]"
+
     private static let script = """
     (function () {
+      if (\(bridgeHostsJS).indexOf(String(location.hostname).toLowerCase()) < 0) return;
       try { Object.defineProperty(navigator, "standalone", { get: function () { return true; }, configurable: true }); } catch (e) {}
       navigator.vibrate = function (pattern) {
         try { window.webkit.messageHandlers.\(hapticHandler).postMessage([].concat(pattern || 0)); } catch (e) {}
@@ -112,7 +118,7 @@ enum NativeBridge {
         pronos: \(pronosScript),
         // Souvenirs (24.11, contrat pont-ios.md) : appareil photo natif (3 poses, sans aperçu), story protégée des captures,
         // photo de « Mes souvenirs » dans Photos. À la fermeture, l'app appelle window.PartySouvenirs.changed(eventId).
-        souvenirs: \(SouvenirsBridge.script),
+        souvenirs: \(souvenirsScript),
         // « Scanner les billets » (Événements) : lecteur QR d'Apple ; promesse du texte lu, ou null si l'on ferme.
         scan: {
           qr: function () { return window.webkit.messageHandlers.\(scanHandler).postMessage("qr"); }
@@ -174,7 +180,9 @@ enum NativeBridge {
         if !AppConfig.storeLocked {
             controller.addScriptMessageHandler(AgendaBridge(model: model), contentWorld: .page, name: AgendaBridge.handler)
         }
-        controller.addScriptMessageHandler(SouvenirsBridge(model: model), contentWorld: .page, name: SouvenirsBridge.handler)
+        if !AppConfig.storeLocked {
+            controller.addScriptMessageHandler(SouvenirsBridge(model: model), contentWorld: .page, name: SouvenirsBridge.handler)
+        }
         // Zicou → widgets et Live Activity de l'éclosion (lecture des réponses /api/pet/* de la page).
         if AppConfig.zicouBuild {
             PetWidgetBridge.install(in: controller)
@@ -193,7 +201,7 @@ private final class TabsHandler: NSObject, WKScriptMessageHandler {
 
     @MainActor
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard message.frameInfo.isMainFrame, AppConfig.isInternal(message.frameInfo.securityOrigin.url),
+        guard message.frameInfo.isMainFrame, AppConfig.mayUseBridge(message.frameInfo.securityOrigin.url),
               let state = TabBarState(message: message.body) else { return }
         model?.showTabs(state)
     }
@@ -209,7 +217,7 @@ private final class AIHandler: NSObject, WKScriptMessageHandler {
 
     @MainActor
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard AppConfig.isInternal(message.frameInfo.securityOrigin.url), let body = message.body as? String else { return }
+        guard AppConfig.mayUseBridge(message.frameInfo.securityOrigin.url), let body = message.body as? String else { return }
         if body == "event" {
             model?.aiEditEventId = nil
         } else if body.hasPrefix("edit:"), let id = UUID(uuidString: String(body.dropFirst(5))) {
@@ -231,7 +239,7 @@ private final class ChatHandler: NSObject, WKScriptMessageHandler {
 
     @MainActor
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard AppConfig.isInternal(message.frameInfo.securityOrigin.url), let body = message.body as? String else { return }
+        guard AppConfig.mayUseBridge(message.frameInfo.securityOrigin.url), let body = message.body as? String else { return }
         if let people = PeopleRoute.bridge(body) {
             if let user = people.direct { model?.openDirectFromPage(user) }
             if case .newMessage(let event) = people.newMessage { model?.openNewMessage(event: event) }
@@ -266,7 +274,7 @@ private final class PronosHandler: NSObject, WKScriptMessageHandler {
 
     @MainActor
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard AppConfig.isInternal(message.frameInfo.securityOrigin.url), let body = message.body as? String,
+        guard AppConfig.mayUseBridge(message.frameInfo.securityOrigin.url), let body = message.body as? String,
               let route = PronoRoute.parse(body) else { return }
         model?.openPronos(route)
     }
@@ -283,7 +291,7 @@ private final class ScanHandler: NSObject, WKScriptMessageHandlerWithReply {
     @MainActor
     func userContentController(_ controller: WKUserContentController,
                                didReceive message: WKScriptMessage) async -> (Any?, String?) {
-        guard AppConfig.isInternal(message.frameInfo.securityOrigin.url) else { return (nil, "Origine refusée") }
+        guard AppConfig.mayUseBridge(message.frameInfo.securityOrigin.url) else { return (nil, "Origine refusée") }
         guard message.body as? String == "qr", let model else { return (nil, "Action inconnue") }
         return (await model.scanTicket() as Any?, nil)
     }
@@ -295,7 +303,7 @@ private final class HapticHandler: NSObject, WKScriptMessageHandler {
     private static let mediumMaxMs = 60
 
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard let pattern = message.body as? [NSNumber], AppConfig.isInternal(message.frameInfo.securityOrigin.url) else { return }
+        guard let pattern = message.body as? [NSNumber], AppConfig.mayUseBridge(message.frameInfo.securityOrigin.url) else { return }
         var delayMs = 0
         for (index, value) in pattern.map(\.intValue).enumerated() where value > 0 {
             if index % 2 == 0 {
@@ -325,7 +333,7 @@ private final class PushHandler: NSObject, WKScriptMessageHandlerWithReply {
     @MainActor
     func userContentController(_ controller: WKUserContentController,
                                didReceive message: WKScriptMessage) async -> (Any?, String?) {
-        guard AppConfig.isInternal(message.frameInfo.securityOrigin.url) else { return (nil, "Origine refusée") }
+        guard AppConfig.mayUseBridge(message.frameInfo.securityOrigin.url) else { return (nil, "Origine refusée") }
         let action = (message.body as? [String: Any])?["action"] as? String
         do {
             switch action {
@@ -353,7 +361,7 @@ final class ContactNamesBridge: NSObject, WKScriptMessageHandlerWithReply {
     @MainActor
     func userContentController(_ controller: WKUserContentController,
                                didReceive message: WKScriptMessage) async -> (Any?, String?) {
-        guard AppConfig.isInternal(message.frameInfo.securityOrigin.url) else { return (nil, "Origine refusée") }
+        guard AppConfig.mayUseBridge(message.frameInfo.securityOrigin.url) else { return (nil, "Origine refusée") }
         if message.body as? String == "names" { return (ContactNames.shared.names, nil) }
         guard let body = message.body as? [String: Any], body["action"] as? String == "add",
               let phone = body["phone"] as? String, PhoneNumbers.e164(phone) != nil else { return (nil, "Action inconnue") }
