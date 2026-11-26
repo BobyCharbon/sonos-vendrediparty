@@ -20,6 +20,26 @@ enum NativeBridge {
         ? "{ update: function (state) { try { window.webkit.messageHandlers.\(ZicouBubbleHandler.handler).postMessage(state); } catch (e) {} } }"
         : "null"
 
+    /// App App Store : ni Pronos, ni Agenda (EventKit), ni cartes secrètes de la Pyramide (contrôle du 26.11, 2.5.19).
+    private static let pronosScript = AppConfig.storeLocked ? "null" : """
+        {
+          open: function (id) { try { window.webkit.messageHandlers.\(pronosHandler).postMessage("open:" + id); } catch (e) {} },
+          list: function (group) { try { window.webkit.messageHandlers.\(pronosHandler).postMessage(group ? "list:" + group : "list"); } catch (e) {} },
+          create: function (ctx) {
+            var c = ctx || {};
+            try { window.webkit.messageHandlers.\(pronosHandler).postMessage(c.group ? "create:group:" + c.group : c.event ? "create:event:" + c.event : "create"); } catch (e) {}
+          }
+        }
+        """
+    private static let agendaScript = AppConfig.storeLocked ? "null" : AgendaBridge.script
+    private static let secretScript = AppConfig.storeLocked ? "null" : """
+        {
+          update: function (state) {
+            try { window.webkit.messageHandlers.\(SecretCardsHandler.handler).postMessage(state || null); } catch (e) {}
+          }
+        }
+        """
+
     private static let script = """
     (function () {
       try { Object.defineProperty(navigator, "standalone", { get: function () { return true; }, configurable: true }); } catch (e) {}
@@ -46,11 +66,7 @@ enum NativeBridge {
         },
         // Pyramide (avis 4c55c231a4d2) : les cartes à mémoriser, montrées par l'app dans un panneau qu'une capture
         // d'écran rend noir. null : plus de panneau.
-        secret: {
-          update: function (state) {
-            try { window.webkit.messageHandlers.\(SecretCardsHandler.handler).postMessage(state || null); } catch (e) {}
-          }
-        },
+        secret: \(secretScript),
         // Barre d'onglets native : la page la décrit (app/static/native-tabs.js), l'app la dessine.
         tabs: {
           update: function (state) {
@@ -93,14 +109,7 @@ enum NativeBridge {
           }
         },
         // Pronos (17.11) : écrans natifs (liste, prono, création, classement) par-dessus la page.
-        pronos: {
-          open: function (id) { try { window.webkit.messageHandlers.\(pronosHandler).postMessage("open:" + id); } catch (e) {} },
-          list: function (group) { try { window.webkit.messageHandlers.\(pronosHandler).postMessage(group ? "list:" + group : "list"); } catch (e) {} },
-          create: function (ctx) {
-            var c = ctx || {};
-            try { window.webkit.messageHandlers.\(pronosHandler).postMessage(c.group ? "create:group:" + c.group : c.event ? "create:event:" + c.event : "create"); } catch (e) {}
-          }
-        },
+        pronos: \(pronosScript),
         // Souvenirs (24.11, contrat pont-ios.md) : appareil photo natif (3 poses, sans aperçu), story protégée des captures,
         // photo de « Mes souvenirs » dans Photos. À la fermeture, l'app appelle window.PartySouvenirs.changed(eventId).
         souvenirs: \(SouvenirsBridge.script),
@@ -128,7 +137,7 @@ enum NativeBridge {
         },
         // Agenda (17.11) : calendriers de l'iPhone (EventKit) ; préférences et rendez-vous restent sur l'iPhone, seules
         // les plages « pris » arrondies partent, envoyées par l'app (syncBusy) quand le partage est actif.
-        agenda: \(AgendaBridge.script),
+        agenda: \(agendaScript),
         // « Ajouter à l'app Cartes Apple » (billet) : feuille d'ajout PassKit ; promesse résolue à sa fermeture.
         // Bulle de Zicou native (BETA) : la page la décrit (pet/zicou-home.js), l'app la dessine et la déplace.
         zicou: \(zicouScript),
@@ -154,15 +163,17 @@ enum NativeBridge {
         controller.addScriptMessageHandler(PushHandler(model: model), contentWorld: .page, name: pushHandler)
         controller.add(TabsHandler(model: model), name: tabsHandler)
         controller.add(PartyNoticeHandler(model: model), name: PartyNoticeHandler.handler)
-        controller.add(SecretCardsHandler(model: model), name: SecretCardsHandler.handler)
+        if !AppConfig.storeLocked { controller.add(SecretCardsHandler(model: model), name: SecretCardsHandler.handler) }
         controller.add(AIHandler(model: model), name: aiHandler)
         controller.add(ChatHandler(model: model), name: chatHandler)
-        controller.add(PronosHandler(model: model), name: pronosHandler)
+        if !AppConfig.storeLocked { controller.add(PronosHandler(model: model), name: pronosHandler) }
         controller.addScriptMessageHandler(ScanHandler(model: model), contentWorld: .page, name: scanHandler)
         controller.addScriptMessageHandler(WalletHandler(), contentWorld: .page, name: NativeWallet.handler)
         controller.addScriptMessageHandler(ContactNamesBridge(), contentWorld: .page, name: ContactNamesBridge.handler)
         controller.addScriptMessageHandler(NativeCalendarBridge(), contentWorld: .page, name: NativeCalendarBridge.handler)
-        controller.addScriptMessageHandler(AgendaBridge(model: model), contentWorld: .page, name: AgendaBridge.handler)
+        if !AppConfig.storeLocked {
+            controller.addScriptMessageHandler(AgendaBridge(model: model), contentWorld: .page, name: AgendaBridge.handler)
+        }
         controller.addScriptMessageHandler(SouvenirsBridge(model: model), contentWorld: .page, name: SouvenirsBridge.handler)
         // Zicou → widgets et Live Activity de l'éclosion (lecture des réponses /api/pet/* de la page).
         if AppConfig.zicouBuild {

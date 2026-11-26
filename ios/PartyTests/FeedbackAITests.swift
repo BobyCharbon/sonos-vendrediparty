@@ -67,6 +67,7 @@ struct FeedbackAITests {
 
     @Test("Feuille d'accord : le texte exact demandé par l'admin")
     func consentText() {
-        #expect(FeedbackAI.consentText.contains("Anthropic (Claude)") && FeedbackAI.consentText.hasSuffix("pour un ticket du pot commun, sa photo."))
+        #expect(FeedbackAI.consentText.contains("Anthropic (Claude)") && FeedbackAI.consentText.contains("pour un ticket du pot commun, sa photo.")
+                && FeedbackAI.consentText.hasSuffix("sans ton prénom ni ton numéro."))
     }
 }

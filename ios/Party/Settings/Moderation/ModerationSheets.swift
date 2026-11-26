@@ -114,6 +114,7 @@ struct TermsAcceptSheet: View {
                         ForEach(Self.points, id: \.1) { icon, line in
                             HStack(alignment: .top, spacing: 14) {
                                 Image(systemName: icon).font(.title3).foregroundStyle(PronoTheme.pink).frame(width: 30)
+                                    .accessibilityHidden(true)
                                 Text(line).font(.body).foregroundStyle(PronoTheme.t1).fixedSize(horizontal: false, vertical: true)
                             }
                         }
@@ -175,6 +176,11 @@ struct TermsAcceptSheet: View {
                     Button("Plus tard") { onDone(false); dismiss() }
                         .font(.body).foregroundStyle(PronoTheme.t2).padding(.vertical, 6)
                         .accessibilityIdentifier("terms-later")
+                    // Nouvel arrivant : il sait ce qu'il garde sans elles, rien ne le bloque (contrôle du 26.11).
+                    Text("Sans elles, tu peux continuer à découvrir Party : voir les événements publics et jouer. Choisir ton surnom (donc répondre à un événement), écrire ou publier quelque chose te les redemanderont.")
+                        .font(.footnote).foregroundStyle(PronoTheme.t2).multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("terms-later-hint")
                 }
                 .padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 8)
                 .background(AppConfig.background.ignoresSafeArea())

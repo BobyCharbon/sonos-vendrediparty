@@ -55,7 +55,11 @@ struct MusicView: View {
         }
         .sheet(isPresented: $signingIn, onDismiss: { Task { await store.reload() } }) {
             if let signIn {
-                NavigationStack { SignInView(store: signIn) }
+                NavigationStack {
+                    SignInView(store: signIn)
+                        // Jamais coincé dans la connexion : « Annuler » visible, en plus du glisser vers le bas.
+                        .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Annuler") { signingIn = false } } }
+                }
                     .presentationDragIndicator(.visible)
             }
         }

@@ -8,9 +8,9 @@ struct NotificationSettingsView: View {
     var body: some View {
         List {
             device
-            // App App Store : pas d'onglet Musique, la section n'apparaît qu'une fois une soirée rejointe (code à 6
-            // chiffres du champ Code de l'onglet Jeux) ou en hôte.
-            if !AppConfig.isStoreApp || store.guest != nil || store.hostMode { music }
+            // App App Store : pas d'onglet Musique, donc pas de section Musique (« Mon titre passe », Dynamic Island),
+            // sauf pour l'hôte. `guest` ne dit rien : l'identité de joueur existe toujours (recette du 26.11, D2).
+            if !AppConfig.isStoreApp || store.hostMode { music }
             games
             feedback
             events
@@ -411,6 +411,9 @@ struct NotificationSettingsView: View {
         Toggle(isOn: Binding(get: { isOn }, set: { on in Task { await change(on) } })) {
             SettingsRow(symbol: symbol, tint: tint, title: title, hint: hint)
         }
+        // Libellé français explicite : VoiceOver ne lit jamais le nom anglais du symbole (« Alarm », recette du 26.11).
+        .accessibilityLabel(Text(title))
+        .accessibilityHint(Text(hint ?? ""))
         .disabled(!enabled || store.saving.contains(key))
     }
 

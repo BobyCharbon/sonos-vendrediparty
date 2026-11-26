@@ -15,7 +15,7 @@ struct PartyApp: App {
                 // Suivi de la file en direct (Live Activity « Ton titre arrive ») tant que l'app est au premier plan,
                 // quel que soit l'onglet, et aussi pour l'hôte en « Gérer la soirée » (écran natif non affiché).
                 .onChange(of: scenePhase) { phase in
-                    if phase == .active { model.refreshFeatures() }
+                    if phase == .active { model.refreshFeatures(); model.dropAccountIfGone() }
                     if phase == .active { model.music?.start() } else if phase == .background { model.music?.stop() }
                     // « Partager › Party › Créer un événement » : l'assistant IA démarre avec le lien mis de côté.
                     if phase == .active, let link = SharedSession.takePendingEvent() { model.startAIEvent(link: link) }

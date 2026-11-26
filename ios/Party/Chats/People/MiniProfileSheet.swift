@@ -189,8 +189,8 @@ struct MiniProfileSheet: View {
 
     /// Bouton désactivé : la raison (jamais « elle t'a bloqué »).
     private func disabledReason(_ m: MemberMini) -> String? {
+        if m.blocked { return "Tu as bloqué \(shownName) : elle ne peut plus t'écrire, te citer ni t'inviter. Débloque-la pour lui écrire." }
         guard writeDirect != nil, !m.restricted else { return nil }
-        if m.blocked { return "Tu as bloqué cette personne : débloque-la pour lui écrire." }
         if needsTerms { return "Pour écrire, accepte d'abord les conditions d'utilisation de Party : touche « Envoyer un message »." }
         if !m.canWrite { return "Tu ne peux pas lui écrire pour l'instant." }
         return nil
@@ -324,10 +324,25 @@ struct MiniProfileSheet: View {
 
     private func setBlocked(_ on: Bool) async {
         guard let people else { return }
+        people.moderation.error = nil
         await people.moderation.setBlocked(userID, on)
+        if let failure = people.moderation.error {
+            problem = failure  // refus ou réseau : on le dit, l'écran ne prétend rien
+            return
+        }
+        problem = nil
+        // L'écran change aussitôt (« Débloquer », raison), sans attendre la relecture (recette du 26.11 : rien ne bougeait).
+        Motion.animate(Motion.smooth) { mini?.blocked = on }
         if on { Haptics.success() }
+        NotificationCenter.default.post(name: .partyBlockChanged, object: userID)  // la liste des Discussions se relit
         await load()
+        if mini?.blocked != on { mini?.blocked = on }  // relecture en retard : le geste fait foi
     }
+}
+
+extension Notification.Name {
+    /// Blocage posé ou levé depuis un mini-profil : la liste des Discussions se relit (conversation masquée aussitôt).
+    static let partyBlockChanged = Notification.Name("PartyBlockChanged")
 }
 
 private extension String {

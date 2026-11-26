@@ -169,6 +169,7 @@ struct NeonCircleLabel: View {
         let icon = Image(systemName: systemImage)
             .font(.system(size: 17, weight: .semibold))
             .foregroundStyle(active ? ChatNeon.coral : ChatNeon.t1)
+            .accessibilityHidden(true)  // le bouton porte son libellé français ; jamais le nom anglais du symbole
         if #available(iOS 26.0, *) {
             icon  // iOS 26 : la barre pose déjà son verre autour des boutons (sinon deux ronds l'un dans l'autre)
         } else {

@@ -30,13 +30,22 @@ struct NativeTabBar: UIViewRepresentable {
     static func item(for tab: TabBarState.Tab, tag: Int) -> UITabBarItem {
         let item = UITabBarItem(title: tab.label, image: UIImage(systemName: symbols[tab.id] ?? fallbackSymbol), tag: tag)
         if let selected = selectedSymbols[tab.id] { item.selectedImage = UIImage(systemName: selected) }
+        label(item, tab.label)
         return item
+    }
+
+    /// VoiceOver lit le libellé français de l'onglet, jamais le nom anglais du symbole (« Game controller », 26.11).
+    private static func label(_ item: UITabBarItem, _ text: String) {
+        item.accessibilityLabel = text
+        item.image?.accessibilityLabel = text
+        item.selectedImage?.accessibilityLabel = text
     }
 
     /// Libellés et pastilles à jour (barre du bas et barre verticale de l'iPhone Duo).
     static func refresh(_ items: [UITabBarItem], with tabs: [TabBarState.Tab]) {
         for (item, tab) in zip(items, tabs) {
             item.title = tab.label
+            label(item, tab.label)
             item.badgeValue = tab.soon ? soonBadge : tab.badge
             item.badgeColor = tab.soon ? .systemGray : nil
         }

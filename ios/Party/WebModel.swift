@@ -83,6 +83,7 @@ final class WebModel: ObservableObject {
     /// onglet, ni « Écrire », ni conversation ouverte par un lien ou une notification.
     @Published private(set) var discussions = false
     private var api: PartyAPI?
+    private var accountCheck: Task<Void, Never>?
 
     /// L'hôte gère la soirée dans l'écran natif (« Gérer la soirée ») plutôt qu'en vue invité ; retenu.
     @Published var hostNativeMusic = UserDefaults.standard.bool(forKey: "hostNativeMusic") {
@@ -271,6 +272,26 @@ final class WebModel: ObservableObject {
         Task { [weak self] in
             guard let features = try? await api.features() else { return }
             self?.featuresChanged(features)
+        }
+    }
+
+    /// Compte supprimé (ou fermé) ailleurs pendant que l'app était ouverte : le serveur refuse le jeton (401). On
+    /// déconnecte proprement et on montre l'écran de connexion, au lieu de laisser le module Événements afficher
+    /// « Connexion interrompue » en boucle (recette du 26.11, D8). Hors ligne ou serveur lent : rien ne change.
+    func dropAccountIfGone() {
+        guard let api, accountCheck == nil else { return }
+        accountCheck = Task { [weak self] in
+            defer { self?.accountCheck = nil }
+            guard let self, AccountSummary.parse(await self.readLocal("vp_account")) != nil,
+                  let token = await self.accountToken() else { return }
+            do {
+                try await api.post("/api/account/link", body: ["token": token])
+            } catch PartyAPIError.needsCode {
+                await self.clearSession()
+                await self.settings?.accountSwitched()
+                self.settings?.notice = .init(text: "Ton compte n'est plus connecté : reconnecte-toi avec ton numéro.", isError: false)
+                self.selectTab("account")  // « Se connecter »
+            } catch {}
         }
     }
 

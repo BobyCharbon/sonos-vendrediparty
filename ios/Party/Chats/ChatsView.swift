@@ -130,6 +130,7 @@ struct ChatsView: View {
             }
         }
         .onDisappear { store.stopListLive() }
+        .onReceive(NotificationCenter.default.publisher(for: .partyBlockChanged)) { _ in Task { await store.loadList() } }
         .onChange(of: store.requested) { _ in openRequested() }
     }
 

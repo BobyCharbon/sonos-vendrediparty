@@ -573,7 +573,9 @@ def test_round_five_native_app_keeps_pronos_agenda_zicou_and_bar_off_whatever_th
     store = (_root() / "ios/Party/Settings/SettingsStore.swift").read_text(encoding="utf-8")
     for flag in ("compagnon = !store &&", "bar = !store &&", "agendaOn = !store &&", "pronosOn = !store &&"):
         assert flag in store, flag
-    assert "let store = AppConfig.isStoreApp" in store
+    assert "let store = AppConfig.storeLocked" in store
+    config = (_root() / "ios/Party/AppConfig.swift").read_text(encoding="utf-8")
+    assert "#if E2E_HOOKS\n        return false\n        #else\n        return isStoreApp" in config
     pot = (_root() / "ios/Party/Tricount/TricountGroupView.swift").read_text(encoding="utf-8")
     assert 'Label("Rembourser", systemImage: "arrow.uturn.left")' in pot and '"creditcard"' not in pot
     # Apple TV (même fiche) : aucune ligne « Boit » / « Distribue » / gorgées dans l'app App Store.
@@ -625,3 +627,26 @@ def test_round_seven_shared_expenses_are_filtered_and_the_listing_names_both_ext
     assert "Partager › Party" in desc and "Activité en direct" in desc and len(desc) <= 4000
     guide = (_root() / "docs/app-store/notes-for-review.md").read_text(encoding="utf-8")
     assert "names, titles and notes pass the app's word filter" in guide
+
+
+def test_store_app_never_opens_the_test_site_nor_any_supabase_project_and_has_no_agenda_pronos_bridge():
+    """Contrôle du 26.11 (2.2, 2.5.19) : le site de test ne s'ouvre DANS l'app que dans la BETA ; seule la base Supabase
+    exacte est interne ; ponts Agenda, Pronos et cartes secrètes à null, sans gestionnaire, dans l'app App Store."""
+    config = (_root() / "ios/Party/AppConfig.swift").read_text(encoding="utf-8")
+    assert '[".supabase.co"]' not in config and "hasSuffix($0)" not in config
+    assert 'isStoreApp ? ["party.bobycharbon.ch", "accounts.spotify.com"]' in config  # pas de site de test
+    assert 'isStoreApp ? ["gsuetixzobooggeaubvb.supabase.co"]' in config
+    bridge = (_root() / "ios/Party/NativeBridge.swift").read_text(encoding="utf-8")
+    for name in ("pronosScript", "agendaScript", "secretScript"):
+        assert f'private static let {name} = AppConfig.storeLocked ? "null"' in bridge, name
+    for handler in ("PronosHandler(model: model)", "AgendaBridge(model: model)", "SecretCardsHandler(model: model)"):
+        line = next(l for l in bridge.splitlines() if handler in l and "controller.add" in l)
+        before = bridge[: bridge.index(line)].splitlines()[-1]
+        assert "if !AppConfig.storeLocked" in line or "if !AppConfig.storeLocked" in before, handler
+
+
+def test_store_app_notification_settings_hide_music_and_groups_never_promise_pronos():
+    notif = (_root() / "ios/Party/Settings/NotificationSettingsView.swift").read_text(encoding="utf-8")
+    assert "if !AppConfig.isStoreApp || store.hostMode { music }" in notif
+    groups = (_root() / "ios/Party/Chats/Groups/GroupsListView.swift").read_text(encoding="utf-8")
+    assert "pronos" not in groups.lower().split("emptyhero")[1][:1500]

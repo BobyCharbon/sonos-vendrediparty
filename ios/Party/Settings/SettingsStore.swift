@@ -160,11 +160,7 @@ final class SettingsStore: ObservableObject {
         guard let features = try? await api.features() else { return }
         // App App Store (refus 1.4.3, 2.5.19) : Zicou, bar, Agenda et Pronos restent éteints quoi que dise le serveur ;
         // seule une version décrite à Apple pourra les rallumer.
-        #if E2E_HOOKS
-        let store = false  // recettes Release (Pronos, Agenda) : jamais dans le build de l'App Store
-        #else
-        let store = AppConfig.isStoreApp
-        #endif
+        let store = AppConfig.storeLocked  // recettes Release (E2E_HOOKS) : Pronos, Agenda gardés
         compagnon = !store && features.compagnon
         discussions = features.discussions
         bar = !store && features.bar

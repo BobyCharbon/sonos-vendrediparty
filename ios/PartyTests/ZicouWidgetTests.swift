@@ -179,10 +179,10 @@ struct ZicouWidgetTests {
         #expect(QuickAction(type: "ch.bobycharbon.party.zicou") == .zicou)
     }
 
-    @Test("Compagnon en bêta : seule « Ajouter un titre » est fixe ; Zicou et Cadeau du jour sont ajoutées par l'app")
+    @Test("Aucune action fixe dans Info.plist (Musique cachée dans l'app App Store, 25.11) ; toutes ajoutées par l'app")
     func staticShortcuts() {
         let items = Bundle.main.object(forInfoDictionaryKey: "UIApplicationShortcutItems") as? [[String: Any]] ?? []
-        #expect(items.compactMap { $0["UIApplicationShortcutItemType"] as? String } == [QuickAction.addTrack.rawValue])
+        #expect(items.isEmpty)
         #expect(QuickAction.companion == [.zicou, .gift])
     }
 

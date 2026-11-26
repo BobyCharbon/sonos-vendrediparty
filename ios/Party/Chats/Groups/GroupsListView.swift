@@ -134,7 +134,7 @@ struct GroupsListView: View {
                 }
             }
             Text("Crée le groupe de ta bande").font(.system(.title2, design: .rounded).weight(.heavy)).foregroundStyle(PronoTheme.t1)
-            Text("Vos soirées, votre discussion, vos pronos : tout au même endroit. Invite avec un lien ou un code QR.")
+            Text("Tes soirées et ta discussion au même endroit. Invite avec un lien ou un code QR.")
                 .font(.subheadline).foregroundStyle(PronoTheme.t2).multilineTextAlignment(.center)
             NavigationLink(value: GroupScreen.create) {
                 Label("Nouveau groupe", systemImage: "plus").font(.headline).foregroundStyle(PeopleNeon.pinkInk)

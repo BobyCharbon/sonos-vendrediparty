@@ -148,6 +148,7 @@ struct MoonMenu: View {
             } label: {
                 Image(systemName: until == nil ? "moon" : "moon.fill")
                     .foregroundStyle(until == nil ? Color.primary : Color.orange)
+                    .accessibilityHidden(true)
             }
             .disabled(store.busy)
             .accessibilityLabel(until.map { "Notifications en pause jusqu'à \(NotificationPause.label($0))" }

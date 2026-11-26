@@ -150,7 +150,8 @@ struct ContactNamesSettingsView: View {
     @ViewBuilder private var actions: some View {
         switch contacts.access {
         case .notDetermined:
-            Button("Autoriser l'accès aux contacts") { Task { await contacts.requestAccess() } }
+            // 5.1.1(iv) : la fenêtre d'iOS suit, jamais un bouton « Autoriser » juste avant elle.
+            Button("Continuer") { Task { await contacts.requestAccess() } }
                 .accessibilityIdentifier("contacts-request")
         case .denied, .restricted:
             Button("Ouvrir les Réglages de l'iPhone") {

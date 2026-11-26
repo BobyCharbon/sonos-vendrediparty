@@ -79,7 +79,7 @@ targets:
         # Agenda (17.11) : « Rien ne quitte ton iPhone » n'est plus vrai quand on partage ses dispos (conformite.md, règle 8).
         NSCalendarsFullAccessUsageDescription: "Pour voir tes rendez-vous de l'iPhone dans l'Agenda de Party et y mettre les dates d'un sondage en un toucher. Si tu partages tes dispos avec un groupe ou un lien, seules les heures où tu es pris partent, arrondies à la demi-heure : jamais le titre, le lieu ni les notes."
         NSCalendarsUsageDescription: "Pour voir tes rendez-vous de l'iPhone dans l'Agenda de Party et y mettre les dates d'un sondage en un toucher. Si tu partages tes dispos avec un groupe ou un lien, seules les heures où tu es pris partent, arrondies à la demi-heure : jamais le titre, le lieu ni les notes."
-        NSContactsUsageDescription: "Pour afficher les membres Party qui sont dans tes contacts sous le nom que tu leur as donné, et te les proposer quand tu écris un nouveau message. Seule une empreinte chiffrée des numéros est comparée ; tes contacts restent sur ton iPhone."
+        NSContactsUsageDescription: "Pour afficher les membres Party qui sont dans tes contacts sous le nom que tu leur as donné, te les proposer quand tu écris un nouveau message, et lister dans « À inviter » ceux qui n'ont pas encore de compte, pour les inviter par SMS si tu le choisis. Seule une empreinte chiffrée des numéros est comparée ; tes contacts restent sur ton iPhone."
         ITSAppUsesNonExemptEncryption: false
         # Actions rapides de l'icône (appui long) : Party/QuickActions.swift, toutes ajoutées par l'app (aucune dans
         # Info.plist) : « Ajouter un titre » dans l'app BETA seulement (Musique cachée dans l'app App Store, 25.11) ;

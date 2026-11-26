@@ -63,12 +63,12 @@ struct AppStoreReadinessTests {
         #expect(AIConsentSheet.Copy.event.text.contains("Anthropic (Claude)"))
         #expect(AIConsentSheet.Copy.event.text.contains("captures d'écran"))
         #expect(AIConsentSheet.Copy.event.acceptID != AIConsentSheet.Copy.feedback.acceptID)
-        // Accord version 2 : un seul texte (avis, voix, captures, photos, liens, tickets), le même que la feuille web.
-        #expect(FeedbackAI.consentVersion == 2)
+        // Accord version 3 (25.11) : un seul texte (avis, voix, captures, photos, liens, tickets, GitHub), le même que le web.
+        #expect(FeedbackAI.consentVersion == 3)
         for copy in [AIConsentSheet.Copy.feedback, .event, .receipt] {
             #expect(copy.title == "✨ Utiliser l'IA de Party ?" && copy.text == FeedbackAI.consentText)
         }
-        for part in ["transcription de ta voix", "tes photos", "liens", "ticket du pot commun"] {
+        for part in ["transcription de ta voix", "tes photos", "liens", "ticket du pot commun", "publié sur GitHub"] {
             #expect(FeedbackAI.consentText.contains(part))
         }
     }
@@ -77,7 +77,7 @@ struct AppStoreReadinessTests {
     func termsMatchTheWeb() {
         let all = TermsView.sections.flatMap { [$0.0] + $0.1 }.joined(separator: " ")
         #expect(!all.contains("Zicou"))
-        #expect(all.contains("réponse de jeu montrée à la table"))
+        #expect(all.contains("réponse de jeu"))
         #expect(TermsView.supportEmail == "support@vendrediparty.ch")
     }
 
