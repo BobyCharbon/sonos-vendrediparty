@@ -1,7 +1,7 @@
 // Chaque appel est authentifié par un secret conservé dans Vault.
 // Une livraison par appareil, avec reprise sur erreur et suivi des reçus Expo.
 import { createClient } from 'npm:@supabase/supabase-js@2.117.3';
-import { APNS_TOKEN, apnsConfig, sendApns, storeAppSkips } from './apns.ts';
+import { APNS_TOKEN, apnsConfig, sendApns, storeAppSkips, storeAppText } from './apns.ts';
 
 const EXPO_URL = 'https://exp.host/--/api/v2/push';
 type Delivery = {
@@ -74,7 +74,8 @@ Deno.serve(async (req: Request) => {
       for (const row of native) {
         if (!apns) { await failOrRetry(row, 'ApnsNotConfigured'); continue; }
         if (storeAppSkips(apns.topic, kinds.get(row.notification_id) ?? '')) { await failOrRetry(row, 'StoreAppNoBar', true); continue; }
-        const sent = await sendApns(apns, row.token, row.notification_id, row.title, row.body, row.data ?? {});
+        const text = storeAppText(apns.topic, row.title, row.body);  // app App Store : rien qui parle de boisson
+        const sent = await sendApns(apns, row.token, row.notification_id, text.title, text.body, row.data ?? {});
         if (sent.ok) {
           checked(await db.from('notification_deliveries').update({
             status: 'delivered', requested_at: new Date().toISOString(), lease_until: null, error: null,

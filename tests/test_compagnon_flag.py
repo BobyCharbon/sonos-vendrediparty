@@ -98,7 +98,32 @@ def test_no_reaction_call_bypasses_the_flag():
     src = (main.STATIC.parent / "main.py").read_text()
     assert src.count("pet_party_log.react(") == 1
     assert src.count("zicou_react(") >= 4
-    assert "compagnon_enabled() and soiree_zicous.due(uid)" in src   # /api/join/account : Apple TV
+    assert "compagnon_enabled(request) and soiree_zicous.due(uid)" in src   # /api/join/account : Apple TV
+
+
+STORE_UA = {"User-Agent": "Mozilla/5.0 (iPhone) PartyStore/1.0"}
+
+
+def test_the_app_store_app_never_gets_zicou_even_when_it_is_on(on):
+    """Contrôle Apple du 26.11 : l'app App Store n'a jamais Zicou, quel que soit le réglage du site."""
+    assert on.get("/api/features").json()["compagnon"] is True
+    assert on.get("/api/features", headers=STORE_UA).json()["compagnon"] is False
+    for path in ("/api/pet/status", "/zicou/", "/static/pet/zicou-home.js", "/api/tv/zicou"):
+        r = on.get(path, headers=STORE_UA)
+        assert r.status_code == 404 and r.json()["detail"] == SOON, path
+    html = on.get("/", headers=STORE_UA).text
+    assert 'data-compagnon="off"' in html.split(">", 2)[1] and "<!-- compagnon -->" not in html
+    assert '<html data-compagnon="off"' not in on.get("/").text
+
+
+def test_the_app_store_app_gets_no_zicou_reaction(monkeypatch):
+    from starlette.requests import Request
+    calls = []
+    monkeypatch.setattr(main.pet_party_log, "react", lambda *a: calls.append(a))
+    monkeypatch.setenv("COMPAGNON_ENABLED", "1")
+    request = Request({"type": "http", "headers": [(b"user-agent", b"PartyStore/1.0")]})
+    main.zicou_react("acct-" + "1" * 40, "music", "t1", request)
+    assert calls == [] and main.zicou_now(Response(), "acct-" + "1" * 40, request) == []
 
 
 # ── Éteint : la page ne l'affiche pas ──

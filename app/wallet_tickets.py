@@ -73,7 +73,8 @@ class WalletTickets:
             raise WalletError("Wallet pas encore configuré.")
         data = ticket_pass(origin=origin, event=payload["event"], ticket=payload.get("ticket") or {},
                            holder=(payload.get("holder") or "Participant").strip(), user_id=str(payload["user_id"]),
-                           auth_token=payload.get("auth_token"), valid=bool(payload.get("valid")), bar=payload.get("bar"))
+                           auth_token=payload.get("auth_token"), valid=bool(payload.get("valid")),
+                           bar=None)  # jamais le bar dans un billet (contrôle Apple du 26.11, 1.4.3), même si la base le rend
         return package(data, self.images, self.signer)
 
     def build(self, token: str, event_id: str, origin: str) -> bytes:

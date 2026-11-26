@@ -107,4 +107,6 @@ def test_shared_link_page_answers_on_new_and_old_paths():
     for path in (f"/pot/{link}", f"/tricount/{link}"):
         r = client.get(path)
         assert r.status_code == 200 and "pot commun" in r.text
+        # Contrôle Apple du 26.11 (2.2) : jamais de TestFlight, le lien de l'App Store
+        assert "TestFlight" not in r.text and 'href="https://apps.apple.com/app/id6827221948"' in r.text
     assert client.get("/pot/pas-un-lien").status_code == 404

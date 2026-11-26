@@ -17,6 +17,11 @@ def configured_public_url() -> str:
     return (os.environ.get("PARTY_PUBLIC_URL") or "https://party.bobycharbon.ch").rstrip("/")
 
 
+def app_store_url() -> str:
+    """Fiche de l'app VendrediParty sur l'App Store (même adresse que web/events/src/lib/appInvite.ts)."""
+    return (os.environ.get("PARTY_APP_STORE_URL") or "https://apps.apple.com/app/id6827221948").strip()
+
+
 def is_test_site() -> bool:
     return urlparse(configured_public_url()).hostname == TEST_SITE_HOST
 
@@ -29,8 +34,13 @@ def _flag(name: str) -> bool:
     return is_test_site()
 
 
-def compagnon_enabled() -> bool:
-    """COMPAGNON_ENABLED ("1" / "0") si elle est définie ; sinon allumé sur le site de test seulement."""
+def compagnon_enabled(request=None) -> bool:
+    """COMPAGNON_ENABLED ("1" / "0") si elle est définie ; sinon allumé sur le site de test seulement.
+    request de l'app App Store (store_app.is_store) : toujours éteint (contrôle Apple du 26.11)."""
+    if request is not None:
+        from . import store_app  # store_app importe ce module
+        if store_app.is_store(request):
+            return False
     return _flag("COMPAGNON_ENABLED")
 
 

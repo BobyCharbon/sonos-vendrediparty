@@ -273,6 +273,15 @@ def test_the_filter_catches_everyday_party_drink_and_tobacco_words():
         assert f"'{word}'" in ts, word
 
 
+def test_push_of_the_app_store_app_uses_exactly_the_same_drink_words():
+    """Contrôle Apple du 26.11 : send-push neutralise une notification « à boisson » pour l'app App Store, avec
+    EXACTEMENT DRINK_RE (copie dans l'Edge Function, Deno)."""
+    ts = (__import__("pathlib").Path(main.__file__).resolve().parents[1] / "supabase/functions/send-push/apns.ts").read_text()
+    assert "new RegExp(String.raw`" + store_app.DRINK_RE.pattern + "`, 'iu')" in ts
+    index = (__import__("pathlib").Path(main.__file__).resolve().parents[1] / "supabase/functions/send-push/index.ts").read_text()
+    assert "storeAppText(apns.topic, row.title, row.body)" in index and "text.title, text.body" in index
+
+
 # ── Test anti-alcool de TOUS les jeux (décision de l'admin du 25.11) : l'app n'en montre aucun mot ; le web garde tout ──
 
 def _texts(x):

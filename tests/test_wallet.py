@@ -283,6 +283,16 @@ def test_build_uses_the_member_session_only(tmp_path):
     assert ("POST", "/rest/v1/rpc/wallet_pass_issue", "Bearer good", {"e": EVENT}) in base.seen
 
 
+def test_the_ticket_never_shows_the_bar_even_if_the_base_sends_it(tmp_path):
+    # Contrôle Apple du 26.11 (1.4.3) : ni « À REMBOURSER », ni « À SERVIR », ni « Bar de la soirée » dans un billet.
+    bar = {"balance": 10.56, "pending": 2, "payee": "Léa", "method": "Revolut", "repay_by": "2026-11-23", "currency": "CHF"}
+    data = tickets_for(tmp_path, FakeBase(issue={**payload(), "bar": bar})).build("good", EVENT, "https://p.ch")
+    pass_json, _, _ = open_pass(data)
+    text = json.dumps(pass_json, ensure_ascii=False)
+    assert "bar_" not in text and "REMBOURSER" not in text and "SERVIR" not in text and "Bar de la soirée" not in text
+    assert fields(pass_json, "primaryFields") == {"event": pass_json["eventTicket"]["primaryFields"][0]["value"]}
+
+
 @pytest.mark.parametrize("issue", [400, payload(valid=False)])
 def test_no_pass_without_a_ticket(tmp_path, issue):
     with pytest.raises(wl.WalletError, match="remettre"):

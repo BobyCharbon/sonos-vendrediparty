@@ -566,6 +566,23 @@ def forget_player(gid: str) -> bool:
         return True
 
 
+GUEST_KEEP = 183 * 86400  # s : prénoms d'invités (sans compte) gardés 6 mois au classement général
+
+
+def purge_guests(now: float | None = None) -> int:
+    """Classement général : un joueur sans compte (appareil d'invité, participant sans téléphone) qui n'a plus joué depuis
+    6 mois en sort, avec son prénom (politique de confidentialité). Les comptes partent avec leur suppression."""
+    limit = (now or time.time()) - GUEST_KEEP
+    with _stats_lock:
+        data = _load_stats()
+        players = data.get("players", {})
+        kept = {k: v for k, v in players.items() if k.startswith("acct-") or (v.get("last") or 0) >= limit}
+        if len(kept) == len(players):
+            return 0
+        _save_stats({**data, "players": kept})
+        return len(players) - len(kept)
+
+
 def leaderboard(limit: int = 20) -> dict:
     """Classement général et records par mode, pour l'écran d'accueil du quiz."""
     data = _load_stats()

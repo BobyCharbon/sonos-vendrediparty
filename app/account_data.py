@@ -4,8 +4,8 @@ dans ses fichiers locaux part avec lui, quel que soit le chemin (app iOS : /api/
 
 Effacé ici : stats du Purify Test et du Quiz, journal des appels à l'IA (avec ce qui a été dicté), accords IA (avis et
 assistant), compteur de parties en invité, état de son Zicou et ses bandeaux (pet_party.json). Ses avis restent (retours
-sur l'app) mais anonymisés. Gardé : le journal d'administration (audit.jsonl, ajout seul, sécurité) — il ne contient que
-des actions d'admin et des connexions, durée de conservation indiquée dans la politique de confidentialité."""
+sur l'app) mais anonymisés. Journal d'administration (audit.jsonl, 12 mois) : ses connexions partent, les actions d'admin
+qui le visaient restent (sécurité) sans son nom."""
 import logging
 from dataclasses import dataclass
 from typing import Callable
@@ -23,6 +23,7 @@ class LocalStores:
     gate_forget: Callable[[str], None]
     feedback_forget: Callable[[str], int]
     activity_forget: Callable[[str], None]
+    audit_forget: Callable[[str], int] = lambda gid: 0
 
 
 def subjects(uid: str) -> set[str]:
@@ -42,6 +43,7 @@ def forget_local(stores: LocalStores, uid: str, gid: str, consent_keys: tuple[st
         "guest_gate": lambda: stores.gate_forget(gid),
         "feedback": lambda: stores.feedback_forget(gid),
         "pet_party": lambda: stores.activity_forget(gid),
+        "audit": lambda: stores.audit_forget(gid),
     }
     done: dict = {}
     for name, step in steps.items():

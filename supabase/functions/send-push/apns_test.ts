@@ -1,6 +1,6 @@
 // deno test supabase/functions/send-push/apns_test.ts : envoi APNs de l'app native, sans réseau (fetch simulé).
 import { assert, assertEquals } from 'jsr:@std/assert@1';
-import { apnsConfig, apsFor, categoryFor, sendApns, storeAppSkips, tapPath, threadFor } from './apns.ts';
+import { apnsConfig, apsFor, categoryFor, sendApns, storeAppSkips, storeAppText, STORE_NEUTRAL, tapPath, threadFor } from './apns.ts';
 
 const TOKEN = 'apns:' + 'ab'.repeat(32);
 
@@ -131,4 +131,11 @@ Deno.test('app App Store : aucune notification du bar ; la BETA les garde', () =
   assertEquals(storeAppSkips('ch.bobycharbon.party', 'bar_refund_declared'), true);
   assertEquals(storeAppSkips('ch.bobycharbon.party', 'event_changed'), false);
   assertEquals(storeAppSkips('ch.bobycharbon.party.beta', 'bar_served'), false);
+});
+
+Deno.test('app App Store : texte neutre quand la notification parle de boisson, la BETA garde tout', () => {
+  assertEquals(storeAppText('ch.bobycharbon.party', 'Soirée', 'Le nouveau lieu de l\'événement est Bar du Port.'), STORE_NEUTRAL);
+  assertEquals(storeAppText('ch.bobycharbon.party', '🍻 Apéro', 'Demain'), STORE_NEUTRAL);
+  assertEquals(storeAppText('ch.bobycharbon.party', 'Soirée jeux', 'Demain 20:00'), { title: 'Soirée jeux', body: 'Demain 20:00' });
+  assertEquals(storeAppText('ch.bobycharbon.party.beta', 'Apéro', 'Bar'), { title: 'Apéro', body: 'Bar' });
 });

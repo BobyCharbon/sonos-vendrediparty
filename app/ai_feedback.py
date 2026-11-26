@@ -75,12 +75,20 @@ def _games(games: dict) -> dict:
     return {**games, **EXTRA_GAMES}
 
 
-def schema(games: dict) -> dict:
+# App App Store (contrôle Apple du 26.11) : Zicou n'y existe pas, l'IA ne propose jamais la zone « 🐾 Zicou ».
+STORE_HIDDEN_AREAS = ("pet",)
+
+
+def areas_for(store: bool = False) -> list[str]:
+    return [a for a in AREAS if not (store and a in STORE_HIDDEN_AREAS)]
+
+
+def schema(games: dict, store: bool = False) -> dict:
     text = {"type": "string"}
     properties = {
         "status": {"type": "string", "enum": ["ready", "needs_info"]}, "question": text,
         "kind": {"type": "string", "enum": list(KINDS)},
-        "area": {"type": "string", "enum": list(AREAS)},
+        "area": {"type": "string", "enum": areas_for(store)},
         "game": {"type": "string", "enum": [*_games(games), ""]},
         "title": text, "description": text,
         "steps": {"type": "array", "items": text}, "expected": text, "actual": text,
@@ -104,13 +112,13 @@ def device_label(context: dict) -> str:
     return " · ".join(p for p in parts if p)
 
 
-def clean_draft(raw: dict, games: dict, context: dict | None = None) -> dict:
+def clean_draft(raw: dict, games: dict, context: dict | None = None, store: bool = False) -> dict:
     """Avis structuré (venu de l'IA, ou renvoyé par l'app à l'envoi) → champs sûrs : listes fermées, longueurs bornées,
     champs du bug ou de l'idée seulement selon le type. ValueError si l'essentiel manque."""
     if not isinstance(raw, dict):
         raise ValueError("Avis reformulé illisible")
     kind = raw.get("kind") if raw.get("kind") in KINDS else "other"
-    area = raw.get("area") if raw.get("area") in AREAS else "general"
+    area = raw.get("area") if raw.get("area") in areas_for(store) else "general"
     game = raw.get("game") if raw.get("game") in _games(games) else ""
     if game:
         area = "games" if area == "general" else area
@@ -227,7 +235,8 @@ class FeedbackWriter:
         if not host and self.used_today(subject, now) >= DAILY_LIMIT:
             raise Unavailable(OVER_DAILY)
 
-    def rewrite(self, subject: str, name: str, turns: list[str], context: dict, host: bool = False) -> dict:
+    def rewrite(self, subject: str, name: str, turns: list[str], context: dict, host: bool = False,
+                store: bool = False) -> dict:
         """Ce que la personne a dit (description, puis réponses ou corrections) → avis structuré, ou une question.
         PermissionError sans accord (aucun appel) ; ValueError pour un texte vide ou trop long ; Unavailable sinon."""
         if self.consents.state(subject) != ACCEPTED:
@@ -240,7 +249,7 @@ class FeedbackWriter:
         self._check(subject, host)
         games = _games(self.games)
         context = context or {}
-        system = SYSTEM.format(areas=", ".join(AREAS), games=", ".join(games),
+        system = SYSTEM.format(areas=", ".join(areas_for(store)), games=", ".join(games),
                                tab=str(context.get("tab") or "inconnu")[:20],
                                game=games.get(str(context.get("game") or ""), "aucun"))
         content = f"<avis>\n{turns[0]}\n</avis>"
@@ -250,7 +259,7 @@ class FeedbackWriter:
         try:
             response = self.ai._client_or_error().messages.create(
                 model=MODEL, max_tokens=MAX_TOKENS, system=system,
-                output_config={"effort": "low", "format": {"type": "json_schema", "schema": schema(self.games)}},
+                output_config={"effort": "low", "format": {"type": "json_schema", "schema": schema(self.games, store)}},
                 messages=[{"role": "user", "content": content}])
         except Exception as e:  # réseau ou API : l'avis s'écrit sans l'IA, le détail va dans le journal du serveur
             self.ai.warn("Reformulation d'un avis impossible", e)
@@ -260,7 +269,7 @@ class FeedbackWriter:
             raise Unavailable(NOT_UNDERSTOOD)
         try:
             raw = json.loads(next(b.text for b in response.content if getattr(b, "type", "") == "text"))
-            draft = clean_draft(raw, self.games, context)
+            draft = clean_draft(raw, self.games, context, store)
         except (StopIteration, ValueError):
             raise Unavailable(NOT_UNDERSTOOD) from None
         question = _text(raw, "question", 160) if raw.get("status") == "needs_info" else ""

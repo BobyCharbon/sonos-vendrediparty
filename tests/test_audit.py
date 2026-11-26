@@ -109,3 +109,46 @@ def test_account_logins_are_logged_once_per_half_hour(monkeypatch, journal):
             assert c.post('/api/account/link', json={'token': 'z' * 40}).status_code == 200
     links = [e for e in journal.read() if e['action'] == 'account.link']
     assert len(links) == 1 and links[0]['actor'] == 'Lulu' and links[0]['target']['id'].startswith('acct-')
+
+
+
+def test_entries_older_than_twelve_months_are_purged(tmp_path):
+    log = audit.AuditLog(tmp_path / 'audit.jsonl')
+    old = log.record('account.link', actor='Léa', target={'id': 'acct-1', 'name': 'Léa'}, ip='1.2.3.4')
+    log.record('admin.kick', actor='Code PIN', target={'id': 'g2', 'name': 'Tom'})
+    path = tmp_path / 'audit.jsonl'
+    first, second = path.read_text().splitlines()
+    path.write_text(json.dumps({**json.loads(first), 'at': old['at'] - 366 * 86400}) + '\n' + second + '\n')
+    assert log.purge(now=old['at'] - 300 * 86400) == 0
+    assert log.purge(now=old['at']) == 1
+    assert [e['action'] for e in log.read()] == ['admin.kick']
+
+
+def test_a_deleted_account_loses_its_connections_and_its_name_but_admin_actions_stay(tmp_path):
+    log = audit.AuditLog(tmp_path / 'audit.jsonl')
+    log.record('account.link', actor='Léa', target={'id': 'acct-1', 'name': 'Léa'}, ip='1.2.3.4')
+    log.record('admin.ban', actor='Code PIN', target={'id': 'acct-1', 'name': 'Léa'}, details={'minutes': 10})
+    log.record('account.link', actor='Tom', target={'id': 'acct-2', 'name': 'Tom'}, ip='5.6.7.8')
+    assert log.forget('acct-1') == 2
+    entries = log.read()
+    assert [(e['action'], e['target']['name']) for e in entries] == [('account.link', 'Tom'), ('admin.ban', 'Compte supprimé')]
+    assert '1.2.3.4' not in (tmp_path / 'audit.jsonl').read_text()
+
+
+def test_quiz_board_forgets_guest_first_names_after_six_months(tmp_path, monkeypatch):
+    from app import quiz
+    monkeypatch.setattr(quiz, 'STATS_PATH', tmp_path / 'quiz.json')
+    now = 1_800_000_000
+    (tmp_path / 'quiz.json').write_text(json.dumps({'players': {
+        'acct-1': {'name': 'Léa', 'pts': 9, 'last': now - 400 * 86400},       # compte : part avec sa suppression
+        'guest-old': {'name': 'Tom', 'pts': 3, 'last': now - 200 * 86400},   # invité, plus joué depuis 6 mois
+        'm:zoe': {'name': 'Zoé', 'pts': 2},                                   # sans date : ancien
+        'guest-new': {'name': 'Max', 'pts': 1, 'last': now - 10 * 86400}}}))
+    assert quiz.purge_guests(now) == 2
+    assert set(json.loads((tmp_path / 'quiz.json').read_text())['players']) == {'acct-1', 'guest-new'}
+    assert quiz.purge_guests(now) == 0
+
+
+def test_account_deletion_also_cleans_the_admin_journal(tmp_path, monkeypatch):
+    monkeypatch.setattr(main, 'journal', audit.AuditLog(tmp_path / 'audit.jsonl'))
+    assert main.local_stores().audit_forget.__self__ is main.journal

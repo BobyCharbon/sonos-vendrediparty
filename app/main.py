@@ -5,6 +5,7 @@ import hashlib
 import io
 import logging
 import hmac
+from html import escape
 import os
 import random
 import re
@@ -40,7 +41,7 @@ from .souvenirs import start_chores as start_souvenir_chores
 from .chat_rpc import chat_rpc_router, start_files_gc
 from . import pet_pot, tv_star
 # Adresse du déploiement et fonctions en bêta (Compagnon : allumé sur le site de test seulement).
-from .features import COMPAGNON_SOON, TEST_SITE_HOST, agenda_enabled, bar_enabled, compagnon_enabled, configured_public_url, discussions_enabled, invites_v2_enabled, patates_enabled, pronos_enabled
+from .features import COMPAGNON_SOON, TEST_SITE_HOST, agenda_enabled, app_store_url, bar_enabled, compagnon_enabled, configured_public_url, discussions_enabled, invites_v2_enabled, patates_enabled, pronos_enabled
 from .game_lock import LOCK as GAMES_LOCK
 from .accounts import AccountError, Accounts, ServiceUnavailable, TermsRequired
 from .account_auth import AccountAuth
@@ -170,6 +171,23 @@ def absorb_local_feedback():
         return
 
 
+def retention_chores() -> None:
+    """Durées de conservation (politique de confidentialité) : journal d'administration 12 mois, prénoms d'invités du
+    classement général du Quiz 6 mois."""
+    for name, chore in (("audit", journal.purge), ("quiz", quiz.purge_guests)):
+        try:
+            if removed := chore():
+                log.info("Conservation : %s, %s entrées retirées", name, removed)
+        except Exception as e:  # disque : on réessaie au prochain tour
+            log.warning("Conservation : %s non purgé (%s)", name, type(e).__name__)
+
+
+def retention_loop():
+    while True:
+        retention_chores()
+        time.sleep(24 * 3600)
+
+
 @contextlib.asynccontextmanager
 async def lifespan(app):
     notices.clear_auto()  # le serveur est revenu : la mise à jour est finie (l'annonce de l'admin reste)
@@ -179,6 +197,7 @@ async def lifespan(app):
     if "pytest" not in sys.modules:  # fichiers orphelins des Discussions : au démarrage puis toutes les 6 h (jamais en test)
         start_files_gc(group_chats)
         start_souvenir_chores(souvenir_service)  # Souvenirs : corbeille (disque) et originaux de 7 jours, toutes les 5 min
+        threading.Thread(target=retention_loop, daemon=True, name="retention").start()
     yield
 
 
@@ -1753,7 +1772,7 @@ def account_link(body: AccountLink, request: Request, background: BackgroundTask
     if account["name"]:
         game_presence(request, new, account["name"])
     uid = accounts.uid_of(new)
-    if uid and compagnon_enabled() and store.session.active and soiree_zicous.due(uid):
+    if uid and compagnon_enabled(request) and store.session.active and soiree_zicous.due(uid):
         # 🪩 son Zicou peut danser sur l'Apple TV s'il joue à la partie regardée, même sans événement lié
         background.add_task(refresh_soiree_zicou, body.token, uid)
     return account
@@ -1892,7 +1911,8 @@ def account_delete(body: AccountDelete):
 def local_stores() -> LocalStores:
     return LocalStores(purity_forget=purity.forget, quiz_forget=quiz.forget_player, usage_forget=assistant.usage.forget,
                        consent_forget=ai_consents.forget, gate_forget=guest_gate.forget,
-                       feedback_forget=local_feedback.forget, activity_forget=activity_forgetter(pet_party_log))
+                       feedback_forget=local_feedback.forget, activity_forget=activity_forgetter(pet_party_log),
+                       audit_forget=journal.forget)
 
 
 QUIET_TIME = r"^([01]\d|2[0-3]):[0-5]\d(:00)?$"
@@ -2800,7 +2820,7 @@ def tricount_link_page(link: str):
     """Lien partagé : sur un iPhone avec l'app Party, le lien universel ouvre directement « Rejoindre » ; sinon cette page."""
     if not re.match(UUID, link):
         raise HTTPException(404, "Lien invalide")
-    return HTMLResponse(TRICOUNT_LINK_PAGE, headers=NO_CACHE)
+    return HTMLResponse(TRICOUNT_LINK_PAGE.replace("{app_store}", escape(app_store_url(), quote=True)), headers=NO_CACHE)
 
 
 TRICOUNT_LINK_PAGE = """<!doctype html><html lang="fr"><head><meta charset="utf-8">
@@ -2809,7 +2829,7 @@ TRICOUNT_LINK_PAGE = """<!doctype html><html lang="fr"><head><meta charset="utf-
 main{max-width:420px;padding:32px 24px;text-align:center}h1{font-size:1.8rem;margin:.4em 0}p{color:#d8d0f2;line-height:1.5}
 .i{font-size:4rem}</style></head><body><main><div class="i">💸</div><h1>On t'invite dans un pot commun</h1>
 <p>Ouvre ce lien sur ton iPhone avec l'app <b>Party</b> : il t'emmène directement sur « Rejoindre », dans Réglages › Pot commun.</p>
-<p>Pas encore l'app ? Demande le lien TestFlight à la personne qui t'a invité.</p></main></body></html>"""
+<p>Pas encore l'app ? <a href="{app_store}" style="color:#fff">Télécharge Party sur l'App Store</a>.</p></main></body></html>"""
 
 
 @app.post("/api/account/chats/react")
@@ -3401,7 +3421,7 @@ def guest_join_account(body: AccountToken, request: Request, response: Response,
     if nonce is None:
         raise HTTPException(403, f"Tu n'es pas noté présent à « {s.event_title} » : entre le code de la soirée.")
     set_auth_cookie(request, response, "vp_guest", _guest_cookie(nonce), "lax")
-    if compagnon_enabled() and soiree_zicous.due(uid):   # 🪩 son Zicou danse sur l'Apple TV (relu après la réponse)
+    if compagnon_enabled(request) and soiree_zicous.due(uid):   # 🪩 son Zicou danse sur l'Apple TV (relu après la réponse)
         background.add_task(refresh_soiree_zicou, body.token, uid)
     return {"ok": True, "event_title": s.event_title}
 
@@ -3544,7 +3564,7 @@ def read_game(code: str, request: Request, guest_id: str, name: str):
     if g.get("phase") == "end" and guest_id.startswith("acct-") and pet_reactions.rewardable_game(g) \
             and any(p.get("id") == guest_id for p in g.get("players", [])):
         # 🥚 Petit bonus pour son Zicou (une fois par partie, sous GAMES_LOCK) ; jamais pour un jeu à boire.
-        zicou_react(guest_id, "party", str(g.get("id") or g["code"]))
+        zicou_react(guest_id, "party", str(g.get("id") or g["code"]), request)
     if g.get("paused"):
         pass  # en pause : le temps ne fait rien avancer
     elif quiz.tick(g):  # Quiz : le temps a avancé (fin d'une question, question suivante…)
@@ -3965,8 +3985,8 @@ def brain_result(body: BrainResult, request: Request, response: Response):
     out = brain_account(request, lambda: brain.BrainStore(accounts).record(body.token, result))
     with contextlib.suppress(AccountError):   # 🧠 bandeau « Zicou est fier de toi » (le bonus vient de la base)
         gid = accounts.gid(accounts._uid(body.token))
-        zicou_react(gid, "brain", f"{result['game']}:{time.time_ns()}")
-        if items := zicou_now(response, gid):   # seulement s'il y a un bandeau (réponse de Méninges inchangée sinon)
+        zicou_react(gid, "brain", f"{result['game']}:{time.time_ns()}", request)
+        if items := zicou_now(response, gid, request):   # seulement s'il y a un bandeau (réponse de Méninges inchangée sinon)
             out = {**out, "zicou": items}
     return out
 
@@ -4106,17 +4126,18 @@ class ZicouReactionsPrefs(BaseModel):
     on: bool | None = None   # None : simple lecture du choix (écran Réglages)
 
 
-def zicou_react(gid: str, kind: str, key: str) -> None:
-    """Bonus de Zicou (bandeau) : rien ne se calcule quand le Compagnon est éteint (production, voir app/features.py)."""
-    if compagnon_enabled():
+def zicou_react(gid: str, kind: str, key: str, request: Request | None = None) -> None:
+    """Bonus de Zicou (bandeau) : rien ne se calcule quand le Compagnon est éteint (production, voir app/features.py)
+    ni pour l'app App Store."""
+    if compagnon_enabled(request):
         pet_party_log.react(gid, kind, key)
 
 
-def zicou_now(response: Response, gid: str) -> list[dict]:
+def zicou_now(response: Response, gid: str, request: Request | None = None) -> list[dict]:
     """Bandeaux à montrer tout de suite, dans la réponse même (file, Méninges ; l'écran Musique natif de l'iPhone les
     lit aussi). Un bandeau qui attend encore (Zicou pas encore connu du serveur) : en-tête X-Zicou, la page ira le
     chercher avec son jeton."""
-    if not gid.startswith("acct-") or not compagnon_enabled():
+    if not gid.startswith("acct-") or not compagnon_enabled(request):
         return []
     items = pet_party_log.take(gid)
     if pet_party_log.has_pending(gid):
@@ -4187,7 +4208,7 @@ async def apps_off(request: Request, call_next):
 @app.middleware("http")
 async def compagnon_off(request: Request, call_next):
     """Compagnon éteint : aucune de ses routes ne répond (404 « Le Compagnon arrive bientôt. »), rien ne se calcule."""
-    if request.url.path.startswith(COMPAGNON_PATHS) and not compagnon_enabled():
+    if request.url.path.startswith(COMPAGNON_PATHS) and not compagnon_enabled(request):
         return JSONResponse({"detail": COMPAGNON_SOON}, status_code=404, headers=NO_CACHE)
     return await call_next(request)
 
@@ -4197,7 +4218,7 @@ async def zicou_reaction_header(request: Request, call_next):
     """En-tête X-Zicou sur les réponses de l'API d'un compte dont un bandeau attend (guest_id dans l'adresse ; la file
     et Méninges les renvoient elles-mêmes, voir zicou_now)."""
     response = await call_next(request)
-    if request.url.path.startswith("/api/") and not request.url.path.startswith("/api/pet/") and compagnon_enabled():
+    if request.url.path.startswith("/api/") and not request.url.path.startswith("/api/pet/") and compagnon_enabled(request):
         gid = request.query_params.get("guest_id", "")
         if gid.startswith("acct-") and pet_party_log.has_pending(gid):
             response.headers[ZICOU_HEADER] = "1"
@@ -4513,7 +4534,7 @@ def send_feedback(body: FeedbackIn, request: Request):
     kind, structured = body.kind, None
     if body.ai is not None:  # texte d'origine gardé tel quel + version structurée (type, zone, titre…)
         try:
-            structured = ai_feedback.clean_draft(body.ai, games.GAMES, context)
+            structured = ai_feedback.clean_draft(body.ai, games.GAMES, context, store_app.is_store(request))
         except ValueError as e:
             raise HTTPException(400, str(e)) from None
         kind = structured["kind"]
@@ -4588,7 +4609,8 @@ def feedback_ai_rewrite(body: FeedbackAiRewrite, request: Request):
     subject = feedback_ai_subject(request, body)
     context = {k: str(v)[:40] for k, v in body.context.items() if k in FEEDBACK_CONTEXT}
     try:
-        return feedback_writer.rewrite(subject, body.name, body.turns, context, host=is_admin(request))
+        return feedback_writer.rewrite(subject, body.name, body.turns, context, host=is_admin(request),
+                                       store=store_app.is_store(request))
     except PermissionError as e:
         raise HTTPException(403, str(e)) from None
     except ValueError as e:
@@ -5082,8 +5104,8 @@ def enqueue(body: Enqueue, request: Request, response: Response):
         pos = insert_position(s.mode, snap["current_pos"], upcoming, store.pending(), body.guest_id)
         submit_track(track, pos, body.guest_id, name, ip)
     # 🪩 Titre accepté dans la file : petit bonus pour son Zicou (une fois par titre, plafonné par jour).
-    zicou_react(body.guest_id, "music", track["id"])
-    return {"ok": True, "track": track, "source": s.source, "zicou": zicou_now(response, body.guest_id)}
+    zicou_react(body.guest_id, "music", track["id"], request)
+    return {"ok": True, "track": track, "source": s.source, "zicou": zicou_now(response, body.guest_id, request)}
 
 
 def guest_tracks(gid: str, request: Request) -> dict | None:
@@ -5359,9 +5381,10 @@ _pages: dict[tuple[str, bool, bool, bool], str] = {}
 COMPAGNON_BLOCK = re.compile(r"[ \t]*<!-- compagnon -->.*?<!-- /compagnon -->\n?", re.S)
 
 
-def compagnon_page(html: str) -> str:
-    """Compagnon éteint : <html data-compagnon="off"> (lu par les scripts et le module Événements), morceaux retirés."""
-    if compagnon_enabled():
+def compagnon_page(html: str, store: bool = False) -> str:
+    """Compagnon éteint (ou app App Store) : <html data-compagnon="off"> (lu par les scripts et le module Événements),
+    morceaux retirés."""
+    if compagnon_enabled() and not store:
         return html
     return COMPAGNON_BLOCK.sub("", html.replace("<html", '<html data-compagnon="off"', 1))
 
@@ -5406,7 +5429,7 @@ def features_page(html: str, store: bool = False) -> str:
     html = bar_page(apps_page(html, store), store)
     if store:
         html = html.replace("<html", '<html data-store="1"', 1)
-    return discussions_page(compagnon_page(invites_page(html)))
+    return discussions_page(compagnon_page(invites_page(html), store))
 
 
 def page(name: str, store: bool = False) -> Response:
@@ -5716,7 +5739,7 @@ def features(request: Request):
     Compagnon (Zicou) et Discussions (groupes, messages directs). App App Store : ni bar, ni Pronos, ni Agenda, quel que
     soit le réglage du site (seule une version revue par Apple pourra les ouvrir)."""
     store = store_app.is_store(request)
-    return JSONResponse({"compagnon": compagnon_enabled(), "discussions": discussions_enabled(),
+    return JSONResponse({"compagnon": compagnon_enabled(request), "discussions": discussions_enabled(),
                          "invites_v2": invites_v2_enabled(), "bar": bar_enabled() and not store,
                          "patates": patates_enabled() and pronos_enabled() and not store,
                          "agenda": agenda_enabled() and not store, "pronos": pronos_enabled() and not store},

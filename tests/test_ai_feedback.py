@@ -236,3 +236,12 @@ def test_sent_review_keeps_the_original_text_and_prefills_the_triage(api):
     assert bad.status_code == 400
     short = c.post("/api/feedback", json={"guest_id": GUEST, "name": "Léa", "kind": "idea", "token": PLUS, "text": "court"})
     assert short.status_code == 400  # sans l'IA, les 30 caractères restent la règle
+
+
+def test_the_app_store_app_never_gets_the_zicou_area():
+    """Contrôle Apple du 26.11 : Zicou n'existe pas dans l'app App Store, l'IA n'y propose jamais « 🐾 Zicou »."""
+    raw = {"kind": "idea", "area": "pet", "title": "Un chapeau", "description": "Je voudrais un chapeau."}
+    assert aif.clean_draft(raw, {})["area"] == "pet"
+    assert aif.clean_draft(raw, {}, store=True)["area"] == "general"
+    assert "pet" not in aif.schema({}, store=True)["properties"]["area"]["enum"]
+    assert "pet" in aif.schema({})["properties"]["area"]["enum"]
