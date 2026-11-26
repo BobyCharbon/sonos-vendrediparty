@@ -6,6 +6,41 @@
 
 ## 1. Avant tout : la production
 
+### Plan de mise en prod du 27.11 (lot `develop` 03357b5c ; topo : `topo-version-apple-27-11.md`)
+
+- [x] `20261126150000` (présences sans compte) : **DÉJÀ EN PROD le 27.11**
+      (`2026-11-26-presences-sans-compte-apply.sql`). Il a réécrit `event_changed`, `event_guest_list`, `apply_waitlist`,
+      `event_attendance`, `public_event`, `chat_event_cards` et étendu `invite_preview`.
+- [ ] Fichiers restants, **dans cet ordre**, par `python3 supabase/tools/apply_prod.py supabase/prod/<fichier>-apply.sql` :
+      1. `2026-11-23-recherche-numero` (20261123090000)
+      2. `2026-11-23-reglages-groupe-admin` (20261123110000)
+      3. `2026-11-26-recherche-personnes-1h` (20261126100000)
+      4. `2026-11-26-invitation-pot-commun` (20261126120000)
+      5. `2026-11-26-pot-cgu-signaler` (20261126130000)
+      6. `2026-11-26-pot-paiement-geste` (20261126140000)
+      7. `2026-11-26-pot-filtre-paiement-purge` (20261126160000)
+      8. puis `2026-11-26-demo-nettoyage` (20261126110000, données de la démo)
+- [ ] **Revérifier les ancres contre la prod avant d'appliquer** (150000 a réécrit event_changed, event_guest_list,
+      apply_waitlist, event_attendance, public_event, chat_event_cards, invite_preview).
+      **Fait le 27.11 en LECTURE SEULE** (`sbq.py prod`, `pg_get_functiondef` de la prod ; photo du 27.11, à refaire si
+      quoi que ce soit est appliqué entre-temps) :
+      - les **32 ancres** des fichiers 1 à 7 (`position(…)` / `replace(…)` : my_groups_overview, invite_preview, les 7
+        `tc_*` de pot-cgu, report_snapshot, moderation_hide, notify_new_report, notify_content_hidden, report_content,
+        moderation_copy_evidence, tc_group_json, tc_event_sync, tc_create, tc_join, moderate_tc_text, event_pay_info,
+        expire_chat_photos, contrainte `content_reports_target_kind_check` ('pet_word')) sont **toutes présentes, une fois
+        chacune**, et **aucune n'est déjà appliquée** (aucune marque « déjà fait » en prod) ;
+      - parmi les 7 fonctions de 150000, **seule `invite_preview` est touchée**, par ancre (`'allow_maybe', ev.allow_maybe,`),
+        et cette ancre est **toujours là** après 150000 ; **aucun fichier ne réécrit en entier** une des 7 ;
+      - les fonctions réécrites EN ENTIER par 1 à 3 (search_phone, 24 fonctions des groupes, group_people_search) ne sont
+        touchées ni par 150000 ni par les migrations du 25.11 en prod ;
+      - quand deux fichiers touchent la même chose (report_snapshot, moderation_hide, notify_new_report, contrainte
+        'pet_word', tc_create, tc_join), le 1er garde l'ancre dont le 2e a besoin : l'ordre 5 puis 6 tient ;
+      - `join_group_by_link` / `join_event_by_link` : le texte « prénom, surnom et photo) » est là (remplacement facultatif) ;
+      - `demo-nettoyage` : ses conditions de départ sont **toujours vraies** (bar de la démo : 3 articles, 5 lignes de
+        journal, aucune commande ; Apple-test « Absent » au Paintball du 19.11 ; billets de la démo encore éteints).
+      **Résultat : aucun souci d'ancre, rien à corriger.**
+- [ ] Puis redéployer les fonctions **send-push** et **send-web-push** (dernière version de `develop` / `main`).
+
 - [ ] **Refus 1.4.3 (25.11)** : branche `fix-143` en prod ; avec l'User-Agent « PartyStore », l'écran Jeux n'a ni « 🍻 Alcool »,
       ni gorgée ni « ⭐ Mode points », ni Pyramide / Je n'ai jamais / Qui de nous ? / Roulette / Beer pong / Biskit /
       Purify Test / Casino / Blackjack, ni mode Hot / Mix, ni thème WTF ; un code de Pyramide créée sur le web répond 403 ;
@@ -116,8 +151,9 @@
             en prod) ; Billets QR allumés sur la Soirée démo (`tickets_enabled = true`), AUCUN billet remis d'avance : la partie A,
             B2 et B4.10 disent à Apple de répondre Présent puis « Remettre à tous les présents » (sinon corriger les
             trois et régénérer le PDF) ;
-      - [ ] migrations **20261126100000**, **20261126120000**, **20261126130000** et **20261126140000** en prod
-            (`select version from supabase_migrations.schema_migrations where version like '20261126%'`) ;
+      - [ ] migrations **20261123090000**, **20261123110000**, **20261126100000**, **20261126110000**, **20261126120000**,
+            **20261126130000**, **20261126140000**, **20261126150000** (déjà là le 27.11) et **20261126160000** en prod
+            (`select version from supabase_migrations.schema_migrations where version like '2026112%'`) ; ordre : plan du 27.11 en haut ;
       - [ ] fonctions **send-push** ET **send-web-push** redéployées (dernière version de develop / main) ;
       - [ ] avant toute archive locale : `xcodegen` dans `ios/` (sinon le projet Xcode garde l'ancien manifeste et les
             anciens fichiers) ;
@@ -213,7 +249,8 @@
       aucune section PRONOS, aucun prono de démo à préparer.
       Questionnaire : Simulated Gambling **None** tant qu'ils restent éteints.
       Aucun code de compte dans le dépôt.
-- [x] **Attachment** : `guide-revue-apple.pdf` (partie B de `notes-for-review.md`, mise en page A4, refait le 26.11),
+- [ ] **Attachment** : `guide-revue-apple.pdf` (partie B de `notes-for-review.md`, mise en page A4, refait le 27.11 :
+      présences à la main / sans compte en B4.5 ; à JOINDRE DE NOUVEAU, l'ancien du 26.11 est périmé),
       envoyé par `tools/appstore_submit.py attach` (workflow « App iOS → revue App Store », mode attach).
 - [ ] **Contact** : prénom, nom, téléphone qui répond vraiment pendant la revue (+41…), e-mail `support@vendrediparty.ch`
       (s'envoyer un message de test) — **À FOURNIR** (rien dans le dépôt).

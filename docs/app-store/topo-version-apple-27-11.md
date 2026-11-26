@@ -1,0 +1,87 @@
+# Topo : la version Apple (27.11.2026)
+
+Pour l'admin, en deux listes. Base : ce que `develop` a de plus que la prod (`git log 0785957c..03357b5c`, 64 commits),
+ce qui est déjà en prod depuis le build 216 refusé (`9de754ed..0785957c`), et les coupures « App Store » relues une à
+une dans le code (iPhone, serveur, module Événements).
+
+Trois façons de couper, à ne pas confondre :
+- **Hors de l'app iPhone** : le code n'est même pas dans l'app envoyée à Apple (fichiers compilés seulement dans la BETA).
+- **Présent mais jamais ouvert** : le code est dans l'app, mais l'app App Store ne l'ouvre jamais, quoi que dise le serveur.
+- **Refusé par le serveur / caché à l'écran** : Party reconnaît l'app App Store (« PartyStore ») et ne lui envoie pas la
+  fonction, ou la page ne l'affiche pas. Le site web, l'app BETA et Android gardent tout.
+
+## A. Enlevé ou caché dans la version Apple
+
+| Quoi | Comment | Où (pour vérifier) |
+|---|---|---|
+| Jeux à boire : Pyramide, Je n'ai jamais, Qui de nous ?, Roulette, Beer pong, Biskit, Purify Test | Refusés par le serveur (création, salle, code, QR : 403) ; leur code (scripts, styles, textes) n'est même pas envoyé à l'app (`/static-store/`, blocs coupés) | `app/store_app.py` (HIDDEN_GAMES), `app/store_static.py`, `app/main.py` |
+| Casino et Blackjack | Même chose (refusés + cachés) | idem, `style.css` |
+| Gorgées, « 🍻 Alcool », « ⭐ Mode points », modes Hot / Mix, thème WTF de Pour ou contre, paquet « Entre amis » de Qui est le plus… | Toute partie de l'app est marquée « store » : 0 gorgée, réglage refusé ; une partie du web avec gorgées est refusée à l'app | `store_app.flag`, `refused`, `refused_settings` |
+| Questions et mots qui parlent de boisson, drogue, tabac ; questions sur Android | Retirés des banques tirées dans l'app (Quiz, L'Intrus, Divan, Pour ou contre, Masque…) | `store_app.clean`, `clean_platforms` |
+| Prénoms et textes de joueurs insultants, drogue, haine | Refusés ou remplacés par « Joueur » dans les parties de l'app | `store_app.check_text`, `quiz.py` |
+| Code des jeux cachés et fichiers de Zicou | Jamais servis à l'app, même par une adresse bricolée | `store_static.blocked` |
+| Bar de la soirée | Pas d'écran bar natif ; serveur : `bar: false` pour l'app, page sans bar, pas de notification du bar (send-push), cloche sans `bar_…`, billet Wallet sans bar ; l'app ne l'ouvre jamais même si le serveur dit oui | `/api/features`, `bar_page`, `SettingsStore.loadFeatures`, `activity.tsx` |
+| Onglet Musique | Caché (barre web et barre native). La musique reste joignable par le code à 6 chiffres de l'hôte (Jeux › Code) ou son QR | `index.html` (STORE_APP), `native-tabs.js` |
+| « Ajouter un titre » (action rapide) et extension Partager pour la musique | Absents de l'app App Store ; Partager › Party ne propose que « Créer l'événement » | `QuickActions.swift`, `project.yml` |
+| Réglages de notification Musique | Cachés, sauf chez l'hôte d'une soirée | `NotificationSettingsView.swift` |
+| Zicou | Présent dans l'app mais jamais lancé (`zicouBuild` faux hors BETA) ; serveur : routes en 404, page sans Zicou, ni réactions ni zone « 🐾 Zicou » de Ton avis | `AppConfig.zicouBuild`, `features.compagnon_enabled` |
+| Agenda | Hors de l'app iPhone (3 fichiers en `#if BETA`) ; serveur : routes en 404 pour l'app ; page : ni entrée ni écran | `ios/Party/Agenda/`, `apps_off`, `agendaOn` |
+| Pronos | Hors de l'app iPhone (6 fichiers en `#if BETA`) ; serveur : 404 ; page : ni carte ni bouton | `ios/Party/Pronos/`, `pronosOn` |
+| Confettis (des Pronos) | Éteints avec les Pronos : `patates: false` pour l'app | `/api/features` |
+| Souvenirs | Hors de l'app iPhone (6 fichiers en `#if BETA`, pont à `null`, ni bulles ni bandeau) ; serveur : éteints pour l'app quoi qu'il arrive ; page : rien | `ios/Party/Souvenirs/`, `souvenirs_enabled`, `souvenirsOn` |
+| Couverture d'événement (« Changer la couverture ») | Serveur : éteinte pour l'app ; page : aucun bouton | `covers_enabled`, `coversOn` |
+| Cartes secrètes de la Pyramide (panneau natif) | Présent mais jamais ouvert (`storeLocked`) — la Pyramide est de toute façon refusée | `NativeBridge.swift` |
+| Stats Purify Test | Hors de l'app iPhone (`#if BETA`) ; serveur : 404 ; « Mes stats de jeu » n'a que Méninges | `AnnouncementsView.swift`, `no_purity_in_store`, `Settings.tsx` |
+| Bouton « ✨ IA » sur la fiche d'un événement | Caché dans l'app (l'exemple citait du vin). « ✨ Avec l'IA » pour CRÉER un événement reste | `event/[id]/index.tsx` |
+| Événements publics « à boisson » (apéro, bière, chicha, vapotage…) | Ni dans la liste ni dans la recherche de l'app, sauf pour leurs invités et organisateurs | `storeEvents.ts` (DRINK_RE) |
+| Étiquettes à boisson (« #bar »…) | Cachées des filtres, de la fiche et des abonnements | `data.ts`, `main.py` (abonnements) |
+| Emojis 🍻 🍷 des groupes et du Pot commun | Montrés en 🎉, absents du choix | `groups.ts`, `NewChatGroupView.swift`, `TricountListView.swift`, `neutral_emojis` |
+| Notifications qui parlent de boisson | Texte neutre (push et cloche) | `send-push`, `activity.tsx` |
+| CGU et confidentialité | Version de l'app sans sections bar, Pronos, Agenda | `terms.ts`, `privacy.tsx` |
+| Site de test et base de TEST | Jamais ouverts dans l'app App Store, pont natif réservé au site de prod | `AppConfig.internalHosts`, `bridgeHosts` |
+| Mini-sondages | Retirés seulement du TEXTE de la fiche App Store ; ils restent dans le formulaire de l'événement (rien de caché) | `fiche-app-store.md` |
+| Vidéo d'aperçu | Plus de vidéo pour cet envoi : l'ancienne est à SUPPRIMER dans App Store Connect (à faire par toi) | `checklist-envoi.md` |
+| Apple TV | Pas envoyée avec cette version (elle montre encore des gorgées) | `checklist-envoi.md` |
+
+## B. Nouveau et visible depuis le build 216
+
+« En prod » = déjà sur party.bobycharbon.ch ; « avec ce lot » = sur `develop`, arrive en prod avec les migrations
+ci-dessous et le serveur ; « nouveau build » = seulement dans la nouvelle app iPhone.
+
+| Nouveau | Arrive | Dans les notes (partie A) / le guide (partie B) ? |
+|---|---|---|
+| Jeux à boire, bar, Musique (onglet) retirés, musique par code à 6 chiffres | En prod (refus 1.4.3) + nouveau build | Oui : A « Changes since the 1.4.3 rejection » et « Web content » ; B4.14, B4.15, B7 |
+| Présences à la main, avec des personnes sans compte (« Théo du bar ») | En prod (27.11, migration 20261126150000) | A : non (plus de place) ; B : **oui, ajouté le 27.11** (B4.5, PDF régénéré) |
+| Conditions d'utilisation en grand avant d'écrire dans une discussion | En prod (web) + nouveau build | En partie : B4.12 point 2 (« the first message asks you to accept the Terms ») ; A « Terms first ». Le « en grand » n'est pas décrit |
+| Réglages des groupes : rôles (co-admin, organisateur), « Qui peut… », accepter chaque nouveau membre, transmettre | Avec ce lot (20261123110000) + nouveau build | B4.13 : oui (une phrase) ; A : non |
+| Recherche d'une personne par numéro, tous les formats suisses | Avec ce lot (20261123090000) | Non décrit (B4.13 ne parle pas d'« Ajouter quelqu'un ») |
+| Pot commun : moyens de paiement cachés tant qu'on ne touche pas « Montrer mes moyens de paiement dans ce pot » | Avec ce lot (20261126140000) + nouveau build | Oui : A « Payments », B4.16, B7 |
+| Pot commun : CGU avant d'ajouter une dépense, « Signaler » une dépense ou un ticket | Avec ce lot (20261126130000) + nouveau build | Oui : A « Payments », B4.16, B6 |
+| Pot commun : « Rembourser » (montre l'IBAN / le lien de l'ami) | Nouveau build | Oui : A, B4.16 |
+| Pot commun dit sur la page d'invitation (« Je viens ! ») et après « Pas présent » | Avec ce lot (20261126120000) | Non décrit (B4.16 dit seulement qu'on entre dans le pot en répondant Présent) |
+| Profil de paiement filtré (titulaire, note) ; IBAN de l'organisateur seulement en « On me paie » | Avec ce lot (20261126160000) | Rien à montrer à Apple (B4.11 / B4.16 disent déjà « On me paie ») |
+| « Signaler le groupe » (son nom) | Avec ce lot (20261126140000) + nouveau build | Oui : B4.13, B6 ; A : non |
+| Case « J'ai 18 ans ou plus et j'accepte les conditions » avant de jouer, vérifiée par le serveur | Avec ce lot (serveur) | Oui : A « Games », B4.14, B6 |
+| Bloquer : effet immédiat (messages qui disparaissent, mini-profil « Débloquer ») | Avec ce lot (web) + nouveau build | Oui pour les messages (A « Discussions », B4.12 point 8) ; « Débloquer » dans le mini-profil non décrit (B4.12 dit Réglages › Personnes bloquées) |
+| « Plus tard » des CGU jamais muet (une phrase dit pourquoi on ne peut pas continuer) | Avec ce lot (web) + nouveau build | Non décrit |
+| Photo de profil facultative (« complète ton profil » ne la demande plus) | Avec ce lot (20261126130000) | Oui : B4.1 |
+| Billets QR de la Soirée démo : à se remettre soi-même (« Remettre à tous les présents ») | Avec ce lot (nettoyage de la démo) | Oui : A « Try it » 1, B2, B4.10 |
+| Discussions d'événement : photos et vocaux effacés à 90 jours | Avec ce lot (20261126160000) | Politique de confidentialité ; rien à montrer |
+| Recherches de personnes gardées 1 h en empreinte | Avec ce lot (20261126100000) | Politique de confidentialité ; rien à montrer |
+| Phrases d'autorisation propres à l'app App Store (caméra sans Souvenirs, calendrier limité aux sondages) | Nouveau build | Oui : B8 |
+
+Les « non décrit » ci-dessus sont de petites choses visibles sans explication ; la partie A est pleine (3 994 caractères
+sur 4 000), donc rien n'y a été ajouté.
+
+## Reste à faire par l'admin
+
+- [ ] Clé `storage_secret_key` à ajouter dans le coffre Supabase de prod (contrôle : une ligne dans `private.chat_files_gc_runs`).
+- [ ] Dépôt GitHub `BobyCharbon/sonos-vendrediparty` à passer en PRIVÉ (ou `GITHUB_REPO` sur un dépôt privé à part).
+- [ ] App Store Connect : AUCUNE version tvOS jointe ; App Privacy = les **16 types** du manifeste, ni plus ni moins ;
+      anciennes captures et ancienne vidéo d'aperçu SUPPRIMÉES (6,9" et Duo), nouvelles captures faites avec l'app App Store.
+- [ ] Guide PDF : rejoindre `docs/app-store/guide-revue-apple.pdf` régénéré le 27.11 (présences sans compte, B4.5).
+- [ ] Couverture de l'événement « Verknipt » : la vérifier / remplacer (aucune boisson visible).
+- [ ] Lien Shotgun de « Hard Boat » : le nettoyer (sans `uhandle` ni `utm_*`).
+- [ ] Relire le classement du Quiz dans l'app App Store (points seulement, aucun mot de boisson ni gorgée) ; au passage,
+      relire à l'écran le classement par âge 18+ (§ 5 de la checklist).
+- [ ] Mise en prod du lot dans l'ordre de la checklist (§ « Plan de mise en prod du 27.11 ») : ancres revérifiées le 27.11, toutes bonnes.

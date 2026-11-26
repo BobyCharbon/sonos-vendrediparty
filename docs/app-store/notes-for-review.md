@@ -221,6 +221,9 @@ On an online event you organise (e.g. one you create), card **Invités** › **+
   iPhone; names never leave it), and contacts not yet on Party: each has its own button that opens Apple's Messages
   composer with your personal link, which you read and send yourself, one contact at a time. No select-all; Party sends
   nothing.
+- Attendance by hand: organisers can add people to the attendance by hand, members or people without an account
+  (e.g. "Théo from the bar"), to count them; people without an account are never notified and their names are never
+  shown to guests, who only see numbers; names pass the same filter.
 
 #### B4.6 Answer an event
 
