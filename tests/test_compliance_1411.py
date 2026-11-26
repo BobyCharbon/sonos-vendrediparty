@@ -109,8 +109,15 @@ PERMISSIONS = [
 ]
 
 
-def usage_texts(target: dict) -> dict[str, str]:
-    return dict(re.findall(r"^\s+(NS\w+UsageDescription): \"([^\"]+)\"", target["text"], re.M))
+def usage_texts(target: dict, variant: str = "STORE") -> dict[str, str]:
+    """Textes d'autorisation ; ceux qui suivent la variante ($(PARTY_USAGE_…_$(PARTY_VARIANT))) sont résolus :
+    « STORE » = app App Store, « STORE_beta » = BETA (contrôle Apple du 26.11)."""
+    settings = dict(re.findall(r"^\s+(PARTY_USAGE_\w+): \"([^\"]+)\"", target["text"], re.M))
+    out = {}
+    for key, text in re.findall(r"^\s+(NS\w+UsageDescription): \"([^\"]+)\"", target["text"], re.M):
+        m = re.fullmatch(r"\$\((PARTY_USAGE_\w+?_)\$\(PARTY_VARIANT\)\)", text)
+        out[key] = settings[m.group(1) + variant] if m else text
+    return out
 
 
 @pytest.mark.parametrize("name", ["Party", "PartyTV"])
@@ -118,6 +125,10 @@ def test_every_permission_asked_by_the_code_has_its_text_in_french(name):
     target = targets()[name]
     code = swift_of(target)
     texts = usage_texts(target)
+    if name == "Party":
+        beta = usage_texts(target, "STORE_beta")
+        assert beta.keys() == texts.keys()
+        texts.update({f"{k} (BETA)": v for k, v in beta.items()})
     for pattern, key in PERMISSIONS:
         if pattern == r"WKWebView\(" and "allowsLinkPreview = false" in code:
             continue

@@ -137,7 +137,8 @@ final class WebModel: ObservableObject {
             waitingEventChat = nil
             openEventChat(waiting.id, info: waiting.info)
         }
-        souvenirs = SouvenirsStore(api: api, web: self)
+        // App App Store : pas de Souvenirs (ni bulles, ni bandeau, ni story) : le store reste nil.
+        souvenirs = AppConfig.storeLocked ? nil : SouvenirsStore(api: api, web: self)
         souvenirs?.openStory = { [weak self] event in self?.openSouvenirs(.story(event)) }
         if let waiting = waitingSouvenir {
             waitingSouvenir = nil
@@ -430,6 +431,7 @@ final class WebModel: ObservableObject {
 
     /// Souvenirs : appareil photo ou story, plein écran par-dessus tout (la base vérifie les droits).
     func openSouvenirs(_ route: SouvenirRoute) {
+        if AppConfig.storeLocked { return }
         guard souvenirs != nil else { waitingSouvenir = route; return }
         souvenirEvent = route.eventID
         Motion.animate(Motion.smooth) { souvenirRoute = route }

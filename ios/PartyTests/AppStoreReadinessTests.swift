@@ -182,4 +182,24 @@ struct AppStoreReadinessTests {
         #expect(!AppConfig.zicouBuild)
         #endif
     }
+
+    @Test("Pont natif : le site de l'app seulement, jamais accounts.spotify.com ni Supabase (pourtant ouverts dans l'app)")
+    func bridgeOnlyForTheAppSite() throws {
+        #expect(AppConfig.mayUseBridge(AppConfig.baseURL))
+        for page in ["https://accounts.spotify.com/authorize", "https://gsuetixzobooggeaubvb.supabase.co/auth/v1", "https://evil.example"] {
+            let url = try #require(URL(string: page))
+            #expect(AppConfig.isInternal(url) == !page.contains("evil"))  // ouvertes dans l'app, sans le pont
+            #expect(!AppConfig.mayUseBridge(url))
+        }
+        #expect(!NativeBridge.bridgeHostsJS.contains("spotify"))
+        #expect(NativeBridge.bridgeHostsJS.contains(AppConfig.baseURL.host?.lowercased() ?? "?"))
+    }
+
+    @Test("Signaler le Pot commun : une dépense ou la photo de son ticket")
+    func sharedExpenseReportTargets() {
+        #expect(ExpenseEditor.report(expense: "e1", title: " Courses ").kind.rawValue == "tc_expense")
+        #expect(ExpenseEditor.report(expense: "e1", title: " Courses ").label == "la dépense « Courses »")
+        #expect(ExpenseEditor.report(expense: "e1", title: "").label == "cette dépense")
+        #expect(ExpenseEditor.report(receipt: "e1").kind.rawValue == "tc_expense")
+    }
 }

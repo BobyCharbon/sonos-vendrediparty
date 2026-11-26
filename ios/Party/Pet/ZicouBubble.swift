@@ -250,7 +250,7 @@ final class ZicouBubbleHandler: NSObject, WKScriptMessageHandler {
 
     @MainActor
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard message.frameInfo.isMainFrame, AppConfig.isInternal(message.frameInfo.securityOrigin.url),
+        guard message.frameInfo.isMainFrame, AppConfig.mayUseBridge(message.frameInfo.securityOrigin.url),
               let state = ZicouBubbleState(message: message.body) else { return }
         model?.showZicouBubble(state)
     }

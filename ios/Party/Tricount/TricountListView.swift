@@ -84,6 +84,7 @@ struct TricountListView: View {
             CreateTricountView(store: store, myName: myName) { opened = $0 }
         }
         .overlay(alignment: .bottom) { TCNotice(text: $store.notice) }
+        .tcTermsGate(store)
     }
 }
 
@@ -180,6 +181,7 @@ struct CreateTricountView: View {
             }
             .onAppear { if me.isEmpty { me = myName } }
         }
+        .tcTermsGate(store)
     }
 }
 
@@ -264,6 +266,7 @@ struct JoinTricountView: View {
                 loaded = true
             }
         }
+        .tcTermsGate(store)
     }
 }
 

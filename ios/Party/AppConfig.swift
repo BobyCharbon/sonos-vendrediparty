@@ -58,6 +58,19 @@ enum AppConfig {
     /// Rose de la webapp (--accent) : onglet actif de la barre native.
     static let uiAccent = UIColor(red: 1, green: 79 / 255, blue: 154 / 255, alpha: 1)
 
+    /// Pages qui reçoivent le pont natif (`PartyNative` et ses gestionnaires) : le site de l'app seulement (et le site
+    /// de TEST dans la BETA), jamais accounts.spotify.com ni la base Supabase, pourtant ouverts DANS l'app (contrôle
+    /// Apple du 26.11).
+    static var bridgeHosts: [String] {
+        let base = baseURL.host?.lowercased() ?? ""
+        return isStoreApp ? [base] : Array(Set([base, "partytest.bobycharbon.ch"])).sorted()
+    }
+
+    static func mayUseBridge(_ url: URL) -> Bool {
+        guard let host = url.host?.lowercased() else { return false }
+        return bridgeHosts.contains(host)
+    }
+
     static func isInternal(_ url: URL) -> Bool {
         guard let host = url.host?.lowercased() else { return false }
         // Le site chargé par l'app (PARTY_BASE_URL) l'est toujours : serveur local des essais sur simulateur compris.

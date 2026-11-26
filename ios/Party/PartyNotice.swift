@@ -55,7 +55,7 @@ final class PartyNoticeHandler: NSObject, WKScriptMessageHandler {
 
     @MainActor
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard message.frameInfo.isMainFrame, AppConfig.isInternal(message.frameInfo.securityOrigin.url) else { return }
+        guard message.frameInfo.isMainFrame, AppConfig.mayUseBridge(message.frameInfo.securityOrigin.url) else { return }
         model?.showNotice(PartyNoticeState(message: message.body))
     }
 }

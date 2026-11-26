@@ -99,8 +99,11 @@ def test_honour_only_no_stake_no_money_word_on_screen():
 
 def test_the_iphone_opens_pronos_natively():
     bridge = read("ios/Party/NativeBridge.swift")
-    assert "pronos: {" in bridge and "PronosHandler(model: model), name: pronosHandler" in bridge
-    assert "PronoRoute.parse(body)" in bridge and "AppConfig.isInternal(message.frameInfo.securityOrigin.url)" in bridge
+    # BETA : écrans natifs ; app App Store (storeLocked) : pont à null et aucun gestionnaire (contrôle du 26.11).
+    assert 'private static let pronosScript = AppConfig.storeLocked ? "null" : """\n        {\n          open: function' in bridge
+    assert "pronos: \\(pronosScript)," in bridge
+    assert "if !AppConfig.storeLocked { controller.add(PronosHandler(model: model), name: pronosHandler) }" in bridge
+    assert "PronoRoute.parse(body)" in bridge and "AppConfig.mayUseBridge(message.frameInfo.securityOrigin.url)" in bridge
     assert "PronoRoute.requested(in: target)" in read("ios/Party/WebModel.swift")
     assert 'pronosRPC(token: String, fn: String' in read("ios/Party/Music/PartyAPI.swift")
     web = read("web/events/src/lib/pronos.ts")

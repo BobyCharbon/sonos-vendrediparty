@@ -69,17 +69,20 @@ targets:
         # Portrait sur les iPhone classiques (gardé : rien ne change pour eux). L'écran intérieur de l'iPhone Duo
         # ignore ce verrou (Apple) : l'app y suit toute taille et toute orientation (CLAUDE.md, « iPhone Duo »).
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
-        NSCameraUsageDescription: "Pour prendre les photos Souvenirs d'une soirée, scanner un QR code (code de la soirée ou d'un jeu, billet) ou un ticket du Pot commun, et prendre une photo de profil, d'événement, de groupe ou à envoyer dans une discussion."
+        # Textes par variante (contrôle Apple du 26.11) : l'app App Store ne cite ni Souvenirs ni l'Agenda, absents de
+        # son binaire ; la BETA les garde. PARTY_USAGE_*_STORE (App Store) ou *_STORE_beta (BETA), choisis par
+        # PARTY_VARIANT (réglages de la cible Party, plus bas).
+        NSCameraUsageDescription: "$(PARTY_USAGE_CAMERA_$(PARTY_VARIANT))"
         NSPhotoLibraryUsageDescription: "Pour choisir une photo de profil, d'événement, de groupe, de discussion ou un ticket du Pot commun."
         # Appui long sur une image de la page (photo d'événement, billet QR) › « Ajouter à Photos » : sans ce texte, iOS
         # ferme l'app (WKWebView garde son menu d'image).
-        NSPhotoLibraryAddUsageDescription: "Pour enregistrer dans tes photos une image que tu choisis de garder (photo de tes Souvenirs, d'un événement ou d'une discussion, billet QR)."
+        NSPhotoLibraryAddUsageDescription: "$(PARTY_USAGE_PHOTO_ADD_$(PARTY_VARIANT))"
         NSSpeechRecognitionUsageDescription: "Pour transformer ta voix en texte quand tu dictes (la description d'un événement pour l'assistant IA, ton avis). La transcription est faite par Apple."
         NSMicrophoneUsageDescription: "Seulement quand tu touches le micro : pour dicter un texte (la description d'un événement à l'assistant IA, ton avis) ou enregistrer un message vocal dans une discussion."
         # Agenda (17.11) : « Rien ne quitte ton iPhone » n'est plus vrai quand on partage ses dispos (conformite.md, règle 8).
-        NSCalendarsFullAccessUsageDescription: "Pour voir tes rendez-vous de l'iPhone dans l'Agenda de Party et y mettre les dates d'un sondage en un toucher. Si tu partages tes dispos avec un groupe ou un lien, seules les heures où tu es pris partent, arrondies à la demi-heure : jamais le titre, le lieu ni les notes."
-        NSCalendarsUsageDescription: "Pour voir tes rendez-vous de l'iPhone dans l'Agenda de Party et y mettre les dates d'un sondage en un toucher. Si tu partages tes dispos avec un groupe ou un lien, seules les heures où tu es pris partent, arrondies à la demi-heure : jamais le titre, le lieu ni les notes."
-        NSContactsUsageDescription: "Pour afficher les membres Party qui sont dans tes contacts sous le nom que tu leur as donné, te les proposer quand tu écris un nouveau message, et lister dans « À inviter » ceux qui n'ont pas encore de compte, pour les inviter par SMS si tu le choisis. Seule une empreinte chiffrée des numéros est comparée ; tes contacts restent sur ton iPhone."
+        NSCalendarsFullAccessUsageDescription: "$(PARTY_USAGE_CALENDAR_$(PARTY_VARIANT))"
+        NSCalendarsUsageDescription: "$(PARTY_USAGE_CALENDAR_$(PARTY_VARIANT))"
+        NSContactsUsageDescription: "Pour afficher les membres Party qui sont dans tes contacts sous le nom que tu leur as donné, te les proposer quand tu écris un nouveau message, et lister dans « À inviter » ceux qui n'ont pas encore de compte, pour les inviter par SMS si tu le choisis. Seule une empreinte des numéros est comparée ; tes contacts restent sur ton iPhone."
         ITSAppUsesNonExemptEncryption: false
         # Actions rapides de l'icône (appui long) : Party/QuickActions.swift, toutes ajoutées par l'app (aucune dans
         # Info.plist) : « Ajouter un titre » dans l'app BETA seulement (Musique cachée dans l'app App Store, 25.11) ;
@@ -99,6 +102,15 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ch.bobycharbon.party$(PARTY_BUNDLE_SUFFIX)
         PARTY_BASE_URL: "https://$(PARTY_HOST)"
+        # Variante d'après PARTY_BUNDLE_SUFFIX (comme AppConfig.isStoreApp) : "" → STORE, ".beta" → BETA (Debug et
+        # archive TestFlight, qui passe PARTY_BUNDLE_SUFFIX=.beta). Textes d'autorisation par variante :
+        PARTY_VARIANT: "STORE$(PARTY_BUNDLE_SUFFIX:c99extidentifier)"
+        PARTY_USAGE_CAMERA_STORE: "Pour scanner un QR code (code de la soirée ou d'un jeu, billet) ou un ticket du Pot commun, et prendre une photo de profil, d'événement, de groupe ou à envoyer dans une discussion."
+        PARTY_USAGE_CAMERA_STORE_beta: "Pour prendre les photos Souvenirs d'une soirée, scanner un QR code (code de la soirée ou d'un jeu, billet) ou un ticket du Pot commun, et prendre une photo de profil, d'événement, de groupe ou à envoyer dans une discussion."
+        PARTY_USAGE_PHOTO_ADD_STORE: "Pour enregistrer dans tes photos une image que tu choisis de garder (photo d'un événement ou d'une discussion, billet QR)."
+        PARTY_USAGE_PHOTO_ADD_STORE_beta: "Pour enregistrer dans tes photos une image que tu choisis de garder (photo de tes Souvenirs, d'un événement ou d'une discussion, billet QR)."
+        PARTY_USAGE_CALENDAR_STORE: "Pour mettre les dates d'un sondage dans ton calendrier, puis retirer celles qui ne sont pas retenues. Party ne lit que les entrées qu'elle a ajoutées ; rien ne quitte ton iPhone."
+        PARTY_USAGE_CALENDAR_STORE_beta: "Pour voir tes rendez-vous de l'iPhone dans l'Agenda de Party et y mettre les dates d'un sondage en un toucher. Si tu partages tes dispos avec un groupe ou un lien, seules les heures où tu es pris partent, arrondies à la demi-heure : jamais le titre, le lieu ni les notes."
         # iPhone seulement : sur iPad, l'app tourne en mode compatible (pas de captures iPad à fournir).
         # Au niveau de la cible : le préréglage XcodeGen d'une app iOS impose sinon "1,2".
         TARGETED_DEVICE_FAMILY: "1"

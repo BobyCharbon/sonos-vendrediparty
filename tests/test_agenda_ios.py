@@ -23,10 +23,14 @@ def test_the_bridge_offers_the_agreed_contract():
     bridge = read("ios/Party/Agenda/AgendaBridge.swift")
     for method in ("status", "requestAccess", "calendars", "setCalendar", "events", "syncBusy", "addToPhone"):
         assert f"{method}: function" in bridge
-    assert "agenda: \\(AgendaBridge.script)" in read("ios/Party/NativeBridge.swift")
-    assert "AgendaBridge(model: model), contentWorld: .page, name: AgendaBridge.handler" in read("ios/Party/NativeBridge.swift")
+    native = read("ios/Party/NativeBridge.swift")
+    # BETA : le contrat ; app App Store (storeLocked) : pont à null et aucun gestionnaire (contrôle du 26.11).
+    assert 'private static let agendaScript = AppConfig.storeLocked ? "null" : AgendaBridge.script' in native
+    assert "agenda: \\(agendaScript)" in native
+    assert ("if !AppConfig.storeLocked {\n            controller.addScriptMessageHandler(AgendaBridge(model: model), "
+            "contentWorld: .page, name: AgendaBridge.handler)") in native
     # Feuille d'iOS sans autorisation ; seule la page interne parle au pont.
-    assert "EKEventEditViewController" in bridge and "AppConfig.isInternal(message.frameInfo.securityOrigin.url)" in bridge
+    assert "EKEventEditViewController" in bridge and "AppConfig.mayUseBridge(message.frameInfo.securityOrigin.url)" in bridge
 
 
 def test_only_rounded_busy_ranges_leave_the_iphone():
@@ -57,15 +61,19 @@ def test_the_booking_requests_switch():
 
 
 def test_the_calendar_sentence_says_what_leaves_the_iphone():
-    project = read("ios/project.yml")
-    lines = [line for line in project.splitlines() if "NSCalendars" in line]
-    assert len(lines) == 2
-    # 24.11 : l'Agenda ouvre ; la phrase dit l'usage réel (Apple 5.1.1) : lecture des rendez-vous de l'iPhone, dates d'un
-    # sondage, et, seulement si on partage ses dispos, les heures prises arrondies, jamais titre, lieu ni notes.
-    for line in lines:
+    from tests.test_compliance_1411 import targets, usage_texts
+    party = targets()["Party"]
+    beta, store = usage_texts(party, "STORE_beta"), usage_texts(party)
+    keys = ("NSCalendarsFullAccessUsageDescription", "NSCalendarsUsageDescription")
+    # 24.11 : l'Agenda ouvre (BETA) ; la phrase dit l'usage réel (Apple 5.1.1) : lecture des rendez-vous de l'iPhone,
+    # dates d'un sondage, et, seulement si on partage ses dispos, les heures prises arrondies, jamais titre, lieu ni notes.
+    for line in (beta[k] for k in keys):
         assert "sondage" in line and "Agenda" in line and "dispos" in line
         assert "arrondies" in line and "jamais le titre, le lieu ni les notes" in line
         assert "ne quitte ton iPhone" not in line
+    # App App Store (contrôle du 26.11) : pas d'Agenda ; seulement les dates d'un sondage, rien ne quitte l'iPhone.
+    for line in (store[k] for k in keys):
+        assert "sondage" in line and "Agenda" not in line and "rien ne quitte ton iPhone" in line
 
 
 @pytest.mark.skipif(not shutil.which("node"), reason="Node absent")

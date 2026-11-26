@@ -95,7 +95,8 @@ struct TermsAcceptSheet: View {
     /// L'essentiel, en grand (demande de l'admin du 26.11 : « afficher les conditions en grand, que ce soit clair »).
     private static let points: [(String, String)] = [
         ("hand.raised.fill", "On se respecte : ni harcèlement, ni propos haineux, ni contenu sexuel."),
-        ("cart.badge.minus", "Pas d'arnaque ni de vente. Les objets du jeu n'ont aucune valeur en argent."),
+        ("cart.badge.minus", "Pas d'arnaque ni de vente. Les points des jeux n'ont aucune valeur en argent."),
+        ("exclamationmark.shield.fill", "Tolérance zéro : un contenu choquant est retiré et son auteur peut être banni."),
         ("flag.fill", "Tout contenu peut être signalé ; un modérateur peut le masquer, avertir, suspendre ou bannir un compte."),
         ("banknote", "Party ne vend rien et ne touche jamais d'argent."),
     ]
@@ -177,7 +178,7 @@ struct TermsAcceptSheet: View {
                         .font(.body).foregroundStyle(PronoTheme.t2).padding(.vertical, 6)
                         .accessibilityIdentifier("terms-later")
                     // Nouvel arrivant : il sait ce qu'il garde sans elles, rien ne le bloque (contrôle du 26.11).
-                    Text("Sans elles, tu peux continuer à découvrir Party : voir les événements publics et jouer. Choisir ton surnom (donc répondre à un événement), écrire ou publier quelque chose te les redemanderont.")
+                    Text("Sans elles, tu peux continuer à découvrir les événements publics. Écrire, publier, choisir ton surnom ou jouer avec d'autres te les redemanderont.")
                         .font(.footnote).foregroundStyle(PronoTheme.t2).multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("terms-later-hint")

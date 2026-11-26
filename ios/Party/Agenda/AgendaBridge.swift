@@ -34,7 +34,7 @@ final class AgendaBridge: NSObject, WKScriptMessageHandlerWithReply {
     @MainActor
     func userContentController(_ controller: WKUserContentController,
                                didReceive message: WKScriptMessage) async -> (Any?, String?) {
-        guard AppConfig.isInternal(message.frameInfo.securityOrigin.url),
+        guard AppConfig.mayUseBridge(message.frameInfo.securityOrigin.url),
               let body = message.body as? [String: Any], let action = body["action"] as? String else { return (nil, "Action inconnue") }
         guard let agenda = model?.settings?.agenda else { return (nil, "App pas encore prête") }
         switch action {

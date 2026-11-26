@@ -151,6 +151,8 @@ struct ConversationView: View {
                     writing = true
                 }
             }
+            // Bloquer depuis le mini-profil d'un membre : ses messages quittent le fil aussitôt (contrôle Apple du 26.11).
+            .onReceive(NotificationCenter.default.publisher(for: .partyBlockChanged)) { _ in Task { await store.open(group) } }
             .onDisappear { store.close(); v2.stop(); player.stop(); micLocked = false; _ = recorder.stop(send: false) }
             .onChange(of: picked) { item in Task { await sendPhoto(item) } }
             .onChange(of: chat?.joinNote) { note in if joinNote == nil, let note { Motion.animate(Motion.snappy) { joinNote = note } } }
@@ -167,7 +169,7 @@ struct ConversationView: View {
             }
             if let chat {
                 // Souvenirs dévoilés (24.11) : la story s'ouvre d'ici pendant ses 24 h.
-                if chat.isEvent { SouvenirChatBanner(eventID: group) }
+                if chat.isEvent, !AppConfig.storeLocked { SouvenirChatBanner(eventID: group) }
                 let pins = chat.pins
                 if !pins.isEmpty {
                     pinnedBanner(pins, chat: chat).motionTransition(.unfold)
