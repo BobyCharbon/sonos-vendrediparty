@@ -430,6 +430,16 @@ struct MembersSheet: View {
                             }
                         }
                     } footer: { Text("Glisse une ligne pour renommer ou retirer. Une personne qui a des dépenses reste dans les comptes.") }
+                    if let on = store.myShowPayment {
+                        Section {
+                            Toggle("Montrer mes moyens de paiement dans ce pot", isOn: Binding(
+                                get: { on }, set: { value in Task { await store.setShowPayment(value) } }))
+                                .disabled(store.busy)
+                                .accessibilityIdentifier("tc-show-payment")
+                        } footer: {
+                            Text("Les membres de ce pot verront ton IBAN et tes liens de paiement (Revolut, TWINT…) pour te rembourser. Éteint, ils ne voient rien.")
+                        }
+                    }
                     Section("Ajouter quelqu'un") {
                         HStack {
                             TextField("Prénom", text: $newName)

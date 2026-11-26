@@ -11,6 +11,8 @@ struct ReportTarget: Identifiable, Equatable {
         case petName = "pet_name", petItem = "pet_item", petOffer = "pet_offer", petShowcase = "pet_showcase", petWord = "pet_word"
         /// Pot commun (contrôle Apple du 26.11) : une dépense ; la copie des modérateurs garde la photo de son ticket.
         case tcExpense = "tc_expense"
+        /// Un groupe (son nom, contrôle Apple du 26.11, tour 2) : la cible est l'id du groupe.
+        case group
     }
 
     let kind: Kind

@@ -4,7 +4,12 @@ import SwiftUI
 /// « Créer un événement pour le groupe » (onglet Événements, web), les Pronos (écrans natifs, poussés sur place).
 /// Donné par l'app (PartyApp) ; `leave` ferme d'abord l'écran qui porte les groupes (plein écran ou feuille).
 struct GroupHub {
+    #if BETA || E2E_HOOKS
     var pronos: PronosStore?
+    #else
+    /// Binaire de l'App Store : Pronos non compilés (contrôle Apple du 26.11), toujours nil.
+    var pronos: Never?
+    #endif
     /// Ferme l'écran des groupes, puis fait l'action (le temps que la fermeture se termine).
     var leave: @MainActor (_ then: @escaping @MainActor () -> Void) -> Void
     var openChat: @MainActor (String) -> Void
@@ -113,12 +118,17 @@ enum GroupScreen: Hashable {
         case .page(let id): GroupPageView(groupID: id, onGone: onGone)
         case .settings(let id): GroupSettingsView(groupID: id, onGone: onGone)
         case .invite(let id): GroupInviteView(groupID: id)
+        #if BETA || E2E_HOOKS
         case .pronos(let id): GroupPronosView(groupID: id)
+        #else
+        case .pronos: EmptyView()  // binaire de l'App Store : Pronos non compilés
+        #endif
         case .right(let id, let key): GroupRightView(groupID: id, key: key)
         }
     }
 }
 
+#if BETA || E2E_HOOKS
 /// Pronos du groupe : la liste native des Pronos, filtrée sur ce groupe (classement compris).
 struct GroupPronosView: View {
     let groupID: String
@@ -132,3 +142,4 @@ struct GroupPronosView: View {
         }
     }
 }
+#endif

@@ -41,6 +41,9 @@ enum TC {
         let me: Bool
         let balance_cents: Int
         let payment: Payment?
+        /// Moyens de paiement montrés aux membres de CE pot (tc_members.show_payment, migration 20261126140000 ; faux
+        /// si ajouté d'office par l'événement). Absent (serveur d'avant) : l'interrupteur reste caché.
+        var show_payment: Bool? = nil
     }
 
     struct Share: Codable, Equatable { let member_id: String; let weight: Double?; let amount_cents: Int? }
@@ -230,6 +233,10 @@ extension PartyAPI {
     func uploadTricountReceipt(token: String, id: String, jpeg: Data) async throws -> String {
         let r: TC.Path = try await postDecoding("/api/account/tricount/receipt", body: ["token": token, "group_id": id, "photo": jpeg.base64EncodedString()])
         return r.path
+    }
+    /// « Montrer mes moyens de paiement dans ce pot » (tc_set_show_payment(p_group, p_on)).
+    func setTricountShowPayment(token: String, id: String, on: Bool) async throws -> TC.Group {
+        try await postDecoding("/api/account/tricount/show-payment", body: ["token": token, "group_id": id, "on": on])
     }
     func tricountPayment(token: String) async throws -> TC.Payment {
         try await postDecoding("/api/account/tricount/payment", body: ["token": token])

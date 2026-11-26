@@ -1,3 +1,6 @@
+// Compilé dans la BETA seulement (et les recettes E2E_HOOKS) : absent du binaire de l'App Store (Agenda, contrôle Apple du 26.11).
+#if BETA || E2E_HOOKS
+
 import EventKit
 import Foundation
 
@@ -162,3 +165,4 @@ struct AgendaPrefs {
         defaults.dictionary(forKey: Self.key) as? [String: [String: Bool]] ?? [:]
     }
 }
+#endif

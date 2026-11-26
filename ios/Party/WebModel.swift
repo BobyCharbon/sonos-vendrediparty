@@ -19,15 +19,25 @@ final class WebModel: ObservableObject {
     @Published var ticketScanOpen = false
     /// Discussion d'un événement ouverte en natif (« Discussion » sur sa fiche, notification) : l'id de l'événement.
     @Published var eventChatID: String?
+    #if BETA || E2E_HOOKS
     /// Pronos (17.11) : écran natif par-dessus la page (PartyNative.pronos, notification ?prono=<id>).
+    /// BETA seulement : absents du binaire de l'App Store (contrôle Apple du 26.11).
     @Published var pronoRoute: PronoRoute?
+    /// Pronos d'un groupe (page native du groupe) : seulement s'ils sont allumés sur le site.
+    var groupPronos: PronosStore? { settings?.pronosOn == true ? settings?.pronos : nil }
+    #else
+    var groupPronos: Never? { nil }
+    #endif
+    #if BETA || E2E_HOOKS
     /// Souvenirs (24.11) : appareil photo ou story en plein écran (PartyNative.souvenirs, notification, bulle).
+    /// BETA seulement : absents du binaire de l'App Store (contrôle Apple du 26.11).
     @Published var souvenirRoute: SouvenirRoute?
     /// Données des Souvenirs (relais /api/account/souvenirs/rpc, envoi des photos, bulles des Discussions).
     private(set) var souvenirs: SouvenirsStore?
     /// Événement de l'écran Souvenirs ouvert : la page le relit à la fermeture.
     private var souvenirEvent: String?
     private var waitingSouvenir: SouvenirRoute?
+    #endif
     /// Discussions v2 (18.11) : « Nouveau message » ou mini-profil demandés par la page (PartyNative.chat).
     @Published var peopleRoute: PeopleRoute?
     /// Groupes en natif (18.11, « tout en natif ») : liste, page ou création, plein écran par-dessus l'app.
@@ -138,12 +148,14 @@ final class WebModel: ObservableObject {
             openEventChat(waiting.id, info: waiting.info)
         }
         // App App Store : pas de Souvenirs (ni bulles, ni bandeau, ni story) : le store reste nil.
+        #if BETA || E2E_HOOKS
         souvenirs = AppConfig.storeLocked ? nil : SouvenirsStore(api: api, web: self)
         souvenirs?.openStory = { [weak self] event in self?.openSouvenirs(.story(event)) }
         if let waiting = waitingSouvenir {
             waitingSouvenir = nil
             openSouvenirs(waiting)
         }
+        #endif
         // Noms des contacts (« Nom · pseudo ») : reconnaissance au lancement, puis à chaque changement du répertoire.
         ContactNames.shared.configure(api: api, web: self)
         settings = SettingsStore(api: api, web: self, isHost: { [weak self] in self?.isHost ?? false },
@@ -203,6 +215,7 @@ final class WebModel: ObservableObject {
             return
         }
         // Notification d'un prono (?tab=events&prono=<id>) : le prono en natif, la page reste sur Événements.
+        #if BETA || E2E_HOOKS
         if let prono = PronoRoute.requested(in: target) {
             openPronos(.open(prono))
             var parts = URLComponents(url: target, resolvingAgainstBaseURL: true)
@@ -210,12 +223,15 @@ final class WebModel: ObservableObject {
             parts?.queryItems = kept
             target = parts?.url ?? target
         }
+        #endif
         // Notification « Les souvenirs sont dévoilés » (?tab=events&event=<id>&souvenirs=1) : la fiche derrière, la story
         // native par-dessus. (« souvenirs=review », photo signalée, reste à la page : la fiche en relecture.)
+        #if BETA || E2E_HOOKS
         if let event = SouvenirLinks.storyRequested(in: target) {
             openSouvenirs(.story(event))
             target = SouvenirLinks.withoutStory(target)
         }
+        #endif
         // Lien de la discussion d'un événement (/events/event/<id>/chat) : la fiche dans la page Party, la discussion
         // en natif par-dessus (même chemin que la notification).
         if AppConfig.isInternal(url), let event = Self.eventChatPath(in: url),
@@ -423,12 +439,15 @@ final class WebModel: ObservableObject {
         return id.lowercased()
     }
 
+    #if BETA || E2E_HOOKS
     /// Pronos (17.11) : liste, prono ou création, en écran natif par-dessus la page ; la base vérifie les droits.
     func openPronos(_ route: PronoRoute) {
         guard settings?.pronosOn == true else { return }  // Pronos gardés en test (19.11)
         Motion.animate(Motion.smooth) { pronoRoute = route }
     }
+    #endif
 
+    #if BETA || E2E_HOOKS
     /// Souvenirs : appareil photo ou story, plein écran par-dessus tout (la base vérifie les droits).
     func openSouvenirs(_ route: SouvenirRoute) {
         if AppConfig.storeLocked { return }
@@ -445,6 +464,7 @@ final class WebModel: ObservableObject {
         souvenirEvent = nil
         Task { await souvenirs?.refreshBubbles() }
     }
+    #endif
 
     /// Groupes : la page d'un groupe, sa création (« new ») ou la liste (nil). Écrans NATIFS (18.11) par le relais des
     /// Discussions ; Discussions indisponibles (« Bientôt ») : les pages du module Événements, comme avant.
@@ -568,7 +588,9 @@ final class WebModel: ObservableObject {
     func openChatNow(_ chat: String) {
         guard let chats, let id = UUID(uuidString: chat) else { return }
         if eventChatID != nil { closeEventChat() }
+        #if BETA || E2E_HOOKS
         pronoRoute = nil
+        #endif
         peopleRoute = nil
         groupRoute = nil
         chats.requested = id.uuidString.lowercased()
@@ -610,11 +632,13 @@ final class WebModel: ObservableObject {
             return true
         }
         // Souvenirs dévoilés (?tab=events&event=<id>&souvenirs=1) suivi dans la page : la fiche derrière, la story native.
+        #if BETA || E2E_HOOKS
         if tabs != nil, souvenirs != nil, let event = SouvenirLinks.storyRequested(in: url) {
             openEvent(event, souvenirsNative: true)
             openSouvenirs(.story(event))
             return true
         }
+        #endif
         guard discussions, tabs != nil, let chats, let chat = Self.chatRequested(in: url) else { return false }
         chats.requested = chat
         selectTab("chats")

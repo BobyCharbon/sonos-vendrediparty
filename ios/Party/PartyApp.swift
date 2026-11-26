@@ -22,7 +22,9 @@ struct PartyApp: App {
                     // Noms des contacts : accès changé dans Réglages, ou reconnaissance ancienne (12 h).
                     if phase == .active { ContactNames.shared.appBecameActive() }
                     // Agenda : pastille des demandes relue ; plages « pris » renvoyées si cet iPhone partage ses dispos.
+                    #if BETA || E2E_HOOKS
                     if phase == .active, model.settings?.agendaOn == true, let agenda = model.settings?.agenda { Task { await agenda.appBecameActive() } }
+                    #endif
                     // Action rapide de l'icône (lancement à froid compris) ; éclosion de Zicou finie app fermée.
                     if phase == .active, let action = QuickAction.take() { model.perform(action) }
                     if phase == .active && AppConfig.zicouBuild { PetWidgetBridge.appBecameActive() }
@@ -243,12 +245,17 @@ struct ContentView: View {
             }
         }
         // Pronos (17.11) : écrans natifs par-dessus la page (bouton de la page, notification) ; « ✕ » ramène à la page.
+        // BETA seulement : absents du binaire de l'App Store.
+        #if BETA || E2E_HOOKS
         .fullScreenCover(item: $model.pronoRoute) { route in
             if let store = model.settings?.pronos {
                 PronoRouteView(store: store, route: route) { model.pronoRoute = nil }
             }
         }
+        #endif
         // Souvenirs (24.11) : appareil photo et story, plein écran par-dessus tout ; la page relit sa fiche à la fermeture.
+        // BETA seulement : absents du binaire de l'App Store.
+        #if BETA || E2E_HOOKS
         .fullScreenCover(item: $model.souvenirRoute, onDismiss: { model.souvenirsClosed() }) { route in
             if let store = model.souvenirs {
                 switch route {
@@ -257,6 +264,7 @@ struct ContentView: View {
                 }
             }
         }
+        #endif
         // Groupes en natif (18.11, « tout en natif ») : Réglages › Groupes, « Nouveau groupe », page d'un groupe ; « ✕ » ferme.
         .fullScreenCover(item: $model.groupRoute) { route in
             GroupsHostView(route: route) { model.groupRoute = nil }
@@ -281,10 +289,12 @@ struct ContentView: View {
         .environment(\.writeDirect, model.canWriteDirect ? WriteDirectAction { user in await model.writeDirect(to: user) } : nil)
         .environment(\.people, model.canWriteDirect ? model.people : nil)
         // Bulles des Souvenirs en haut des Discussions.
+        #if BETA || E2E_HOOKS
         .environment(\.souvenirs, model.souvenirs)
+        #endif
         // Groupes natifs : ce qu'ils ouvrent ailleurs (discussion, fiche d'un événement, création d'un événement, pronos).
         .environment(\.groupHub, model.canWriteDirect ? GroupHub(
-            pronos: model.settings?.pronosOn == true ? model.settings?.pronos : nil,
+            pronos: model.groupPronos,
             leave: { then in
                 guard model.groupRoute != nil else { return then() }
                 model.groupRoute = nil

@@ -54,7 +54,9 @@ struct ChatsView: View {
     @State private var tileMenu: ChatSummary?
     @Environment(\.openGroupPage) private var openGroupPage
     @Environment(\.chatsRoutes) private var routes
+    #if BETA || E2E_HOOKS
     @Environment(\.souvenirs) private var souvenirs
+    #endif
 
     private struct ProfileTarget: Identifiable { let id: String }
 
@@ -120,13 +122,17 @@ struct ChatsView: View {
             guard path.isEmpty else { return store.stopListLive() }
             await store.loadList()
             openRequested()
+            #if BETA || E2E_HOOKS
             await souvenirs?.refreshBubbles()  // bulles des Souvenirs (story, labo)
+            #endif
             await store.startListLive()  // nouveaux messages : la liste se met à jour en direct
             while !Task.isCancelled {
                 try? await Task.sleep(for: ChatsStore.listEvery)
                 guard !Task.isCancelled else { break }
                 await store.loadList()
+                #if BETA || E2E_HOOKS
                 await souvenirs?.refreshBubbles()
+                #endif
             }
         }
         .onDisappear { store.stopListLive() }
@@ -212,12 +218,14 @@ struct ChatsView: View {
         let requests = ChatListLogic.requests(chats).count
         let archived = ChatListLogic.archived(chats).count
         return List {
+            #if BETA || E2E_HOOKS
             if let souvenirs {
                 SouvenirBubblesRow(store: souvenirs)
                     .listRowInsets(EdgeInsets())
                     .listRowSeparator(.hidden)
                     .listRowBackground(Color.clear)
             }
+            #endif
             filters(unread: ChatListLogic.unreadChats(chats))
                 .listRowInsets(EdgeInsets())
                 .listRowSeparator(.hidden)

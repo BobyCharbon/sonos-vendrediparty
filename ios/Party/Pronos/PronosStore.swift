@@ -1,3 +1,6 @@
+// Compilé dans la BETA seulement (et les recettes E2E_HOOKS) : absent du binaire de l'App Store (Pronos, contrôle Apple du 26.11).
+#if BETA || E2E_HOOKS
+
 import Foundation
 import SwiftUI
 
@@ -9,24 +12,6 @@ import SwiftUI
 /// à planter (monnaie fictive, gratuite, sans valeur : un sac par personne et par groupe / événement), contestation,
 /// réactions, saison. Toutes les clés v2 sont facultatives ici : un serveur d'avant les renvoie absentes.
 /// Patates à l'écran seulement si `store.features.patates` (drapeau du site) ET `patates_on` (réglage de la base).
-
-struct PronoFace: Codable, Hashable, Identifiable {
-    let id: String
-    let name: String
-    /// Lien signé de la photo (ajouté par le serveur).
-    var photo: String?
-    var me: Bool?
-    /// Trophée : voix reçues par le ou la lauréat·e (result.people).
-    var votes: Int?
-
-    var label: String { me == true ? "Toi" : name }
-
-    /// « LB », « M » : initiales du sceau et de l'avatar sans photo.
-    var initials: String {
-        let letters = name.split(separator: " ").prefix(2).compactMap(\.first).map(String.init).joined().uppercased()
-        return letters.isEmpty ? "?" : letters
-    }
-}
 
 struct PronoGroupRef: Codable, Hashable {
     let id: String
@@ -856,3 +841,4 @@ enum PronoRoute: Identifiable, Equatable {
         return id.uuidString.lowercased()
     }
 }
+#endif

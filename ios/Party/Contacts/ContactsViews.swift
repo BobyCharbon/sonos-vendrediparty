@@ -72,7 +72,7 @@ struct ContactsExplainer: View {
             Text("Reconnais tes amis").font(.title2.weight(.bold))
             VStack(alignment: .leading, spacing: 12) {
                 point("text.badge.checkmark", "Les membres Party qui sont dans tes contacts s'affichent sous le nom que tu leur as donné, avec leur pseudo en plus petit.")
-                point("lock.fill", "Tes contacts ne quittent pas ton iPhone : seule une empreinte chiffrée des numéros est comparée, jamais un nom.")
+                point("lock.fill", "Tes contacts ne quittent pas ton iPhone : seule une empreinte des numéros est comparée, jamais un nom.")
                 point("eye.slash.fill", "Ces noms ne sont visibles que par toi.")
             }
             .padding(.horizontal, 4)
@@ -130,7 +130,7 @@ struct ContactNamesSettingsView: View {
                 .accessibilityIdentifier("contacts-state")
                 actions
             } footer: {
-                Text("Les membres Party qui sont dans tes contacts s'affichent sous le nom de ton répertoire (« Nom · pseudo ») dans les Discussions, les Événements et les fiches. Seule une empreinte chiffrée de chaque numéro est comparée, jamais un nom ; ces noms restent sur cet iPhone et ne sont visibles que par toi.")
+                Text("Les membres Party qui sont dans tes contacts s'affichent sous le nom de ton répertoire (« Nom · pseudo ») dans les Discussions, les Événements et les fiches. Seule une empreinte de chaque numéro est comparée, jamais un nom ; ces noms restent sur cet iPhone et ne sont visibles que par toi.")
             }
             if let error = contacts.error, contacts.access.canRead {
                 Section { Label(error, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange) }

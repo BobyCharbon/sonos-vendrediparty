@@ -61,9 +61,11 @@ def swift_of(target: dict) -> str:
 
 REQUIRED_REASON_APIS = {
     "NSPrivacyAccessedAPICategoryUserDefaults": r"\bUserDefaults\b|@AppStorage",
-    "NSPrivacyAccessedAPICategoryFileTimestamp": r"attributesOfItem|creationDate|modificationDate|getattrlist|\bfstat\(|\blstat\(",
+    # Insensible à la casse : `.contentModificationDateKey` (cache des Souvenirs) échappait à « modificationDate ».
+    "NSPrivacyAccessedAPICategoryFileTimestamp": r"(?i)attributesOfItem|creationDate|modificationDate|contentAccessDate|"
+                                                 r"getattrlist|\bfstat\(|\blstat\(",
     "NSPrivacyAccessedAPICategorySystemBootTime": r"systemUptime|mach_absolute_time",
-    "NSPrivacyAccessedAPICategoryDiskSpace": r"volumeAvailableCapacity|systemFreeSize|statfs|\bsystemSize\b",
+    "NSPrivacyAccessedAPICategoryDiskSpace": r"volumeAvailableCapacity|volumeTotalCapacity|systemFreeSize|statfs|\bsystemSize\b",
     "NSPrivacyAccessedAPICategoryActiveKeyboards": r"activeInputModes",
 }
 MANIFESTS = {"Party": "ios/Party/PrivacyInfo.xcprivacy", "PartyShare": "ios/PartyShare/PrivacyInfo.xcprivacy",
@@ -86,6 +88,16 @@ def test_each_target_declares_the_required_reason_apis_it_calls(name):
     if "NSPrivacyAccessedAPICategoryUserDefaults" in declared:
         assert declared["NSPrivacyAccessedAPICategoryUserDefaults"] == ["CA92.1"]
         assert "suiteName" not in code
+
+
+def test_the_souvenirs_cache_file_dates_are_declared_with_reason_c617_1():
+    # SouvenirsStore.trim lit `.contentModificationDateKey` (fichiers du cache de l'app) : FileTimestamp, raison C617.1.
+    assert re.search(REQUIRED_REASON_APIS["NSPrivacyAccessedAPICategoryFileTimestamp"],
+                     read("ios/Party/Souvenirs/SouvenirsStore.swift"))
+    with open(MANIFESTS["Party"], "rb") as f:
+        declared = {e["NSPrivacyAccessedAPIType"]: e["NSPrivacyAccessedAPITypeReasons"]
+                    for e in plistlib.load(f)["NSPrivacyAccessedAPITypes"]}
+    assert declared["NSPrivacyAccessedAPICategoryFileTimestamp"] == ["C617.1"]
 
 
 # Ce que le code appelle → le texte d'autorisation qu'iOS exige (sinon : refus en revue, ou l'app se ferme).

@@ -13,6 +13,18 @@ final class TricountTests: XCTestCase {
         return try! JSONDecoder().decode(TC.Group.self, from: Data(json.utf8))
     }
 
+    func testShowPaymentIsReadOnlyWhenTheServerSendsIt() throws {
+        // Serveur d'avant (pas de show_payment) : l'interrupteur « Montrer mes moyens de paiement » reste caché.
+        XCTAssertNil(group().members.first?.show_payment)
+        let json = """
+        {"id":"g","name":"Raclette","emoji":"🎉","currency":"CHF","archived":false,"me":"a","link":null,
+         "members":[{"id":"a","name":"Léa","linked":true,"left":false,"me":true,"balance_cents":0,"payment":null,"show_payment":false}],
+         "expenses":[],"total_cents":0,"my_balance_cents":0,"my_spent_cents":0,"by_category":[],"settle":[]}
+        """
+        let g = try JSONDecoder().decode(TC.Group.self, from: Data(json.utf8))
+        XCTAssertEqual(g.member("a")?.show_payment, false)
+    }
+
     func testEventPotSaysWhichEvent() throws {
         XCTAssertNil(group().event)
         let json = """

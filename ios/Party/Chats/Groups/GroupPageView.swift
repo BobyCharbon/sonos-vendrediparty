@@ -269,6 +269,15 @@ struct GroupPageView: View {
             }
             .accessibilityIdentifier("group-report-photo")
         }
+        if page.canReportGroup {
+            Button {
+                reporting = ReportTarget(kind: .group, id: page.group.id, label: "le groupe « \(page.group.name) »")
+            } label: {
+                Label("Signaler le groupe", systemImage: "flag").font(.subheadline).foregroundStyle(PronoTheme.t2)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .accessibilityIdentifier("group-report")
+        }
     }
 }
 

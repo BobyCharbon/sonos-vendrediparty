@@ -21,6 +21,7 @@ enum NativeBridge {
         : "null"
 
     /// App App Store : ni Pronos, ni Agenda (EventKit), ni cartes secrètes de la Pyramide (contrôle du 26.11, 2.5.19).
+    #if BETA || E2E_HOOKS
     private static let pronosScript = AppConfig.storeLocked ? "null" : """
         {
           open: function (id) { try { window.webkit.messageHandlers.\(pronosHandler).postMessage("open:" + id); } catch (e) {} },
@@ -32,8 +33,17 @@ enum NativeBridge {
         }
         """
     private static let agendaScript = AppConfig.storeLocked ? "null" : AgendaBridge.script
+    #else
+    // Binaire de l'App Store : Pronos et Agenda non compilés (contrôle Apple du 26.11).
+    private static let pronosScript = "null"
+    private static let agendaScript = "null"
+    #endif
     /// Souvenirs : aucun écran natif dans l'app App Store (contrôle Apple du 26.11) : null, sans gestionnaire.
+    #if BETA || E2E_HOOKS
     private static let souvenirsScript = AppConfig.storeLocked ? "null" : SouvenirsBridge.script
+    #else
+    private static let souvenirsScript = "null"  // binaire de l'App Store : Souvenirs non compilés
+    #endif
     private static let secretScript = AppConfig.storeLocked ? "null" : """
         {
           update: function (state) {
@@ -172,17 +182,23 @@ enum NativeBridge {
         if !AppConfig.storeLocked { controller.add(SecretCardsHandler(model: model), name: SecretCardsHandler.handler) }
         controller.add(AIHandler(model: model), name: aiHandler)
         controller.add(ChatHandler(model: model), name: chatHandler)
+        #if BETA || E2E_HOOKS
         if !AppConfig.storeLocked { controller.add(PronosHandler(model: model), name: pronosHandler) }
+        #endif
         controller.addScriptMessageHandler(ScanHandler(model: model), contentWorld: .page, name: scanHandler)
         controller.addScriptMessageHandler(WalletHandler(), contentWorld: .page, name: NativeWallet.handler)
         controller.addScriptMessageHandler(ContactNamesBridge(), contentWorld: .page, name: ContactNamesBridge.handler)
         controller.addScriptMessageHandler(NativeCalendarBridge(), contentWorld: .page, name: NativeCalendarBridge.handler)
+        #if BETA || E2E_HOOKS
         if !AppConfig.storeLocked {
             controller.addScriptMessageHandler(AgendaBridge(model: model), contentWorld: .page, name: AgendaBridge.handler)
         }
+        #endif
+        #if BETA || E2E_HOOKS
         if !AppConfig.storeLocked {
             controller.addScriptMessageHandler(SouvenirsBridge(model: model), contentWorld: .page, name: SouvenirsBridge.handler)
         }
+        #endif
         // Zicou → widgets et Live Activity de l'éclosion (lecture des réponses /api/pet/* de la page).
         if AppConfig.zicouBuild {
             PetWidgetBridge.install(in: controller)
@@ -263,6 +279,7 @@ private final class ChatHandler: NSObject, WKScriptMessageHandler {
     }
 }
 
+#if BETA || E2E_HOOKS
 /// Pronos (module Événements, cadre compris) → écrans natifs ; seuls « open:<uuid> », « list[:<uuid>] » et
 /// « create[:group|event:<uuid>] » sont acceptés (PronoRoute.parse).
 private final class PronosHandler: NSObject, WKScriptMessageHandler {
@@ -279,6 +296,7 @@ private final class PronosHandler: NSObject, WKScriptMessageHandler {
         model?.openPronos(route)
     }
 }
+#endif
 
 /// « Scanner les billets » dans Événements (cadre du module compris) → lecteur QR natif ; le texte lu revient à la page.
 private final class ScanHandler: NSObject, WKScriptMessageHandlerWithReply {

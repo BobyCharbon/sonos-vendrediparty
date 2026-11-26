@@ -139,6 +139,7 @@ struct GroupsNativeTests {
         #expect(GroupRoute.from("5E0D6A51-8F1C-4C51-9A6B-2B8F1E4C0A02") == .page("5e0d6a51-8f1c-4c51-9a6b-2b8f1e4c0a02"))
         #expect(GroupRoute.from("../admin") == nil)
         #expect(ReportTarget.Kind.groupPhoto.rawValue == "group_photo")
+        #expect(ReportTarget.Kind.group.rawValue == "group")  // « Signaler le groupe » (son nom), cible = id du groupe
     }
 
     @Test("Photo : recadrée en carré, 1024 au plus, en JPEG")

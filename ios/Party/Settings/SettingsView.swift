@@ -62,6 +62,8 @@ struct SettingsView: View {
                     // réglages ; plus tard peut-être un lanceur dans la barre d'onglets.
                     Section {
                         // Agenda (17.11) : la page /events/agenda dans l'onglet Événements ; pastille = demandes en attente.
+                        // Agenda et Pronos : BETA seulement (absents du binaire de l'App Store, contrôle du 26.11).
+                        #if BETA || E2E_HOOKS
                         if store.agendaOn { AgendaRow(agenda: store.agenda) { open(.agenda) } }
                         // Pronos (17.11) : pour l'honneur ; pastille = à jouer + résultats à donner.
                         if store.pronosOn {
@@ -72,6 +74,7 @@ struct SettingsView: View {
                             }
                             .accessibilityIdentifier("settings-pronos")
                         }
+                        #endif
                         NavigationLink {
                             TricountListView(store: store.tricount, myName: store.account?.name ?? "")
                         } label: {
@@ -353,6 +356,7 @@ private struct SessionNotice: View {
     var body: some View { AdminNotice(notice: $store.notice) }
 }
 
+#if BETA || E2E_HOOKS
 /// Réglages › Autres apps › « Pronos » : pastille rouge = pronos à jouer + résultats à donner (relue à l'affichage).
 struct PronosRow: View {
     @ObservedObject var pronos: PronosStore
@@ -410,6 +414,7 @@ struct AgendaRow: View {
         pending <= 0 ? nil : pending > 99 ? "99+" : String(pending)
     }
 }
+#endif
 
 private struct TricountLink: Identifiable { let id: String }
 private struct JoinLink: Identifiable { let id: String }

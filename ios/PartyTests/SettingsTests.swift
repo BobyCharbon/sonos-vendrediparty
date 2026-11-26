@@ -98,6 +98,11 @@ struct SettingsTests {
         #expect(ProfileRules.isComplete(first: "Ludo", last: "T", nickname: "Nina la recette!", saved: "Nina la recette!"))
         #expect(!ProfileRules.isComplete(first: "Ludo", last: "T", nickname: "Nina la recette?", saved: "Nina la recette!"))
         #expect(ProfileRules.clean("  Jean   Paul ") == "Jean Paul")
+        // « Enregistrer » grisé : ce qui manque, comme le web (IdentityForm missingText).
+        #expect(ProfileRules.missingText(first: "Ludo", last: "T", nickname: "Boby") == nil)
+        #expect(ProfileRules.missingText(first: " ", last: "T", nickname: "Boby") == "Écris ton prénom pour continuer.")
+        #expect(ProfileRules.missingText(first: "", last: "", nickname: "") == "Écris ton prénom, ton nom et ton surnom pour continuer.")
+        #expect(ProfileRules.missingText(first: "Ludo", last: "", nickname: "") == "Écris ton nom et ton surnom pour continuer.")
     }
 
     @Test("Photo : carré centré, 1024 px au plus, JPEG")
