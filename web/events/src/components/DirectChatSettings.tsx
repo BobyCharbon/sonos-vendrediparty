@@ -5,7 +5,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 import { C, cf, Icon, web, type IconName } from './chats/conversation/kit';
 import { Avatar, ConfirmButton, ErrorText, ToggleRow } from './ui';
 import type { NotifyLevel } from '@/lib/chats';
-import { type ReportTarget } from '@/lib/moderation';
+import { blocksChanged, type ReportTarget } from '@/lib/moderation';
 import { pressTransition } from '@/lib/motion';
 import { ReportSheet } from './ReportSheet';
 import { supabase } from '@/lib/supabase';
@@ -44,6 +44,7 @@ export function DirectChatSettings({ chatId, other, notify, blocked, onChanged, 
     // Même table que le blocage commun à toute l'app (public.direct_blocks).
     const { error } = await supabase.rpc('set_direct_block', { target: other.id, blocked: next });
     if (error) return setError(next ? 'Le blocage n’a pas pu être enregistré.' : 'Le déblocage n’a pas pu être enregistré.');
+    blocksChanged(other.id, next);
     onChanged();
   }
 

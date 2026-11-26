@@ -173,9 +173,9 @@ def absorb_local_feedback():
 
 
 def retention_chores() -> None:
-    """Durées de conservation (politique de confidentialité) : journal d'administration 12 mois, prénoms d'invités du
-    classement général du Quiz 6 mois."""
-    for name, chore in (("audit", journal.purge), ("quiz", quiz.purge_guests)):
+    """Durées de conservation (politique de confidentialité) : journal d'administration 12 mois, journal des appels à
+    l'IA 12 mois, prénoms d'invités du classement général du Quiz 6 mois."""
+    for name, chore in (("audit", journal.purge), ("ia", assistant.usage.purge), ("quiz", quiz.purge_guests)):
         try:
             if removed := chore():
                 log.info("Conservation : %s, %s entrées retirées", name, removed)

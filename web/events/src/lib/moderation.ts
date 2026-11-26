@@ -47,7 +47,11 @@ export async function reportContent(target: ReportTarget, reason: ReportReason, 
 export async function setBlocked(userId: string, blocked: boolean): Promise<void> {
   const { error } = await supabase.rpc('set_block', { target: userId, blocked });
   if (error) throw new Error(blocked ? 'Le blocage n’a pas pu être enregistré.' : 'Le déblocage n’a pas pu être enregistré.');
-  // Signal pour les écrans ouverts (discussion derrière le mini-profil) : ils se relisent aussitôt.
+  blocksChanged(userId, blocked);
+}
+
+/** Signal pour les écrans ouverts (discussion derrière le mini-profil, fiche) : ils se relisent aussitôt. */
+export function blocksChanged(userId: string, blocked: boolean): void {
   if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(BLOCKS_CHANGED, { detail: { userId, blocked } }));
 }
 
@@ -59,7 +63,25 @@ export function onBlocksChanged(fn: () => void): () => void {
   return () => window.removeEventListener(BLOCKS_CHANGED, fn);
 }
 
-export type BlockedPerson = { id: string; display_name: string; avatar_url: string | null; at: string };
+/** Personnes que J'AI bloquées (public.direct_blocks, RLS : les miennes seulement), relues à chaque blocage fait ici :
+ * la fiche masque leurs petits mots, « qui amène quoi » et choix de sondage, comme la discussion masque leurs messages. */
+export function useBlockedIds(): Set<string> {
+  const [ids, setIds] = useState<Set<string>>(() => new Set());
+  useEffect(() => {
+    let live = true;
+    const load = () => {
+      void supabase.from('direct_blocks').select('blocked_id').then(({ data }) => {
+        if (live) setIds(new Set(((data as { blocked_id: string }[] | null) ?? []).map((b) => b.blocked_id)));
+      }, () => {});
+    };
+    load();
+    const stop = onBlocksChanged(load);
+    return () => { live = false; stop(); };
+  }, []);
+  return ids;
+}
+
+export type BlockedPerson ={ id: string; display_name: string; avatar_url: string | null; at: string };
 
 export async function myBlocks(): Promise<BlockedPerson[]> {
   const { data, error } = await supabase.rpc('my_blocks');

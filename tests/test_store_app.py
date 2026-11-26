@@ -264,12 +264,13 @@ def test_the_filter_catches_everyday_party_drink_and_tobacco_words():
     for text in ("Happy hour du vendredi", "Afterwork au bureau", "After-work", "Une pinte au pub", "Oktoberfest 2027",
                  "Ti-punch party", "Binouze entre potes", "Pub crawl à Lyon", "Margarita night", "Soirée shooters",
                  "Soirée Ricard", "Soirée Heineken", "Soirée chicha", "Narguilé au parc", "Soirée Jäger", "Pils et IPA",
-                 "On vapote ensemble", "Puff party"):
+                 "On vapote ensemble", "Puff party", "Helemaal verknipt", "Een asbak op tafel"):
         assert store_app.drinky(text), text
     for text in ("Soirée jeux de société", "Pique-nique", "Rendez-vous au parc", "Soirée pyjama", "Publication"):
         assert not store_app.drinky(text), text
     ts = (__import__("pathlib").Path(main.__file__).resolve().parents[1] / "web/events/src/lib/storeEvents.ts").read_text()
-    for word in ("happy hour", "after-?work", "oktoberfest", "binouze", "chicha", "narguil[ée]", "heineken", "ricard"):
+    for word in ("happy hour", "after-?work", "oktoberfest", "binouze", "chicha", "narguil[ée]", "heineken", "ricard",
+                 "verknipt", "asbak"):
         assert f"'{word}'" in ts, word
 
 
@@ -687,12 +688,13 @@ def test_round_eight_texts_match_what_the_reviewer_can_try():
         assert "répondre « Présent » à cet événement, ou être noté « Présent » par l'organisateur, t'ajoute d'office à ce pot" in text, path
         assert "l'en fait sortir" not in text and "« Quitter ce pot commun »" in text, path
         # Contrôle Apple, tour 2 : l'IA reçoit des alias à la place des surnoms ; pot : paiement montré seulement si choisi.
-        assert "la liste des membres de Party que tu peux inviter, chacun remplacé par un alias (jamais leur surnom" in text, path
+        # Tour 3 : seules les personnes déjà choisies partent, sous alias ; la liste des membres n'est jamais envoyée.
+        assert "les personnes déjà choisies, sous un alias ; la liste des membres n'est jamais envoyée" in text, path
         assert "les surnoms des membres de Party que tu peux inviter" not in text, path
         assert "tes moyens de paiement seulement si tu choisis de les montrer dans ce pot" in text, path
         assert "Une recherche par numéro exact révèle qu'une personne qui a ce numéro est sur Party" in text, path
         assert "empreinte chiffrée" not in text, path
-        assert "Journal des connexions et des actions d'administration : 12 mois. Recherches de personnes : 1 heure." in text, path
+        assert "Journal des connexions et des actions d'administration : 12 mois. Journal des appels à l'IA : 12 mois. Recherches de personnes : 1 heure." in text, path
 
 
 def test_apple_check_round_one_texts_promise_only_what_the_reviewer_can_try():

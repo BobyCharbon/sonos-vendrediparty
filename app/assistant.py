@@ -20,6 +20,7 @@ MAX_PHOTO = 6 * 1024 * 1024
 MAX_TOKENS = 4000
 BURST = (15, 10 * 60)  # au plus 15 appels par personne en 10 minutes (une conversation compte plusieurs appels)
 MAX_LOG = 5000
+KEEP_SECONDS = 365 * 86400  # journal des appels : 12 mois au plus (politique de confidentialité)
 IMAGE_TYPES = {b"\xff\xd8\xff": "image/jpeg", b"\x89PNG": "image/png", b"RIFF": "image/webp"}
 # Accord exprès avant le 1er envoi à Anthropic (Apple 5.1.2(i)) : UN SEUL accord « IA » par compte, le même que l'IA
 # des avis (app/ai_feedback.ConsentBox, clé « acct:<uid> », /api/feedback/ai/consent) : l'app iPhone ne montre qu'une
@@ -114,10 +115,25 @@ class UsageLog:
 
     def add(self, entry: dict):
         with self.lock:
-            self.items = (self.items + [entry])[-MAX_LOG:]
-            tmp = self.path.with_suffix(".tmp")
-            tmp.write_text(json.dumps(self.items, ensure_ascii=False), encoding="utf-8")
-            tmp.replace(self.path)
+            limit = entry.get("at", time.time()) - KEEP_SECONDS
+            self.items = ([i for i in self.items if i.get("at", 0) >= limit] + [entry])[-MAX_LOG:]
+            self._write()
+
+    def _write(self):
+        tmp = self.path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(self.items, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(self.path)
+
+    def purge(self, now: float | None = None) -> int:
+        """Appels de plus de 12 mois retirés (même sans nouvel appel) ; renvoie le nombre retiré."""
+        limit = (now or time.time()) - KEEP_SECONDS
+        with self.lock:
+            kept = [i for i in self.items if i.get("at", 0) >= limit]
+            removed = len(self.items) - len(kept)
+            if removed:
+                self.items = kept
+                self._write()
+        return removed
 
     @staticmethod
     def month_start(now: float) -> float:
