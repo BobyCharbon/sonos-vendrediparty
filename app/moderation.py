@@ -18,7 +18,7 @@ import re
 import sys
 from dataclasses import dataclass
 
-from .moderation_terms import CATEGORIES
+from .moderation_terms import CATEGORIES, STORE_ONLY
 
 # Normalisation lettre pour lettre (même longueur) : la position d'un mot reste celle du texte d'origine.
 ACCENTS_FROM = "àáâãäåāăąæçćčďèéêëēėęěìíîïīįłñńňòóôõöøōőœŕřśšşßťùúûüūůűÿýžźż"
@@ -176,6 +176,14 @@ def require_clean(text: str, kind: str = "name") -> str:
     if not verdict.ok:
         raise ContentRefused(verdict.message)
     return verdict.text
+
+
+_STORE = re.compile("(^|[^a-z])(" + "|".join(compile_term(t).pattern for t in STORE_ONLY) + ")($|[^a-z])")
+
+
+def store_hit(text) -> bool:
+    """Mot refusé dans l'app App Store seulement (moderation_terms.STORE_ONLY), mêmes contournements que check()."""
+    return bool(_STORE.search(merged(normalize(clean(text)))))
 
 
 def sql_values() -> str:

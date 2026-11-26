@@ -938,3 +938,58 @@ def test_round_three_blocking_anywhere_refreshes_the_chats_at_once_and_later_is_
     conv = (ios / "Chats/ConversationView.swift").read_text(encoding="utf-8")
     voice = conv[conv.index("private func sendVoice"):conv.index("struct PendingVoice")]
     assert "removeItem(at: file)" not in voice and "pendingVoice = PendingVoice(" in voice
+
+
+# ── Contrôle Apple, tour 3 (jeux) : prénoms et textes de l'app, dilemmes proposés sur le web ──
+
+STORE_ONLY_WORDS = ("Hitler", "Nazi", "néo-nazis", "Ganja", "Weed", "Beuh", "Pétard", "Marijuana", "Haschich", "Hasch",
+                    "Shit", "Chatte", "Zizi", "Trou du cul", "Merde", "Putain", "PUTAINS", "M3rde", "z i z i")
+
+
+@pytest.mark.parametrize("word", STORE_ONLY_WORDS)
+def test_round_three_store_app_refuses_hate_drug_and_crude_names_and_shows_them_as_joueur(word):
+    main._game_creations.clear()
+    r = client(STORE_UA).post("/api/games", json={"guest_id": "store-nm", "name": word, "type": "likely", "terms": True})
+    assert r.status_code == 400
+    with pytest.raises(games.GameError):
+        games.shown_text(word, "name", store=True)
+    assert quiz.store_name(word) == "Joueur"
+    assert store_app.offensive(f"Le joueur {word.lower()} !")
+
+
+@pytest.mark.parametrize("name", ["Léa", "Chantal", "Hugo", "Merdan", "Nazir", "Nazim", "Matchatte", "Shitaké",
+                                  "Wedding", "Heidi", "Chattam", "Pétra", "Wed", "Bedos", "Weedy"])
+def test_round_three_ordinary_names_are_never_caught(name):
+    assert not store_app.offensive(name) and quiz.store_name(name) == name
+    assert games.shown_text(name, "name", store=True) == name
+
+
+def test_round_three_the_web_keeps_its_rules_for_these_words_and_the_app_sees_joueur():
+    """Hors app, rien ne change : la base et le web gardent leurs listes (moderation_terms.CATEGORIES)."""
+    main._game_creations.clear()
+    r = client(WEB_UA).post("/api/games", json={"guest_id": "web-host-nm", "name": "Merde", "type": "likely", "terms": True})
+    assert r.status_code == 200
+    code = r.json()["code"]
+    assert client(WEB_UA).get(f"/api/games/{code}?guest_id=web-host-nm").json()["host_name"] == "Merde"
+    assert client(STORE_UA).get(f"/api/games/{code}?guest_id=store-p9").json()["host_name"] == "Joueur"
+
+
+def test_round_three_a_drinking_dilemma_proposed_on_the_web_never_reaches_the_app():
+    main._game_creations.clear()
+    g = main.store.session.games[create(WEB_UA, "debate", "web-host-db").json()["code"]]
+    for i in range(3):
+        games.join(g, f"w{i}", f"Ami {i}")
+    debate.propose(g, "w0", "Faut-il boire une vodka à chaque manche ?")
+    debate.propose(g, "w1", "Faut-il toujours dire la vérité à ses amis ?")
+    debate.accept(g, debate.propose(g, "w2", "Faut-il fumer de la beuh avant un examen ?"))
+    assert g["phase"] == "lobby"
+    view = client(STORE_UA).get(f"/api/games/{g['code']}?guest_id=store-db").json()
+    assert g["store"]
+    left = [p["text"] for p in g["debate"]["proposals"]] + [q["text"] for q in g["debate"]["queue"]]
+    assert left == ["Faut-il toujours dire la vérité à ses amis ?"]
+    assert "vodka" not in str(view) and "beuh" not in str(view)
+
+
+def test_round_three_by_is_a_name_shown_as_joueur_to_the_app():
+    assert "by" in games.STORE_NAMES
+    assert games.store_view({"q": {"text": "x", "by": "Hitler"}}) == {"q": {"text": "x", "by": "Joueur"}}

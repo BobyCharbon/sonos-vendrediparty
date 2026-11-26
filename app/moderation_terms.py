@@ -58,3 +58,17 @@ INSULTE = (
 )
 
 CATEGORIES = (("haine", HAINE), ("sexuel", SEXUEL), ("insulte", INSULTE))
+
+# App App Store seulement (contrôle Apple du 26.11, 1.1 / 1.2 / 1.4.3) : refusés dans les prénoms et textes d'une partie
+# de l'app, prénoms montrés « Joueur » à l'app. HORS de CATEGORIES : ni la base ni le web ne changent (les jurons
+# courants y restent permis, voir plus haut). Mots entiers seulement (« Shitaké », « Matchatte », « Merdan », « Nazir »
+# passent). Même écriture que plus haut.
+STORE_ONLY = (
+    # haine
+    "hitler*", "nazi", "nazisme", "neonazi*", "fuhrer", "=heil",
+    # drogue
+    "ganja", "re:w+e{2,}d+", "beuh", "petard", "marijuana", "marihuana", "hasch*", "shit", "=bedo", "spliff", "=kush",
+    # sexuel / insulte
+    "chatte", "zizi", "trou du cul", "trouduc", "merde", "merdeux", "merdique", "emmerdeu*", "putain", "=ptn",
+    "couille", "nichon",
+)

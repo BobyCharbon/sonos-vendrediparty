@@ -2612,7 +2612,7 @@ def view(g: dict, gid: str) -> dict:
 # Vue d'une partie pour l'app App Store (contrôle du 26.11) : aucun compte de gorgées (drink / give, sips_log) et tout
 # prénom à boisson, drogue ou insulte (venu du web, d'avant le filtre) montré « Joueur ». Catalogues : titres fixes.
 STORE_DROP = ("drink", "give", "sips_log")
-STORE_NAMES = ("name", "host_name")
+STORE_NAMES = ("name", "host_name", "by")
 
 
 def store_view(v):
