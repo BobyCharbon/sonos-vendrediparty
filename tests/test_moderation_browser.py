@@ -95,7 +95,7 @@ def test_terms_are_asked_before_the_first_message_then_the_message_leaves(phone,
     field = open_group(page, events_origin)
     field.fill('Premier message')
     page.get_by_role('button', name='Envoyer', exact=True).click()
-    pw.expect(page.get_by_text('Avant de publier')).to_be_visible()
+    pw.expect(page.get_by_text('Avant d’écrire')).to_be_visible()
     assert not [p for p in state['posts'] if p[0] == 'message']  # rien n'est parti
     page.get_by_role('button', name='J’accepte').click()
     pw.expect(page.get_by_text('Premier message', exact=True)).to_be_visible()

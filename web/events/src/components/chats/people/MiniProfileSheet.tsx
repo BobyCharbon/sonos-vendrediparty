@@ -55,6 +55,7 @@ export function MiniProfileSheet({ userId, onClose }: { userId: string; onClose:
     return () => { live = false; };
   }, [userId, version, onClose]);
 
+  const needTerms = Boolean(mini && mini.link === 'none' && !mini.blocked && terms.needed);
   const go = (path: string) => { close(); router.push(path as Href); };
 
   async function write() {
@@ -75,6 +76,13 @@ export function MiniProfileSheet({ userId, onClose }: { userId: string; onClose:
     } finally {
       setBusy(false);
     }
+  }
+
+  /** CGU pas encore acceptées (la base répond « none » à cause d'elles) : les conditions en grand, puis on écrit. */
+  async function writeAfterTerms() {
+    if (!(await terms.ensure())) return;
+    await write();
+    void fetchMini(userId).then((m) => { if (m) setMini(m); }, () => undefined);
   }
 
   async function block(next: boolean) {
@@ -154,13 +162,15 @@ export function MiniProfileSheet({ userId, onClose }: { userId: string; onClose:
                 <View style={st.actions}>
                   {discussionsOn ? (
                     <NeonButton testID="mini-write" label="Envoyer un message" icon="chat" style={{ flex: 1 }} loading={busy}
-                      disabled={mini.link === 'none'} onPress={() => void write()} />
+                      disabled={mini.link === 'none' && !needTerms} onPress={() => void (needTerms ? writeAfterTerms() : write())} />
                   ) : null}
                   <NeonButton tone="glass" label="Fiche" icon="person" accessibilityLabel={`Voir la fiche de ${first}`}
                     style={discussionsOn ? { flexShrink: 0 } : { flex: 1 }} onPress={() => go(`/member/${mini.id}`)} />
                 </View>
                 {discussionsOn && mini.link === 'none' ? (
-                  <Text style={st.note} testID="mini-why">{mini.blocked ? `Tu as bloqué ${first}.` : `Tu ne peux pas écrire à ${first} pour l’instant.`}</Text>
+                  <Text style={st.note} testID="mini-why">{mini.blocked ? `Tu as bloqué ${first}.` : needTerms
+                    ? `Pour écrire à ${first}, accepte d’abord les conditions d’utilisation de Party : touche « Envoyer un message ».`
+                    : `Tu ne peux pas écrire à ${first} pour l’instant.`}</Text>
                 ) : discussionsOn && mini.link === 'request' ? (
                   <Text style={st.note}>Ce sera une demande de message : {first} choisit de l’accepter.</Text>
                 ) : null}

@@ -85,6 +85,12 @@ def people_backend(page, state):
             'rpc/chat_event_cards': [{'id': EVENT, 'title': 'Sortie de démonstration (test local)', 'start': '2030-11-14T18:00:00Z',
                                       'place': 'Lieu de démonstration', 'cover': None, 'going': 4, 'mine': 'yes'}],
         }
+        if 'terms' in state:   # CGU du compte (my_terms / accept_terms comme la base)
+            if fn == 'rpc/accept_terms':
+                state['terms'] = True
+                state['mini'] = state.get('mini_after', state.get('mini'))
+            answers['rpc/my_terms'] = {'version': '2026-11-18', 'accepted': state['terms']}
+            answers['rpc/accept_terms'] = answers['rpc/my_terms']
         if fn == 'rpc/member_note_set':
             text = (body or {}).get('body', '').strip()
             state['note'] = {'body': text} if text else None
@@ -192,6 +198,32 @@ def test_the_mini_profile_says_why_one_cannot_write_and_closes(phone, events_ori
     frame.get_by_role('button', name='Fermer', exact=True).click()
     pw.expect(frame.get_by_test_id('mini-profile')).to_have_count(0)
     assert not rpc_args(state, 'open_direct_chat')
+    assert not errors, errors
+
+
+def test_without_the_terms_the_message_button_opens_them_in_big_then_writes(phone, events_origin):
+    """Retour de l'admin du 26.11 : CGU pas acceptées = bouton grisé sans moyen de les trouver. Le bouton reste actif,
+    ouvre les conditions EN GRAND (texte complet déplié sur place), puis la conversation s'ouvre."""
+    state = {'mini': mini(link='none', met=0), 'mini_after': mini(link='direct', met=0), 'terms': False}
+    page, frame, errors = start(phone, events_origin, state)
+    sheet = open_lea(frame)
+    write = sheet.get_by_test_id('mini-write')
+    pw.expect(write).to_be_enabled()
+    pw.expect(sheet.get_by_test_id('mini-why')).to_contain_text('accepte d’abord les conditions d’utilisation')
+    write.click()
+    terms = frame.get_by_label('Conditions d’utilisation')
+    pw.expect(terms.get_by_text('Avant d’écrire', exact=True)).to_be_visible()
+    terms.get_by_role('button', name='Lire les conditions complètes').click()
+    pw.expect(terms.get_by_test_id('terms-full')).to_contain_text('Messages directs et demandes')
+    shot(page, 'cgu-en-grand')
+    terms.get_by_role('button', name='J’accepte les conditions', exact=True).click()
+    pw.expect(frame.get_by_label('Conditions d’utilisation')).to_have_count(0)
+    assert rpc_args(state, 'accept_terms')
+    for _ in range(50):   # la conversation s'ouvre d'elle-même, sans retoucher « Envoyer un message »
+        if rpc_args(state, 'open_direct_chat'):
+            break
+        page.wait_for_timeout(100)
+    assert len(rpc_args(state, 'open_direct_chat')) == 1
     assert not errors, errors
 
 
