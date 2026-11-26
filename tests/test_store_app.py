@@ -864,7 +864,7 @@ def test_round_three_store_app_refuses_hate_drug_and_crude_names_and_shows_them_
 
 
 @pytest.mark.parametrize("name", ["Léa", "Chantal", "Hugo", "Merdan", "Nazir", "Nazim", "Matchatte", "Shitaké",
-                                  "Wedding", "Heidi", "Chattam", "Pétra"])
+                                  "Wedding", "Heidi", "Chattam", "Pétra", "Wed", "Bedos", "Weedy"])
 def test_round_three_ordinary_names_are_never_caught(name):
     assert not store_app.offensive(name) and quiz.store_name(name) == name
     assert games.shown_text(name, "name", store=True) == name

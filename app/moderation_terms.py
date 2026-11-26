@@ -67,7 +67,7 @@ STORE_ONLY = (
     # haine
     "hitler*", "nazi", "nazisme", "neonazi*", "fuhrer", "=heil",
     # drogue
-    "ganja", "weed", "beuh", "petard", "marijuana", "marihuana", "hasch*", "shit", "bedo", "spliff", "=kush",
+    "ganja", "re:w+e{2,}d+", "beuh", "petard", "marijuana", "marihuana", "hasch*", "shit", "=bedo", "spliff", "=kush",
     # sexuel / insulte
     "chatte", "zizi", "trou du cul", "trouduc", "merde", "merdeux", "merdique", "emmerdeu*", "putain", "=ptn",
     "couille", "nichon",

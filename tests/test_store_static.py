@@ -174,7 +174,7 @@ def test_a_renamed_player_goes_through_the_same_filter_and_box_as_the_entry():
     code = create(STORE_UA, "store-name-host", terms=True).json()["code"]
     g = main.store.session.games[code]
     c = client(STORE_UA)
-    for bad in ("connard", "Vodka Max", "Léa shot"):
+    for bad in ("connard", "Vodka Max", "Léa shot", "Hitler", "Ganja", "Putain"):
         c.get(f"/api/games/{code}", params={"guest_id": "store-name-host", "name": bad})
         assert games.player(g, "store-name-host")["name"] == "Léa"
         c.post(f"/api/games/{code}", json={"guest_id": "store-name-host", "name": bad, "action": "pause"})
@@ -190,6 +190,7 @@ def test_a_renamed_player_goes_through_the_same_filter_and_box_as_the_entry():
     web = client(WEB_UA)
     assert web.post("/api/presence", json={"guest_id": "web-name-cleo1", "name": "connard"}).status_code == 400
     assert web.post("/api/presence", json={"guest_id": "web-name-cleo1", "name": "Vodka"}).status_code == 200
+    assert web.post("/api/presence", json={"guest_id": "web-name-cleo1", "name": "Merde"}).status_code == 200  # tour 3 : app seule
 
 
 def test_the_store_view_shows_joueur_for_a_drink_or_insult_name_and_no_sips():

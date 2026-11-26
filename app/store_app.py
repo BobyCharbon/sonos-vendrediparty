@@ -121,7 +121,7 @@ def flag(g: dict):
             g[key]["store"] = True
     d = g.get("debate")
     if isinstance(d, dict):  # dilemmes proposés sur le web avant l'arrivée de l'app : jamais lus par l'app
-        for k in ("queue", "proposals"):
+        for k in ("queue", "proposals", "history"):
             if isinstance(d.get(k), list):
                 d[k] = [x for x in d[k] if not (isinstance(x, dict) and offensive(x.get("text")))]
     if isinstance(g.get("debate"), dict) and isinstance(g["debate"].get("themes"), list):
