@@ -264,6 +264,13 @@ export default function EventScreen() {
   const series = (ev as { series?: Series | null }).series ?? null;
   const people = data.attendance ?? localAttendance(ev.rsvps, data.names);
   const heads = people.going;
+  // Personnes notées à la main sans compte (26.11) : la base les compte dans event_attendance ; quand on lit toutes les
+  // réponses (liste visible ou organisation), l'écart avec les réponses lisibles est exactement leur nombre. Jamais leur nom.
+  const readsAll = ev.show_participants || canManage;
+  const visibleHeads = ev.rsvps.filter((r) => r.status === 'yes' && !r.waitlisted).reduce((n, r) => n + 1 + r.plus_ones, 0);
+  const withoutAccount = data.attendance && readsAll
+    ? { yes: Math.max(0, data.attendance.going - visibleHeads), maybe: Math.max(0, data.attendance.maybe - ev.rsvps.filter((r) => r.status === 'maybe').length) }
+    : { yes: 0, maybe: 0 };
   const past = !!ev.starts_at && new Date(ev.ends_at ?? ev.starts_at).getTime() < data.loadedAt - 6 * 3600_000;
   // Lien du lieu saisi librement : seulement http(s) (jamais javascript:/data:), sinon la recherche Plans.
   // « Lieu à définir » (avis 2237524ab14b) : la date est réservée, pas encore d'itinéraire.
@@ -449,7 +456,7 @@ export default function EventScreen() {
           onChange={reload}
         />
       ) : published && can('events.rsvp') ? (
-        <RsvpCard event={ev} me={me.id} rsvps={ev.rsvps} onChange={reload} organizer={isOrganizer} />
+        <RsvpCard event={ev} me={me.id} rsvps={ev.rsvps} onChange={reload} organizer={isOrganizer} extraHeads={withoutAccount.yes} />
       ) : null}
       {mine?.status === 'yes' && ticketRelevant(ev, data.loadedAt) ? (
         <TicketCard event={ev} me={me} answerKey={`${mine.status}:${mine.waitlisted}:${mine.plus_ones}:${paymentsTick}`} />
@@ -513,9 +520,9 @@ export default function EventScreen() {
         </Card>
       ) : null}
 
-      {ev.date_mode === 'fixed' && published ? <ParticipantsSection event={ev} me={me.id} rsvps={ev.rsvps} names={data.names} viaLink={data.viaLink} /> : null}
+      {ev.date_mode === 'fixed' && published ? <ParticipantsSection event={ev} me={me.id} rsvps={ev.rsvps} names={data.names} viaLink={data.viaLink} withoutAccount={withoutAccount} /> : null}
       {ev.date_mode === 'fixed' && published && canManage ? (
-        <AttendanceEditor event={ev} rsvps={ev.rsvps} names={data.names} me={me.id} onChange={reload} />
+        <AttendanceEditor event={ev} rsvps={ev.rsvps} names={data.names} me={me.id} onChange={reload} refreshKey={data.loadedAt} />
       ) : null}
       {ev.date_mode === 'fixed' && published && canManage ? (
         <TicketsManager eventId={ev.id} enabled={!!ev.tickets_enabled} canToggle onToggled={reload}

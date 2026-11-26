@@ -49,6 +49,8 @@ export type GuestList = {
   requests?: JoinRequest[];
   /** 17.11 : groupe proposé aux invités (« Réunir les invités dans un groupe »), ou null. */
   guest_group?: GuestGroupCard | null;
+  /** 26.11 : présences notées à la main sans compte (organisation : nombres par réponse ; base plus ancienne : absent). */
+  manual?: { yes: number; maybe: number; no: number };
 };
 
 /** Filtres de la carte : réponses, pas encore répondu, lien pas encore ouvert. */
@@ -65,7 +67,9 @@ export function guestCounts(list: GuestList): GuestCounts {
   const waiting = waitingLinks(list);
   const unopened = waiting.filter((l) => l.state === 'pending').length;
   const none = list.people.filter((p) => !p.status).length + waiting.length - unopened;
-  return { yes: count('yes'), maybe: count('maybe'), no: count('no'), none, unopened, total: list.people.length + waiting.length };
+  const m = list.poll ? { yes: 0, maybe: 0, no: 0 } : list.manual ?? { yes: 0, maybe: 0, no: 0 };
+  return { yes: count('yes') + m.yes, maybe: count('maybe') + m.maybe, no: count('no') + m.no, none, unopened,
+    total: list.people.length + waiting.length + m.yes + m.maybe + m.no };
 }
 
 export function filterGuests(list: GuestList, filter: GuestFilter): Guest[] {
