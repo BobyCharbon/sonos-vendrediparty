@@ -13,7 +13,7 @@ GAME_RULES.likely = `
   <h3>Les questions</h3>
   <ul>
     <li><b>👨‍👩‍👧 Tous publics</b> : 365 questions, à jouer aussi avec les parents et les ados.</li>
-    <li><b>😏 Entre amis</b> : en plus, une centaine de questions plus piquantes (soirées, ex, petits secrets), jamais sexuelles.</li>
+    <li><b>😏 Entre amis</b> : en plus, une centaine de questions plus piquantes (soirées, ex, petits secrets), jamais sexuelles.</li> <!-- store-cut -->
   </ul>
   <p>Aucune question ne revient dans la partie. Avant le premier vote, l'animateur peut en tirer une autre (🔀).</p>
   <h3>La fin</h3>
@@ -22,9 +22,10 @@ GAME_RULES.likely = `
   `;
 
 // App App Store : ni option gorgées, ni paquet « Entre amis » (refusés par le serveur, store_app).
-if (STORE) GAME_RULES.likely = GAME_RULES.likely.replace(" ; avec l'option alcool, il boit ses gorgées", "") // <store-cut/>
-// <store> if (STORE) GAME_RULES.likely = GAME_RULES.likely
+// <store-cut> (dans l'app, ces textes ne sont pas servis du tout)
+if (STORE) GAME_RULES.likely = GAME_RULES.likely.replace(" ; avec l'option alcool, il boit ses gorgées", "")
   .replace(/\s*<li><b>😏 Entre amis<\/b>[^<]*<\/li>/, "");
+// </store-cut>
 
 let lkReadyKey = "";  // le votant a touché « C'est moi » : la grille des prénoms s'affiche pour lui
 let lkSeen = "";
@@ -47,16 +48,18 @@ function lkDots(v, key = "") {
 }
 
 function lkSettingsHtml(g) {
-  const v = g.likely, sips = g.options?.sips || 0;
+  const v = g.likely, sips = g.options?.sips || 0; // <store-cut/>
+  // <store> const v = g.likely;
   const packs = v.pack_list.map((p) => `<button type="button" class="${v.packs.includes(p.id) ? "on" : ""}" data-lk-pack="${p.id}" aria-pressed="${v.packs.includes(p.id)}">${esc(p.label)} <small>${p.size}</small></button>`).join("");
   const counts = v.counts.map((n) => `<button type="button" class="${v.count === n ? "on" : ""}" data-lk-count="${n}" aria-pressed="${v.count === n}">${n}</button>`).join("");
+  // <store-cut> réglage des gorgées : jamais servi à l'app App Store
   const stakes = [0, ...Array.from({ length: v.max_sips }, (_, i) => i + 1)].map((n) =>
-    `<button type="button" class="${sips === n ? "on" : ""}" data-lk-sips="${n}" aria-pressed="${sips === n}">${n ? `🍻 ${sipWord(n)}` : "⭐ 1 point"}</button>`).join(""); // <store-cut/>
-    // <store> `<button type="button" class="${sips === n ? "on" : ""}" data-lk-sips="${n}" aria-pressed="${sips === n}">${n ? sipWord(n) : "⭐ 1 point"}</button>`).join("");
+    `<button type="button" class="${sips === n ? "on" : ""}" data-lk-sips="${n}" aria-pressed="${sips === n}">${n ? `🍻 ${sipWord(n)}` : "⭐ 1 point"}</button>`).join("");
+  // </store-cut>
   return `<div class="lk-setup">
     <div class="g-label">Questions</div><div class="lk-chips">${packs}</div>
     <div class="g-label">Nombre de questions</div><div class="lk-chips">${counts}</div>
-    ${STORE ? "" : `<div class="g-label">Le plus désigné…</div><div class="lk-chips">${stakes}</div>`}
+    ${STORE ? "" : `<div class="g-label">Le plus désigné…</div><div class="lk-chips">${stakes}</div>`} <!-- store-cut -->
   </div>`;
 }
 
@@ -210,6 +213,6 @@ document.addEventListener("click", (ev) => {
   }
   const count = ev.target.closest("[data-lk-count]");
   if (count) return pressed(count, gameAction("lkset", { settings: { count: +count.dataset.lkCount } }));
-  const sips = ev.target.closest("[data-lk-sips]");
-  if (sips) return pressed(sips, gameAction("lkset", { settings: { sips: +sips.dataset.lkSips } }));
+  const sips = ev.target.closest("[data-lk-sips]"); // <store-cut/>
+  if (sips) return pressed(sips, gameAction("lkset", { settings: { sips: +sips.dataset.lkSips } })); // <store-cut/>
 });

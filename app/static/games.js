@@ -91,7 +91,8 @@ GAME_THEME.neon = "g-nk";
 GAME_ICONS.president = President.crown;
 GAME_THEME.president = "g-pr";
 // Jeux récents : étiquette « Nouveau » sur leur carte et leur tuile dans la salle de jeux (retirer le type pour l'enlever).
-const NEW_GAMES = ["pet", "brain", "masque", "reflet", "psy", "debate", "beerpong"];
+const NEW_GAMES = ["pet", "brain", "masque", "reflet", "psy", "debate", "beerpong"]; // <store-cut/>
+// <store> const NEW_GAMES = ["pet", "brain", "masque", "reflet", "psy", "debate"];
 const newBadge = (type) => NEW_GAMES.includes(type) ? `<span class="g-new" aria-label="Nouveau jeu">Nouveau</span>` : "";
 // Catégories de l'écran Jeux et de la salle de jeux : [id, titre, jeux dans l'ordre d'affichage].
 // Tout nouveau jeu doit y figurer (tests/test_game_categories.py le vérifie).
@@ -104,7 +105,7 @@ const PET_ON = document.documentElement.dataset.compagnon !== "off";
 // BETA et Android gardent tout.
 const STORE = document.documentElement.classList.contains("party-store");
 const STORE_HIDDEN = STORE ? ["casino", "blackjack", "beerpong", "biskit", "purity", "pyramid", "never", "whoof", "roulette"] : []; // <store-cut/>
-// <store> const STORE_HIDDEN = ["beerpong", "biskit", "purity", "pyramid", "never", "whoof"];  // et les autres jeux cachés, retirés par le serveur
+// <store> const STORE_HIDDEN = [];  // jeux cachés : absents de cette page et retirés par le serveur (catalogue de la salle)
 // « ⭐ Mode points » (gorgées converties en points, Pyramide en points) : ÉTEINT pour la 1.0.0 (décision du 25.11). Il ne
 // reviendra que dans une mise à jour décrite à Apple : le code reste en place, inactif tant que STORE_POINTS est faux.
 const STORE_POINTS = false;
@@ -667,7 +668,7 @@ document.getElementById("gamesRoot").innerHTML = `
         <p class="g-desc">« Qui est le plus mauvais perdant ? » Tout le monde désigne quelqu'un en secret, en même temps, puis on découvre le plus désigné : il prend un point… ou une petite gorgée. Sans téléphone ? On vote sur celui de l'animateur.</p> <!-- store-cut -->
         <!-- <store> <p class="g-desc">« Qui est le plus mauvais perdant ? » Tout le monde désigne quelqu'un en secret, en même temps, puis on découvre le plus désigné : il prend un point. Sans téléphone ? On vote sur celui de l'animateur.</p> -->
         <div class="g-chips"><span>👨‍👩‍👧 Avec les parents aussi</span><span>2+ joueurs</span><span>Sans téléphone : OK</span><span>365 questions</span></div>
-        <label class="g-opt"><span>😏 Paquet « Entre amis » <small>en plus : soirées, ex, petits secrets (jamais sexuel)</small></span><input type="checkbox" class="switch" data-opt="lkfriends"></label>
+        <label class="g-opt"><span>😏 Paquet « Entre amis » <small>en plus : soirées, ex, petits secrets (jamais sexuel)</small></span><input type="checkbox" class="switch" data-opt="lkfriends"></label> <!-- store-cut -->
         <label class="g-opt"><span>🍻 Le plus désigné boit <small>sinon il prend un point</small></span><input type="checkbox" class="switch" data-opt="lkalcohol"></label> <!-- store-cut -->
         <div class="g-modes" data-opt-group="lksips"> <!-- store-cut -->
           <button type="button" data-val="1" class="on">1 gorgée</button><button type="button" data-val="2">2</button><button type="button" data-val="3">3</button> <!-- store-cut -->

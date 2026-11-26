@@ -294,3 +294,21 @@ def test_the_store_app_refuses_a_drink_name_when_creating_a_game():
     r = create(STORE_UA, "store-create-name", terms=True, name="Vodka Max")
     assert r.status_code == 400
     assert create(WEB_UA, "web-create-name1", name="Vodka Max").status_code == 200
+
+
+def test_round_three_no_dormant_sips_buttons_friends_pack_or_hidden_game_list_in_the_store_app():
+    """Contrôle Apple tour 3 : le code éteint n'est pas servi (boutons de gorgées de Qui est le plus…, paquet
+    « Entre amis », liste des jeux cachés) ; le web le garde."""
+    files = served(STORE_UA)
+    js = files[next(p for p in files if p.endswith("/games.js"))]
+    lk = files[next(p for p in files if p.endswith("/likely.js"))]
+    for word in ("data-lk-sips", "stakes", "Entre amis", "lkSips"):
+        assert word not in lk, word
+    assert "Entre amis" not in js and 'data-opt="lkfriends"' not in js
+    assert "const STORE_HIDDEN = [];" in js
+    for game in ("beerpong", "biskit", "purity", "pyramid", "whoof", '"never"', "roulette", "casino", "blackjack"):
+        assert game not in js, game
+    web = client(WEB_UA)
+    wlk, wjs = web.get("/static/likely.js").text, web.get("/static/games.js").text
+    assert "data-lk-sips" in wlk and "Entre amis" in wlk and 'data-opt="lkfriends"' in wjs
+    assert 'STORE_HIDDEN = STORE ? ["casino"' in wjs

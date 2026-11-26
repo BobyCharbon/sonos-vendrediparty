@@ -589,10 +589,10 @@ def purge_guests(now: float | None = None) -> int:
 @lru_cache(maxsize=4096)
 def store_name(name: str) -> str:
     """Prénom montré dans l'app App Store (contrôle du 26.11) : « Joueur » s'il contient un mot de boisson, de drogue
-    ou une insulte (prénom venu du web ou d'avant le filtre)."""
+    ou une insulte, ou un mot refusé dans l'app (STORE_ONLY ; prénom venu du web ou d'avant le filtre)."""
     if not isinstance(name, str) or not name:
         return name
-    return "Joueur" if store_app.drinky(name) or not moderation_check(name, "name").ok else name
+    return "Joueur" if store_app.offensive(name) or not moderation_check(name, "name").ok else name
 
 
 def leaderboard(limit: int = 20, store: bool = False) -> dict:

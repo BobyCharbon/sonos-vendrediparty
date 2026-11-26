@@ -13,6 +13,7 @@ import re
 from functools import lru_cache
 
 from .features import is_test_site
+from .moderation import store_hit
 
 MARK = "PartyStore"
 # Casino et Blackjack (jeux d'argent simulés) depuis le 05.11 ; les autres sont des jeux à boire par leur origine ou leur
@@ -82,9 +83,15 @@ def _drinky(text: str) -> bool:
 TEXT_REFUSED = "Ce texte n'est pas accepté ici : choisis d'autres mots."
 
 
+def offensive(text) -> bool:
+    """Boisson, drogue, ou mot refusé dans l'app seulement (haine, drogue, sexuel, juron : moderation_terms.STORE_ONLY)."""
+    return drinky(text) or store_hit(str(text or ""))
+
+
 def check_text(text, store: bool):
-    """Texte libre d'un joueur montré à la table d'une partie de l'app : jamais de boisson ni de drogue (ValueError)."""
-    if store and drinky(text):
+    """Texte libre d'un joueur montré à la table d'une partie de l'app : jamais de boisson, de drogue ni de mot de
+    STORE_ONLY (ValueError)."""
+    if store and offensive(text):
         raise ValueError(TEXT_REFUSED)
 
 
@@ -112,6 +119,11 @@ def flag(g: dict):
     for key in ("likely", "debate", "quiz"):
         if isinstance(g.get(key), dict):
             g[key]["store"] = True
+    d = g.get("debate")
+    if isinstance(d, dict):  # dilemmes proposés sur le web avant l'arrivée de l'app : jamais lus par l'app
+        for k in ("queue", "proposals"):
+            if isinstance(d.get(k), list):
+                d[k] = [x for x in d[k] if not (isinstance(x, dict) and offensive(x.get("text")))]
     if isinstance(g.get("debate"), dict) and isinstance(g["debate"].get("themes"), list):
         g["debate"]["themes"] = [t for t in g["debate"]["themes"] if t not in HIDDEN_THEMES] or ["light"]
     if isinstance(g.get("likely"), dict) and isinstance(g["likely"].get("packs"), list):
