@@ -222,13 +222,19 @@ struct NotificationSettingsView: View {
             }
         }
 
+        #if BETA || E2E_HOOKS
         // Souvenirs (24.11) : un seul interrupteur, comme sur le web (dévoilement ; photo signalée pour l'organisation).
-        Section("📸 Souvenirs") {
-            eventToggle("souvenirs", "camera.fill", .pink, "Souvenirs",
-                        "Les photos d'une soirée sont dévoilées ; une photo Souvenirs d'un événement que j'organise est signalée",
-                        p.souvenirs != false)
-                .accessibilityIdentifier("notif-souvenirs")
+        // BETA seulement (contrôle Apple, tour 3) : absent du binaire de l'App Store, comme Agenda et Pronos (la colonne
+        // n'existe pas en prod : l'interrupteur renvoyait une erreur).
+        if !AppConfig.storeLocked {
+            Section("📸 Souvenirs") {
+                eventToggle("souvenirs", "camera.fill", .pink, "Souvenirs",
+                            "Les photos d'une soirée sont dévoilées ; une photo Souvenirs d'un événement que j'organise est signalée",
+                            p.souvenirs != false)
+                    .accessibilityIdentifier("notif-souvenirs")
+            }
         }
+        #endif
 
         // Mes amis dans Party : chaque type a son interrupteur (aussi sur le web).
         Section("Amis") {

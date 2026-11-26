@@ -255,7 +255,10 @@ struct MemberCardView: View {
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fermer") { dismiss() } } }
             .overlay { if card == nil && error == nil { ProgressView().transition(.opacity) } }
             .sheet(isPresented: $askTerms) {
-                TermsAcceptSheet(store: store.moderation, title: "Avant d'écrire") { accepted in if accepted, let id = card?.id { write(id) } }
+                TermsAcceptSheet(store: store.moderation, title: "Avant d'écrire") { accepted in
+                    if !accepted { writeProblem = TermsLater.message("écrire", button: "Envoyer un message") }
+                    else if let id = card?.id { write(id) }
+                }
             }
             .sheet(item: $contactSheet) { item in
                 ContactCardSheet(mode: item.mode) { contactSheet = nil }.ignoresSafeArea()
@@ -331,7 +334,7 @@ private struct MemberSafetySection: View {
         let name = card.displayName.isEmpty ? "ce membre" : card.displayName
         Section {
             if card.blocked {
-                Button("Débloquer \(name)") { Task { await moderation.setBlocked(card.id, false); changed() } }
+                Button("Débloquer \(name)") { Task { await setBlocked(false) } }
                     .accessibilityIdentifier("member-unblock")
             } else {
                 Button("Bloquer \(name)", role: .destructive) { confirmBlock = true }
@@ -348,10 +351,18 @@ private struct MemberSafetySection: View {
             Text("Une personne bloquée ne peut plus t'écrire, te citer, t'inviter ni voir ta fiche ; elle n'en est pas prévenue.")
         }
         .confirmationDialog("Bloquer \(name) ?", isPresented: $confirmBlock, titleVisibility: .visible) {
-            Button("Bloquer", role: .destructive) { Task { await moderation.setBlocked(card.id, true); changed() } }
+            Button("Bloquer", role: .destructive) { Task { await setBlocked(true) } }
         } message: {
             Text("Tu pourras la débloquer ici ou dans Réglages › Confidentialité › Personnes bloquées.")
         }
         .sheet(item: $reporting) { ReportSheet(store: moderation, target: $0) }
+    }
+
+    /// Comme le mini-profil : la liste et les conversations ouvertes se relisent aussitôt (messages masqués).
+    private func setBlocked(_ on: Bool) async {
+        moderation.error = nil
+        await moderation.setBlocked(card.id, on)
+        if moderation.error == nil { NotificationCenter.default.post(name: .partyBlockChanged, object: card.id) }
+        changed()
     }
 }

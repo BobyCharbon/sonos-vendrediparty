@@ -45,6 +45,8 @@ struct ConversationView: View {
     /// Modération commune : « Signaler » un message ; conditions d'utilisation avant le premier message.
     @State private var reporting: ReportTarget?
     @State private var askTerms = false
+    /// Premier vocal avant les CGU : gardé pendant la feuille, envoyé après « J'accepte », effacé après « Plus tard ».
+    @State private var pendingVoice: PendingVoice?
     @State private var confirmBlock = false
     /// Organisation d'un événement : le prochain message part en annonce (📣).
     @State private var announcing = false
@@ -109,9 +111,18 @@ struct ConversationView: View {
             }
             .sheet(isPresented: $askTerms) {
                 TermsAcceptSheet(store: store.moderation, title: "Avant d'écrire") { accepted in
-                    // Acceptées : le message gardé dans le champ part tout seul, sans retoucher ↑.
-                    if accepted, let chat, editing == nil,
-                       !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { send(chat) }
+                    let voice = pendingVoice
+                    pendingVoice = nil
+                    guard accepted else {
+                        if let voice { try? FileManager.default.removeItem(at: voice.file) }
+                        store.notice = TermsLater.message(voice == nil ? "écrire" : "envoyer un vocal")
+                        return
+                    }
+                    // Acceptées : le vocal ou le message gardé dans le champ part tout seul, sans retoucher ↑.
+                    if let voice {
+                        Task { await store.sendVoice(voice.file, seconds: voice.seconds, replyTo: voice.replyTo) }
+                    } else if let chat, editing == nil,
+                              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { send(chat) }
                 }
             }
             .fullScreenCover(isPresented: $showCamera) {
@@ -1041,12 +1052,21 @@ struct ConversationView: View {
         let quoted = replyTo
         replyTo = nil
         Task {
-            guard await termsAccepted() else {
-                try? FileManager.default.removeItem(at: file)
+            if await store.moderation.termsAccepted() {
+                await store.sendVoice(file, seconds: seconds, replyTo: quoted?.id)
                 return
             }
-            await store.sendVoice(file, seconds: seconds, replyTo: quoted?.id)
+            // Pas encore acceptées : l'enregistrement attend la réponse de la feuille (jamais perdu avant).
+            if let old = pendingVoice { try? FileManager.default.removeItem(at: old.file) }
+            pendingVoice = PendingVoice(file: file, seconds: seconds, replyTo: quoted?.id)
+            askTerms = true
         }
+    }
+
+    struct PendingVoice {
+        let file: URL
+        let seconds: TimeInterval
+        let replyTo: String?
     }
 
     /// Conditions d'utilisation acceptées avant le premier message (Google UGC) ; sinon la feuille s'ouvre.

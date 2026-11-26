@@ -51,7 +51,11 @@ struct NewChatGroupView: View {
         .navigationTitle("Nouveau groupe")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $askTerms) {
-            if let people { TermsAcceptSheet(store: people.moderation) { accepted in if accepted { create() } } }
+            if let people {
+                TermsAcceptSheet(store: people.moderation) { accepted in
+                    if accepted { create() } else { error = TermsLater.message("créer le groupe", button: "Créer le groupe") }
+                }
+            }
         }
         .alert("Groupe créé", isPresented: Binding(get: { refused != nil }, set: { if !$0, let r = refused { refused = nil; done(r.group) } })) {
             Button("OK") {}

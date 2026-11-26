@@ -58,7 +58,13 @@ struct NewGroupView: View {
             }
         }
         .sheet(isPresented: $askTerms) {
-            if let people { TermsAcceptSheet(store: people.moderation) { accepted in if accepted { next() } } }
+            if let people {
+                TermsAcceptSheet(store: people.moderation) { accepted in
+                    if accepted { next() } else {
+                        error = TermsLater.message("créer le groupe", button: created == nil ? "Continuer" : "Enregistrer et continuer")
+                    }
+                }
+            }
         }
         .motion(Motion.snappy, value: color)
         .motion(Motion.snappy, value: emoji)

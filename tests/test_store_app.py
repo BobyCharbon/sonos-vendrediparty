@@ -844,3 +844,61 @@ def test_round_two_pot_payment_toggle_and_group_report():
     assert "ProfileRules.missingText" in profile and "les autres à te reconnaître" in profile
     for f in ("Contacts/ContactsViews.swift", "Contacts/FriendsView.swift"):
         assert "empreinte chiffrée" not in (ios / f).read_text(encoding="utf-8"), f
+
+
+def _outside_beta(text):
+    """Le texte compilé dans le binaire de l'App Store : sans les blocs `#if BETA || E2E_HOOKS` … `#else`/`#endif`."""
+    out, skip, depth = [], False, 0
+    for line in text.splitlines():
+        s = line.strip()
+        if s.startswith("#if"):
+            depth += 1
+            if s == "#if BETA || E2E_HOOKS":
+                skip, at = True, depth
+            continue
+        if s == "#else" and skip and depth == at:
+            skip = False
+            continue
+        if s == "#endif":
+            if skip and depth == at:
+                skip = False
+            depth -= 1
+            continue
+        if not skip:
+            out.append(line)
+    return "\n".join(out)
+
+
+def test_round_three_store_app_never_shows_souvenirs_agenda_or_pronos_in_its_notification_settings():
+    # Contrôle Apple, tour 3 : « 📸 Souvenirs » s'affichait dans l'app App Store (colonne absente en prod → erreur).
+    notif = (_root() / "ios/Party/Settings/NotificationSettingsView.swift").read_text(encoding="utf-8")
+    assert "Souvenirs" not in _outside_beta(notif)
+    beta = notif[notif.index("#if BETA || E2E_HOOKS\n        // Souvenirs"):]
+    assert 'Section("📸 Souvenirs")' in beta[: beta.index("#endif")]
+    for gated in ('if store.agendaOn {\n            Section("📅 Agenda")', 'if store.pronosOn {\n            Section("🔮 Pronos")'):
+        assert gated in notif, gated
+
+
+def test_round_three_injected_bridge_script_names_no_beta_feature():
+    bridge = (_root() / "ios/Party/NativeBridge.swift").read_text(encoding="utf-8")
+    script = bridge[bridge.index('private static let script = """'):]
+    script = script[: script.index('\n    """\n')]
+    comments = "\n".join(l for l in script.splitlines() if l.strip().startswith("//"))
+    for word in ("Agenda", "Souvenirs", "Pyramide", "Zicou", "Pronos"):
+        assert word not in comments, word
+
+
+def test_round_three_blocking_anywhere_refreshes_the_chats_at_once_and_later_is_never_silent():
+    ios = _root() / "ios" / "Party"
+    for f in ("Settings/Account/MemberCardView.swift", "Chats/EventChatInfoView.swift", "Chats/People/MiniProfileSheet.swift"):
+        assert "NotificationCenter.default.post(name: .partyBlockChanged" in (ios / f).read_text(encoding="utf-8"), f
+    later = (ios / "Settings/Moderation/ModerationSheets.swift").read_text(encoding="utf-8")
+    assert "accepte d’abord les conditions d’utilisation de Party : touche" in later
+    for f in ("Settings/ProfileView.swift", "Chats/People/MiniProfileSheet.swift", "Chats/People/NewMessageView.swift",
+              "Chats/Groups/NewGroupView.swift", "Chats/People/NewChatGroupView.swift", "Settings/GroupsView.swift",
+              "Settings/Account/MemberCardView.swift", "Chats/Groups/GroupSettingsView.swift", "Chats/ConversationView.swift",
+              "Tricount/TricountStore.swift"):
+        assert "TermsLater.message(" in (ios / f).read_text(encoding="utf-8"), f
+    conv = (ios / "Chats/ConversationView.swift").read_text(encoding="utf-8")
+    voice = conv[conv.index("private func sendVoice"):conv.index("struct PendingVoice")]
+    assert "removeItem(at: file)" not in voice and "pendingVoice = PendingVoice(" in voice
