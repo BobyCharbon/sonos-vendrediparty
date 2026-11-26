@@ -14,7 +14,7 @@ import { TicketsManager } from '@/components/TicketsManager';
 import { CalendarButton } from '@/components/CalendarButton';
 import { EventGiftsLink } from '@/components/EventGifts';
 import { barOn, compagnonOn, discussionsOn, invitesV2On, pronosOn, storeApp } from '@/lib/features';
-import { drinkyEvent } from '@/lib/storeEvents';
+import { DRINK_RE, drinkyEvent } from '@/lib/storeEvents';
 import { GuestListCard } from '@/components/GuestListCard';
 import { AnnounceStatusCard } from '@/components/AnnounceStatusCard';
 import { InviteLinkCard } from '@/components/InviteLinkCard';
@@ -240,6 +240,8 @@ export default function EventScreen() {
     || (isOrganizer && (ev.status !== 'published' || can('events.edit_own_published') || ev.created_by === me.id));
   // App iPhone et droit IA : « ✨ IA » ouvre l'écran natif où l'on dit ce qui change (« décale à 21h »…).
   const native = (globalThis as { PartyNative?: { ai?: { editEvent?: (id: string) => void } } }).PartyNative;
+  // App App Store (refus 1.4.3) : jamais une étiquette à boisson (« #bar »…) sur la fiche, comme dans les filtres.
+  const shownTags = ev.event_tags.filter(({ tags: t }) => !!t && !(storeApp && DRINK_RE.test(t.name)));
   // App App Store : pas de « ✨ IA » sur la fiche (l'exemple natif du build 216 citait des bouteilles de vin, refus 1.4.3).
   const aiEdit = !storeApp && can('ai.use') && native?.ai?.editEvent ? (id: string) => native.ai!.editEvent!(id) : null;
   const narrow = width < (aiEdit && canEdit ? NARROW_HEADER_WIDTH_WITH_AI : NARROW_HEADER_WIDTH) || fontScale > 1.15;
@@ -542,9 +544,9 @@ export default function EventScreen() {
       <T muted size={13}>Proposé par {ev.author ? (
         <NameLinks people={[{ id: ev.author.id ?? ev.created_by, label: personLabel(contacts, ev.author.id ?? ev.created_by, ev.author.display_name).primary || '?' }]} size={13} />
       ) : '?'}{data.muted ? ' · notifications coupées pour cet événement' : ''}</T>
-      {ev.event_tags.length ? (
+      {shownTags.length ? (
         <View style={s.wrap}>
-          {ev.event_tags.map(({ tags: t }) => <T key={t.id} size={13} weight="semibold" color={t.color}>#{t.name}</T>)}
+          {shownTags.map(({ tags: t }) => <T key={t.id} size={13} weight="semibold" color={t.color}>#{t.name}</T>)}
         </View>
       ) : null}
       {/* Apple 1.2 : titre, description et photo sont du contenu de membre ; tout le monde peut les signaler sauf l'auteur. */}

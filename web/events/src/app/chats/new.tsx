@@ -4,7 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ChatsOff } from '@/components/ChatsOff';
-import { useTermsGate } from '@/components/TermsSheet';
+import { termsLater, useTermsGate } from '@/components/TermsSheet';
 import { DateTile, K, NeonButton, PersonFace, disp, txt, web } from '@/components/chats/people/bits';
 import { NewGroupForm } from '@/components/chats/people/NewGroupForm';
 import { PeoplePicker } from '@/components/chats/people/PeoplePicker';
@@ -62,7 +62,7 @@ export default function NewMessage() {
     try {
       let r = await openDirect(p.id);
       if (r.reason === 'terms_required') {
-        if (!(await terms.ensure())) return;
+        if (!(await terms.ensure())) return setError(termsLater('écrire'));
         r = await openDirect(p.id);
       }
       if (!r.chat) return setError(refusal(r.reason));

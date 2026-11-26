@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useTermsGate } from '@/components/TermsSheet';
+import { termsLater, useTermsGate } from '@/components/TermsSheet';
 import { useMe } from '@/lib/auth';
 import { GROUP_COLOR_KEYS, GROUP_EMOJIS, coverGradient, gradient, palette, type GroupColor } from '@/lib/groups';
 import { TERMS_PATH } from '@/lib/moderation';
@@ -36,7 +36,7 @@ export function NewGroupForm({ members, event, onBack }: { members: Person[]; ev
   async function create() {
     if (!clean || busy) return;
     setError(null);
-    if (!(await terms.ensure())) return;
+    if (!(await terms.ensure())) return setError(termsLater('créer le groupe', 'Créer le groupe'));
     setBusy(true);
     try {
       const r = await createChatGroup(clean, emoji, color, members.map((m) => m.id));

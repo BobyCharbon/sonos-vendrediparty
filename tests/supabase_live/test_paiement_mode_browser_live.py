@@ -288,12 +288,13 @@ def test_3_published_event_switched_to_online_with_qr_tickets(pages, party, peop
         online.click()
     assert popup.value.url.startswith(TICKETING)
     popup.value.close()
-    # Avis du 16.11 : rien à noter dans Party (le site n'est pas à l'organisateur) ; l'entrée coche « payé ».
-    pw.expect(page.get_by_role('button', name='J’ai payé', exact=True)).to_have_count(0)
-    shot(page, '15-invite-en-ligne-rien-a-noter')
+    # Demande du 19.11 (migration 20261119180000, revient sur l'avis du 16.11) : « J'ai payé » se note aussi en ligne, sans
+    # « Reçu ✓ », mais ne passe jamais la place en « payé » (pas de billet QR sur sa parole) ; l'entrée coche « payé ».
+    # Pas touché ici : la suite vérifie que seule l'entrée remet le billet.
+    pw.expect(page.get_by_role('button', name='J’ai payé', exact=True)).to_be_visible()
+    shot(page, '15-invite-en-ligne-j-ai-paye')
     assert not errors, errors
-    refused = people['b'].rpc('declare_ticket_payment', e=eid, declared=True)
-    assert refused.status_code == 400 and 'en ligne' in refused.text, refused.text
+    assert (ticket(people['b'], eid) or {}).get('paid') is not True
 
     page, errors = pages('admin')
     open_event(page, party, eid)

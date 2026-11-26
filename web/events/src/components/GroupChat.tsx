@@ -22,7 +22,7 @@ import { GroupJoinNote } from './GuestGroup';
 import { MentionSuggestions } from './MentionSuggestions';
 import { ReportSheet } from './ReportSheet';
 import { SouvenirsChatBanner } from './souvenirs/SouvenirsChatBanner';
-import { useTermsGate } from './TermsSheet';
+import { termsLater, useTermsGate } from './TermsSheet';
 import { usePersonText } from './PersonName';
 import { Button, Input, Loading, s, Toast } from './ui';
 import { useMe } from '@/lib/auth';
@@ -681,7 +681,7 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
     if ((!body && !photoPath && !audio && !attached) || sendingRef.current) return;
     sendingRef.current = true;
     try {
-      if (!terms.accepted && !(await terms.ensure())) return;
+      if (!terms.accepted && !(await terms.ensure())) return setError(termsLater('écrire dans la discussion'));
       typing.stop();
       deliver(body, photoPath, audio);
     } finally {

@@ -50,6 +50,7 @@ def test_a_paid_bar_belongs_to_private_parties_only():
     assert "go_public=Cet événement a un bar payant" in out, out
 
 
-def test_terms_are_the_version_of_the_16th():
+def test_terms_are_the_current_version():
+    # CGU du 25.11 (refus 1.4.3, migration du 25.11) : la version qu'affichent les écrans (lib/terms.ts, « 25 novembre 2026 »).
     out = run(as_postgres() + keep("v", "(select terms_version from private.moderation_settings where id = 1)"))
-    assert "v=2026-11-18" in out, out
+    assert "v=2026-11-25" in out, out

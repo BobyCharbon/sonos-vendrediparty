@@ -15,10 +15,11 @@ import { useTyping } from '@/components/chats/list/useTyping';
 import { chatFont, glow, NeonTheme, useNeon, web } from '@/components/chats/neon';
 import { usePause } from '@/components/NotificationPause';
 import { preloadChat } from '@/components/GroupChat';
+import { termsLater, useTermsGate } from '@/components/TermsSheet';
 import { Loading } from '@/components/ui';
 import { useMe } from '@/lib/auth';
 import {
-  afterReads, cachedChatList, chatKey, fetchChatBadge, fetchChatList, fetchCrossed, isUnread, keepChatList, newMessage, openChat, tellBadge, writeTo,
+  afterReads, cachedChatList, chatKey, fetchChatBadge, fetchChatList, fetchCrossed, isUnread, keepChatList, needsTerms, newMessage, openChat, tellBadge, writeTo,
   type ChatItem, type ChatPerson,
 } from '@/lib/chatList';
 import { useQuery, useRealtime, useSignal } from '@/lib/data';
@@ -60,6 +61,17 @@ function ChatsHome() {
   const all = useMemo(() => data ?? [], [data]);
   const setChats = useCallback((next: ChatItem[]) => setData(next), [setData]);
   const actions = useChatActions(all, setChats, reload);
+  // « Écrire » sans CGU acceptées : les conditions en grand, puis un nouvel essai (jamais « va dans Réglages »).
+  const terms = useTermsGate('Avant d’écrire');
+  const writeOne = async (id: string) => {
+    try {
+      await writeTo(id, push);
+    } catch (e) {
+      if (!needsTerms(e)) return actions.setError(e instanceof Error ? e.message : 'La conversation n’a pas pu s’ouvrir. Réessaie.');
+      if (!(await terms.ensure())) return actions.setError(termsLater('écrire'));
+      await writeTo(id, push).catch((again: Error) => actions.setError(again.message));
+    }
+  };
 
   // Pastille de l'onglet Discussions (page Party) : chat_badge, relue à chaque changement de la liste.
   useEffect(() => {
@@ -161,7 +173,7 @@ function ChatsHome() {
           <>
             <SlimLinks requests={requests} archived={archivedCount} onRequests={() => push('/chats/requests')} onArchived={() => push('/chats/archived')} />
             <EmptyChats crossed={crossed.data ?? []} onNew={() => newMessage(push)} onGroup={() => newMessage(push, true)}
-              onWrite={(p) => writeTo(p.id, push).catch((e: Error) => actions.setError(e.message))} />
+              onWrite={(p) => writeOne(p.id)} />
           </>
         ) : (
           <>
@@ -193,6 +205,7 @@ function ChatsHome() {
       <View pointerEvents="none" style={[st.fade, web({ backgroundImage: `linear-gradient(180deg, transparent, ${c.bg} 85%)` })]} />
       <Snack snack={actions.snack} onDone={() => actions.setSnack(null)} bottom={insets.bottom + 86} />
       <ChatMenu chat={menu} onClose={() => setMenu(null)} onChoose={actions.choose} pins={pinned} />
+      {terms.sheet}
     </View>
   );
 

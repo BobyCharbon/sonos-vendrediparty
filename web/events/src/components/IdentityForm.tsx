@@ -6,9 +6,9 @@ import { PROFILE_PHOTOS, uploadProfilePhoto } from '@/lib/photos';
 import { NICKNAME_MAX, hasCompleteIdentity } from '@/lib/profile';
 import { check, supabase } from '@/lib/supabase';
 import type { Profile } from '@/lib/types';
-import { dbMessage } from '@/lib/moderation';
+import { dbMessage, isTermsError } from '@/lib/moderation';
 import { ProfilePhotoField } from './ProfilePhotoField';
-import { useTermsGate } from './TermsSheet';
+import { termsLater, useTermsGate } from './TermsSheet';
 import { Button, ErrorText, Field, T } from './ui';
 
 /** Surnom déjà choisi dans les jeux de Party (même origine) : il pré-remplit un profil qui n'en a pas encore, coupé à la
@@ -46,14 +46,25 @@ export function IdentityForm({ profile, submitLabel, onSaved }: { profile: Profi
     saving.current = true;
     if (identity.display_name !== profile.display_name && !terms.accepted && !(await terms.ensure())) {
       saving.current = false;
-      return;
+      return setError(termsLater('choisir ton surnom', submitLabel));
     }
     setBusy(true);
     setError(null);
     let uploaded: string | null = null;
     try {
       if (photo) uploaded = await uploadProfilePhoto(profile.id, photo);
-      check(await supabase.from('profiles').update({ ...identity, avatar_url: uploaded ?? profile.avatar_url }).eq('id', profile.id).select('id').single());
+      const write = async () => check(await supabase.from('profiles').update({ ...identity, avatar_url: uploaded ?? profile.avatar_url }).eq('id', profile.id).select('id').single());
+      try {
+        await write();
+      } catch (e) {
+        // La base exige les conditions (jamais acceptées, ou nouvelle version) : on les ouvre, puis un seul nouvel essai.
+        if (!(e instanceof Error && isTermsError(e.message))) throw e;
+        if (!(await terms.ensure())) {
+          if (uploaded) await supabase.storage.from(PROFILE_PHOTOS).remove([uploaded]).catch(() => {});
+          return setError(termsLater('choisir ton surnom', submitLabel));
+        }
+        await write();
+      }
       if (uploaded && profile.avatar_url) await supabase.storage.from(PROFILE_PHOTOS).remove([profile.avatar_url]).catch(() => {});
       await refreshProfile();
       setPhoto(null);

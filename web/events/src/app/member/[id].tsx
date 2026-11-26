@@ -5,7 +5,7 @@ import { Linking, View } from 'react-native';
 import { InvitedBySection } from '@/components/InvitedBy';
 import { SignupOriginLine } from '@/components/SignupOrigin';
 import { ReportSheet } from '@/components/ReportSheet';
-import { useTermsGate } from '@/components/TermsSheet';
+import { termsLater, useTermsGate } from '@/components/TermsSheet';
 import { PrivateNote } from '@/components/chats/people/PrivateNote';
 import { nativeOpenDirect, openDirect, refusal } from '@/components/chats/people/people';
 import { ZicouOnProfile } from '@/components/ZicouOnProfile';
@@ -82,7 +82,7 @@ export default function MemberScreen() {
     try {
       let r = await openDirect(id);
       if (r.reason === 'terms_required') {
-        if (!(await terms.ensure())) return;
+        if (!(await terms.ensure())) return setWriteError(termsLater('écrire', 'Envoyer un message'));
         r = await openDirect(id);
       }
       if (r.chat) router.push(`/chats/${r.chat}`);

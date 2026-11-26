@@ -49,7 +49,7 @@ export async function openDirectChat(target: string): Promise<OpenDirect> {
 export function cannotWrite(name: string, reason: string | null): string {
   switch (reason) {
     case 'profile_required': return 'Complète ton profil (prénom, nom, surnom) pour écrire un message.';
-    case 'terms_required': return 'Accepte les conditions d’utilisation pour écrire un message.';
+    case 'terms_required': return 'Pour écrire un message, accepte d’abord les conditions d’utilisation de Party : touche à nouveau le bouton pour les lire.';
     case 'limit': return 'Tu as envoyé beaucoup de demandes de message : réessaie demain.';
     default: return `Tu ne peux pas écrire à ${name} pour le moment.`;
   }

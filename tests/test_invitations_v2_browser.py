@@ -375,6 +375,55 @@ def test_an_account_without_the_terms_sees_the_terms_sheet_before_its_answer(bro
         context.close()
 
 
+def test_later_on_the_terms_of_an_invitation_says_why_and_retry_opens_them(browser, v2_origin):  # noqa: F811
+    """Nouvel arrivant (26.11) : « Plus tard » sur les conditions ne laisse ni phrase brute de la base (« Réglages ›
+    Confidentialité ») ni écran muet : la page dit pourquoi, « Réessayer » rouvre les conditions, puis la réponse part."""
+    context = browser.new_context(viewport={'width': 390, 'height': 844}, color_scheme='dark')
+    page = context.new_page()
+    errors = []
+    page.on('pageerror', lambda e: errors.append(str(e)))
+    try:
+        mock_services(page)
+        calls = mock_invites(page, card={**CARD, 'inviter': 'Ludo'})
+        terms = {'accepted': False}
+
+        def answer(route):
+            if route.request.method == 'OPTIONS':
+                return route.fulfill(status=204, headers=CORS)
+            name = route.request.url.split('?')[0].rsplit('/', 1)[-1]
+            calls.append((name, json.loads(route.request.post_data or '{}')))
+            if name == 'accept_terms':
+                terms['accepted'] = True
+            if name == 'accept_invite':
+                if not terms['accepted']:
+                    return route.fulfill(status=403, content_type='application/json', headers=CORS, body=json.dumps(
+                        {'code': '42501', 'message': 'terms_required: accepte les conditions d\'utilisation de Party pour publier (Réglages › Confidentialité).'}))
+                return route.fulfill(status=200, content_type='application/json', headers=CORS, body=json.dumps(ACCEPTED))
+            route.fulfill(status=200, content_type='application/json', headers=CORS, body=json.dumps(
+                {'version': '2026-11-25', 'accepted': terms['accepted'], 'accepted_at': None, 'contact_email': None, 'enforced': True}))
+        for name in ('my_terms', 'accept_terms', 'accept_invite'):
+            page.route(f'https://gsuetixzobooggeaubvb.supabase.co/rest/v1/rpc/{name}', answer)
+
+        page.goto(f'{v2_origin}/events/invite/{TOKEN}', wait_until='domcontentloaded')
+        page.get_by_role('button', name='Je viens !').click()
+        login(page)
+        sheet = page.get_by_label('Conditions d’utilisation')
+        pw.expect(sheet.get_by_text('Avant de répondre', exact=True)).to_be_visible(timeout=15000)
+        sheet.get_by_role('button', name='Plus tard', exact=True).click()
+        pw.expect(page.get_by_text('Pour répondre, accepte d’abord les conditions d’utilisation de Party : touche « Réessayer » pour les relire.',
+                                   exact=True)).to_be_visible(timeout=10000)
+        pw.expect(page.get_by_text('Réglages › Confidentialité', exact=False)).to_have_count(0)
+        shot(page, '12-invite-cgu-plus-tard')
+        page.get_by_role('button', name='Réessayer', exact=True).click()
+        pw.expect(page.get_by_label('Conditions d’utilisation').get_by_text('Avant de répondre', exact=True)).to_be_visible(timeout=10000)
+        page.get_by_role('button', name='J’accepte les conditions', exact=True).click()
+        pw.expect(page.get_by_text('C’est noté, Camille !', exact=True)).to_be_visible(timeout=10000)
+        assert [c[0] for c in calls].count('accept_terms') == 1
+        assert not errors, errors
+    finally:
+        context.close()
+
+
 POLL_OPTIONS = [{'id': IDS[8], 'starts_at': '2030-11-20T19:00:00Z'}, {'id': IDS[9], 'starts_at': '2030-11-27T19:00:00Z'}]
 
 

@@ -7,6 +7,11 @@ import { useTerms } from '@/lib/moderation';
 import { TERMS_SECTIONS, TERMS_UPDATED } from '@/lib/terms';
 import { colors, radius } from '@/lib/theme';
 
+/** « Plus tard » touché : dire pourquoi rien ne s'est passé et comment rouvrir les conditions (jamais un bouton muet). */
+export function termsLater(what: string, button?: string): string {
+  return `Pour ${what}, accepte d’abord les conditions d’utilisation de Party : touche ${button ? `« ${button} »` : 'à nouveau le bouton'} pour les relire.`;
+}
+
 /** Conditions d'utilisation à accepter avant le PREMIER contenu (message, surnom, nom de groupe ; Google UGC) :
  * Titre selon le moment (recette UX du 14.11) : « Avant de publier » par défaut, « Avant de commencer » au premier
  * surnom, « Avant de répondre » sur une invitation ; personne ne « publie » en choisissant son surnom.

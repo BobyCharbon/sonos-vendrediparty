@@ -350,6 +350,31 @@ def test_android_chooses_its_agenda_and_never_lands_in_google_by_default(browser
         context.close()
 
 
+IPHONE_STORE = ('Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 '
+                'PartyApp-iOS/1.0.0 PartyStore')
+
+
+def test_on_the_iphone_the_other_agenda_never_speaks_of_samsung_or_an_android_app(browser, events_origin):  # noqa: F811
+    """Contrôle Apple du 26.11 (2.3.10) : dans l'app App Store, ni « Samsung » ni ICSx⁵ (app Android) : « Autre agenda
+    (copier le lien) »."""
+    from tests.test_event_participant_browser import event_row, open_event, pw
+    ev = event_row(date_mode='fixed', starts_at='2030-11-27T18:00:00Z', max_participants=None)
+    context, page = open_event(browser, events_origin, ev, user_agent=IPHONE_STORE)
+    try:
+        context.grant_permissions(['clipboard-read', 'clipboard-write'])
+        mock_agenda(page, False)
+        page.reload(wait_until='domcontentloaded')
+        page.get_by_role('button', name='Autre agenda : Google, Outlook…', exact=True).click(timeout=15000)
+        pw.expect(page.get_by_role('button', name='Google Agenda', exact=True)).to_be_visible()
+        pw.expect(page.get_by_text('Samsung', exact=False)).to_have_count(0)
+        page.get_by_role('button', name='Autre agenda (copier le lien)', exact=True).click()
+        pw.expect(page.get_by_text(f'/api/calendar-feed/{TOKEN}.ics', exact=False)).to_be_visible(timeout=10000)
+        pw.expect(page.get_by_text('ICSx', exact=False)).to_have_count(0)
+        pw.expect(page.get_by_text('Samsung', exact=False)).to_have_count(0)
+    finally:
+        context.close()
+
+
 def test_android_outlook_opens_the_outlook_subscription_page(browser, events_origin):  # noqa: F811
     context, page, pw, calls, _ = _android_fixed(browser, events_origin, subscribed=False)
     try:

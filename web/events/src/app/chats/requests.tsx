@@ -9,9 +9,10 @@ import { RequestCard } from '@/components/chats/list/RequestCard';
 import { Snack } from '@/components/chats/list/useChatActions';
 import { chatFont, useNeon } from '@/components/chats/neon';
 import { ReportSheet } from '@/components/ReportSheet';
+import { termsLater, useTermsGate } from '@/components/TermsSheet';
 import { Loading } from '@/components/ui';
 import { useMe } from '@/lib/auth';
-import { acceptRequest, chatKey, declineRequest, fetchChatList, openChat, type ChatItem } from '@/lib/chatList';
+import { acceptRequest, chatKey, declineRequest, fetchChatList, needsTerms, openChat, type ChatItem } from '@/lib/chatList';
 import { useQuery, useRealtime, useSignal } from '@/lib/data';
 import { discussionsOn } from '@/lib/features';
 import { useMiniProfile } from '@/lib/miniProfile';
@@ -38,6 +39,17 @@ function Requests() {
   const [snack, setSnack] = useState<{ text: string } | null>(null);
   const push = useCallback((path: string) => router.push(path as never), []);
 
+  // Accepter une demande sans CGU acceptées : les conditions en grand, puis un nouvel essai.
+  const terms = useTermsGate('Avant d’écrire');
+  const accept = async (chat: ChatItem) => {
+    try {
+      await acceptRequest(chat.id);
+    } catch (e) {
+      if (!needsTerms(e)) throw e;
+      if (!(await terms.ensure())) throw new Error(termsLater('accepter cette demande', 'Accepter'));
+      await acceptRequest(chat.id);
+    }
+  };
   const drop = (chat: ChatItem) => setData((data ?? []).filter((x) => chatKey(x) !== chatKey(chat)));
   const run = async (chat: ChatItem, send: () => Promise<void>, after: () => void) => {
     setBusy(chat.id); setFailure(null);
@@ -52,6 +64,7 @@ function Requests() {
         <>
           <Snack snack={snack} onDone={() => setSnack(null)} bottom={insets.bottom + 24} />
           <ReportSheet target={report} onClose={() => setReport(null)} />
+          {terms.sheet}
         </>
       )}>
       {error || failure ? <Text role="alert" style={[chatFont.medium, { color: c.danger, fontSize: 14, paddingHorizontal: 16, paddingTop: 8 }]}>{failure ?? error}</Text> : null}
@@ -59,7 +72,7 @@ function Requests() {
       {list.map((chat, i) => (
         <RequestCard key={chatKey(chat)} chat={chat} index={i} busy={busy === chat.id}
           onProfile={() => chat.user_id && mini.open(chat.user_id)}
-          onAccept={() => void run(chat, () => acceptRequest(chat.id), () => { drop(chat); openChat(chat, push); })}
+          onAccept={() => void run(chat, () => accept(chat), () => { drop(chat); openChat(chat, push); })}
           onDecline={() => void run(chat, () => declineRequest(chat.id), () => { drop(chat); setSnack({ text: 'Demande supprimée' }); })}
           onBlock={() => void run(chat, () => setBlocked(chat.user_id ?? '', true), () => { drop(chat); setSnack({ text: 'Personne bloquée' }); })}
           onReport={() => setReport(chat.last?.id

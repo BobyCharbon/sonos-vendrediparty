@@ -96,6 +96,12 @@ def people_backend(page, state):
             state['note'] = {'body': text} if text else None
         answers['rpc/member_note_get'] = state.get('note')
         answers['rpc/member_note_set'] = state.get('note')
+        if fn == 'rpc/set_block':
+            state['blocked'] = (body or {}).get('blocked')
+            return route.fulfill(status=200, headers=HEADERS, content_type='application/json', body='null')
+        if fn == 'rpc/member_mini' and 'blocked' in state and 'held' in state:
+            state['held'].append(route)   # relecture après le blocage gardée : l'écran doit déjà avoir changé
+            return None
         if fn in answers:
             return route.fulfill(status=200, headers=HEADERS, content_type='application/json', body=json.dumps(answers[fn]))
         if fn in ('direct_messages', 'group_messages') and request.method == 'POST':
@@ -201,6 +207,32 @@ def test_the_mini_profile_says_why_one_cannot_write_and_closes(phone, events_ori
     assert not errors, errors
 
 
+def test_blocking_from_the_mini_profile_changes_the_sheet_at_once(phone, events_origin):
+    """Recette du 26.11 (D1) : « Bloquer › Confirmer » enregistrait le blocage mais la feuille restait identique. Elle dit
+    aussitôt « Tu as bloqué Léa. », « Envoyer un message » grisé et « Débloquer », sans attendre la relecture de la base."""
+    state = {'mini': mini(), 'held': []}
+    page, frame, errors = start(phone, events_origin, state)
+    sheet = open_lea(frame)
+    pw.expect(sheet.get_by_test_id('mini-write')).to_be_enabled()
+    sheet.get_by_role('button', name='Bloquer Léa').click()
+    sheet.get_by_role('button', name='Confirmer le blocage de Léa').click()
+    pw.expect(sheet.get_by_test_id('mini-why')).to_have_text('Tu as bloqué Léa.', timeout=5000)
+    pw.expect(sheet.get_by_test_id('mini-write')).to_be_disabled()
+    pw.expect(sheet.get_by_role('button', name='Débloquer')).to_be_visible()
+    assert rpc_args(state, 'set_block') == [{'target': LEA, 'blocked': True}]
+    shot(page, 'mini-profil-bloque')
+    for _ in range(50):   # la relecture de la base part bien (gardée jusqu'ici)
+        if state['held']:
+            break
+        page.wait_for_timeout(100)
+    assert state['held']
+    state['mini'] = mini(link='none', blocked=True)
+    for route in state.pop('held'):
+        route.fulfill(status=200, headers=HEADERS, content_type='application/json', body=json.dumps(state['mini']))
+    pw.expect(sheet.get_by_test_id('mini-why')).to_have_text('Tu as bloqué Léa.')
+    assert not errors, errors
+
+
 def test_without_the_terms_the_message_button_opens_them_in_big_then_writes(phone, events_origin):
     """Retour de l'admin du 26.11 : CGU pas acceptées = bouton grisé sans moyen de les trouver. Le bouton reste actif,
     ouvre les conditions EN GRAND (texte complet déplié sur place), puis la conversation s'ouvre."""
@@ -224,6 +256,24 @@ def test_without_the_terms_the_message_button_opens_them_in_big_then_writes(phon
             break
         page.wait_for_timeout(100)
     assert len(rpc_args(state, 'open_direct_chat')) == 1
+    assert not errors, errors
+
+
+def test_later_on_the_terms_says_why_and_the_same_button_opens_them_again(phone, events_origin):
+    """Nouvel arrivant (26.11) : « Plus tard » ne laisse jamais un bouton muet ; la phrase dit pourquoi et le même bouton
+    rouvre les conditions."""
+    state = {'mini': mini(link='none', met=0), 'mini_after': mini(link='direct', met=0), 'terms': False}
+    page, frame, errors = start(phone, events_origin, state)
+    sheet = open_lea(frame)
+    sheet.get_by_test_id('mini-write').click()
+    terms = frame.get_by_label('Conditions d’utilisation')
+    terms.get_by_role('button', name='Plus tard', exact=True).click()
+    pw.expect(frame.get_by_label('Conditions d’utilisation')).to_have_count(0)
+    pw.expect(sheet.get_by_role('alert')).to_have_text(
+        'Pour écrire, accepte d’abord les conditions d’utilisation de Party : touche « Envoyer un message » pour les relire.')
+    assert not rpc_args(state, 'accept_terms') and not rpc_args(state, 'open_direct_chat')
+    sheet.get_by_test_id('mini-write').click()
+    pw.expect(frame.get_by_label('Conditions d’utilisation').get_by_text('Avant d’écrire', exact=True)).to_be_visible()
     assert not errors, errors
 
 

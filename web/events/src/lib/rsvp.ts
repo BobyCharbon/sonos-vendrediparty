@@ -91,6 +91,17 @@ function friendlyRsvpError(message: string): string {
   return friendlyError(dbMessage(message, message));
 }
 
+/**
+ * Pot commun de l'événement (décision de l'admin du 26.11, conformité 5.1.2) : l'entrée reste automatique pour qui répond
+ * Présent (private.tc_event_sync), mais on le DIT là où l'on répond. « Pas présent » n'y fait pas entrer ; en sortir se
+ * fait soi-même (Réglages › Pot commun : la base ne retire personne d'un pot).
+ */
+export function potNotice(inPot: boolean): string {
+  return inPot
+    ? 'Tu es dans le pot commun de cet événement : ses membres voient ton nom et les moyens de paiement que tu as indiqués. Pour en sortir : Réglages › Pot commun › Quitter ce pot commun.'
+    : 'Cet événement a un pot commun : en répondant Présent, tu y es ajouté. Ses membres voient ton nom et les moyens de paiement que tu as indiqués. Pas présent : tu n’y entres pas.';
+}
+
 export const rsvpChoices: Record<RsvpStatus, { label: string; icon: string; fg: string; bg: string; dim: string; mine: string }> = {
   yes: { label: 'Présent', icon: '✓', fg: colors.onMint, bg: colors.mint, dim: colors.mintDim, mine: 'Présent' },
   maybe: { label: 'Peut-être', icon: '?', fg: colors.onCoral, bg: colors.coral, dim: colors.coralDim, mine: 'Peut-être' },
