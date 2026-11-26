@@ -72,7 +72,7 @@ def test_the_box_is_unticked_by_default_and_clear():
     assert "const [joinGroup, setJoinGroup] = useState(false);" in rsvp
     lib = (WEB / "lib/guestGroup.ts").read_text()
     assert "Rejoindre aussi le groupe « ${groupLabel(g)} »${g.owner ? ` de ${g.owner}` : ''}" in lib
-    for words in ("ton surnom, ton nom et ta photo", "Ton numéro reste caché", "Tu quittes le groupe quand tu veux",
+    for words in ("ton surnom et ta photo (ton nom seulement si tu as choisi de l’afficher)", "Ton numéro reste caché", "Tu quittes le groupe quand tu veux",
                   "invité à ses prochains événements"):
         assert words in lib
     box = (WEB / "components/GuestGroup.tsx").read_text()
