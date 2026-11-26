@@ -13,6 +13,7 @@ import { formatMessageTime } from '@/lib/format';
 import { refreshPending } from '@/lib/pending';
 import { duration, ease, pressTransition, transition } from '@/lib/motion';
 import { storeApp } from '@/lib/features';
+import { DRINK_RE } from '@/lib/storeEvents';
 import { must, supabase } from '@/lib/supabase';
 import { colors, radius } from '@/lib/theme';
 
@@ -37,7 +38,10 @@ export default function Activity() {
     // App App Store (refus Apple 1.4.3) : le bar y est caché, ses notifications (« 🍹 Barman… ») aussi.
     if (storeApp) q = q.not('kind', 'like', 'bar_%');
     const res = await q.order('created_at', { ascending: false }).limit(100);
-    return must(res) as Item[];
+    const items = must(res) as Item[];
+    // Même règle que send-push : dans l'app App Store, un texte qui parle de boisson devient neutre (1.4.3).
+    return storeApp ? items.map((n) => (DRINK_RE.test(`${n.title} ${n.body}`)
+      ? { ...n, title: 'Party', body: 'Nouvelle activité : touche pour la voir.' } : n)) : items;
   }, [me.id]);
   // null = choix automatique : « Importantes » s'il y en a de non lues, sinon « Tout ».
   const [picked, setPicked] = useState<Filter | null>(null);
