@@ -381,6 +381,18 @@ la barre web reste dans le DOM, sans place ni visibilité. Un nouvel onglet = un
   Tests : `tests/test_games.py`, `tests/e2e/test_pyramid_memorise.py`, `SecretCardsTests`, `SecretCardsUITests`
   (TEST_RUNNER_PARTY_SECRET_SHOT=/chemin.png : vraie capture du système, contrôlée noire).
 
+## App App Store : jeux et page servie (contrôle Apple du 26.11)
+- Page et scripts des jeux pour PartyStore servis par `/static-store/` (`app/store_static.py`) : les blocs `<store-cut>` et les
+  commentaires sont retirés, les lignes `// <store>` remplacent leur voisine. Tout nouveau texte de boisson dans un JS / CSS de la
+  page DOIT être coupé pour l'app, sinon `tests/test_store_static.py` échoue (DRINK_RE sur tout ce qui est servi). Zicou jamais servi.
+- Case « J'ai 18 ans ou plus et j'accepte les conditions d'utilisation » sous « Comment tu t'appelles ? » (app App Store, invité
+  sans compte ; une fois par appareil, `vp_games_terms`) ; le serveur refuse tout texte lu par la table sans elle (`check_game_terms`,
+  403 `games_terms`, qui rouvre la case). « Plus tard » ramène à l'accueil des jeux. Tests : `tests/e2e/test_games_terms_store.py`.
+- Mot du Fantôme (L'Intrus) jamais montré ; Le Reflet dit « estimation / devine », jamais « pari ».
+- Cloche Activité et push (send-push) : texte neutre dans l'app App Store quand DRINK_RE correspond.
+- Pot commun (décision de l'admin du 26.11) : « Présent » ajoute d'office au pot de l'événement ; « Pas présent » NE retire PAS
+  (on quitte dans Réglages › Pot commun) ; fiche, politique et notes le disent.
+
 ## Annonces aux groupes (décision du 06.11.2026, migration 20261106220000)
 - Un événement public ne prévient jamais personne. Un événement de groupe (groupe choisi ou Membres Vendredi Party) ne
   prévient le groupe que par « Prévenir le groupe » (`events.announce_group`, éteint par défaut) : demande à valider
