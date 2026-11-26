@@ -10,7 +10,7 @@ drapeaux de prod lus sur https://party.bobycharbon.ch/api/features : `compagnon:
 | Champ | Valeur |
 |---|---|
 | Nouveautés (What's New) | **Rien** : 1.0.0 est la première version, Apple n'affiche pas ce champ. |
-| Notes pour la revue (App Review Information › Notes) | Copier `ios/appstore/review-notes.txt` (3991 caractères, limite 4 000 ; à jour au 25.11.2026 (refus 1.4.3, tour 2) ; avant : 19.11.2026 : Discussions v2, groupes et discussion d'événement natifs (réservée à Présent / Peut-être) ; « Not in this version » : Pronos, Agenda, compagnon, éteints sur le serveur). |
+| Notes pour la revue (App Review Information › Notes) | Copier `ios/appstore/review-notes.txt` (3997 caractères, limite 4 000 ; à jour au 26.11.2026 (contrôle Apple, tour 1) ; avant : 19.11.2026 : Discussions v2, groupes et discussion d'événement natifs (réservée à Présent / Peut-être) ; « Not in this version » : Pronos, Agenda, compagnon, jamais ouverts par ce build). |
 | URL d'assistance (Support URL) | `https://party.bobycharbon.ch/support` (page d'assistance : contact support@vendrediparty.ch, éditeur, questions fréquentes ; 25.11) |
 | URL de confidentialité (Privacy Policy URL) | `https://party.bobycharbon.ch/events/privacy?app=ios` (texte de l'app App Store, sans bar ni Pronos ; 25.11) |
 | URL marketing | Vide. **Jamais** `vendrediparty.ch` : ce domaine n'a pas de site (aucun enregistrement A), seulement la messagerie. |
@@ -98,7 +98,8 @@ publicité, aucun SDK d'analyse. Pour chaque type ci-dessous : **lié à l'ident
 |---|---|---|---|
 | Contact Info | Name | Prénom, nom, surnom du compte | oui |
 | Contact Info | Phone Number | Connexion par SMS | oui |
-| Financial Info | Other Financial Info | IBAN, titulaire, liens Twint/PayPal/Revolut de l'organisateur et du Pot commun | oui |
+| Financial Info | **Payment Info** | IBAN et titulaire du compte (organisateur, Pot commun) : coordonnées de paiement (26.11) | **à ajouter** au manifeste (`NSPrivacyCollectedDataTypePaymentInfo`) au prochain build ; à cocher dans App Store Connect |
+| Financial Info | Other Financial Info | Liens Twint/PayPal/Revolut de l'organisateur et du Pot commun | oui |
 | Contacts | Contacts | Empreintes chiffrées des numéros du répertoire comparées (rien n'est gardé) | oui (prudent : non stocké, donc facultatif, mais le garder est plus sûr) |
 | User Content | Photos or Videos | Photo de profil, d'événement, ticket du Pot commun, captures données à l'IA | oui |
 | User Content | Emails or Text Messages | Messages de la Discussion d'un événement, messages à l'hôte | oui |
@@ -130,22 +131,22 @@ Je n'ai pas pu les lire (ils ne sont que dans App Store Connect). À contrôler 
 - Zicou, Compagnon, mascotte, collection, coffre, échange d'objets (bêta seulement) ;
 - Casino, Blackjack, roulette, mise, jetons, pari, jackpot (masqués dans l'app App Store) ;
 - gorgées, shot, boire, alcool, « jeux à boire », Beer pong, « Je n'ai jamais » en vedette (ne pas pousser à boire, 1.4.3) ;
-- Discussions, messages privés, messages vocaux (éteints en production) ;
 - billets payants, « paiement dans l'app », « achète » (rien ne se paie dans l'app) ;
 - noms de marques dans les mots-clés : Spotify, Sonos, YouTube, Twint, Apple Music, Claude (2.3.7) ;
 - « gratuit », prix, classement des stores, mots-clés de concurrents.
 
-Peut y être : soirées entre amis, événements, invitations, sondage de dates, file musicale de la soirée, quiz, jeux
-de soirée, Purify Test, pot commun, notifications, Wallet, assistant pour créer un événement.
+Peut y être : soirées entre amis, événements, invitations, sondage de dates, discussions (allumées en prod depuis le
+16.11), quiz, jeux de soirée, Méninges, pot commun, notifications, Wallet, assistant pour créer un événement. Plus de
+file musicale ni de Purify Test (absents de l'app App Store depuis le 25.11).
 
 ## 7. Captures
 
 - Aucune capture du mode gorgées, de la catégorie « 🍻 Alcool », de Pyramide ou Beer pong, ni de Casino/Blackjack.
 - Aucun Zicou (onglet, bulle, widget) : compiler les captures avec le site de production (compagnon éteint).
-- Les captures en place datent du 26.10 (workflow « App iOS → captures App Store », onglets Jeux, Musique, Ton avis,
-  Réglages). La capture **Jeux** montre la liste des jeux : vérifier que l'en-tête « 🍻 Alcool » n'y apparaît pas
-  (c'est la 2e catégorie, juste sous « Chaque jour ») ; sinon la refaire en faisant défiler jusqu'à « Ambiance » ou
-  « Jeux 3D ».
+- Les captures en place (26.10 et 25.11) montrent l'onglet Musique et l'ancienne liste des jeux : **toutes à refaire
+  sur le nouveau build App Store** (26.11), avec les 4 onglets de l'app : **Jeux, Événements, Discussions, Réglages**.
+  La capture 09 est remplacée par **Méninges** ou la **Salle de jeux**. Aucune catégorie « 🍻 Alcool », aucun jeu retiré.
+- **Vidéo d'aperçu** (6,9" et iPhone Duo) : à **supprimer** dans App Store Connect (elle montre l'ancienne app).
 - Le workflow compile en Debug (condition BETA présente) : sans conséquence tant que le site de production a
   `compagnon: false`, mais vérifier qu'aucune bulle de Zicou n'apparaît.
 

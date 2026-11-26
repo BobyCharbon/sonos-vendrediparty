@@ -57,7 +57,7 @@ Une salle de jeux pour toute la bande : un seul code, tout le monde rejoint, on 
 
 ET AUSSI
 • Groupes avec photo, couleur et lien d'invitation réutilisable.
-• Pot commun : qui a payé quoi, qui doit combien. Si l'organisateur d'un événement en a choisi un, répondre Présent t'y ajoute.
+• Pot commun : qui a payé quoi, qui doit combien. Si l'organisateur d'un événement en a choisi un, répondre Présent (ou y être noté Présent par l'organisateur) t'y ajoute ; tu le quittes quand tu veux.
 • Notifications réglables une à une, pause en un geste.
 • Ton avis, pour les membres qui y ont accès : une idée, un bug ? Écris-le directement à l'équipe de Party.
 • Depuis n'importe quelle app, Partager › Party crée un événement à partir d'un lien.
@@ -67,7 +67,7 @@ Connexion simple par numéro de téléphone et code SMS, sans mot de passe. Supp
 Sans publicité, sans suivi publicitaire, sans achat intégré. Réservé aux personnes de 18 ans et plus.
 ```
 
-Longueur : 2 334 caractères (limite 4 000 ; 26.11 : sans mini-sondages ni soirée Musique). Aucun nom de marque tierce, aucun mot sur l'alcool, Zicou, Casino ou Blackjack.
+Longueur : 2 408 caractères (limite 4 000 ; 26.11 : sans mini-sondages ni soirée Musique ; Pot commun : aussi noté Présent par l'organisateur). Aucun nom de marque tierce, aucun mot sur l'alcool, Zicou, Casino ou Blackjack.
 « Sur place » est décrit sans promesse : les billets n'existent que si l'organisateur les allume. 26.11 : ni « mini-sondages »
 (les comptes de démo ne peuvent pas en créer) ni soirée Musique / Activité en direct (impossible à essayer sans l'hôte) ;
 modération = « signalements lus et traités par l'éditeur sous 24 heures » ; « Ton avis » écrit à l'équipe de Party. Refus 1.4.3 (25.11) : plus de bar dans la fiche ni dans l'app App Store.

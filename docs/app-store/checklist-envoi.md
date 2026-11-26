@@ -78,10 +78,27 @@
       - [ ] captures 6,9" et Duo REFAITES sur le nouveau build App Store (barre à 4 onglets, 09 = Méninges ou la Salle
             de jeux, données fictives, aucune boisson) ; ancienne vidéo d'aperçu SUPPRIMÉE dans App Store Connect
             (aucune nouvelle vidéo) ; vérifier qu'aucune ancienne image ne reste en ligne ;
-      - [ ] guide PDF joint = celui du 26.11 (régénéré depuis la partie B) ; notes recopiées (3993 caractères) ;
+      - [ ] guide PDF joint = celui du 26.11 (régénéré depuis la partie B) ; notes recopiées (3997 caractères) ;
       - [ ] clé `storage_secret_key` AJOUTÉE par l'admin dans le coffre de prod (contrôle : `private.chat_files_gc_runs`) ;
       - [ ] dépôt GitHub `BobyCharbon/sonos-vendrediparty` passé en PRIVÉ (ou `GITHUB_REPO` sur un dépôt privé à part) ;
       - [ ] nouveau build iPhone : la politique native (`SignInView.swift`) est celle du 26.11, mot pour mot la page web.
+- [ ] Contrôle Apple, tour 1 (26.11, textes de soumission) : notes (3997 caractères), guide PDF (B4.3 : « Sur invitation »
+      puis « Démo Apple · 2 » ; B4.14 : case « J'ai 18 ans ou plus… » vérifiée par le serveur, prénoms filtrés même changés
+      en cours de partie ; B4.16 : Pot commun aussi pour qui est noté Présent par l'organisateur, dépenses et photos de
+      tickets avec CGU et « Signaler » ; numérotation B4.12 corrigée) ; plus aucune Activité en direct promise (musique
+      impossible à essayer sans l'hôte, 2.1) ; la Musique reste décrite, sans démo, pour ne rien cacher (2.3.1) ; aucune
+      mention de Souvenirs ni de la couverture d'événement (éteints dans l'app App Store). RESTE À FAIRE avant l'envoi :
+      - [ ] captures 6,9" et Duo REFAITES sur le nouveau build : les 4 onglets (**Jeux, Événements, Discussions,
+            Réglages**), la 09 remplacée par **Méninges** ou la **Salle de jeux** ; aucune boisson, données fictives ;
+      - [ ] vidéo d'aperçu SUPPRIMÉE dans App Store Connect (6,9" ET iPhone Duo) ;
+      - [ ] clé `storage_secret_key` ajoutée dans le coffre Supabase de prod (contrôle : `private.chat_files_gc_runs`) ;
+      - [ ] dépôt GitHub passé en PRIVÉ ;
+      - [ ] connexion d'« Apple-test 2 » ET d'« Apple-test » testée LE JOUR de l'envoi ;
+      - [ ] `supabase/prod/2026-11-26-demo-nettoyage-apply.sql` appliqué (contrôle : migration `20261126110000` en prod) ;
+      - [ ] couverture de l'événement « Verknipt » vérifiée / remplacée (aucune boisson visible) ;
+      - [ ] lien Shotgun de « Hard Boat » nettoyé : sans paramètre `uhandle` ni `utm_*` ;
+      - [ ] App Privacy : **Payment Info** cochée (IBAN) ; manifeste `PrivacyInfo.xcprivacy` à compléter au même build
+            (`NSPrivacyCollectedDataTypePaymentInfo`, absent au 26.11).
 - [ ] Connexion testée avec « Apple-test 2 » (jamais connecté en prod au 25.11) et « Apple-test » le jour de l'envoi.
 - [ ] App Store Connect › Business : adresse du compte développeur en France (Segny) et statut DSA (non-commerçant) à jour.
 
@@ -137,10 +154,10 @@
 - [ ] **User name** : `+41 79 000 09 99` (compte « Apple-test »).
 - [ ] **Password** : le code fixe à 6 chiffres (Supabase prod › Authentication › Phone › Test OTP ; le fichier
       `~/sb-work/apple/demo.txt` n'existe pas sur ce Mac : le reprendre là où il est). **Jamais dans le dépôt.**
-- [ ] **Notes** : la partie A de `notes-for-review.md` (3993 caractères, limite 4 000 ; = `ios/appstore/review-notes.txt`). La recopier aussi dans
+- [ ] **Notes** : la partie A de `notes-for-review.md` (3997 caractères, limite 4 000 ; = `ios/appstore/review-notes.txt`). La recopier aussi dans
       `ios/appstore/review-notes.txt` avant d'utiliser `tools/appstore_submit.py` (il envoie ce fichier), puis lancer
       `.venv/bin/python -m pytest -q tests/test_ios_app.py -p no:cacheprovider` (la partie A contient les mots exigés).
-- [ ] **Pronos, Agenda, compagnon : PAS dans cette version** (éteints sur le serveur) : les notes le disent (« Not in this version »),
+- [ ] **Pronos, Agenda, compagnon : PAS dans cette version** (jamais ouverts par ce build, quoi que dise le serveur) : les notes le disent (« Not in this version »),
       aucune section PRONOS, aucun prono de démo à préparer.
       Questionnaire : Simulated Gambling **None** tant qu'ils restent éteints.
       Aucun code de compte dans le dépôt.
@@ -189,7 +206,8 @@ Pour chaque type : **lié à l'identité : oui · suivi : non · finalité : App
 (aucun SDK tiers, pas d'ATT).
 
 - [ ] Contact Info : **Name**, **Phone Number**
-- [ ] Financial Info : **Other Financial Info** (IBAN, liens Twint / Revolut des organisateurs et du pot commun)
+- [ ] Financial Info : **Payment Info** (IBAN et titulaire : organisateurs et pot commun ; 26.11) et **Other Financial
+      Info** (liens Twint / Revolut / PayPal)
 - [ ] Contacts : **Contacts** (empreintes chiffrées, non gardées ; déclaré par prudence ; 18.11 : aussi les suggestions
       de « Nouveau message », même type, même finalité App Functionality : **rien de neuf à cocher**, relire la description)
 - [ ] User Content : **Photos or Videos**, **Audio Data** (messages vocaux des Discussions — nouveau), **Emails or Text

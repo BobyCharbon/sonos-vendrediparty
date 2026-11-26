@@ -673,7 +673,8 @@ def test_round_eight_texts_match_what_the_reviewer_can_try():
                  "to the organisers"):
         assert gone not in guide, gone
     assert "nothing digital is sold or unlocked" in notes and "photos and voice messages can be sent" in guide
-    assert '"Présent" to an event with a pot adds you' in notes and "everyone who answers **Présent** is added" in guide
+    assert '"Présent" (or being marked Présent by the organiser) adds you' in notes
+    assert "everyone who answers **Présent** is added" in guide and "anyone the organiser marks **Présent**" in guide
     # « Pas présent » ne retire PAS du pot (tc_rsvp_changed ajoute seulement) : on le quitte soi-même dans Réglages.
     assert "removes you" not in notes and "**Absent** removes" not in guide and "Quitter ce pot commun" in guide
     assert desc in fiche  # la fiche recopie la description envoyée
@@ -687,3 +688,23 @@ def test_round_eight_texts_match_what_the_reviewer_can_try():
         assert "l'en fait sortir" not in text and "« Quitter ce pot commun »" in text, path
         assert "les surnoms des membres de Party que tu peux inviter" in text, path
         assert "Journal des connexions et des actions d'administration : 12 mois. Recherches de personnes : 1 heure." in text, path
+
+
+def test_apple_check_round_one_texts_promise_only_what_the_reviewer_can_try():
+    """Contrôle Apple du 26.11, tour 1 (2.1, 2.3.1(a), 1.2) : notes et guide = ce que l'app App Store fait vraiment."""
+    notes = (_root() / "ios/appstore/review-notes.txt").read_text(encoding="utf-8").strip()
+    guide = (_root() / "docs/app-store/notes-for-review.md").read_text(encoding="utf-8")
+    part_b = guide.split("## PART B", 1)[1]
+    assert len(notes) <= 4000 and notes in guide
+    assert '"+ Proposer" > "Sur invitation" (or "Avec l\'IA" > "Des groupes")' in notes
+    assert 'tap **Sur invitation**, then tick **Démo Apple · 2**, then **Publier**' in part_b
+    assert "J'ai 18 ans ou plus et j'accepte les conditions" in notes and "server-checked" in notes
+    assert "first names and answers filtered" in notes and "a first name changed during a game" in part_b
+    assert "messages from a blocked person disappear at once" in notes and "(last 10 messages if ticked)" in notes
+    assert "photo/voice copied" not in notes  # la copie des photos signalées : guide seulement
+    for text in (notes, guide):
+        assert "Live Activity" not in text and "Souvenir" not in text and "cover" not in text.lower()
+    assert "needs the host's Sonos" in notes  # Musique décrite, jamais cachée (2.3.1)
+    titles = [l.split(" ", 2)[1] for l in part_b.splitlines() if l.startswith("#### B4.")]
+    assert titles == [f"B4.{n}" for n in range(1, len(titles) + 1)], titles  # numérotation continue
+
