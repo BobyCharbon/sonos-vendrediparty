@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 
-import { formatAnswerTime, formatLongDay, formatShort, formatTime, parseLocalDateTime } from '@/lib/format';
+import { formatAnswerTime, formatLongDay, formatShort, formatTime, parseLocalDateTime, plural } from '@/lib/format';
 import { enter, pressTransition, useChangedSinceMount } from '@/lib/motion';
 import { refreshPending } from '@/lib/pending';
 import { fetchAttendance } from '@/lib/attendance';
@@ -33,6 +33,9 @@ import { Avatar, Button, Chip, ErrorText, Input, Meter, Reveal, s, Section, T } 
 import { NameLinks, type NamedPerson } from './NameLinks';
 
 type Names = Map<string, string>;
+/** Nombre de personnes sans compte par réponse (jamais leurs noms). */
+export type Unnamed = { yes: number; maybe: number };
+const NO_EXTRA: Unnamed = { yes: 0, maybe: 0 };
 /** Choix de sondage tel que la base le rend (`poll_options(*)`) : son auteur sert à « Signaler ». */
 type OptionRow = PollOption & { created_by?: string | null };
 
@@ -102,6 +105,7 @@ export function RsvpCard({
   rsvps,
   onChange,
   organizer = false,
+  extraHeads = 0,
 }: {
   event: EventRow;
   me: string;
@@ -109,6 +113,8 @@ export function RsvpCard({
   onChange: () => void;
   /** Organisateur ou co-organisateur : il dit s'il sera là, sans être sollicité comme un invité. */
   organizer?: boolean;
+  /** Présents notés à la main sans compte : ils prennent des places (26.11). */
+  extraHeads?: number;
 }) {
   const mine = rsvps.find((r) => r.user_id === me);
   const asking = !mine && !organizer;
@@ -138,7 +144,7 @@ export function RsvpCard({
   const { data: counted } = useQuery(async () => (hidden ? (await fetchAttendance([event.id])).get(event.id) ?? null : null),
     [event.id, hidden, rsvps.map((r) => `${r.user_id}:${r.status}:${r.waitlisted}:${r.plus_ones}`).join()]);
   const visibleHeads = rsvps.filter((r) => r.status === 'yes' && !r.waitlisted).reduce((n, r) => n + 1 + r.plus_ones, 0);
-  const heads = hidden && counted ? Math.max(counted.going, visibleHeads) : visibleHeads;
+  const heads = hidden && counted ? Math.max(counted.going, visibleHeads) : visibleHeads + extraHeads;
   const full = !!event.max_participants && heads >= event.max_participants && !(mine?.status === 'yes' && !waiting);
   // Complet : un accompagnant de plus passe en liste d’attente ; la personne garde sa place.
   const fullForMore = !!event.max_participants && heads >= event.max_participants && mine?.status === 'yes' && !waiting;
@@ -352,12 +358,15 @@ export function ParticipantsSection({
   rsvps,
   names,
   viaLink = new Set<string>(),
+  withoutAccount = NO_EXTRA,
 }: {
   event: EventRow;
   me: string;
   rsvps: Rsvp[];
   names: Names;
   viaLink?: Set<string>;
+  /** Personnes notées à la main SANS compte : leur nombre seulement, jamais leur nom (26.11). */
+  withoutAccount?: Unnamed;
 }) {
   const nameOf = (id: string) => (id === me ? 'Toi' : names.get(id) ?? '?');
   const faceOf = (id: string) => names.get(id) ?? nameOf(id);
@@ -366,7 +375,7 @@ export function ParticipantsSection({
   const yes = group('yes');
   const maybe = group('maybe');
   const no = group('no');
-  const heads = yes.reduce((n, r) => n + 1 + r.plus_ones, 0);
+  const heads = yes.reduce((n, r) => n + 1 + r.plus_ones, 0) + withoutAccount.yes;
   const left = event.max_participants ? event.max_participants - heads : null;
   // Mots des autres : la base ne les rend qu'à l'organisation et aux admins (un invité ne lit que le sien).
   const { data: readable } = useRsvpNotes(event.id, rsvps);
@@ -384,13 +393,18 @@ export function ParticipantsSection({
     : `${n > 1 ? `${n} accompagnants` : 'Accompagnant'} de ${nameOf(id)}`);
   if (!event.show_participants && rsvps.length <= 1) return null;
 
-  const block = (label: string, list: Rsvp[], color: string, count = list.length) =>
-    list.length ? (
-      <View style={{ gap: 8 }} accessibilityLabel={`${label} : ${list.map((r) => nameOf(r.user_id)).join(', ')}`}>
+  const block = (label: string, list: Rsvp[], color: string, count = list.length, unnamed = 0) =>
+    list.length || unnamed ? (
+      <View style={{ gap: 8 }} accessibilityLabel={`${label} : ${[...list.map((r) => nameOf(r.user_id)), ...(unnamed ? [plural(unnamed, 'personne sans compte', 'personnes sans compte')] : [])].join(', ')}`}>
         <T size={12} weight="bold" color={color}>{label.toUpperCase()} · {count}</T>
         <View style={s.wrap}>
           {list.map((r) => <PersonChip key={r.user_id} id={r.user_id} self={r.user_id === me} name={nameOf(r.user_id)} face={faceOf(r.user_id)} extra={r.plus_ones ? `+${r.plus_ones}` : undefined}
             when={formatAnswerTime(r.updated_at)} viaLink={viaLink.has(r.user_id)} fresh={moved} />)}
+          {unnamed ? (
+            <View style={st.unnamed} testID="without-account">
+              <T size={13} weight="semibold" color={colors.textSoft}>{`+${unnamed} sans compte`}</T>
+            </View>
+          ) : null}
         </View>
       </View>
     ) : null;
@@ -409,9 +423,9 @@ export function ParticipantsSection({
           <Meter parts={[{ fraction: heads / event.max_participants, color: colors.accent }]} />
         </View>
       ) : null}
-      {rsvps.length === 0 ? <T muted size={14}>Personne n’a encore répondu. Sois le premier !</T> : null}
-      {block('Présents', yes, colors.mint, heads)}
-      {block('Peut-être', maybe, colors.coral)}
+      {rsvps.length === 0 && !withoutAccount.yes && !withoutAccount.maybe ? <T muted size={14}>Personne n’a encore répondu. Sois le premier !</T> : null}
+      {block('Présents', yes, colors.mint, heads, withoutAccount.yes)}
+      {block('Peut-être', maybe, colors.coral, maybe.length + withoutAccount.maybe, withoutAccount.maybe)}
       {queue.length ? (
         <View style={{ gap: 8 }} accessibilityLabel={`Liste d’attente : ${queue.map((q) => (q.extras ? extrasName(q.r.user_id, q.extras) : nameOf(q.r.user_id))).join(', ')}`}>
           <T size={12} weight="bold" color={colors.lavender}>{'Liste d’attente'.toUpperCase()} · {queuePlaces}</T>
@@ -827,6 +841,7 @@ export function BringSection({
 }
 
 const st = StyleSheet.create({
+  unnamed: { minHeight: 32, paddingHorizontal: 12, borderRadius: 999, justifyContent: 'center', backgroundColor: colors.fill, borderWidth: 1, borderColor: colors.line, borderStyle: 'dashed' },
   confirmOverlay: { flex: 1, backgroundColor: 'rgba(10,6,22,0.85)', alignItems: 'center', justifyContent: 'center', padding: 16 },
   confirmCard: { width: '100%', maxWidth: 380, gap: 12, padding: 20, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.lineStrong },
   undecided: { gap: 2, padding: 10, borderRadius: radius.md, backgroundColor: colors.coralDim },

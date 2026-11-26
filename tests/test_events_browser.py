@@ -210,7 +210,7 @@ def test_sms_login_events_details_and_rsvp(browser,events_origin,country,width):
         frame.get_by_role('button',name='Présent',exact=True).click()
         pw.expect(frame.get_by_text('C’est noté, tu viens !',exact=True)).to_be_visible(timeout=10000)
         pw.expect(frame.get_by_text('PRÉSENTS · 1',exact=True)).to_be_visible()
-        pw.expect(frame.get_by_text('Toi',exact=True)).to_be_visible()
+        pw.expect(frame.get_by_text('Toi',exact=True).first).to_be_visible()  # chip « Qui vient ? » (et ligne de Présences)
         # Les accompagnants ne sont pas autorisés sur cette sortie : un message remplace le compteur, sans parler d'un
         # groupe (recette des nouveaux comptes, 14.11 : « réservé aux membres du groupe » sur un événement sans groupe).
         pw.expect(frame.get_by_text('Pas d’accompagnant pour cet événement.',exact=True)).to_be_visible()
@@ -487,7 +487,7 @@ def test_each_answer_shows_when_it_was_given(browser, events_origin):
         page.get_by_role('button',name='Événements',exact=True).click()
         frame=page.frame_locator('#eventsFrame'); login(frame)
         frame.get_by_text('Sortie de démonstration (test local)',exact=True).click()
-        chip=frame.get_by_role('button',name='Profil de Léa')
+        chip=frame.get_by_role('button',name='Profil de Léa').first  # puce de « Qui vient ? » (la carte Présences a aussi sa photo)
         pw.expect(chip).to_contain_text('13.11 · 21:17', timeout=15000)
     finally:
         context.close()
@@ -524,10 +524,10 @@ def test_the_event_page_catches_up_when_the_app_comes_back(browser, events_origi
         page.get_by_role('button',name='Événements',exact=True).click()
         frame=page.frame_locator('#eventsFrame'); login(frame)
         frame.get_by_text('Sortie de démonstration (test local)',exact=True).click()
-        pw.expect(frame.get_by_text('Personne n’a encore répondu',exact=False)).to_be_visible(timeout=15000)
+        pw.expect(frame.get_by_text('Personne n’a encore répondu. Sois le premier !',exact=True)).to_be_visible(timeout=15000)
         answers.append({'event_id':EVENT,'user_id':lea,'status':'yes','plus_ones':0,'note':None,'waitlisted':False,'updated_at':'2026-11-14T18:00:00Z'})
         page.frame_locator('#eventsFrame').locator('body').evaluate("() => document.dispatchEvent(new Event('visibilitychange'))")
-        pw.expect(frame.get_by_role('button',name='Profil de Léa')).to_be_visible(timeout=10000)
+        pw.expect(frame.get_by_role('button',name='Profil de Léa').first).to_be_visible(timeout=10000)
     finally:
         context.close()
 
@@ -725,15 +725,14 @@ def test_organizer_marks_a_guest_present_then_absent_then_removes_the_answer(bro
         frame=page.frame_locator('#eventsFrame')
         login(frame)
         frame.get_by_text('Sortie de démonstration (test local)',exact=True).click()
-        frame.get_by_role('button',name='Gérer',exact=True).click()
         frame.get_by_label('Ajouter quelqu’un',exact=True).fill('lea')  # sans accent ni majuscule
         frame.get_by_role('button',name='Noter présent',exact=True).click()
-        pw.expect(frame.get_by_text('Noté par Toi',exact=True)).to_be_visible(timeout=10000)
+        pw.expect(frame.get_by_text('A un compte · prévenu',exact=True)).to_be_visible(timeout=10000)
         pw.expect(frame.get_by_text('PRÉSENTS · 1',exact=True)).to_be_visible()
         frame.get_by_role('button',name='Léa : Absent',exact=True).click()
         pw.expect(frame.get_by_text('Absents : Léa',exact=True)).to_be_visible(timeout=10000)
-        frame.get_by_role('button',name='Retirer',exact=True).click()
-        pw.expect(frame.get_by_text('Personne n’a encore répondu : cherche un prénom pour l’ajouter.',exact=True)).to_be_visible(timeout=10000)
+        frame.get_by_role('button',name='Retirer Léa',exact=True).click()
+        pw.expect(frame.get_by_text('Personne n’a encore répondu : écris un nom pour l’ajouter.',exact=True)).to_be_visible(timeout=10000)
         assert sent()==[{'event':EVENT,'member':lea,'answer':'yes'},{'event':EVENT,'member':lea,'answer':'no'},{'event':EVENT,'member':lea,'answer':None}]
         assert not errors
     finally: context.close()

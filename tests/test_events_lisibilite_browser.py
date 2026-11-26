@@ -141,7 +141,7 @@ def open_page(browser, origin, path, event=EVENT_ROW):  # noqa: F811
 def test_event_page_is_readable_at_375_px(browser, v2_origin):  # noqa: F811
     context, page = open_page(browser, v2_origin, f'/events/event/{EVENT}')
     try:
-        long_chip = page.get_by_role('button', name='Profil de Marie-Thérèse de la Tour-Montagne')
+        long_chip = page.get_by_role('button', name='Profil de Marie-Thérèse de la Tour-Montagne').first  # puce de « Qui vient ? »
         pw.expect(long_chip).to_be_visible(timeout=15000)
         # L'heure de la réponse reste entière (12 px) : c'est le nom qui se coupe.
         when = long_chip.get_by_text('10.11 · 10:00', exact=True)
