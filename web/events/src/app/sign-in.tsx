@@ -57,7 +57,7 @@ export default function SignIn() {
           </Title>
           <T muted>{fromInvite
             ? 'Pour envoyer ta réponse, entre ton numéro : tu reçois un code par SMS. Ensuite, tu reviens tout seul à l’invitation.'
-            : 'Connecte-toi par SMS : ton surnom et ta photo te suivent dans les jeux, et tu peux demander à rejoindre les événements du groupe.'}</T>
+            : 'Connecte-toi par SMS : ton surnom et ta photo te suivent dans les jeux, et tu retrouves les événements où tu es invité.'}</T>
         </View>
 
         {!sentTo ? (

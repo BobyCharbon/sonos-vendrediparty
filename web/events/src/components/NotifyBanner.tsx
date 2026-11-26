@@ -61,7 +61,8 @@ export function NotifyBanner() {
       </View>
       <View style={st.row}>
         {!blocked || native ? (
-          <Button label={blocked ? 'Ouvrir les réglages' : 'Activer les notifications'} small loading={busy} disabled={busy}
+          // App iPhone : ce bouton ouvre la fenêtre d'iOS, il dit seulement « Continuer » (Apple 5.1.1(iv)).
+          <Button label={blocked ? 'Ouvrir les réglages' : native ? 'Continuer' : 'Activer les notifications'} small loading={busy} disabled={busy}
             onPress={() => void enable()} style={{ flex: 1 }} />
         ) : null}
         <Button label="Plus tard" variant="ghost" small disabled={busy} onPress={() => { laterUntil(); setHidden(true); }} />

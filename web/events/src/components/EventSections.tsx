@@ -11,7 +11,7 @@ import { waitlistQueue, waitlistRank } from '@/lib/eventChecks';
 import { useAuth } from '@/lib/auth';
 import { openMiniProfile } from '@/lib/miniProfile';
 import { dbMessage, type ReportTarget } from '@/lib/moderation';
-import { fetchRsvpNotes, guestsLine, onWaitlist, potNotice, rsvpChoices, rsvpClosed, rsvpOptions, saveRsvp, totalPlusOnes, waitingPlusOnes } from '@/lib/rsvp';
+import { fetchRsvpNotes, guestsLine, inEventPot, onWaitlist, potNotice, rsvpChoices, rsvpClosed, rsvpOptions, saveRsvp, totalPlusOnes, waitingPlusOnes } from '@/lib/rsvp';
 import { noteToSend, othersNotes } from '@/lib/rsvpNote';
 import { supabase } from '@/lib/supabase';
 import { colors, font, radius } from '@/lib/theme';
@@ -129,6 +129,9 @@ export function RsvpCard({
   // CGU exigées avant le premier contenu : le petit mot est lu par l'organisateur (règle « contenu des joueurs »).
   const terms = useTermsGate();
   const closed = rsvpClosed(event);
+  // Pot commun : passé de Présent à autre chose, on y reste (la base ne retire personne) : la fiche le dit.
+  const { data: stillInPot } = useQuery(async () => (event.pot_enabled && mine && mine.status !== 'yes' ? inEventPot(event.id) : false),
+    [event.id, event.pot_enabled, mine?.status]);
   // Participants masqués : seules nos réponses sont lisibles ; le total exact vient de la base (event_attendance).
   const hidden = !event.show_participants && !!event.max_participants;
   const { data: counted } = useQuery(async () => (hidden ? (await fetchAttendance([event.id])).get(event.id) ?? null : null),
@@ -267,7 +270,7 @@ export function RsvpCard({
       />
       {event.pot_enabled && (!closed || mine?.status === 'yes') ? (
         <View testID="pot-notice" style={[st.note, { borderLeftColor: colors.mint }]}>
-          <T size={13} color={colors.textSoft}>💸 {potNotice(mine?.status === 'yes' && !waiting)}</T>
+          <T size={13} color={colors.textSoft}>💸 {potNotice(mine?.status === 'yes' && !waiting ? 'in' : stillInPot ? 'still' : 'out')}</T>
         </View>
       ) : null}
       {askGroup && !closed ? <GuestGroupCheck card={guestGroup!.group!} value={joinGroup} onChange={setJoinGroup} disabled={!!busy} /> : null}

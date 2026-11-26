@@ -13,7 +13,7 @@ import { TicketCard } from '@/components/TicketCard';
 import { TicketsManager } from '@/components/TicketsManager';
 import { CalendarButton } from '@/components/CalendarButton';
 import { EventGiftsLink } from '@/components/EventGifts';
-import { barOn, compagnonOn, discussionsOn, invitesV2On, pronosOn, storeApp } from '@/lib/features';
+import { barOn, compagnonOn, coversOn, discussionsOn, invitesV2On, pronosOn, souvenirsOn, storeApp } from '@/lib/features';
 import { DRINK_RE, drinkyEvent } from '@/lib/storeEvents';
 import { GuestListCard } from '@/components/GuestListCard';
 import { AnnounceStatusCard } from '@/components/AnnounceStatusCard';
@@ -323,7 +323,7 @@ export default function EventScreen() {
       {/* Affiche de l’événement (lue sur la page de l’événement par l’assistant IA) */}
       {/* Couverture (25.11) : l'organisation la change (ma photo, photos libres de droits, image officielle, affiche). */}
       <EventCover eventId={ev.id} url={ev.cover_url} credit={ev.cover_credit} creditUrl={ev.cover_credit_url}
-        canEdit={canEdit && ev.status !== 'cancelled'} onChanged={reload} />
+        canEdit={coversOn && canEdit && ev.status !== 'cancelled'} onChanged={reload} />
       {/* En-tête : l’essentiel en un coup d’œil */}
       <View style={{ gap: 10 }}>
         {/* En haut : les étiquettes, et à droite qui vient et combien (donne envie d’en être). Le titre, dessous,
@@ -461,9 +461,9 @@ export default function EventScreen() {
         <TicketCard event={ev} me={me} answerKey={`${mine.status}:${mine.waitlisted}:${mine.plus_ones}:${paymentsTick}`} />
       ) : null}
       {/* Souvenirs (24.11) : appareil jetable de la soirée, dévoilé en story ; l'état vient de souvenir_counter. */}
-      {published && ev.souvenirs_enabled ? <SouvenirsCard eventId={ev.id} title={ev.title} open={souvenirs} /> : null}
+      {souvenirsOn && published && ev.souvenirs_enabled ? <SouvenirsCard eventId={ev.id} title={ev.title} open={souvenirs} /> : null}
       {/* Annulé : ni dévoilement ni story, mais mes photos restent (souvenir_mine) : les retrouver ou les supprimer ici. */}
-      {ev.status === 'cancelled' && ev.souvenirs_enabled ? <MySouvenirs eventId={ev.id} hideWhenEmpty /> : null}
+      {souvenirsOn && ev.status === 'cancelled' && ev.souvenirs_enabled ? <MySouvenirs eventId={ev.id} hideWhenEmpty /> : null}
       {/* Sondages juste après « Présent / Absent » (demande de l'admin, 17.11) : ils étaient trop bas. */}
       {ev.polls
         .sort((a, b) => a.sort - b.sort)

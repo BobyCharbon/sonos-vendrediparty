@@ -5,7 +5,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { ChatsPause } from '@/components/NotificationPause';
 import { PartyNotifications } from '@/components/PartyNotifications';
 import { ZicouReactionsRow } from '@/components/ZicouReactionsRow';
-import { agendaOn, compagnonOn, discussionsOn, barOn, pronosOn } from '@/lib/features';
+import { agendaOn, compagnonOn, discussionsOn, barOn, pronosOn, souvenirsOn } from '@/lib/features';
 import { SubscriptionPicker } from '@/components/SubscriptionPicker';
 import { Badge, Button, Chip, ErrorText, Field, LinkRow, Screen, s, Section, Segmented, T, ToggleRow } from '@/components/ui';
 import { useAuth, useMe } from '@/lib/auth';
@@ -274,7 +274,7 @@ export default function NotificationSettings() {
         <ToggleRow disabled={saving} label="Quelqu’un rejoint ou demande à venir par un lien" hint="Une personne répond avec un lien d’invitation, ou attend ton accord (lien d’un invité)" value={prefs.link_join !== false} onChange={(v) => update({ link_join: v })} />
         {agendaOn ? <ToggleRow disabled={saving} label="Demandes de rendez-vous" hint="Quelqu’un demande un rendez-vous par un de tes liens de dispo (ni nom ni message dans la notification)" value={prefs.booking_requests !== false} onChange={(v) => update({ booking_requests: v })} /> : null}
         {pronosOn ? <ToggleRow disabled={saving} label="Pronos" hint="Nouveau prono pour toi, résultat dévoilé, résultat à donner quand tes pronos sont fermés" value={prefs.pronos !== false} onChange={(v) => update({ pronos: v })} /> : null}
-        <ToggleRow disabled={saving} label="Souvenirs" hint="Les photos d’une soirée sont dévoilées ; une photo Souvenirs d’un événement que j’organise est signalée" value={prefs.souvenirs !== false} onChange={(v) => update({ souvenirs: v })} />
+        {souvenirsOn ? <ToggleRow disabled={saving} label="Souvenirs" hint="Les photos d’une soirée sont dévoilées ; une photo Souvenirs d’un événement que j’organise est signalée" value={prefs.souvenirs !== false} onChange={(v) => update({ souvenirs: v })} /> : null}
         {mayShow('ticket_pay_declared') ? <ToggleRow disabled={saving} label="Quelqu’un dit avoir payé" hint="Sur un événement payant que j’organise, une personne touche « J’ai payé » : à confirmer quand tu as reçu l’argent" value={prefs.ticket_pay_declared !== false} onChange={(v) => update({ ticket_pay_declared: v })} /> : null}
         {barOn ? <ToggleRow disabled={saving} label="Bar : quelqu’un dit avoir remboursé" hint="Au bar d’une soirée que j’organise : à confirmer quand tu as reçu l’argent" value={prefs.bar_refund_declared !== false} onChange={(v) => update({ bar_refund_declared: v })} /> : null}
         {mayShow('proposal_result') ? <ToggleRow disabled={saving} label="Ma proposition validée ou refusée" hint="Un admin publie ou refuse l’événement que tu as proposé" value={prefs.proposal_result !== false} onChange={(v) => update({ proposal_result: v })} /> : null}

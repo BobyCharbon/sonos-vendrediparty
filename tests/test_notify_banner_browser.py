@@ -54,7 +54,7 @@ def test_iphone_app_enable_asks_ios_and_the_banner_goes_away(browser, events_ori
         page.add_init_script(native('default'))
         page.reload(wait_until='domcontentloaded')
         pw.expect(page.get_by_text(TITLE, exact=True)).to_be_visible(timeout=15000)
-        page.get_by_role('button', name='Activer les notifications').click()
+        page.get_by_role('button', name='Continuer', exact=True).click()
         pw.expect(page.get_by_text(TITLE, exact=True)).to_have_count(0, timeout=5000)
         assert page.evaluate('window.__asked') is True
     finally:

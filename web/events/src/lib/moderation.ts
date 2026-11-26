@@ -47,6 +47,16 @@ export async function reportContent(target: ReportTarget, reason: ReportReason, 
 export async function setBlocked(userId: string, blocked: boolean): Promise<void> {
   const { error } = await supabase.rpc('set_block', { target: userId, blocked });
   if (error) throw new Error(blocked ? 'Le blocage n’a pas pu être enregistré.' : 'Le déblocage n’a pas pu être enregistré.');
+  // Signal pour les écrans ouverts (discussion derrière le mini-profil) : ils se relisent aussitôt.
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(BLOCKS_CHANGED, { detail: { userId, blocked } }));
+}
+
+const BLOCKS_CHANGED = 'party:blocks-changed';
+/** Écoute les blocages / déblocages faits dans cette page ; renvoie de quoi arrêter d'écouter. */
+export function onBlocksChanged(fn: () => void): () => void {
+  if (typeof window === 'undefined') return () => {};
+  window.addEventListener(BLOCKS_CHANGED, fn);
+  return () => window.removeEventListener(BLOCKS_CHANGED, fn);
 }
 
 export type BlockedPerson = { id: string; display_name: string; avatar_url: string | null; at: string };
