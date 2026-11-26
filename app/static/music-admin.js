@@ -85,7 +85,7 @@
           <p class="sub" style="margin:10px 0;overflow-wrap:anywhere" data-ma="guestUrl"></p>
           <button class="secondary" type="button" data-ma-act="newPin">🔄 Code au hasard</button>
           <form data-ma="pinForm" class="row" style="margin-top:10px;justify-content:center">
-            <input data-ma="pinCustom" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="Ton code" autocomplete="off"
+            <input data-ma="pinCustom" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="Ton code" autocomplete="off"
                    style="width:9em;text-align:center;font-size:1.2rem;letter-spacing:.3em" aria-label="Choisir le code (4 chiffres)">
             <button class="secondary">✓ Utiliser ce code</button>
           </form>
@@ -567,7 +567,7 @@
 
   async function choosePin() {
     const pin = q("pinCustom").value.trim();
-    if (!/^\d{4}$/.test(pin)) return notify("Le code doit faire 4 chiffres", "err");
+    if (!/^(\d{6}|\d{4})$/.test(pin)) return notify("Le code doit faire 6 chiffres (ou 4)", "err");
     if (!confirm(`Utiliser le code ${pin} ? Tous les invités devront le saisir (ou rescanner le QR).`)) return;
     try { render(await api("/api/admin/pin", { pin })); q("pinCustom").value = ""; q("pinCustom").blur(); notify("Nouveau code : " + state.guest_pin, "ok"); }
     catch (e) { notify(e.message, "err"); }

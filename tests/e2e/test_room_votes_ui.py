@@ -67,7 +67,7 @@ def test_a_participant_reads_the_rules_of_a_game_before_voting(phones):
     assert box['x'] + box['width'] / 2 > tile['x'] + tile['width'] / 2 and box['y'] < tile['y'] + 10  # en haut à droite
     help_btn.click()
     expect(lea.page.locator('#rulesModal')).to_be_visible()
-    expect(lea.page.locator('#rulesTitle')).to_have_text('Undercover')
+    expect(lea.page.locator('#rulesTitle')).to_have_text("L'Intrus")
     expect(lea.page.locator('#gamePlay [data-room-vote="undercover"]')).to_have_attribute('aria-pressed', 'false')  # rien voté
     lea.page.locator('#rulesModal [data-rules-close]').last.click()
     expect(lea.page.locator('#rulesModal')).to_be_hidden()

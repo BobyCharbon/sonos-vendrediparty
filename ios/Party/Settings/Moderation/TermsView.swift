@@ -1,10 +1,10 @@
 import SwiftUI
 
-/// Conditions d'utilisation (version 2026-11-18) : même texte que le module web (web/events/src/lib/terms.ts).
+/// Conditions d'utilisation (version 2026-11-25) : même texte que le module web (web/events/src/lib/terms.ts).
 struct TermsView: View {
     @ObservedObject var store: ModerationStore
 
-    static let updated = "18 novembre 2026"
+    static let updated = "25 novembre 2026"
     /// Responsable et contact de Party (web/events/src/lib/contact.ts) ; l'admin peut en afficher un autre.
     static let supportEmail = "support@vendrediparty.ch"
     static let sections: [(String, [String])] = [
@@ -43,10 +43,10 @@ struct TermsView: View {
         ("Paiements, billets et bar", [
             "Party ne vend rien et ne touche jamais d'argent : ni paiement, ni portefeuille, ni commission. Un organisateur peut indiquer un prix et un moyen de payer qui est le sien (Revolut, billetterie, sur place) ; le paiement se fait en dehors de Party, entre personnes. Un « J'ai payé » n'est confirmé que par l'organisateur.",
             "Le bar de la soirée est une option de l'organisateur pour une soirée privée entre amis, offerte ou à prix coûtant. Party note seulement qui a pris quoi et qui doit combien ; l'engagement à rembourser est une promesse entre personnes. L'organisateur est seul responsable de ses prix, de ce qu'il sert et du respect de la loi, en particulier sur l'alcool (âge minimum, pas d'alcool à une personne ivre). Tabac et drogues sont interdits.",
-            "Boire n'est jamais obligatoire ni récompensé : dans les jeux, un verre d'eau compte toujours et personne n'est classé selon ce qu'il boit.",
+            "Boire n'est jamais obligatoire ni récompensé, et personne n'est classé selon ce qu'il boit.",
         ]),
         ("Signaler et bloquer", [
-            "« Signaler » existe sur chaque message, demande de message, profil, groupe, photo et réponse de jeu montrée à la table. Un modérateur reçoit le signalement avec une copie du contenu concerné : pour un message, ce seul message avec sa photo ou son vocal, et les 10 messages précédents seulement si tu coches « Joindre les 10 messages précédents » ; la personne signalée ne sait pas qui l'a signalée. Les signalements sont traités sous 24 heures.",
+            "« Signaler » existe sur chaque message, demande de message, profil, groupe et photo, et sur les réponses écrites montrées à la table dans les jeux (Le Masque, Tu me connais ?, dilemmes proposés de Pour ou contre) ; dans tous les jeux, l'animateur peut retirer ou exclure un joueur. Un modérateur reçoit le signalement avec une copie du contenu concerné : pour un message, ce seul message avec sa photo ou son vocal, et les 10 messages précédents seulement si tu coches « Joindre les 10 messages précédents » ; la personne signalée ne sait pas qui l'a signalée. Les signalements sont traités sous 24 heures.",
             "Tu peux bloquer quelqu'un depuis sa fiche ou une conversation : il ne peut plus t'écrire, t'envoyer de demande de message, te citer, t'inviter ni voir ta fiche. La liste « Personnes bloquées » est dans Réglages › Confidentialité.",
         ]),
         ("Sanctions", [
@@ -55,11 +55,19 @@ struct TermsView: View {
         ]),
     ]
 
+    /// App App Store (refus Apple 1.4.3, 25.11) : ni Pronos (éteints dans cette version) ni bar (caché dans l'app) ;
+    /// « Paiements et billets » garde son premier paragraphe. Même filtre que le web (terms.ts, storeApp).
+    static var shown: [(String, [String])] {
+        guard AppConfig.isStoreApp else { return sections }
+        return sections.filter { $0.0 != "Pronos et confettis" }
+            .map { $0.0 == "Paiements, billets et bar" ? ("Paiements et billets", Array($0.1.prefix(1))) : $0 }
+    }
+
     var body: some View {
         List {
             Section { Text("Party · Version du \(Self.updated)").font(.footnote).foregroundStyle(.secondary) }
                 .listRowBackground(Color.clear)
-            ForEach(Self.sections, id: \.0) { title, paragraphs in
+            ForEach(Self.shown, id: \.0) { title, paragraphs in
                 Section(title) { ForEach(paragraphs, id: \.self) { Text($0).font(.subheadline) } }
             }
             Section("Contact") {

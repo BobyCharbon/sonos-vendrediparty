@@ -214,6 +214,13 @@ details[open] > summary h2::after { content: " ▾"; }
 .g-code input { flex: 1; min-width: 0; height: 46px; border: 0; border-radius: 12px; background: var(--card-2); color: var(--text);
   font: 700 1.3rem system-ui, sans-serif; letter-spacing: .3em; text-align: center; outline: none; }
 .g-code input:focus { box-shadow: 0 0 0 2px var(--accent); }
+/* App App Store : un seul champ « Code » (4 chiffres = un jeu, 6 = la soirée Musique), avec son bouton. */
+.party-store .g-code { flex-wrap: wrap; padding: 10px; }
+.party-store .g-code label { flex-basis: 100%; padding: 0 4px; }
+.party-store .g-code input::placeholder { letter-spacing: normal; font-size: 1rem; font-weight: 600; }
+.g-code-go { flex: none; height: 46px; margin: 0; padding: 0 16px; border-radius: 12px; }
+.g-code-note { margin: 8px 4px 0; font-size: .8rem; opacity: .8; }
+.g-music-back { width: 100%; margin-top: 10px; }
 .gcard { background: var(--g-bg); color: #fff; border-radius: 26px; padding: 20px; display: flex; flex-direction: column; gap: 14px; margin-bottom: 14px; }
 .g-head { display: flex; gap: 14px; align-items: center; }
 /* Étiquette « NEW » d'un jeu récent : à cheval sur le coin haut droit de la carte (au-dessus du bouton « ? »). */
@@ -604,6 +611,7 @@ button.cs-spin { height: 54px; font-size: 1rem; background: #f2c14e; color: #2b1
 .tm-answer { margin-top: 10px; padding: 12px; border-radius: 14px; background: rgba(0,0,0,.25); text-align: center; }
 .tm-answer small { display: block; font-size: .75rem; opacity: .75; text-transform: uppercase; letter-spacing: .08em; }
 .tm-answer b { font-size: 1.5rem; overflow-wrap: anywhere; }
+.tm-report { display: block; margin: 8px auto 0; padding: 6px 12px; font-size: .85rem; }
 .tm-speak { margin-top: 12px; padding: 14px; border-radius: 14px; background: var(--g-accent); color: var(--g-ink); font-weight: 800; font-size: 1.15rem; text-align: center; }
 .tm-judge { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; }
 .tm-judge button { padding-left: 4px; padding-right: 4px; }

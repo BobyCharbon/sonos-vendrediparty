@@ -5,7 +5,7 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, t
 import { Avatar, T } from './ui';
 import { BADGE_RED } from '@/lib/activityBadge';
 import { dateTile, plural } from '@/lib/format';
-import { GROUP_EMOJIS, gradient, groupName, palette, useGroupImage, type GroupLook, type GroupOverview } from '@/lib/groups';
+import { PICKABLE_EMOJIS, gradient, groupEmoji, groupName, palette, useGroupImage, type GroupLook, type GroupOverview } from '@/lib/groups';
 import { ease, enter, pressTransition, reducedMotion } from '@/lib/motion';
 import { colors, font, radius } from '@/lib/theme';
 
@@ -60,7 +60,7 @@ export function GroupTile({ group, size = 52, style, src }: { group: TileGroup; 
         shadowOffset: { width: 0, height: size * 0.08 } }, gradient(group.color), style]}>
       {image
         ? <Image source={{ uri: image }} testID="group-photo" style={{ width: '100%', height: '100%', borderRadius: size * 0.3 - 2 }} resizeMode="cover" />
-        : <Text style={{ fontSize: size * 0.5, lineHeight: size * 0.62 }}>{group.emoji}</Text>}
+        : <Text style={{ fontSize: size * 0.5, lineHeight: size * 0.62 }}>{groupEmoji(group.emoji)}</Text>}
     </View>
   );
 }
@@ -70,7 +70,7 @@ export function GroupTag({ group, onPress }: { group: GroupLook; onPress?: () =>
   const p = palette(group.color);
   const body = (
     <View style={[st.tag, { backgroundColor: p.dim, borderColor: `${p.main}55` }]}>
-      <Text style={{ fontSize: 12 }}>{group.emoji}</Text>
+      <Text style={{ fontSize: 12 }}>{groupEmoji(group.emoji)}</Text>
       <T size={12} weight="bold" color={p.text} numberOfLines={1} style={{ flexShrink: 1 }}>{groupName(group)}</T>
     </View>
   );
@@ -281,7 +281,7 @@ function BubbleFace({ group }: { group: GroupOverview }) {
   return (
     <View style={[st.plus, { backgroundColor: palette(group.color).dim, overflow: 'hidden' }]}>
       {image ? <Image source={{ uri: image }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-        : <Text style={{ fontSize: 28 }}>{group.emoji}</Text>}
+        : <Text style={{ fontSize: 28 }}>{groupEmoji(group.emoji)}</Text>}
     </View>
   );
 }
@@ -335,7 +335,7 @@ export function FaceStack({ faces, total, size = 30 }: { faces: GroupOverview['f
 export function EmojiPicker({ value, onChange }: { value: string; onChange: (e: string) => void }) {
   return (
     <View style={st.pickRow} accessibilityRole="radiogroup" accessibilityLabel="Un emoji">
-      {GROUP_EMOJIS.map((e) => {
+      {PICKABLE_EMOJIS.map((e) => {
         const on = e === value;
         return (
           <Pressable key={e} accessibilityRole="radio" accessibilityState={{ selected: on }} aria-checked={on} accessibilityLabel={`Emoji ${e}`}

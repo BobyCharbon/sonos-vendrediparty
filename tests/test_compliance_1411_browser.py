@@ -15,11 +15,11 @@ def test_privacy_page_shows_the_new_data_and_the_eu_section_without_an_account(b
     try:
         mock_services(page)
         page.goto(f'{events_origin}/events/privacy', wait_until='domcontentloaded')
-        pw.expect(page.get_by_text('Mise à jour du 19 novembre 2026', exact=False)).to_be_visible(timeout=15000)
+        pw.expect(page.get_by_text('Mise à jour du 25 novembre 2026', exact=False)).to_be_visible(timeout=15000)
         for text in ('Covoiturage, seulement si l’organisateur l’ouvre', 'Nouveau compte :', 'Liens nommés et accord',
-                     'Si tu vis dans l’Union européenne (RGPD, DSA)', 'la CNIL (France)', 'point de contact unique'):
+                     'Droit applicable (RGPD, nLPD, DSA)', 'la CNIL (France)', 'point de contact unique'):
             pw.expect(page.get_by_text(text, exact=False).first).to_be_attached()
-        page.get_by_text('Si tu vis dans l’Union européenne', exact=False).first.scroll_into_view_if_needed()
+        page.get_by_text('Droit applicable (RGPD, nLPD, DSA)', exact=False).first.scroll_into_view_if_needed()
         shots = os.environ.get('PARTY_SHOTS')
         if shots:
             page.screenshot(path=os.path.join(shots, 'confidentialite-ue.png'))

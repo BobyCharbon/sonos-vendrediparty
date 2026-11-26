@@ -89,11 +89,11 @@ enum FeedbackAI {
     enum Step: Equatable { case none, loading, question(String), ready, correcting }
 
     static let minimumLength = 8  // FEEDBACK_AI_MIN_LENGTH (app/main.py)
-    /// Accord unique pour toute l'IA de Party, version 2 (CONSENT_VERSION de app/ai_feedback.py, feuille #fbAiConsent
+    /// Accord unique pour toute l'IA de Party, version 3 (CONSENT_VERSION de app/ai_feedback.py, feuille #fbAiConsent
     /// de index.html) : un accord d'une version plus ancienne revient « à demander » et la feuille se rouvre.
-    static let consentVersion = 2
+    static let consentVersion = 3
     static let consentTitle = "✨ Utiliser l'IA de Party ?"
-    static let consentText = "Quand tu utilises l'IA, Party envoie ce que tu lui confies à Anthropic (Claude) : le texte de ton avis (et la transcription de ta voix) ; avec l'assistant des événements, ta description, tes captures d'écran, tes photos et les liens que tu donnes ; pour un ticket du pot commun, sa photo."
+    static let consentText = "Quand tu utilises l'IA, Party envoie ce que tu lui confies à Anthropic (Claude) : le texte de ton avis (et la transcription de ta voix) ; avec l'assistant des événements, ta description, tes captures d'écran, tes photos et les liens que tu donnes ; pour un ticket du pot commun, sa photo. Pour corriger l'app, ton avis peut aussi être publié sur GitHub, où tout le monde peut le lire, puis lu par Claude, sans ton prénom ni ton numéro."
     static let consentFootnote = "Jamais ton numéro. Un seul accord pour toute l'IA de Party, que tu peux retirer à tout moment dans Réglages › Confidentialité. Sans accord, tout marche sans l'IA."
 
     static let kinds = ["idea": "💡 Idée", "bug": "🐞 Bug", "other": "💬 Autre"]

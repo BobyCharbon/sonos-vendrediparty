@@ -81,7 +81,7 @@ struct GameView: View {
 /// site, ne s'affichent pas sur la télé (ni plateau, ni nom, ni jetons) ; la BETA (TestFlight) les garde. La Roulette
 /// n'est pas concernée : c'est une roue qui tire un prénom, sans mise ni jetons.
 enum StoreGames {
-    static let hidden: Set<String> = ["casino", "blackjack"]
+    static let hidden: Set<String> = ["casino", "blackjack", "beerpong", "biskit", "purity", "pyramid", "never", "whoof", "roulette"]  // = STORE_HIDDEN_GAMES (refus 1.4.3, 25.11)
     /// VendrediParty (ch.bobycharbon.party) et non Party BETA (….beta).
     static var isStoreApp: Bool { !(Bundle.main.bundleIdentifier ?? "").hasSuffix(".beta") }
     static let neutralName = "Partie en cours"

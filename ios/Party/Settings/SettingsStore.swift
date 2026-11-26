@@ -158,11 +158,18 @@ final class SettingsStore: ObservableObject {
     /// s'affichait qu'après un passage par Notifications (recette du 23.11).
     func loadFeatures() async {
         guard let features = try? await api.features() else { return }
-        compagnon = features.compagnon
+        // App App Store (refus 1.4.3, 2.5.19) : Zicou, bar, Agenda et Pronos restent éteints quoi que dise le serveur ;
+        // seule une version décrite à Apple pourra les rallumer.
+        #if E2E_HOOKS
+        let store = false  // recettes Release (Pronos, Agenda) : jamais dans le build de l'App Store
+        #else
+        let store = AppConfig.isStoreApp
+        #endif
+        compagnon = !store && features.compagnon
         discussions = features.discussions
-        bar = features.bar
-        agendaOn = features.agenda
-        pronosOn = features.pronos
+        bar = !store && features.bar
+        agendaOn = !store && features.agenda
+        pronosOn = !store && features.pronos
     }
 
     private func loadParty() async {
@@ -408,7 +415,7 @@ final class SettingsStore: ObservableObject {
         do {
             try await work()
         } catch PartyAPIError.needsCode {
-            notice = Notice(text: "Entre d'abord le code de la soirée (onglet Musique)", isError: true)
+            notice = Notice(text: AppConfig.isStoreApp ? "Entre d'abord le code de la soirée (champ Code de l'onglet Jeux)" : "Entre d'abord le code de la soirée (onglet Musique)", isError: true)
         } catch {
             notice = Notice(text: error.localizedDescription, isError: true)
         }

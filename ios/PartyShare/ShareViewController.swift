@@ -94,6 +94,8 @@ struct ShareView: View {
             message("exclamationmark.triangle", reason)
         case .added(let title):
             message("checkmark.circle.fill", "« \(title) » est dans la file 🎶")
+        case .eventOffer:
+            message("sparkles", "Crée un événement à partir de ce lien : l'assistant de Party prépare la fiche, tu la relis avant de publier.")
         case .eventReady:
             message("sparkles", "C'est prêt ✨ Ouvre Party : l'assistant crée l'événement à partir de ce lien.")
         case .choose(let tracks):

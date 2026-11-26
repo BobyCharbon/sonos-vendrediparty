@@ -29,7 +29,7 @@ struct SettingsView: View {
                         NotificationSettingsView(store: store)
                     } label: {
                         SettingsRow(symbol: "bell.badge.fill", tint: .red, title: "Notifications",
-                                    hint: "Musique, jeux, avis et événements ; catégories et tags suivis")
+                                    hint: AppConfig.isStoreApp ? "Jeux, avis et événements ; catégories et tags suivis" : "Musique, jeux, avis et événements ; catégories et tags suivis")
                     }
                     if store.account != nil {
                         if let openGroupPage {
@@ -144,7 +144,7 @@ struct SettingsView: View {
                             GameStatsView(store: store.session) { open(.tab("games")) }
                         } label: {
                             SettingsRow(symbol: "trophy.fill", tint: .orange, title: "Mes stats de jeu",
-                                        hint: "Purify Test et Méninges : scores, profil, records")
+                                        hint: AppConfig.isStoreApp ? "Méninges : scores, profil, records" : "Purify Test et Méninges : scores, profil, records")
                         }
                     }
                     // « Ton avis » : l'hôte (« Retours »), et les comptes Guest+ et au-dessus (droit « Écrire un avis »).

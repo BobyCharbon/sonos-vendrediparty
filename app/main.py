@@ -27,6 +27,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from . import store_app
 from . import beerpong, brain, brain_game, calendar_ics, debate, games, heist, island, likely, links, masque, neon, president, psy, purity, quiz, reflet
 from . import pet, pet_coll_store, pet_reactions, pet_store
 from . import tv_zicou
@@ -606,8 +607,8 @@ def admin_new_pin(request: Request, body: PinChoice | None = None):
     """Nouveau code de la musique : au hasard, ou celui que l'hôte choisit (déconnecte tous les invités)."""
     pin = (body.pin or "").strip() if body else ""
     if pin:
-        if not re.fullmatch(r"[0-9]{4}", pin):
-            raise HTTPException(400, "Le code doit faire exactement 4 chiffres")
+        if not re.fullmatch(r"[0-9]{6}|[0-9]{4}", pin):
+            raise HTTPException(400, "Le code doit faire 6 chiffres (ou 4)")
         if pin == store.session.guest_pin:
             raise HTTPException(409, "C'est déjà le code actuel")
         if pin in store.session.games:
@@ -1410,16 +1411,32 @@ def require_account(token: str, guest_id: str, ip: str):
         raise HTTPException(403, "Ce compte ne correspond pas à ta place : recharge la page une fois connecté")
 
 
-# App VendrediParty de l'App Store (Release, ios/Party/AppConfig.swift) : Apple refuse les jeux d'argent simulés
-# à un compte développeur individuel. Casino et Blackjack y sont masqués (games.js) et refusés ici ; le site,
-# l'app BETA et Android les gardent.
-STORE_APP_MARK = "PartyStore"
-STORE_HIDDEN_GAMES = ("casino", "blackjack")
+# App VendrediParty de l'App Store (Release, ios/Party/AppConfig.swift) : ni jeux d'argent simulés (05.11), ni jeu à
+# boire, gorgées, drogue ou mode Hot (refus Apple 1.4.3 du 25.11, app/store_app.py). Masqués par la page (games.js)
+# et refusés ici ; le site, l'app BETA et Android gardent tout.
+STORE_APP_MARK = store_app.MARK
+STORE_HIDDEN_GAMES = store_app.HIDDEN_GAMES
 
 
 def check_store_game(request: Request, kind: str):
-    if kind in STORE_HIDDEN_GAMES and STORE_APP_MARK in request.headers.get("user-agent", ""):
-        raise HTTPException(403, "Ce jeu n'est pas proposé dans l'app de l'App Store : ouvre-le sur le site Party.")
+    if kind in STORE_HIDDEN_GAMES and store_app.is_store(request):
+        raise HTTPException(403, store_app.MESSAGE)
+
+
+def check_store_access(request: Request, g: dict):
+    """L'app App Store lit ou rejoint une partie (code, QR, salle) : refusée si elle a des gorgées, un jeu caché ou un
+    mode Hot ; sinon la partie (et sa salle) passe en version App Store pour la suite (questions sans boisson)."""
+    if not store_app.is_store(request):
+        return
+    if store_app.refused(g):
+        raise HTTPException(403, store_app.MESSAGE)
+    changed = False
+    for x in filter(None, (g, room_of(g))):
+        if not x.get("store"):  # textes tirés et écrits filtrés pour la suite (tous les jeux gardés, la salle comprise)
+            store_app.flag(x) if x["type"] != "room" else x.update(store=True)
+            changed = True
+    if changed:
+        save_games(g["code"], g.get("room") or "")
 
 
 @app.post("/api/games")
@@ -1431,7 +1448,7 @@ def create_game(body: GameCreate, request: Request):
         raise HTTPException(403, msg)
     if body.type in ACCOUNT_GAMES:
         require_account(body.token, body.guest_id, ip)
-    if body.type != "room" and not gate_free(body.guest_id, request) and guest_gate.blocked(body.guest_id):
+    if body.type != "room" and not games_free(body.guest_id, request) and guest_gate.blocked(body.guest_id):
         raise gate_games_refused(body.guest_id, "")
     # Page publique : 5 créations par adresse toutes les 10 minutes, 30 parties au plus.
     recent = [t for t in _game_creations.get(ip, []) if time.time() - t < 600]
@@ -1441,13 +1458,15 @@ def create_game(body: GameCreate, request: Request):
     if len(store.session.games) >= 30:
         raise HTTPException(429, "Trop de parties en cours, réessaie plus tard")
     g = build_game(body)
+    if store_app.is_store(request):
+        store_app.flag(g)  # app App Store : sans gorgées ni mode Hot, questions sans boisson
     _game_creations[ip] = recent + [time.time()]
     game_presence(request, body.guest_id, body.name)
     title, text = f"🎮 {games.GAMES[g['type']]}", f"{g['host_name']} lance une partie · code {g['code']}"
     # Seul l'hôte est prévenu (son réglage) ; les invités, jamais : chacun invite qui il veut (choix de l'admin du 05.11.2026).
     notify_admin({"title": title, "body": text, "url": "/admin#games", "tag": f"game-{g['code']}"}, kind="games")
     store.session.games[g["code"]] = g
-    if g["type"] != "room" and not gate_free(body.guest_id, request):
+    if g["type"] != "room" and not games_free(body.guest_id, request):
         guest_gate.record(body.guest_id, g["code"])  # sa nouvelle partie compte (une salle, non)
     save_games(g["code"])
     return with_gate(full_view(g, body.guest_id), body.guest_id, request, g["code"])
@@ -1508,6 +1527,8 @@ def room_launch(room: dict, me: str, settings: dict):
     kind = settings.get("type")
     if kind not in games.GAMES or kind == "room":
         raise HTTPException(400, "Jeu inconnu")
+    if room.get("store") and kind in STORE_HIDDEN_GAMES:
+        raise HTTPException(403, store_app.MESSAGE)  # l'app App Store est dans la salle : pas de jeu caché
     if kind == "heist" and (len(room["players"]) > 8 or any(p.get("manual") for p in room["players"])):
         raise HTTPException(409, "Le braquage accueille 8 joueurs maximum, chacun avec son téléphone.")
     if kind == "island" and (len(room["players"]) > 8 or any(p.get("manual") for p in room["players"])):
@@ -1523,12 +1544,14 @@ def room_launch(room: dict, me: str, settings: dict):
     hp = games.player(room, host)
     fields = {k: v for k, v in settings.items() if k in GameCreate.model_fields and k not in ("guest_id", "name", "type", "token")}
     fields["plays"] = bool(hp) and fields.get("plays", True) and (not accounts_only or seat_linked(room, host)) \
-        and (gate_free(host) or not guest_gate.blocked(host))  # invité au bout de ses parties : il anime sans jouer
+        and (games_free(host) or not guest_gate.blocked(host))  # invité au bout de ses parties : il anime sans jouer
     body = GameCreate(guest_id=host, name=room.get("host_name") or "Animateur", type=kind, **fields)
     if len(store.session.games) >= 30:
         prune_games()
     child = build_game(body)
-    if fields["plays"] and not gate_free(host):
+    if room.get("store"):
+        store_app.flag(child)
+    if fields["plays"] and not games_free(host):
         guest_gate.record(host, child["code"])
     for p in room["players"]:
         if p["id"] == host or (accounts_only and not seat_linked(room, p["id"])):
@@ -1573,6 +1596,19 @@ def gate_free(gid: str, request: Request | None = None) -> bool:
             or (request is not None and is_admin(request)))
 
 
+# App App Store (décision de l'admin du 25.11) : les jeux y restent illimités en invité ; le web garde son plafond. Le
+# compte reste exigé pour les événements, les groupes et les discussions. Une identité vue dans l'app y reste libre (une
+# salle lancée par l'animateur sur le web n'arrête pas un joueur de l'app).
+_store_guests: set[str] = set()
+
+
+def games_free(gid: str, request: Request | None = None) -> bool:
+    """Parties sans plafond : comptes, hôte, admin (gate_free) et invités de l'app App Store."""
+    if gid and store_app.is_store(request):
+        _store_guests.add(gid)
+    return gate_free(gid, request) or gid in _store_guests
+
+
 def gate_games_refused(gid: str, code: str) -> HTTPException:
     st = guest_gate.status(gid, code)
     return HTTPException(403, {"message": GATE_GAMES_MSG, "account_required": "games", "played": st["played"],
@@ -1582,7 +1618,7 @@ def gate_games_refused(gid: str, code: str) -> HTTPException:
 def gate_enter(g: dict, gid: str, request: Request | None) -> bool:
     """L'invité entre dans une partie (jamais une salle) : refusé s'il a joué ses parties en invité, sinon compté.
     Déjà assis dans cette partie : rien ne change (une partie commencée n'est jamais interrompue)."""
-    if g["type"] == "room" or gate_free(gid, request) or games.player(g, gid):
+    if g["type"] == "room" or games_free(gid, request) or games.player(g, gid):
         return True
     if guest_gate.blocked(gid, g["code"]):
         return False
@@ -1592,7 +1628,7 @@ def gate_enter(g: dict, gid: str, request: Request | None) -> bool:
 
 def with_gate(v: dict, gid: str, request: Request | None, code: str = "") -> dict:
     """Vue d'une partie + où en est l'invité (message doux après sa 1re partie, compte requis ensuite)."""
-    if v is None or gate_free(gid, request):
+    if v is None or games_free(gid, request):
         return v
     st = guest_gate.status(gid, code)
     if v.get("me") or v.get("is_owner") or v.get("type") == "room":
@@ -2372,13 +2408,15 @@ class ChatEveryone(ChatRef):
 
 
 @app.post("/api/account/chats")
-def account_chats(body: MemberToken):
-    return chats_call(body.token, lambda: group_chats.chats(body.token), 401)
+def account_chats(body: MemberToken, request: Request):
+    out = chats_call(body.token, lambda: group_chats.chats(body.token), 401)
+    return store_app.neutral_emojis(out) if store_app.is_store(request) else out
 
 
 @app.post("/api/account/chats/open")
-def account_chat_open(body: ChatRef):
-    return chats_call(body.token, lambda: group_chats.conversation(body.token, body.group_id, body.direct, body.prefetch))
+def account_chat_open(body: ChatRef, request: Request):
+    out = chats_call(body.token, lambda: group_chats.conversation(body.token, body.group_id, body.direct, body.prefetch))
+    return store_app.neutral_emojis(out) if store_app.is_store(request) else out
 
 
 @app.post("/api/account/chats/direct")
@@ -2474,24 +2512,33 @@ class TcPayment(MemberToken):
     note: str = Field(default="", max_length=200)
 
 
+# App App Store (refus Apple 1.4.3) : jamais l'emoji 🍻 / 🍷 d'un pot commun, ni à l'affichage ni à la création.
+def store_emoji(emoji, request: Request):
+    return "🎉" if store_app.is_store(request) and emoji in store_app.DRINK_EMOJIS else emoji
+
+
 @app.post("/api/account/tricount")
-def account_tricount_list(body: MemberToken):
-    return account_call(lambda: tricount.overview(body.token), 401)
+def account_tricount_list(body: MemberToken, request: Request):
+    out = account_call(lambda: tricount.overview(body.token), 401)
+    return store_app.neutral_emojis(out) if store_app.is_store(request) else out
 
 
 @app.post("/api/account/tricount/open")
-def account_tricount_open(body: TcRef):
-    return account_call(lambda: tricount.state(body.token, body.group_id))
+def account_tricount_open(body: TcRef, request: Request):
+    out = account_call(lambda: tricount.state(body.token, body.group_id))
+    return store_app.neutral_emojis(out) if store_app.is_store(request) else out
 
 
 @app.post("/api/account/tricount/create")
-def account_tricount_create(body: TcCreate):
-    return account_call(lambda: tricount.create(body.token, body.name, body.emoji, body.currency, body.my_name))
+def account_tricount_create(body: TcCreate, request: Request):
+    emoji = store_emoji(body.emoji, request)
+    return account_call(lambda: tricount.create(body.token, body.name, emoji, body.currency, body.my_name))
 
 
 @app.post("/api/account/tricount/update")
-def account_tricount_update(body: TcUpdate):
-    return account_call(lambda: tricount.update(body.token, body.group_id, body.name, body.emoji, body.currency, body.archived))
+def account_tricount_update(body: TcUpdate, request: Request):
+    emoji = store_emoji(body.emoji, request)
+    return account_call(lambda: tricount.update(body.token, body.group_id, body.name, emoji, body.currency, body.archived))
 
 
 @app.post("/api/account/tricount/link")
@@ -3244,12 +3291,17 @@ class SubscriptionSet(MemberToken):
 
 
 @app.post("/api/account/subscriptions")
-def account_subscriptions(body: MemberToken):
-    """Réglages natifs › Abonnements."""
+def account_subscriptions(body: MemberToken, request: Request):
+    """Réglages natifs › Abonnements. App App Store : sans catégorie ni tag de boisson (« bar »…, store_app.drinky),
+    comme le module Événements (fetchTaxonomy)."""
     try:
-        return accounts.subscriptions(body.token)
+        out = accounts.subscriptions(body.token)
     except AccountError as e:
         raise HTTPException(401, str(e))
+    if store_app.is_store(request):
+        for key in ("categories", "tags"):
+            out[key] = [row for row in out[key] if not store_app.drinky(row.get("name"))]
+    return out
 
 
 @app.post("/api/account/subscriptions/set")
@@ -3484,7 +3536,7 @@ def game_state(code: str, request: Request, guest_id: str = "", name: str = ""):
 
 def read_game(code: str, request: Request, guest_id: str, name: str):
     g = get_game(code)
-    check_store_game(request, g["type"])
+    check_store_access(request, g)
     game_presence(request, guest_id, name)
     guest_id = canonical_gid(g, guest_id)
     sync_player_name(g, guest_id, name)
@@ -3555,7 +3607,7 @@ GAME_ONLY_ACTIONS = {
     "blackjack": {"bet", "hit", "stand", "double", "rebuy", "deal", "skip"},
     "casino": {"cbet", "cclear", "crebuy", "cspin", "cundo", "cready"},
     "divan": {"dnext", "djoker", "dback", "dheart"},
-    "tmc": {"tanswer", "tjudge", "tq", "treveal", "finish"},
+    "tmc": {"tanswer", "tjudge", "tq", "treveal", "treport", "finish"},
     "quiz": {"qset", "qans", "qjoker", "qstop", "qpause"},
     "room": {"rvote"},
     "beerpong": {"bpset", "bphit", "bpsent", "bpreroll", "bpundo"},
@@ -3571,7 +3623,7 @@ HOST_ACTIONS = {"msset", "msswap", "msshow", "mshide", "msreveal", "rfset", "rfs
 
 # « Signaler » une réponse du Masque ou un dilemme proposé (Apple 1.2) : retiré aussitôt pour la table, et noté dans le
 # journal de l'admin (Réglages › Journal) avec le texte, son auteur et qui l'a signalé, pour bannir au besoin.
-REPORT_ACTIONS = {"msreport", "dbreport"}
+REPORT_ACTIONS = {"msreport", "dbreport", "treport"}
 
 
 def log_game_report(g: dict, reporter: str, reported: dict, request: Request):
@@ -3581,6 +3633,10 @@ def log_game_report(g: dict, reporter: str, reported: dict, request: Request):
     journal.record("game.report", name(reporter) or "Joueur", {"name": f'{games.GAMES.get(g["type"], g["type"])} ({g["code"]})', "id": g["code"]},
                    {"text": reported.get("text", ""), "author": name(author) if author else reported.get("by", ""),
                     "author_id": author}, client_ip(request))
+    # Apple 1.2 (« timely responses ») : le signalement arrive aussi aussitôt chez l'admin (notification « Retours »).
+    notify_admin({"title": f'🚩 Signalement · {games.GAMES.get(g["type"], g["type"])}',
+                  "body": (reported.get("text") or "")[:140], "url": "/admin#feedback", "tag": f"report-{g['code']}"},
+                 kind="feedback")
 
 
 @app.post("/api/games/{code}")
@@ -3593,7 +3649,7 @@ def game_action(code: str, body: GameAction, request: Request):
 def perform_game_action(code: str, body: GameAction, request: Request):
     check_guest_id(body.guest_id)
     g = get_game(code)
-    check_store_game(request, g["type"])
+    check_store_access(request, g)
     game_presence(request, body.guest_id, body.name)
     if body.action == "join":
         if g["type"] in ACCOUNT_GAMES:
@@ -3656,12 +3712,15 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     if a == "join" and (msg := ban_message(me, client_ip(request))):
         raise HTTPException(403, msg)
     # Invité au bout de ses parties en invité : une NOUVELLE partie demande un compte (sa place, elle, reste).
-    if a == "join" and g["type"] != "room" and not games.player(g, me) and not gate_free(me, request) \
+    if a == "join" and g["type"] != "room" and not games.player(g, me) and not games_free(me, request) \
             and guest_gate.blocked(me, g["code"]):
         raise gate_games_refused(me, g["code"])
     if a == "end":
         end_game(g["code"], "host")
         return None
+    # Partie de l'app App Store : ni gorgées, ni thème WTF, ni paquet « Entre amis » (store_app, refus Apple 1.4.3).
+    if a in ("lkset", "dbset", "qset") and store_app.refused_settings(g, body.settings):
+        raise HTTPException(403, store_app.MESSAGE)
     if g["type"] == "room" and a == "launch":
         if not games.is_lead(g, me):
             raise HTTPException(403, "Seul l'animateur lance les jeux")
@@ -3693,7 +3752,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         "bphit": (games.bp_mark, me, beerpong.hit, body.settings.get("team"), body.settings.get("cup"), body.settings.get("pid"), random),
         "bpsent": (games.bp_mark, me, beerpong.sentence, body.amount, random),
         "bpreroll": (games.bp_mark, me, beerpong.reroll, random), "bpundo": (games.bp_mark, me, beerpong.undo),
-        "tq": (games.tmc_change_question,), "treveal": (games.tmc_reveal, me), "finish": (games.tmc_finish,),
+        "tq": (games.tmc_change_question,), "treveal": (games.tmc_reveal, me), "treport": (games.tmc_report, me), "finish": (games.tmc_finish,),
         "pans": (games.pyr_answer, actor, body.target), "plook": (games.pyr_start_pyramid,), "pflip": (games.pyr_flip,), "pclaim": (games.pyr_claim, actor),
         "pbu": (games.pyr_judge, body.target, False), "pliar": (games.pyr_judge, body.target, True),
         "preveal": (games.pyr_reveal, actor, body.amount), "ppeek": (games.pyr_peek, actor, body.slots),
@@ -3747,7 +3806,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     g["updated_at"] = time.time()
     if a in REPORT_ACTIONS and action_result:
         log_game_report(g, me, action_result, request)
-    if a == "join" and g["type"] != "room" and not gate_free(me, request):
+    if a == "join" and g["type"] != "room" and not games_free(me, request):
         guest_gate.record(me, g["code"])
     # Salle de jeux : rejoindre, quitter, exclure ou passer la main vaut aussi pour le jeu en cours (et inversement).
     other = room_child(g) if g["type"] == "room" else room_of(g)
@@ -3781,9 +3840,16 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     return with_gate(full_view(g, me), me, request, g["code"])
 
 
+def no_purity_in_store(request: Request):
+    """App App Store : pas de Purify Test (alcool, drogue : Apple 1.4.3), ni ses stats ni son classement."""
+    if store_app.is_store(request):
+        raise HTTPException(404, "Introuvable")
+
+
 @app.get("/api/purity/leaderboard")
-def purity_leaderboard():
+def purity_leaderboard(request: Request):
     """Classement général du Purify Test (record d'impureté de chaque compte) ; sans identifiant de compte."""
+    no_purity_in_store(request)
     return purity.leaderboard()
 
 
@@ -3794,6 +3860,7 @@ class PurityPublic(AccountToken):
 @app.post("/api/purity/me/public")
 def purity_me_public(body: PurityPublic, request: Request):
     """Son choix « apparaître dans le classement général du Purify Test » (désactivé par défaut)."""
+    no_purity_in_store(request)
     ip = client_ip(request)
     if msg := account_limiter.blocked(ip):
         raise HTTPException(429, msg)
@@ -3807,6 +3874,7 @@ def purity_me_public(body: PurityPublic, request: Request):
 @app.post("/api/purity/me")
 def purity_me(body: AccountToken, request: Request):
     """Réglages : stats Purify Test du compte connecté (dernier test par catégorie, record), pour lui seul."""
+    no_purity_in_store(request)
     ip = client_ip(request)
     if msg := account_limiter.blocked(ip):
         raise HTTPException(429, msg)
@@ -4109,7 +4177,9 @@ APPS_OFF = "Bientôt dans Party."
 @app.middleware("http")
 async def apps_off(request: Request, call_next):
     path = request.url.path
-    if (path.startswith(AGENDA_PATHS) and not agenda_enabled()) or (path.startswith(PRONOS_PATHS) and not pronos_enabled()):
+    store = store_app.is_store(request)  # app App Store : Agenda et Pronos toujours éteints (version 1.0.0)
+    if (path.startswith(AGENDA_PATHS) and (store or not agenda_enabled())) \
+            or (path.startswith(PRONOS_PATHS) and (store or not pronos_enabled())):
         return JSONResponse({"detail": APPS_OFF}, status_code=404, headers=NO_CACHE)
     return await call_next(request)
 
@@ -5019,8 +5089,8 @@ def enqueue(body: Enqueue, request: Request, response: Response):
 def guest_tracks(gid: str, request: Request) -> dict | None:
     """Titres proposés en invité ce soir (demandes de la soirée, même retirées) ; None : compte, hôte ou admin,
     sans autre limite que les règles existantes."""
-    if gate_free(gid, request) or native_host(request):
-        return None
+    if gate_free(gid, request) or native_host(request) or store_app.is_store(request):
+        return None  # app App Store : proposer un titre n'exige jamais de compte (Apple 5.1.1(v))
     limit = guest_gate.settings()["tracks"]
     used = sum(1 for r in store.session.requests if r.guest_id == gid)
     return {"used": used, "limit": limit, "left": max(0, limit - used)}
@@ -5312,42 +5382,48 @@ def invites_page(html: str) -> str:
     return html.replace("<html", '<html data-invites="off"', 1)
 
 
-def bar_page(html: str) -> str:
-    """Bar de la soirée éteint (production, en construction) : <html data-bar="off">, lu par le module Événements
-    (ni bouton « Créer le bar », ni carte du bar, ni scanner du bar)."""
-    if bar_enabled():
+def bar_page(html: str, store: bool = False) -> str:
+    """Bar de la soirée éteint (production, en construction) ou app App Store (refus Apple 1.4.3, 25.11) :
+    <html data-bar="off">, lu par le module Événements (ni bouton « Créer le bar », ni carte du bar, ni scanner, ni
+    réglages de notification du bar)."""
+    if bar_enabled() and not store:
         return html
     return html.replace("<html", '<html data-bar="off"', 1)
 
 
-def apps_page(html: str) -> str:
+def apps_page(html: str, store: bool = False) -> str:
     """Agenda et Pronos gardés en test (19.11) : <html data-agenda="off"> / data-pronos="off", lus par le module Événements
-    (ni entrée dans les Réglages ni l'en-tête, ni carte, ni page)."""
+    (ni entrée dans les Réglages ni l'en-tête, ni carte, ni page). App App Store : toujours éteints."""
     for name, on in (("pronos", pronos_enabled()), ("agenda", agenda_enabled())):
-        if not on:
+        if store or not on:
             html = html.replace("<html", f'<html data-{name}="off"', 1)
     return html
 
 
-def features_page(html: str) -> str:
+def features_page(html: str, store: bool = False) -> str:
     # Le bar en premier : son attribut se place après les autres (« <html data-compagnon=… » reste en tête, tests Zicou).
-    return discussions_page(compagnon_page(invites_page(bar_page(apps_page(html)))))
+    # App App Store (store_app) : <html data-store="1">, lu par le module Événements (aucun emoji de boisson).
+    html = bar_page(apps_page(html, store), store)
+    if store:
+        html = html.replace("<html", '<html data-store="1"', 1)
+    return discussions_page(compagnon_page(invites_page(html)))
 
 
-def page(name: str) -> Response:
-    """Page HTML avec des adresses de scripts et de styles versionnées (mises en cache jusqu'au prochain déploiement)."""
-    key = (name, compagnon_enabled(), discussions_enabled(), invites_v2_enabled(), bar_enabled(), agenda_enabled(), pronos_enabled())
+def page(name: str, store: bool = False) -> Response:
+    """Page HTML avec des adresses de scripts et de styles versionnées (mises en cache jusqu'au prochain déploiement).
+    store : app App Store (store_app.is_store), sans bar."""
+    key = (name, compagnon_enabled(), discussions_enabled(), invites_v2_enabled(), bar_enabled(), agenda_enabled(), pronos_enabled(), store)
     if key not in _pages:
-        html = features_page((STATIC / name).read_text(encoding="utf-8"))
+        html = features_page((STATIC / name).read_text(encoding="utf-8"), store)
         _pages[key] = re.sub(r'(/static/[\w./-]+\.(?:js|css))(?=")', rf"\1?v={BUILD_ID}", html)
     return Response(_pages[key], media_type="text/html; charset=utf-8", headers=NO_CACHE)
 
 
 @app.get("/")
-def index(tab: str = Query("", max_length=20), event: str = Query("", max_length=40)):
+def index(request: Request, tab: str = Query("", max_length=20), event: str = Query("", max_length=40)):
     """Page de Party. Lien de « Partager le lien » d'un événement (/?tab=events&event=<id>) : aperçu de l'événement
     s'il est public (titre, date, image), rien sinon."""
-    response = page("index.html")
+    response = page("index.html", store_app.is_store(request))
     event_id = event_preview.event_id_of_query(tab, event)
     if not event_id:
         return response
@@ -5560,7 +5636,7 @@ def join_page_meta(invite: str) -> str:
 
 
 @app.get("/events/{resource:path}")
-def events_web(resource: str):
+def events_web(resource: str, request: Request):
     """Module web local ; l'accès aux données reste protégé par Supabase Auth/RLS."""
     root = EVENTS_WEB.resolve()
     try:
@@ -5578,7 +5654,9 @@ def events_web(resource: str):
     elif resource.startswith(("_expo/", "assets/")) or Path(resource).suffix:
         raise HTTPException(404, "Ressource introuvable")
     elif (root / "index.html").is_file():
-        html = features_page((root / "index.html").read_text(encoding="utf-8"))
+        # Liens de la fiche App Store (CGU, confidentialité) : « ?app=ios » montre dans Safari le texte de l'app App Store.
+        store = store_app.is_store(request) or (resource in ("terms", "privacy") and request.query_params.get("app") == "ios")
+        html = features_page((root / "index.html").read_text(encoding="utf-8"), store)
         if invite := APP_JOIN_PAGE.match(resource):
             html = html.replace("</head>", join_page_meta(invite.group(1)) + "</head>", 1)
         elif invites_v2_enabled() and (event_invite := event_invites.INVITE_PAGE.match(resource)):
@@ -5596,6 +5674,30 @@ def events_web(resource: str):
     return response
 
 
+SUPPORT_PAGE = """<!doctype html><html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Vendredi Party · Assistance</title>
+<style>:root{color-scheme:light dark}body{font:16px/1.5 -apple-system,system-ui,sans-serif;max-width:640px;margin:0 auto;
+padding:24px 16px;background:Canvas;color:CanvasText}h1{font-size:1.6rem}h2{font-size:1.1rem;margin-top:1.6em}a{color:#7c5cff}</style>
+</head><body><h1>Vendredi Party · Assistance</h1>
+<p>Une question, un problème, un contenu à signaler ? Écris-nous à <a href="mailto:support@vendrediparty.ch">support@vendrediparty.ch</a>,
+en français. Réponse en principe sous 48 heures.</p>
+<p>Éditeur : Ludovic Trombert, développeur indépendant établi en France.</p>
+<h2>Se connecter</h2><p>Party se connecte avec ton numéro de téléphone et un code reçu par SMS, sans mot de passe. Tu ne reçois pas le code ?
+Vérifie le pays et le numéro, puis demande un nouveau code après une minute.</p>
+<h2>Supprimer mon compte</h2><p>Dans l'app : Réglages › Gérer mon compte › Supprimer mon compte. La suppression efface ton compte et tes contenus.</p>
+<h2>Signaler ou bloquer</h2><p>« Signaler » se trouve sur les messages, les profils, les groupes, les photos et les événements ; une personne se
+bloque depuis sa fiche ou une conversation. Les signalements sont traités sous 24 heures.</p>
+<h2>Notifications</h2><p>Chaque type de notification se règle dans Réglages › Notifications.</p>
+<h2>Documents</h2><p><a href="/events/terms?app=ios">Conditions d'utilisation</a> · <a href="/events/privacy?app=ios">Politique de confidentialité</a></p>
+</body></html>"""
+
+
+@app.get("/support")
+def support_page():
+    """Assistance (URL d'assistance de la fiche App Store) : contact, éditeur, questions fréquentes, sans ressource externe."""
+    return HTMLResponse(SUPPORT_PAGE, headers=NO_CACHE)
+
+
 @app.get("/sw.js")
 def service_worker():
     # À la racine du site : le service worker couvre la page invités et l'admin.
@@ -5609,13 +5711,15 @@ IOS_BETA_APP_ID = "GS2B6GA9JA.ch.bobycharbon.party.beta"
 
 
 @app.get("/api/features")
-def features():
+def features(request: Request):
     """Fonctions en bêta pour les apps natives (la page web les lit sur <html data-compagnon> / data-discussions) :
-    Compagnon (Zicou) et Discussions (groupes, messages directs)."""
+    Compagnon (Zicou) et Discussions (groupes, messages directs). App App Store : ni bar, ni Pronos, ni Agenda, quel que
+    soit le réglage du site (seule une version revue par Apple pourra les ouvrir)."""
+    store = store_app.is_store(request)
     return JSONResponse({"compagnon": compagnon_enabled(), "discussions": discussions_enabled(),
-                         "invites_v2": invites_v2_enabled(), "bar": bar_enabled(),
-                         "patates": patates_enabled() and pronos_enabled(), "agenda": agenda_enabled(),
-                         "pronos": pronos_enabled()},
+                         "invites_v2": invites_v2_enabled(), "bar": bar_enabled() and not store,
+                         "patates": patates_enabled() and pronos_enabled() and not store,
+                         "agenda": agenda_enabled() and not store, "pronos": pronos_enabled() and not store},
                         headers=NO_CACHE)
 
 

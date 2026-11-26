@@ -150,6 +150,8 @@ GAME_RULES.quiz = `
   <p>Chaque partie compte : les points, les victoires et les records s'additionnent d'une partie à l'autre dans le classement général.</p>
   <h3>🍻 Option alcool</h3>
   <p>Si l'animateur l'active, chaque mauvaise réponse se boit.</p>`;
+// App App Store : pas d'option alcool (refusée par le serveur, store_app).
+if (STORE) GAME_RULES.quiz = GAME_RULES.quiz.replace(/\s*<h3>🍻 Option alcool<\/h3>\s*<p>[^<]*<\/p>/, "");
 
 const QZ_COLORS = ["qz-a", "qz-b", "qz-c", "qz-d"];
 const QZ_SHAPES = ["▲", "◆", "●", "■"];

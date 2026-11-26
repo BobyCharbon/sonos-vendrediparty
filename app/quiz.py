@@ -18,6 +18,7 @@ import time
 from pathlib import Path
 
 from . import quizbank as qb
+from . import store_app
 
 MODES = {
     "classic": ("Classique", "🏆"),
@@ -77,6 +78,9 @@ def configure(g: dict, s: dict):
 def _pool(g: dict, diff: str | int) -> list[dict]:
     themes = g["quiz"]["settings"]["themes"] or [t for t in qb.THEMES if qb.BANK[t]]
     qs = [q for t in themes for q in qb.BANK.get(t, [])]
+    if g.get("store"):  # app App Store : aucune question sur l'alcool (store_app)
+        qs = store_app.clean(qs, lambda q: " ".join([q["q"], q["a"], *q["w"]]))
+        qs = store_app.clean_platforms(qs, lambda q: " ".join([q["q"], q["a"], *q["w"]]))  # Apple 2.3.10
     if str(diff) in ("1", "2", "3"):
         qs = [q for q in qs if q["d"] == int(diff)] or qs
     return qs

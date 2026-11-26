@@ -27,7 +27,7 @@ def test_terms_say_adults_only_and_that_party_never_touches_money_on_web_and_iph
     web = (ROOT / "web/events/src/lib/terms.ts").read_text()
     ios = (ROOT / "ios/Party/Settings/Moderation/TermsView.swift").read_text()
     for text in (web, ios):
-        assert "18 novembre 2026" in text and "Réservé aux adultes" in text and "Paiements, billets et bar" in text
+        assert "25 novembre 2026" in text and "Réservé aux adultes" in text and "Paiements, billets et bar" in text
         assert "18 ans ou plus" in text and "Tabac et drogues sont interdits" in text
     assert "tu confirmes avoir 18 ans ou plus" in (ROOT / "web/events/src/components/TermsSheet.tsx").read_text()
     assert "tu confirmes avoir 18 ans ou plus" in (ROOT / "ios/Party/Settings/Moderation/ModerationSheets.swift").read_text()
@@ -36,9 +36,10 @@ def test_terms_say_adults_only_and_that_party_never_touches_money_on_web_and_iph
 def test_privacy_policy_and_manifest_cover_the_bar_and_voice_messages():
     for p in ("web/events/src/app/privacy.tsx", "ios/Party/Settings/Account/SignInView.swift"):
         text = (ROOT / p).read_text()
-        assert "Bar de la soirée, seulement si l" in text and "6 mois après sa fermeture" in text and "19 novembre 2026" in text
-        # Représentant dans l'UE (RGPD art. 27, DSA art. 13), décision de l'admin du 19.11 : France, Belgique, Luxembourg.
-        assert "Représentant dans l" in text and "01170 Segny, France" in text
+        assert "Bar de la soirée, seulement si l" in text and "6 mois après sa fermeture" in text and "25 novembre 2026" in text
+        # Éditeur établi en France (décision de l'admin du 25.11) : pas de représentant UE à désigner, autorité CNIL.
+        assert "établi en France" in text and "01170 Segny, France" in text and "pas de représentant à désigner" in text
+        assert "en Suisse, responsable du traitement" not in text and "Représentant dans l" not in text
     with open(ROOT / "ios/Party/PrivacyInfo.xcprivacy", "rb") as f:
         types = {e["NSPrivacyCollectedDataType"] for e in plistlib.load(f)["NSPrivacyCollectedDataTypes"]}
     assert {"NSPrivacyCollectedDataTypeAudioData", "NSPrivacyCollectedDataTypePurchaseHistory"} <= types

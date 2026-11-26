@@ -1,6 +1,6 @@
 // deno test supabase/functions/send-push/apns_test.ts : envoi APNs de l'app native, sans réseau (fetch simulé).
 import { assert, assertEquals } from 'jsr:@std/assert@1';
-import { apnsConfig, apsFor, categoryFor, sendApns, tapPath, threadFor } from './apns.ts';
+import { apnsConfig, apsFor, categoryFor, sendApns, storeAppSkips, tapPath, threadFor } from './apns.ts';
 
 const TOKEN = 'apns:' + 'ab'.repeat(32);
 
@@ -124,4 +124,11 @@ Deno.test('thread-id et catégorie : data.thread, sinon déduits du message ; ri
   assertEquals(categoryFor({ kind: 'message', event_id: '../admin' }), null);
   assertEquals(categoryFor({ kind: 'event_changed', event_id: EVENT }), null);
   assertEquals(categoryFor({ kind: 'group_message', group_id: EVENT }), null);
+});
+
+Deno.test('app App Store : aucune notification du bar ; la BETA les garde', () => {
+  assertEquals(storeAppSkips('ch.bobycharbon.party', 'bar_served'), true);
+  assertEquals(storeAppSkips('ch.bobycharbon.party', 'bar_refund_declared'), true);
+  assertEquals(storeAppSkips('ch.bobycharbon.party', 'event_changed'), false);
+  assertEquals(storeAppSkips('ch.bobycharbon.party.beta', 'bar_served'), false);
 });

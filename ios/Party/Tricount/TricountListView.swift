@@ -137,7 +137,7 @@ struct CreateTricountView: View {
                 Section {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 10) {
-                            ForEach(Self.emojis, id: \.self) { e in
+                            ForEach(AppConfig.isStoreApp ? Self.emojis.filter { $0 != "🍻" } : Self.emojis, id: \.self) { e in
                                 Button { emoji = e } label: {
                                     Text(e).font(.system(size: 30)).frame(width: 52, height: 52)
                                         .background(emoji == e ? Palette.accent.opacity(0.3) : Color.white.opacity(0.06),

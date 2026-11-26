@@ -128,13 +128,13 @@ def terms_sections(web: bool) -> list[tuple[str, list[str]]]:
 
 
 def test_terms_2026_11_18_have_the_prono_section_word_for_word_on_web_and_iphone():
-    web, ios = terms_sections(web=True), terms_sections(web=False)
+    web, ios = terms_sections(web=True), ios_terms_after_refus_143()
     assert len(web) >= 8 and web == ios
     section = " ".join(p for t, ps in web if t == "Pronos et confettis" for p in ps) + " Pronos et confettis"
     for words in PRONO_TERMS:
         assert words in section, words
-    assert "TERMS_UPDATED = '18 novembre 2026'" in read("web/events/src/lib/terms.ts")
-    assert 'static let updated = "18 novembre 2026"' in read("ios/Party/Settings/Moderation/TermsView.swift")
+    assert "TERMS_UPDATED = '25 novembre 2026'" in read("web/events/src/lib/terms.ts")
+    assert 'static let updated = "25 novembre 2026"' in read("ios/Party/Settings/Moderation/TermsView.swift")
     assert "Zicou" not in read("web/events/src/lib/terms.ts")  # Zicou reste en bêta
 
 
@@ -142,7 +142,8 @@ def test_the_database_asks_everyone_to_accept_the_terms_of_2026_11_18():
     versions = []
     for path in sorted(glob.glob(str(ROOT / "supabase/migrations/*.sql"))):
         versions += re.findall(r"set terms_version = '(\d{4}-\d\d-\d\d)'", Path(path).read_text(encoding="utf-8"))
-    assert versions and versions[-1] == "2026-11-18"
+    assert versions and "2026-11-18" in versions and versions[-1] == "2026-11-25"  # puis CGU du 25.11 (refus 1.4.3)
+    assert (ROOT / "supabase/prod/2026-11-25-cgu-apply.sql").exists()
     assert (ROOT / "supabase/prod/2026-11-18-cgu-pronos-patates-apply.sql").exists()
     assert (ROOT / "supabase/prod/2026-11-18-cgu-pronos-patates-rollback.sql").exists()
 
@@ -154,7 +155,7 @@ def test_privacy_policy_tells_what_the_pronos_keep_on_web_and_iphone():
         for words in ("Pronos : tes pronos, tes réponses, les confettis que tu lances et ceux que tu ramasses",
                       "l'historique de ton sac (toi seul le vois)", "tes contestations", "tes réactions",
                       "Rien de tout cela n'est envoyé à un tiers.", "Ton sac de confettis et son historique",
-                      "pronos et confettis", "19 novembre 2026"):
+                      "pronos et confettis", "25 novembre 2026"):  # date de la politique (éditeur en France, 25.11)
             assert words in text, words
 
 
@@ -181,3 +182,9 @@ def test_age_rating_declares_no_simulated_gambling_while_pronos_are_off():
     assert "Simulated Gambling : **None**" in checklist and "Gambling : **Non**" in checklist
     for text in (asc, checklist):
         assert "PATATES_ENABLED" in text  # la version qui les ouvrira repassera par là
+
+
+def ios_terms_after_refus_143():
+    """Refus Apple 1.4.3 (25.11) : web et iPhone (prochain build) disent la même chose, sans « un verre d'eau compte
+    toujours » ni « les jeux se jouent en points » (simple précision, même version des CGU)."""
+    return terms_sections(web=False)

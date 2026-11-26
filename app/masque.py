@@ -18,6 +18,7 @@ d'animateur restent dans main.py, et tout passe par le verrou unique des jeux.
 import random
 
 from .masque_cards import MASQUE_CARDS
+from . import store_app
 from .moderation import ContentRefused, require_clean
 
 CATS = {
@@ -65,8 +66,10 @@ def _name(g: dict, gid: str) -> str:
     return p["name"] if p else "?"
 
 
-def deck(S: dict) -> list[int]:
-    return [i for i, (cat, level, _) in enumerate(MASQUE_CARDS) if cat in S["cats"] and level in S["levels"]]
+def deck(S: dict, store: bool = False) -> list[int]:
+    """Cartes des catégories et niveaux choisis ; partie de l'app App Store : sans boisson (store_app.drinky)."""
+    return [i for i, (cat, level, text) in enumerate(MASQUE_CARDS) if cat in S["cats"] and level in S["levels"]
+            and not (store and store_app.drinky(text))]
 
 
 def configure(g: dict, settings: dict):
@@ -104,7 +107,7 @@ def start(g: dict, rng=random):
 def _deal(g: dict, rng=random):
     """Nouvelle question, jamais deux fois la même dans la soirée (tant que le paquet n'est pas épuisé)."""
     S = state(g)
-    cards = deck(S)
+    cards = deck(S, g.get("store"))
     if not cards:
         raise MasqueError("Aucune question pour ce choix")
     fresh = [i for i in cards if i not in S["used"]]
@@ -139,8 +142,9 @@ def write(g: dict, gid: str, text, rng=random):
     if len(text) < MIN_ANSWER:
         raise MasqueError("Écris au moins quelques mots")
     try:  # filtre commun (Apple 1.2) : la réponse s'affiche à toute la table et sur la TV
+        store_app.check_text(text, g.get("store"))
         text = require_clean(text, "answer")
-    except ContentRefused as e:
+    except (ContentRefused, ValueError) as e:
         raise MasqueError(str(e)) from None
     S["answers"][gid] = text
     if all(p["id"] in S["answers"] for p in g["players"]):

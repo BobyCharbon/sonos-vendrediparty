@@ -26,7 +26,7 @@ MAX_TOKENS = 2000
 FEATURE = "feedback"  # nom de l'appel dans le journal ai_usage
 # 2 (04.11) : un seul accord pour toute l'IA de Party (avis, assistant des événements avec captures, photos et liens,
 # scan des tickets) ; l'accord donné pour les seuls avis est redemandé une fois.
-CONSENT_VERSION = 2  # à augmenter si ce qui est envoyé change : l'accord est redemandé
+CONSENT_VERSION = 3  # 3 (25.11) : GitHub public dit en clair ; à augmenter si ce qui est envoyé change : l'accord est redemandé
 MAX_CONSENTS = 5000
 ACCEPTED, DECLINED = "accepted", "declined"
 

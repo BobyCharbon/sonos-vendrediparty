@@ -169,10 +169,26 @@ struct DeleteAccountView: View {
 /// Confidentialité : le texte du module web, en natif, et l'accord pour l'IA (tous les comptes connectés).
 struct PrivacyView: View {
     /// Même texte que la politique du module web (web/events/src/app/privacy.tsx) : changer les deux ensemble.
-    static let updated = "19 novembre 2026"
+    static let updated = "25 novembre 2026"
+    /// App App Store (refus Apple 1.4.3, 25.11) : ni le bar, ni le Purify Test, ni les Pronos (éteints dans cette version),
+    /// absents de l'app (même filtre que privacy.tsx).
+    static var shown: [(String, [String])] {
+        guard AppConfig.isStoreApp else { return sections }
+        let cuts = [
+            ("(Quiz, Méninges, Purify Test)", "(Quiz, Méninges)"),
+            (" Bar de la soirée : 6 mois après sa fermeture.", ""),
+            (" Pronos (réponses, confettis lancés, contestations, réactions) : jusqu'à la suppression du prono, de son groupe ou de son événement. Ton sac de confettis et son historique : jusqu'à la suppression de ton compte.", ""),
+            (", pronos et confettis,", ","),
+        ]
+        return sections.map { title, paragraphs in
+            (title, paragraphs.filter { !$0.hasPrefix("Bar de la soirée") && !$0.hasPrefix("Purify Test") && !$0.hasPrefix("Pronos :") }
+                .map { p in cuts.reduce(p) { $0.replacingOccurrences(of: $1.0, with: $1.1) } })
+        }
+    }
+
     static let sections: [(String, [String])] = [
         ("Qui est responsable ?", [
-            "Party (Vendredi Party : l'app iPhone, l'app Apple TV et le site) est édité par Ludovic Trombert, en Suisse, responsable du traitement de tes données au sens de la loi fédérale sur la protection des données (nLPD).",
+            "Party (Vendredi Party : l'app iPhone, l'app Apple TV et le site) est édité par Ludovic Trombert, établi en France (Union européenne), responsable du traitement de tes données au sens du règlement général sur la protection des données (RGPD).",
             "Pour toute question ou demande sur tes données : support@vendrediparty.ch. Réponse en principe sous 30 jours.",
             "Party est réservé aux personnes de 18 ans et plus. Party ne fait aucune publicité, ne revend aucune donnée et n'utilise aucun outil tiers de mesure d'audience ni de suivi (« tracking »).",
         ]),
@@ -189,9 +205,10 @@ struct PrivacyView: View {
             "Discussion d'un événement : pour chaque discussion, Party garde ton niveau de notification (tout, mentions seulement, rien), ta sourdine et l'heure de ta dernière lecture, pour compter tes messages non lus ; personne d'autre ne les voit. La recherche dans une discussion n'est jamais gardée. Tout part avec l'événement ou avec ton compte.",
             "Organisateurs d'événements payants : les coordonnées de paiement que tu enregistres (IBAN, titulaire, liens de paiement comme Twint, note) sont montrées aux participants de tes événements payants pour qu'ils te paient. Party ne traite jamais l'argent lui-même.",
             "Billets : un billet QR personnel est créé pour tes événements à billets ; son passage à l'entrée est noté.",
+            "Pot commun : les dépenses, les membres du pot (leur nom), les photos de tickets et ton profil de paiement (IBAN, titulaire, liens de paiement comme Revolut, Twint ou PayPal) sont vus par les membres du pot, pour se rembourser entre eux. Party ne touche jamais l'argent. Tout part avec le pot ; ton profil de paiement part aussi avec ton compte.",
             "Bar de la soirée, seulement si l'organisateur l'ouvre : tes commandes (articles, quantités, prix, heure), ce qui t'a été servi et par quel barman, ton engagement à rembourser, ton solde et tes remboursements sont vus par toi, les organisateurs et les barmans de l'événement. Les organisateurs peuvent en exporter un récapitulatif en PDF. Ta carte Apple Wallet du bar montre ton solde. Party ne vend rien et ne traite jamais l'argent : tu rembourses l'organisateur en dehors de l'app. Tout est effacé 6 mois après la fermeture du bar ; avec ton compte, ton nom en est retiré.",
             "Covoiturage, seulement si l'organisateur l'ouvre et si tu y prends part : les participants et les organisateurs de l'événement voient ton surnom, ta photo, si tu conduis ou cherches une place, tes places libres, la ville de départ que tu indiques (facultative) et qui monte avec qui. Tu le quittes quand tu veux ; répondre « Pas présent » t'en retire. Party ne gère ni argent ni partage de frais.",
-            "Invitation par lien : la page de l'invitation se lit sans compte et ne montre que le titre, la date, le nom du lieu, le prénom de la personne qui invite et au plus trois prénoms de ceux qui viennent (aucun si l'organisateur cache la liste). Pour répondre, tu donnes ton prénom et ton numéro (code par SMS) : l'organisateur voit ton prénom, ta réponse, par quel lien tu es venu et quand le lien a été ouvert, jamais ton numéro. Les relances de l'organisateur passent par une notification (si tu as l'app, avec son interrupteur « Invitations ») ou par un message qu'il t'envoie lui-même.",
+            "Invitation par lien : la page de l'invitation se lit sans compte et ne montre que le titre, la date, le nom du lieu, le prénom de la personne qui invite et au plus trois prénoms de ceux qui viennent (aucun si l'organisateur cache la liste). Pour répondre, tu te connectes avec ton numéro (code par SMS) et tu complètes ton profil (prénom, nom et surnom ; photo facultative) : l'organisateur voit ton surnom, ta réponse, par quel lien tu es venu et quand le lien a été ouvert, jamais ton numéro. Les relances de l'organisateur passent par une notification (si tu as l'app, avec son interrupteur « Invitations ») ou par un message qu'il t'envoie lui-même.",
             "Liens nommés et accord de l'organisateur : chaque lien d'invitation porte le nom que lui donne celui qui le crée (organisateur ou invité) ; l'organisateur voit qui est venu par quel lien. Pour un événement sans lien public, si tu viens par le lien d'un invité, l'organisateur et ses co-organisateurs voient ta demande (ton surnom, ta photo, ta réponse et qui t'a invité) jusqu'à ce qu'ils l'acceptent ou la refusent.",
             "Photo de groupe : facultative, choisie par qui gère le groupe ; seuls ses membres la voient et peuvent la signaler. Elle appartient au groupe : elle reste tant que le groupe la garde (son créateur la change ou la retire, la modération peut la retirer) et part avec le groupe.",
             "Groupe d'un événement : si tu coches « Rejoindre aussi le groupe », tu entres dans le groupe choisi par l'organisateur ; ses membres voient ton surnom, ton nom et ta photo (jamais ton numéro, sauf si tu le montres), lisent et écrivent dans sa discussion et peuvent t'inviter à ses événements. Base : ta demande. Tu quittes le groupe à tout moment ; nous gardons seulement la date de ton départ pour ne jamais t'y remettre sans toi, jusqu'à la suppression du groupe ou de ton compte.",
@@ -228,7 +245,7 @@ struct PrivacyView: View {
         ("Tes avis sur l'app (« Ton avis »)", [
             "Quand tu écris un avis (idée, bug), l'administrateur reçoit ton texte, ton prénom, l'écran où tu étais et ton appareil (modèle, version du système et de l'app). Il peut te répondre dans l'app.",
             "Si tu modifies ton avis, les versions précédentes sont gardées avec leur date (au plus les 20 dernières) pour que l'administrateur voie ce qui a changé. Elles partent avec l'avis.",
-            "Pour corriger l'app, l'administrateur peut confier un avis à une IA de développement : l'avis est alors copié sur GitHub (où le code de Party est gardé), puis lu par Claude (Anthropic). Cela n'arrive que si tu as donné ton accord pour l'IA, et toujours sans ton prénom ni ton numéro. Sans accord, ton avis reste chez l'administrateur.",
+            "Pour corriger l'app, l'administrateur peut confier un avis à une IA de développement : l'avis est alors publié sur GitHub (où le code de Party est gardé, visible par tous), puis lu par Claude (Anthropic). Cela n'arrive que si tu as donné ton accord pour l'IA, et toujours sans ton prénom ni ton numéro. Sans accord, ton avis reste chez l'administrateur.",
         ]),
         ("Notifications, Apple Wallet et appareils", [
             "Notifications : l'adresse de notification de ton appareil (Apple Push Notification service pour l'iPhone, service push de ton navigateur sur le web) est enregistrée avec ton compte. Chaque type de notification a son interrupteur dans Réglages › Notifications. L'historique des notifications est effacé après 90 jours.",
@@ -240,28 +257,30 @@ struct PrivacyView: View {
             "Supabase : base de données et connexion, hébergées en Suisse (Zurich).",
             "Twilio : envoi du code de connexion par SMS (ton numéro).",
             "Anthropic : l'IA, seulement avec ton accord (voir plus haut).",
-            "GitHub : garde le code de Party ; y sont copiés, sans ton prénom, les avis confiés à l'IA de développement, seulement avec ton accord pour l'IA.",
+            "GitHub : garde le code de Party ; y sont publiés, visibles par tous et sans ton prénom, les avis confiés à l'IA de développement, seulement avec ton accord pour l'IA.",
             "Spotify : recherche et lecture des titres de la soirée.",
             "Apple : notifications de l'iPhone (APNs), billets Apple Wallet, app Apple TV, et la dictée vocale sur iPhone (transcription de ta voix, seulement quand tu dictes).",
-            "Google : la recherche d'un lieu dans l'assistant des événements (le texte du lieu), et la dictée vocale dans Chrome (transcription de ta voix, seulement quand tu dictes).",
+            "Google : la recherche d'un lieu, dans l'assistant et dans le formulaire d'un événement (le texte tapé et l'adresse IP de ton appareil), la police de caractères des pages (l'adresse IP de ton appareil), et la dictée vocale dans Chrome (transcription de ta voix, seulement quand tu dictes).",
             "Infomaniak (Suisse) : messagerie de l'adresse de contact, quand tu nous écris.",
-            "Le serveur de Party est hébergé en Suisse. Twilio, Anthropic, GitHub, Spotify, Apple et Google peuvent traiter des données hors de Suisse, notamment aux États-Unis, avec les garanties prévues par la nLPD (Swiss-U.S. Data Privacy Framework ou clauses contractuelles types).",
+            "Le serveur de Party est hébergé en France, chez l'éditeur lui-même (hébergeur : l'éditeur) ; la base de données (Supabase) est à Zurich, en Suisse. Twilio, Anthropic, GitHub, Spotify, Apple et Google peuvent traiter des données hors de l'Union européenne et de Suisse, notamment aux États-Unis, avec les garanties prévues par le RGPD et la nLPD (Data Privacy Framework ou clauses contractuelles types).",
+            "Chacun de ces sous-traitants est tenu, par contrat, d'offrir à tes données une protection au moins égale à celle décrite dans cette politique.",
         ]),
         ("Combien de temps", [
-            "Ton compte et ce qui s'y rattache : jusqu'à ce que tu le supprimes. Notifications : 90 jours. Signalements traités : un an. Compteur des invités : 6 mois sans visite. Compte créé seulement pour répondre à une invitation (prénom et numéro, sans l'app ni profil complété) : effacé avec ses réponses 7 jours après le dernier événement auquel il était invité. Activité de la soirée : le temps de la soirée et au plus 3 jours. Covoiturage, demandes d'accord et liens d'invitation : jusqu'à la suppression de l'événement (ou de ton compte). Bar de la soirée : 6 mois après sa fermeture. Pronos (réponses, confettis lancés, contestations, réactions) : jusqu'à la suppression du prono, de son groupe ou de son événement. Ton sac de confettis et son historique : jusqu'à la suppression de ton compte. Messages directs : jusqu'à la suppression du compte de l'un des deux. Photos et messages vocaux des discussions : 90 jours. Demandes de message refusées ou supprimées : effacées aussitôt ; ignorées : effacées au bout de 30 jours. Copies jointes à un signalement (message, photo, vocal, 10 messages précédents) : effacées avec le signalement, au plus tard un an après.",
+            "Ton compte et ce qui s'y rattache : jusqu'à ce que tu le supprimes. Notifications : 90 jours. Signalements traités : un an. Compteur des invités : 6 mois sans visite. Ancien compte d'invité au prénom seul (créé avant le 10.11.2026, profil jamais complété ; depuis, le profil complet est toujours demandé) : effacé avec ses réponses 7 jours après le dernier événement auquel il était invité. Activité de la soirée : le temps de la soirée et au plus 3 jours. Covoiturage, demandes d'accord et liens d'invitation : jusqu'à la suppression de l'événement (ou de ton compte). Bar de la soirée : 6 mois après sa fermeture. Pronos (réponses, confettis lancés, contestations, réactions) : jusqu'à la suppression du prono, de son groupe ou de son événement. Ton sac de confettis et son historique : jusqu'à la suppression de ton compte. Messages directs : jusqu'à la suppression du compte de l'un des deux. Photos et messages vocaux des discussions : 90 jours. Demandes de message refusées ou supprimées : effacées aussitôt ; ignorées : effacées au bout de 30 jours. Copies jointes à un signalement (message, photo, vocal, 10 messages précédents) : effacées avec le signalement, au plus tard un an après. Pot commun (dépenses, membres, photos de tickets) : jusqu'à la suppression de la dépense ou du pot ; ton profil de paiement : jusqu'à ce que tu le retires ou que tu supprimes ton compte.",
             "Les textes écrits par d'autres membres peuvent encore citer ton surnom après la suppression de ton compte.",
         ]),
         ("Tes droits", [
             "Tu peux à tout moment : voir et corriger tes données dans l'app ; retirer un accord (IA, contacts, notifications) ; supprimer ton compte dans Réglages › Gérer mon compte. La suppression efface ton compte, tes photos de profil, tes contenus (réponses, votes, messages directs avec leurs photos et vocaux, demandes de message, réglages des discussions, pronos et confettis, covoiturage, demandes, ton calendrier abonné), les événements que tu as créés, tes stats de jeux, tes accords pour l'IA et le journal de tes appels à l'IA ; tes avis sur l'app restent, sans ton nom.",
-            "Pour obtenir une copie de tes données ou toute autre demande : support@vendrediparty.ch. Tu peux aussi t'adresser au Préposé fédéral à la protection des données et à la transparence (PFPDT).",
+            "Restent pour les autres, sans lien avec toi, après la suppression de ton compte : les groupes que tu as créés (nom, emoji, couleur), les sondages, les choix proposés, les étiquettes et les lignes « qui amène quoi » que tu as ajoutés aux événements des autres, et les dépenses d'un Pot commun (ton nom y reste, pour que les comptes des autres restent justes).",
+            "Pour obtenir une copie de tes données ou toute autre demande : support@vendrediparty.ch. Tu peux aussi te plaindre auprès de la CNIL (France), l'autorité de contrôle de l'éditeur ; si tu vis en Suisse, auprès du Préposé fédéral à la protection des données et à la transparence (PFPDT).",
         ]),
-        ("Si tu vis dans l'Union européenne (RGPD, DSA)", [
-            "Party est aussi proposé en France, en Belgique et au Luxembourg : pour les personnes qui y vivent, le règlement général sur la protection des données (RGPD) s'applique en plus de la nLPD.",
+        ("Droit applicable (RGPD, nLPD, DSA)", [
+            "Party est édité en France : le règlement général sur la protection des données (RGPD) s'applique à tous ses utilisateurs. Pour les personnes qui vivent en Suisse, la loi fédérale sur la protection des données (nLPD) s'applique aussi.",
             "Bases légales : le service que tu demandes (compte, événements, jeux, notifications que tu actives) ; ton consentement, que tu retires à tout moment (IA, contacts, calendrier de l'iPhone, photo) ; l'intérêt légitime de Party (sécurité, journaux techniques, modération et signalements) ; une obligation légale quand une autorité le demande. Aucune décision automatisée ni profilage ne produit d'effet juridique sur toi.",
-            "Tes droits : accès, rectification, effacement, limitation, opposition et portabilité (une copie de tes données dans un format lisible), à demander à support@vendrediparty.ch. Tu peux aussi te plaindre auprès de l'autorité de ton pays : la CNIL (France), l'Autorité de protection des données (Belgique) ou la CNPD (Luxembourg).",
-            "Transferts : l'Union européenne reconnaît que la Suisse protège les données de façon adéquate ; pour les sous-traitants hors de Suisse, voir « Qui reçoit tes données ».",
+            "Tes droits : accès, rectification, effacement, limitation, opposition et portabilité (une copie de tes données dans un format lisible), à demander à support@vendrediparty.ch. L'autorité de contrôle de l'éditeur est la CNIL (France) ; tu peux aussi te plaindre auprès de l'autorité de ton pays : l'Autorité de protection des données (Belgique), la CNPD (Luxembourg) ou le PFPDT (Suisse).",
+            "Transferts : le serveur de Party est en France, dans l'Union européenne ; l'Union européenne reconnaît que la Suisse, où est hébergée la base de données, protège les données de façon adéquate ; pour les sous-traitants hors de l'Union européenne et de Suisse, voir « Qui reçoit tes données ».",
             "Règlement sur les services numériques (DSA) : point de contact unique pour les utilisateurs et les autorités : support@vendrediparty.ch, en français. Un contenu illicite se signale dans l'app (« Signaler ») ou à cette adresse.",
-            "Représentant dans l'Union européenne (RGPD art. 27, DSA art. 13) : Ludovic Trombert, 420 route des Rosellets, 01170 Segny, France ; support@vendrediparty.ch.",
+            "Éditeur : Ludovic Trombert, 420 route des Rosellets, 01170 Segny, France ; support@vendrediparty.ch. Établi dans l'Union européenne, il n'a pas de représentant à désigner (RGPD art. 27, DSA art. 13).",
         ]),
         ("Signalements et blocages", [
             "Quand tu signales un contenu, les modérateurs reçoivent ta raison, ton commentaire et une copie de ce contenu. Pour un message : ce seul message, avec sa photo ou son vocal copiés dans un espace réservé aux modérateurs, et les 10 messages précédents (texte, auteur, heure) seulement si tu coches « Joindre les 10 messages précédents ». La personne signalée ne sait pas qui l'a signalée. Si un modérateur masque ton contenu, une notification te dit pourquoi et où le contester. Les blocages restent jusqu'à ce que tu débloques.",
@@ -302,7 +321,7 @@ struct PrivacyView: View {
             }
             if let chatPrefs { ChatPrefsSection(store: chatPrefs) }
             if let moderation { AIConsentSection(store: moderation) }
-            ForEach(Self.sections, id: \.0) { title, paragraphs in
+            ForEach(Self.shown, id: \.0) { title, paragraphs in
                 Section(title) {
                     ForEach(paragraphs, id: \.self) { Text($0).font(.subheadline) }
                 }

@@ -41,7 +41,7 @@ def test_host_uses_guest_routes_without_the_party_code(client):
 def test_admin_sees_pin_and_qr_contains_it(client):
     assert client.post("/api/admin/login", json={"pin": "9999"}).status_code == 200
     state = client.get("/api/admin/state").json()
-    assert len(state["guest_pin"]) == 4 and state["guest_pin"].isdigit()
+    assert len(state["guest_pin"]) in (4, 6) and state["guest_pin"].isdigit()  # 6 chiffres pour un nouveau code (25.11)
     # La page invités exige le code, même dans le navigateur de l'admin.
     assert client.get("/api/state").status_code == 401
 

@@ -69,7 +69,7 @@ targets:
         # Portrait sur les iPhone classiques (gardé : rien ne change pour eux). L'écran intérieur de l'iPhone Duo
         # ignore ce verrou (Apple) : l'app y suit toute taille et toute orientation (CLAUDE.md, « iPhone Duo »).
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
-        NSCameraUsageDescription: "Pour prendre les photos Souvenirs d'une soirée, scanner un QR code (code de la soirée, billet, carte du bar d'un invité) ou un ticket du Pot commun, et prendre une photo de profil, d'événement, de groupe ou à envoyer dans une discussion."
+        NSCameraUsageDescription: "Pour prendre les photos Souvenirs d'une soirée, scanner un QR code (code de la soirée ou d'un jeu, billet) ou un ticket du Pot commun, et prendre une photo de profil, d'événement, de groupe ou à envoyer dans une discussion."
         NSPhotoLibraryUsageDescription: "Pour choisir une photo de profil, d'événement, de groupe, de discussion ou un ticket du Pot commun."
         # Appui long sur une image de la page (photo d'événement, billet QR) › « Ajouter à Photos » : sans ce texte, iOS
         # ferme l'app (WKWebView garde son menu d'image).
@@ -81,12 +81,9 @@ targets:
         NSCalendarsUsageDescription: "Pour voir tes rendez-vous de l'iPhone dans l'Agenda de Party et y mettre les dates d'un sondage en un toucher. Si tu partages tes dispos avec un groupe ou un lien, seules les heures où tu es pris partent, arrondies à la demi-heure : jamais le titre, le lieu ni les notes."
         NSContactsUsageDescription: "Pour afficher les membres Party qui sont dans tes contacts sous le nom que tu leur as donné, et te les proposer quand tu écris un nouveau message. Seule une empreinte chiffrée des numéros est comparée ; tes contacts restent sur ton iPhone."
         ITSAppUsesNonExemptEncryption: false
-        # Actions rapides de l'icône (appui long) : Party/QuickActions.swift. « Zicou » et « Cadeau du jour » sont
-        # ajoutées par l'app BETA seulement (condition BETA), et seulement si le Compagnon est ouvert sur le site.
-        UIApplicationShortcutItems:
-          - UIApplicationShortcutItemType: ch.bobycharbon.party.addtrack
-            UIApplicationShortcutItemTitle: Ajouter un titre
-            UIApplicationShortcutItemIconSymbolName: music.note.list
+        # Actions rapides de l'icône (appui long) : Party/QuickActions.swift, toutes ajoutées par l'app (aucune dans
+        # Info.plist) : « Ajouter un titre » dans l'app BETA seulement (Musique cachée dans l'app App Store, 25.11) ;
+        # « Zicou » et « Cadeau du jour » si le Compagnon est ouvert sur le site.
     entitlements:
       path: Party/Party.entitlements
       properties:

@@ -29,6 +29,7 @@ struct PartyApp: App {
                 }
                 #if DEBUG
                 .task { TrackActivities.startDemoIfAsked() }
+                .task { QuickAction.registerBase() }
                 .task { HatchActivities.startDemoIfAsked() }
                 .overlay { MotionDemo(model: model) }
                 #endif

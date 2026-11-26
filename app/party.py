@@ -61,7 +61,7 @@ class Session:
     requests: list[Request] = field(default_factory=list)
     # guest_id -> {"name", "ips", "until"} ; until = 0 : banni sans limite.
     bans: dict[str, dict] = field(default_factory=dict)
-    # Code d'accès invités (4 chiffres), conservé d'une soirée à l'autre.
+    # Code d'accès invités (6 chiffres depuis le 25.11 ; un ancien code à 4 chiffres reste valable), conservé d'une soirée à l'autre.
     guest_pin: str = ""
     # guest_id -> {"name", "ips", "joined_at"} : invités entrés pendant la soirée.
     guests: dict[str, dict] = field(default_factory=dict)
@@ -166,10 +166,11 @@ class PartyStore:
         self.save()
 
     def regenerate_pin(self, pin: str | None = None) -> str:
-        """Nouveau code d'accès : tiré au hasard, ou choisi par l'hôte (4 chiffres)."""
+        """Nouveau code d'accès : tiré au hasard (6 chiffres : dans l'app App Store, le champ « Code » de Jeux reconnaît
+        ainsi une soirée Musique, 4 chiffres étant un jeu), ou choisi par l'hôte (6 chiffres, ou 4 comme avant)."""
         old = self.session.guest_pin
         if pin is None:
-            while (pin := f"{secrets.randbelow(10000):04d}") == old:
+            while (pin := f"{secrets.randbelow(10**6):06d}") == old:
                 pass
         self.session.guest_pin = pin
         self.session.revoked = []  # le nouveau code invalide déjà tous les anciens jetons

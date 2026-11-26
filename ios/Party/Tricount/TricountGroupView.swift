@@ -219,7 +219,7 @@ struct TricountGroupView: View {
                         }
                         HStack(spacing: 10) {
                             if t.from == g.me {
-                                Button { paying = t } label: { Label("Payer", systemImage: "creditcard") }.buttonStyle(.borderedProminent)
+                                Button { paying = t } label: { Label("Rembourser", systemImage: "arrow.uturn.left") }.buttonStyle(.borderedProminent)
                             }
                             Button { Haptics.tap(); Task { await store.settle(t) } } label: { Label("C'est remboursé", systemImage: "checkmark") }
                                 .buttonStyle(.bordered)

@@ -75,12 +75,12 @@ def test_privacy_policy_tells_the_discussions_v2_rules_word_for_word_on_web_and_
 
 
 def test_terms_of_2026_11_18_have_the_direct_messages_section_without_a_new_version():
-    web, ios = terms_sections(web=True), terms_sections(web=False)
+    web, ios = terms_sections(web=True), ios_terms_after_refus_143()
     assert web == ios
     text = " ".join(t + " " + " ".join(ps) for t, ps in web)
     for words in TERMS:
         assert words in text, words
-    assert "TERMS_UPDATED = '18 novembre 2026'" in read("web/events/src/lib/terms.ts")  # pas en prod : complétée
+    assert "TERMS_UPDATED = '25 novembre 2026'" in read("web/events/src/lib/terms.ts")  # pas en prod : complétée
 
 
 def test_web_privacy_settings_have_message_requests_and_read_receipts():
@@ -132,3 +132,9 @@ def test_app_store_checklist_keeps_the_admin_decisions_in_view():
         assert words in checklist, words
     guide = read("docs/app-store/notes-for-review.md")
     assert read("ios/appstore/review-notes.txt").strip() in guide  # partie A = fichier envoyé
+
+
+def ios_terms_after_refus_143():
+    """Refus Apple 1.4.3 (25.11) : web et iPhone (prochain build) disent la même chose, sans « un verre d'eau compte
+    toujours » ni « les jeux se jouent en points » (simple précision, même version des CGU)."""
+    return terms_sections(web=False)

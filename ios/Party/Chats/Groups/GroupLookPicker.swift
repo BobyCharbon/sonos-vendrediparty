@@ -10,7 +10,7 @@ struct GroupEmojiGrid: View {
 
     var body: some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 8), spacing: 6) {
-            ForEach(NewChatGroupView.emojis, id: \.self) { e in
+            ForEach(NewChatGroupView.pickable, id: \.self) { e in
                 let on = e == selection
                 Button { Haptics.selection(); selection = e } label: {
                     Text(e).font(.system(size: 28))

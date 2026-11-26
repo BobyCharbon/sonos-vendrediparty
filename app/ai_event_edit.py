@@ -1,4 +1,4 @@
-"""Modifier un événement déjà publié en parlant (« décale à 21h », « ajoute Tom », « mets 15 bouteilles de vin ») :
+"""Modifier un événement déjà publié en parlant (« décale à 21h », « ajoute Tom », « mets 15 pizzas ») :
 l'événement est relu en brouillon (mêmes champs que la création), l'IA applique la demande, l'app montre la liste des
 changements, puis tout est écrit avec la session de la personne (règles de la base : seul qui peut modifier modifie).
 Les invités sont prévenus par la base quand la date ou le lieu change ; sur demande, un message dans la discussion de

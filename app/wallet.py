@@ -21,6 +21,8 @@ from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.serialization import pkcs7
 
+from .features import configured_public_url
+
 log = logging.getLogger(__name__)
 
 PASS_TYPE_ID = "pass.ch.bobycharbon.party.ticket"
@@ -183,6 +185,8 @@ def _fields(event: dict, ticket: dict, holder: str) -> dict:
     back.append({"key": "help", "label": "À l'entrée",
                  "value": "Montre ce QR à l'organisateur. Ce billet se met à jour tout seul (nouveau QR, date, lieu, "
                           "arrivée, paiement) : garde les mises à jour automatiques activées au dos du billet."})
+    # Apple 1.5 : un pass Wallet porte le contact de son émetteur (adresse du site tirée de PARTY_PUBLIC_URL).
+    back.append({"key": "contact", "label": "Contact", "value": f"Ludovic Trombert · support@vendrediparty.ch · {configured_public_url()}/support"})
     return {"primaryFields": [{"key": "event", "label": "ÉVÉNEMENT", "value": title, "changeMessage": "%@"}],
             "secondaryFields": secondary, "auxiliaryFields": auxiliary + _status_fields(ticket), "backFields": back}
 

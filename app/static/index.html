@@ -63,8 +63,8 @@
   <div id="pin" class="hidden">
     <p class="sub">Scanne le QR de l'hôte ou entre le code de la soirée pour rejoindre la file d'attente.<br>Pour jouer, va dans 🎮 Jeux : pas besoin de code.</p>
     <form id="pinForm" class="row">
-      <input id="pinInput" class="grow pin-input" type="text" aria-label="Code de la soirée" spellcheck="false" inputmode="numeric" pattern="[0-9]*" maxlength="4"
-             placeholder="••••" autocomplete="one-time-code" required>
+      <input id="pinInput" class="grow pin-input" type="text" aria-label="Code de la soirée" spellcheck="false" inputmode="numeric" pattern="[0-9]*" maxlength="6"
+             placeholder="••••••" autocomplete="one-time-code" required>
       <button>Entrer</button>
     </form>
     <p id="pinHint" class="sub hidden" role="status"></p>
@@ -275,7 +275,7 @@
   <div id="fbAiConsent" class="i-modal hidden" role="dialog" aria-modal="true" aria-labelledby="fbAiConsentTitle" data-nav="sheet" data-nav-surface=".i-sheet" data-nav-close="#fbAiNo">
     <div class="i-sheet fb-ai-sheet">
       <div class="i-title" id="fbAiConsentTitle">✨ Utiliser l'IA de Party ?</div>
-      <p>Quand tu utilises l'IA, Party envoie ce que tu lui confies à Anthropic (Claude) : le texte de ton avis (et la transcription de ta voix) ; avec l'assistant des événements, ta description, tes captures d'écran, tes photos et les liens que tu donnes ; pour un ticket du pot commun, sa photo.</p>
+      <p>Quand tu utilises l'IA, Party envoie ce que tu lui confies à Anthropic (Claude) : le texte de ton avis (et la transcription de ta voix) ; avec l'assistant des événements, ta description, tes captures d'écran, tes photos et les liens que tu donnes ; pour un ticket du pot commun, sa photo. Pour corriger l'app, ton avis peut aussi être publié sur GitHub, où tout le monde peut le lire, puis lu par Claude, sans ton prénom ni ton numéro.</p>
       <p class="artist">Jamais ton numéro. Un seul accord pour toute l'IA de Party, que tu peux retirer à tout moment dans Réglages › Confidentialité. Sans accord, tout marche sans l'IA.</p>
       <button type="button" id="fbAiYes">J'accepte</button>
       <button type="button" id="fbAiNo" class="secondary">Écrire sans l'IA</button>
@@ -483,14 +483,26 @@ const discussionsOn = document.documentElement.dataset.discussions !== "off";
 function startTab() {
   return store("vp_tab") === "games" && store("vp_game") ? "games" : "events";
 }
+// App App Store (décision de l'admin du 25.11) : l'onglet Musique est caché (barre web et barre native, qui ne décrit
+// que les boutons visibles : native-tabs.js). On rejoint la soirée Musique depuis Jeux, par le champ « Code » (6 chiffres,
+// games.js joinByCode) ou le QR de l'hôte (?pin=) ; Musique ne s'ouvre qu'une fois la soirée rejointe, sinon c'est Jeux.
+const STORE_APP = document.documentElement.classList.contains("party-store");
+if (STORE_APP) document.querySelector('#tabs [data-tab="music"]').classList.add("hidden");
+let musicJoined = STORE_APP && store("vp_music_joined") === "1";
+const HOME_TAB = STORE_APP ? "events" : "music";  // repli d'un onglet inconnu ou fermé
 // Les événements utilisent leur compte SMS ; les accès musique/jeux restent indépendants.
 function showTab(tab, eventTarget) {
-  if (!["music", "games", "pet", "events", "chats", "feedback", "account", "host", "notice", "stats"].includes(tab)) tab = "music";
+  if (!["music", "games", "pet", "events", "chats", "feedback", "account", "host", "notice", "stats"].includes(tab)) tab = HOME_TAB;
   if (tab === "notice" && !fbIsAdmin()) tab = "account";
-  if (tab === "pet" && !compagnonOn) tab = "music";
+  if (tab === "pet" && !compagnonOn) tab = HOME_TAB;
   // « Ton avis » : réservé à l'hôte et aux comptes qui ont le droit d'écrire un avis (liens profonds compris).
-  if (tab === "feedback" && !fbAllowed()) tab = account ? "account" : "music";
-  if (tab === "chats" && !discussionsOn) tab = "music";
+  if (tab === "feedback" && !fbAllowed()) tab = account ? "account" : HOME_TAB;
+  if (tab === "chats" && !discussionsOn) tab = HOME_TAB;
+  // App App Store : Musique seulement après le code de la soirée (action rapide « Ajouter un titre », notification…).
+  if (tab === "music" && STORE_APP && !musicJoined && !(typeof fbIsAdmin === "function" && fbIsAdmin())) {
+    tab = "games";
+    setTimeout(() => { const c = document.getElementById("gCode"); if (c) { c.scrollIntoView({ block: "center" }); toast("🎵 Entre le code à 6 chiffres de la soirée (ou scanne le QR de l'hôte)"); } }, 300);
+  }
   const under = SUB_SCREENS[tab], starting = !document.body.dataset.tab, previous = document.body.dataset.tab;
   if (document.body.dataset.tab === "chats" && tab !== "chats") refreshChatsBadge();  // messages lus entre-temps
   document.querySelectorAll("[data-view]").forEach((el) => {
@@ -548,7 +560,9 @@ function tabTransition(tab) {
 }
 // 🏆 Mes stats de jeu : un onglet par jeu ; chaque jeu enregistre son affichage dans STATS_TABS (purity.js…).
 const STATS_TABS = {};
-let statsTab = "purity";
+// App App Store : pas de Purify Test (alcool, drogue : Apple 1.4.3) ; les stats n'ont que Méninges.
+if (STORE_APP) document.querySelector('[data-stats-tab="purity"]')?.remove();
+let statsTab = STORE_APP ? "brain" : "purity";
 function showStats(name = statsTab) {
   statsTab = name;
   document.querySelectorAll("[data-stats-tab]").forEach((b) => {
@@ -666,7 +680,7 @@ function fbAllowed() {
 // Sorti de la barre (4.11) : une ligne des Réglages (module Événements et Réglages natifs, voir fbShare).
 function fbSyncAccess() {
   const allowed = fbAllowed();
-  if (!allowed && document.body.dataset.tab === "feedback") showTab(account ? "account" : "music");
+  if (!allowed && document.body.dataset.tab === "feedback") showTab(account ? "account" : HOME_TAB);
   fbShare();
 }
 // Ce que la ligne « Ton avis » / « Retours » des Réglages affiche : libellé, pastille (avis à traiter ou réponses).
@@ -694,7 +708,7 @@ function chatsSyncAccess() {
   const tab = document.querySelector('#tabs [data-tab="chats"]');
   if (!tab) return;
   const open = !!account && discussionsOn;
-  if (!open && document.body.dataset.tab === "chats") showTab("music");
+  if (!open && document.body.dataset.tab === "chats") showTab(HOME_TAB);
   if (tab.classList.contains("hidden") === !open) return;
   tab.classList.toggle("hidden", !open);
   if (open) setTimeout(refreshChatsBadge);
@@ -1168,6 +1182,12 @@ async function join(pin) {
     $("pinInput").value = "";
     registered = false;  // se représenter : un invité déconnecté réapparaît dans la liste de l'hôte
     if (source) listen();
+    if (STORE_APP) {  // app App Store : la soirée rejointe (code de Jeux ou QR) ouvre Musique, sans onglet
+      musicJoined = true;
+      store("vp_music_joined", "1");
+      document.getElementById("gMusicBack")?.classList.remove("hidden");
+      showTab("music");
+    }
     await refresh();
   } catch (e) {
     $("pinInput").value = "";
@@ -1176,10 +1196,15 @@ async function join(pin) {
   }
 }
 $("pinForm").addEventListener("submit", (ev) => { ev.preventDefault(); join($("pinInput").value.trim()); });
+// Code à 6 chiffres depuis le 25.11 (un ancien code à 4 chiffres s'entre avec « Entrer ») : on rejoint dès le 6ᵉ.
 $("pinInput").addEventListener("input", () => {
   $("pinInput").value = $("pinInput").value.replace(/\D/g, "");
-  if ($("pinInput").value.length === 4) join($("pinInput").value);
+  if ($("pinInput").value.length === 6) join($("pinInput").value);
 });
+// App App Store : champ « Code » de Jeux, 6 chiffres (games.js joinByCode) ; « Revenir à la soirée Musique ».
+window.joinMusicByCode = (pin) => join(pin);
+document.addEventListener("click", (ev) => { if (ev.target.closest("#gMusicBack")) showTab("music"); });
+if (musicJoined) document.getElementById("gMusicBack")?.classList.remove("hidden");
 
 addEventListener("DOMContentLoaded", async () => {
   renderNameChip();
@@ -1199,7 +1224,7 @@ addEventListener("DOMContentLoaded", async () => {
     showTab("account");
     history.replaceState(null, "", location.pathname);
   } else if (params.get("tab") === "feedback") {
-    showTab(fbAllowed() ? "feedback" : "music");
+    showTab(fbAllowed() ? "feedback" : HOME_TAB);
     history.replaceState(null, "", location.pathname);
   } else if (params.get("tab") === "music") {
     // Notification « Ton titre passe » : la Musique, pas l'onglet d'ouverture (Événements).
@@ -1213,7 +1238,7 @@ addEventListener("DOMContentLoaded", async () => {
     history.replaceState(null, "", location.pathname);
   } else if (!compagnonOn && (params.get("tab") === "pet" || params.has("pet"))) {
     // Compagnon éteint (production) : ses liens (widgets, notifications, ?pet=1) retombent sur la musique.
-    showTab("music");
+    showTab(HOME_TAB);
     history.replaceState(null, "", location.pathname);
   } else if (params.get("tab") === "pet") {
     // Onglet Zicou (widgets, actions rapides de l'icône, notifications du Compagnon).
@@ -1234,7 +1259,7 @@ addEventListener("DOMContentLoaded", async () => {
     const kept = keep ? "?tab=events&event=" + shared.toLowerCase()
       : !params.has("ticket") && PartyEvents.validPath(path) ? "?tab=events&path=" + encodeURIComponent(path) : "";
     history.replaceState(null, "", location.pathname + kept);
-  } else showTab(params.has("pin") ? "music" : startTab());
+  } else showTab(params.has("pin") && !STORE_APP ? "music" : startTab());
   PartyEvents.preload();  // pastille « réponses attendues » sans ouvrir l’onglet
   if (params.has("pin")) {
     const pin = params.get("pin");

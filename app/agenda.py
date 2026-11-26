@@ -439,10 +439,10 @@ def _field(key: str, mode: str, name: str, label: str | None) -> str:
 
 
 def notice(name: str, contact: str | None, base: str) -> str:
-    """Notice de la conformité (3e volet, 🔴 1), au vouvoiement, sans case à cocher ; responsable : Vendredi Party."""
+    """Notice de la conformité (3e volet, 🔴 1), au vouvoiement, sans case à cocher ; responsable : l'éditeur (établi en France)."""
     return (f'<details class="notice"><summary>Vos réponses (champs remplis, créneau) sont transmises à {esc(name)}, et à personne '
             f'd’autre, pour répondre à votre demande. <span class="more">En savoir plus</span></summary>'
-            f'<p>Responsable : Vendredi Party (Suisse), {contact_line(contact, base)}. Données gardées en Suisse ; effacées aussitôt si la '
+            f'<p>Responsable : Ludovic Trombert, développeur indépendant établi en France, {contact_line(contact, base)}. Base de données hébergée en Suisse (Zurich) ; effacées aussitôt si la '
             f'demande est refusée, annulée ou sans réponse sous 48 h, sinon 30 jours après le rendez-vous. Votre adresse IP est gardée '
             f'sous forme chiffrée 24 h contre les abus. N’indiquez aucune donnée sensible (santé…). Vous suivez, annulez ou effacez '
             f'votre demande avec le lien secret qui s’affiche après l’envoi ; vos droits (accès, effacement, opposition, plainte au '

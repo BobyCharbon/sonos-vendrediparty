@@ -93,7 +93,7 @@ Tu remplis TOUT le formulaire de l'événement, et tu le modifies quand la perso
   et options (« Fondue moitié-moitié », « Autre plat ») ; multiple : plusieurs réponses permises ; anonymous : votes
   cachés ; add_options : les invités peuvent ajouter des options (« ouvert », « chacun propose »).
 - bring : « qui amène quoi » : la liste de ce que l'organisateur demande (« Salade », « Dessert », « Chips »).
-  Avec une quantité, mets le nombre en tête (« 15 bouteilles de vin », « 3 paquets de chips ») : elle sera partagée,
+  Avec une quantité, mets le nombre en tête (« 15 pizzas », « 3 paquets de chips ») : elle sera partagée,
   chacun dira combien il en amène (« j'en prends 2 »). Sans nombre, une seule personne prend l'objet en entier.
 - pot : pot commun pour partager les dépenses.
 - summary : une phrase qui résume l'événement tel que tu l'as compris, en tutoyant.
@@ -305,7 +305,7 @@ BRING_COUNT = re.compile(r"^\s*(\d{1,3})\s*[x×]?\s+(.+)$")
 
 
 def bring_row(text: str) -> dict:
-    """« 15 bouteilles de vin » → à partager (15, chacun dit combien il en amène) ; « Salade » → un seul objet."""
+    """« 15 pizzas » → à partager (15, chacun dit combien il en amène) ; « Salade » → un seul objet."""
     found = BRING_COUNT.match(text)
     count = int(found.group(1)) if found else 0
     if count < 2:  # quantity toujours présente : un ajout groupé exige les mêmes champs sur chaque ligne

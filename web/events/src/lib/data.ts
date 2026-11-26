@@ -1,6 +1,8 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { storeApp } from './features';
+import { DRINK_RE, STORE_EVENT_EXTRA, storeVisible } from './storeEvents';
 import { must, supabase } from './supabase';
 import type { Category, EventRow, Rsvp, Tag } from './types';
 
@@ -164,7 +166,9 @@ export async function fetchTaxonomy(includeArchived = false): Promise<Taxonomy> 
     tq = tq.eq('archived', false);
   }
   const [categories, tags] = await Promise.all([cq, tq]);
-  return { categories: must(categories) as Category[], tags: must(tags) as Tag[] };
+  const all = must(tags) as Tag[];
+  // App App Store (refus Apple 1.4.3) : jamais une étiquette « #bar » (filtres, abonnements, formulaire) ; le site les garde.
+  return { categories: must(categories) as Category[], tags: storeApp ? all.filter((t) => !DRINK_RE.test(t.name)) : all };
 }
 
 export type EventListItem = EventRow & {
@@ -182,13 +186,18 @@ export async function fetchEventList(ids?: string[]): Promise<EventListItem[]> {
   let q = supabase
     .from('events')
     .select(
-      '*, category:categories(*), event_tags(tag_id), rsvps(user_id, status, waitlisted, plus_ones), date_options(id, date_votes(user_id)), event_groups(group_id)',
+      '*, category:categories(*), event_tags(tag_id), rsvps(user_id, status, waitlisted, plus_ones), date_options(id, date_votes(user_id)), event_groups(group_id)'
+        + (storeApp ? STORE_EVENT_EXTRA : ''),
     );
   if (ids) q = q.in('id', ids);
   const res = await q
     .order('starts_at', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: false });
-  return must(res) as unknown as EventListItem[];
+  const events = must(res) as unknown as EventListItem[];
+  if (!storeApp) return events;
+  // App App Store : pas d'événement public « à boisson » dans la liste, sauf pour qui y est pour quelque chose.
+  const me = (await supabase.auth.getSession()).data.session?.user.id;
+  return storeVisible(events, me);
 }
 
 export function rsvpCounts(rsvps: Pick<Rsvp, 'status' | 'waitlisted' | 'plus_ones'>[]) {

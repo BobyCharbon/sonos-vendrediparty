@@ -447,6 +447,88 @@ l'admin. Toujours :
   jamais aux gorgées. CGU 2026-11-16 (18 ans et plus, « Paiements, billets et bar »). Pas de mise en prod pendant une revue.
   Tests : `tests/test_compliance_1611.py`, `tests/supabase_live/test_conformite_app_store_live.py`.
 
+## Refus Apple 1.4.3 (25.11) — à garder
+- Règle : JAMAIS de jeu à boire ni de gorgées dans l'app App Store (« PartyStore » dans l'User-Agent ; en prod, aussi tout appel
+  natif `X-Party-Native: ios`, la BETA ne parlant qu'au site de test). Ni boisson, ivresse, drogue, emoji 🍻🍺🥃🍸🍹🍷, mode Hot / Mix, ni bar.
+- Décision de l'admin du 25.11 : pour la 1.0.0, TOUS les jeux à boire par leur origine, leur mécanique ou leurs textes sont
+  BLOQUÉS dans l'app (`HIDDEN_GAMES` : Casino, Blackjack, Beer pong, Biskit, Purify Test, Pyramide, Je n'ai jamais, Qui de
+  nous ?, Roulette), ainsi que toute option de gorgées : PAS de « ⭐ Mode points » qui les remplacerait (`options.sips` forcé à 0
+  par `store_app.flag`, réglage > 0 refusé : `refused_settings`), ni thème WTF de Pour ou contre (`HIDDEN_THEMES`), ni paquet
+  « Entre amis » de Qui est le plus… (`HIDDEN_PACKS`). Ils ne reviendront que dans une MISE À JOUR décrite à Apple : le code
+  « en points » reste en place, éteint (`STORE_POINTS = false`, games.js). Jamais un jeu bloqué renommé ou converti.
+- Le SERVEUR le garantit (`app/store_app.py`) : jeux cachés et toute partie du web avec gorgées ou mode Hot refusés (création,
+  salle, vote, code / QR, lecture : « Ce jeu n'est pas disponible dans l'app. », jamais de renvoi au site) ; partie de l'app
+  (ou rejointe par l'app) = `store` : questions et mots filtrés (`drinky` = `DRINK_RE` + `STORE_EXCLUDE`, ivresse sans le mot),
+  textes écrits par les joueurs refusés s'ils parlent de boisson (`check_text`) ; salle où l'app est entrée : rien de caché.
+  Page : `STORE`, `STORE_HIDDEN`, `storeScrubCards`, `candy()` (ne fait plus que retirer les phrases de boisson et renommer
+  « Trou du cul » en « Dernier » ; sa conversion en points ne vaut que si `STORE_POINTS`). Catégorie vide : jamais de titre.
+- ONGLET MUSIQUE caché dans l'app App Store (index.html `STORE_APP` : bouton `hidden`, donc absent de la barre native,
+  native-tabs.js). On rejoint une soirée par Jeux › Code : 4 chiffres = un jeu, 6 chiffres = la soirée Musique
+  (`joinMusicByCode`, puis `showTab('music')` = écran natif sans onglet) ou le QR `?pin=`. Musique ne s'ouvre qu'après la
+  soirée rejointe (`musicJoined`, sinon Jeux : action rapide « Ajouter un titre » du build 216, notification). Nouveaux codes
+  Musique à 6 chiffres (`regenerate_pin`, web compris), un ancien code à 4 chiffres reste valable sur le web.
+- Autres traces cachées dans l'app : « ✨ IA » de la fiche, étiquettes `#bar`, notifications `bar_*` de l'Activité, page du
+  bar, sections Pronos / bar des CGU et bar / Purify de la confidentialité (`storeApp`, web ; `AppConfig.isStoreApp`, iOS au
+  prochain build), emoji 🍻 du Pot commun (🥤 pour tous), fiche d'un événement public « à boisson » ouverte par un lien.
+- Notes de revue : décrire ce qui est retiré (jamais « en points »), dire que le site est à part. Build natif suivant : Info.plist
+  sans action rapide Musique, texte caméra sans le bar, stats sans Purify, CGU / confidentialité filtrées, tvOS
+  `StoreGames.hidden` = `HIDDEN_GAMES`.
+- Invités : dans l'app App Store, les jeux sont illimités sans compte (`games_free`, main.py) ; le web garde son plafond.
+- Événement PUBLIC dont le titre, la description, le lieu ou les mini-sondages parlent d'alcool : absent de la liste et de la
+  recherche de l'app App Store, sauf pour ses invités, participants et organisateurs (`web/events/src/lib/storeEvents.ts`).
+  Bar : `data-bar="off"` et `/api/features` bar=false ; `send-push` n'envoie aucune notification `bar_*` à l'app App Store.
+- Undercover s'appelle « L'Intrus » et Mr. White « le Fantôme » partout (marque d'un tiers) ; identifiants inchangés.
+- Tour 2 (25.11) : le build 216 ne repart JAMAIS (CGU, confidentialité, stats Purify, phrase caméra, emojis 🍻 🍷, action
+  rapide Musique écrits dans le binaire) : nouveau build depuis fix-143. Serveur : `/api/features` (et `data-pronos` /
+  `data-agenda`, routes `/api/account/pronos|agenda/*`) éteint Pronos, confettis et Agenda pour l'app App Store quel que soit
+  le site (seule une version revue les rouvrira, en lisant la version de l'app) ; abonnements natifs sans tag « bar »
+  (`account_subscriptions`) ; titres de Musique jamais limités en invité dans l'app (`guest_tracks`) ; questions « si tu étais
+  une boisson » exclues (`STORE_EXCLUDE`), Le Masque filtré (`deck(S, store)`, `masque` dans `BANK_GAMES`) ; « 🚩 Signaler »
+  sur la réponse de Tu me connais ? (`treport`, journal `game.report`). Fiche : URL d'assistance `/support` (page du serveur,
+  sans ressource externe) ; `?app=ios` sur `/events/terms` et `/events/privacy` sert le texte de l'app dans Safari.
+  Confidentialité de l'app (web et iOS) : sans paragraphe ni mention des Pronos. Test anti-alcool de TOUS les jeux :
+  `tests/test_store_app.py` (`test_every_game_*`).
+- Tour 3 (25.11) : « Mes stats de jeu » de l'app sans Purify Test (bouton retiré, `statsTab = "brain"`) et `/api/purity/*`
+  en 404 pour l'app (`no_purity_in_store`) ; un « Signaler » de jeu prévient aussi l'admin (`notify_admin`, type « Retours »,
+  Apple 1.2) ; pass Wallet avec « Contact » au dos (éditeur, support@, `<PARTY_PUBLIC_URL>/support` ; Apple 1.5) ; extension
+  « Partager › Party » de l'app App Store : seulement « Créer l'événement » (`ShareModel.isStoreApp`, nouveau build) ;
+  L'Intrus sans « iPhone / Android » (2.3.10) ; exemple de l'IA des tickets sans « vin » ; carte du Divan « lendemain d'une
+  fête » exclue. CGU version 2026-11-25 (`20261125100000`, prod : `supabase/prod/2026-11-25-cgu-apply.sql` AVEC le
+  déploiement) ; surnom de l'admin sans U+F8FF (logo Apple) ni 🇨🇭 : `supabase/prod/2026-11-25-surnom-sans-logo-apply.sql`.
+  Jamais de code à 6 chiffres dans les notes de revue (test) : la Musique se montre par une vidéo jointe.
+- Tour 4 (25.11) : Quiz de l'app sans question qui cite une autre plateforme mobile (`clean_platforms`, Android / .apk ;
+  2.3.10). Confidentialité (web et iOS au prochain build) : chaque sous-traitant tenu par contrat à une protection au moins
+  égale (5.1.1(i)), paragraphe et durée du Pot commun, ce qui reste pour les autres après la suppression du compte (groupes
+  créés, sondages, « qui amène quoi », nom dans un Pot commun). Le fichier prod du surnom retire aussi U+F8FF des
+  notifications déjà envoyées (anciennes valeurs dans son retour arrière). Notes : jamais « for friends » seul ni « groupe
+  d'amis » (app pour tous, Intro des Guidelines) ; un événement réservé au groupe « Démo Apple » est publié tout de suite
+  (les publics passent par la modération) ; Pronos / Agenda / Zicou « absents de cette app », jamais « éteints sur le
+  serveur » (2.5.19). Pour la mise à jour qui les rouvrira : seulement au-dessus d'une version donnée (« PartyApp-iOS/x.y »
+  lu dans l'User-Agent), JAMAIS pour la 1.0.0 ; ne jamais passer `STORE_POINTS` à true pour toutes les versions.
+  `metadata-fr.json` › `ageRating` déclare aussi Profanity, Sexual Content et Cartoon Violence (Infrequent/Mild).
+- Tour 5 (25.11) : le nouveau build éteint lui-même Zicou, bar, Agenda et Pronos dans l'app App Store, quoi que dise le
+  serveur (`SettingsStore.loadParty`, sauf `E2E_HOOKS` des recettes) : notes « This build never opens them », jamais
+  « absent ». Pot commun : « Rembourser » (plus « Payer » ni carte bancaire, 3.1.3(e)). Apple TV : aucune ligne « Boit » /
+  « Distribue » / gorgées dans l'app App Store (`Outcome.of`, `CardGames`) ; aucune version tvOS jointe à la 1.0.0.
+  Garde web des Pronos élargi à `/group/<id>/pronos`. Confidentialité : serveur hébergé en France chez l'éditeur, base
+  Supabase à Zurich ; feuille d'accord IA : l'avis peut aussi être publié sur GitHub (visible par tous) et lu par Claude.
+  Fiche : « pour toutes tes soirées entre amis » (jamais « pour une bande d'amis » : app pour tous).
+- Tour 6 (25.11) : `DRINK_RE` (store_app.py) et sa copie `storeEvents.ts` comprennent aussi les mots d'une sortie à boire
+  et du tabac (happy hour, afterwork, pinte, Oktoberfest, ti-punch, binouze, pub crawl, margarita, shooters, Ricard,
+  Heineken, chicha, narguilé, vapoter, puff, Jäger, pils, IPA) : toute nouvelle liste de mots va dans LES DEUX fichiers
+  (test `test_the_filter_catches_everyday_party_drink_and_tobacco_words`). Page publique de l'Agenda : responsable =
+  l'éditeur établi en France (jamais « Vendredi Party (Suisse) »). Guide : index des jeux avec lien universel (4.7.4),
+  publication directe dans « Démo Apple » (public / sur invitation : validation). Partie A ≤ 4 000 caractères.
+- Tour 7 (25.11) : un fichier de retour arrière de `supabase/prod/` ne recopie JAMAIS le texte d'un message ou d'une
+  notification (dépôt GitHub PUBLIC ; historique de fix-143 réécrit pour retirer les 27 notifications) ; le fichier du
+  surnom corrige aussi les 3 noms `tc_members` (Pot commun d'Apple-test). Pot commun filtré : nom du pot, noms des membres,
+  titres et notes des dépenses (`private.moderate_tc_text`, migration 20261125110000, prod
+  `2026-11-25-pot-commun-filtre-apply.sql`). Accord IA version 3 (`CONSENT_VERSION`, `consentVersion` iOS) : « publié sur
+  GitHub, où tout le monde peut le lire » ; tout changement de ce qui est envoyé ou de qui le lit = version +1. Fiche :
+  « ET AUSSI » cite l'extension Partager › Party et l'Activité en direct de la Musique (4.4).
+- Tout nouveau jeu, option ou texte : se demander s'il passe dans PartyStore. Tests : `tests/test_store_app.py`,
+  `tests/e2e/test_store_app_no_drinks.py`. Le web, la BETA et Android gardent tout.
+
 ## Zicou : bêta seulement (décision de l'admin, 04.11.2026)
 - Zicou est ÉTEINT hors site de test par `compagnon_enabled()` (`app/features.py` : `COMPAGNON_ENABLED`
   "1"/"0", sinon allumé seulement si l'adresse publique est `partytest.bobycharbon.ch`). Éteint : `/api/pet/*`,

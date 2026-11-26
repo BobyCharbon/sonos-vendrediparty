@@ -120,7 +120,7 @@ def test_without_github_token_the_prompt_can_still_be_copied(admin, monkeypatch,
     assert r.status_code == 503 and "GITHUB_TOKEN" in r.json()["detail"]
     payload = admin.get("/api/admin/feedback").json()
     assert payload["claude_ready"] is False
-    assert payload["games"]["undercover"] == "Undercover"  # noms des jeux pour l'app native (« depuis le jeu … »)
+    assert payload["games"]["undercover"] == "L'Intrus"  # noms des jeux pour l'app native (« depuis le jeu … »)
     assert admin.get(f"/api/admin/feedback/{fid}/prompt").status_code == 200
     assert admin.get("/api/admin/feedback/inconnu00/prompt").status_code == 404
 

@@ -13,7 +13,7 @@ import { useAuth, useMe } from '@/lib/auth';
 import { fetchEventList, fetchTaxonomy, useQuery, useRealtime, useSignal } from '@/lib/data';
 import { discussionsOn, pronosOn } from '@/lib/features';
 import { createdLine, plural } from '@/lib/format';
-import { coverGradient, fetchGroupEventIds, fetchMyGroups, groupName, palette, useGroupImage, type GroupColor } from '@/lib/groups';
+import { coverGradient, fetchGroupEventIds, fetchMyGroups, groupEmoji, groupName, palette, useGroupImage, type GroupColor } from '@/lib/groups';
 import type { ReportTarget } from '@/lib/moderation';
 import { enter, pressTransition } from '@/lib/motion';
 import { openGroupChat } from '@/lib/nativeChat';
@@ -118,10 +118,10 @@ export default function GroupPage() {
         <View style={[st.cover, coverGradient(group.color), { paddingTop: insets.top + 8 }]}>
           <PhotoCover group={group} />
           {group.photo_path ? null : <FloatingEmojis items={[
-            { emoji: group.emoji, top: insets.top + 30, left: '38%', size: 22, opacity: 0.22 },
-            { emoji: group.emoji, top: insets.top + 74, left: '66%', size: 26, opacity: 0.2, delay: 700 },
-            { emoji: group.emoji, top: insets.top + 120, left: '22%', size: 20, opacity: 0.18, delay: 1300 },
-            { emoji: group.emoji, top: insets.top + 150, right: 28, size: 24, opacity: 0.2, delay: 400 },
+            { emoji: groupEmoji(group.emoji), top: insets.top + 30, left: '38%', size: 22, opacity: 0.22 },
+            { emoji: groupEmoji(group.emoji), top: insets.top + 74, left: '66%', size: 26, opacity: 0.2, delay: 700 },
+            { emoji: groupEmoji(group.emoji), top: insets.top + 120, left: '22%', size: 20, opacity: 0.18, delay: 1300 },
+            { emoji: groupEmoji(group.emoji), top: insets.top + 150, right: 28, size: 24, opacity: 0.2, delay: 400 },
           ]} />}
           <View style={st.coverBar}>
             <Pressable accessibilityRole="button" accessibilityLabel="Retour" onPress={back}
@@ -196,7 +196,7 @@ export default function GroupPage() {
             <EventCard key={e.id} index={i} event={e} me={me.id} tagsById={data.tagsById} onChanged={reload} quickRsvp now={data.loadedAt} />
           )) : (
             <Reveal style={[st.empty, { borderColor: `${p.main}55` }]}>
-              <Text style={{ fontSize: 30 }}>{group.emoji}</Text>
+              <Text style={{ fontSize: 30 }}>{groupEmoji(group.emoji)}</Text>
               <T weight="bold" style={{ textAlign: 'center' }}>Aucun événement prévu</T>
               <T muted size={13} style={{ textAlign: 'center' }}>
                 {canCreate ? 'Lance la prochaine : le groupe sera déjà coché, tu choisis ensuite de le prévenir.' : 'Les événements du groupe apparaîtront ici.'}

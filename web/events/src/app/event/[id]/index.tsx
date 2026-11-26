@@ -13,7 +13,8 @@ import { TicketCard } from '@/components/TicketCard';
 import { TicketsManager } from '@/components/TicketsManager';
 import { CalendarButton } from '@/components/CalendarButton';
 import { EventGiftsLink } from '@/components/EventGifts';
-import { barOn, compagnonOn, discussionsOn, invitesV2On, pronosOn } from '@/lib/features';
+import { barOn, compagnonOn, discussionsOn, invitesV2On, pronosOn, storeApp } from '@/lib/features';
+import { drinkyEvent } from '@/lib/storeEvents';
 import { GuestListCard } from '@/components/GuestListCard';
 import { AnnounceStatusCard } from '@/components/AnnounceStatusCard';
 import { InviteLinkCard } from '@/components/InviteLinkCard';
@@ -226,6 +227,12 @@ export default function EventScreen() {
     if (!loadError && online && !slow) return <EventSkeleton />;
     return <LoadProblem error={loadError} online={online} onRetry={reload} />;
   }
+  // App App Store (refus Apple 1.4.3) : un événement public « à boisson » ouvert par un lien, où je ne suis pour rien, ne
+  // s'affiche pas (même règle que la liste, lib/storeEvents.ts).
+  if (storeApp && ev.visibility === 'all' && !canManage && !ev.rsvps.some((r) => r.user_id === me.id)
+    && drinkyEvent(ev as unknown as Parameters<typeof drinkyEvent>[0])) {
+    return <LoadProblem error={STORE_UNAVAILABLE} online onRetry={() => router.replace('/')} />;
+  }
 
   const published = ev.status === 'published';
   // 22.11 : le créateur modifie toujours (publié : la base le remet en validation) ; events.edit_others : les autres.
@@ -233,7 +240,8 @@ export default function EventScreen() {
     || (isOrganizer && (ev.status !== 'published' || can('events.edit_own_published') || ev.created_by === me.id));
   // App iPhone et droit IA : « ✨ IA » ouvre l'écran natif où l'on dit ce qui change (« décale à 21h »…).
   const native = (globalThis as { PartyNative?: { ai?: { editEvent?: (id: string) => void } } }).PartyNative;
-  const aiEdit = can('ai.use') && native?.ai?.editEvent ? (id: string) => native.ai!.editEvent!(id) : null;
+  // App App Store : pas de « ✨ IA » sur la fiche (l'exemple natif du build 216 citait des bouteilles de vin, refus 1.4.3).
+  const aiEdit = !storeApp && can('ai.use') && native?.ai?.editEvent ? (id: string) => native.ai!.editEvent!(id) : null;
   const narrow = width < (aiEdit && canEdit ? NARROW_HEADER_WIDTH_WITH_AI : NARROW_HEADER_WIDTH) || fontScale > 1.15;
 
   const chatOn = !!ev.forum_enabled && published;
@@ -624,8 +632,10 @@ export default function EventScreen() {
 
 /** Chargement impossible : jamais une impasse ni l'anglais de la base. Supprimé / pas ouvert : pas de « Réessayer » inutile ;
  * hors ligne : « Pas de connexion », la fiche se recharge seule au retour du réseau. */
+const STORE_UNAVAILABLE = 'Cet événement n’est pas disponible dans l’app.';
+
 function LoadProblem({ error, online, onRetry }: { error: string | null; online: boolean; onRetry: () => void }) {
-  const gone = !!error && isGoneError(error);
+  const gone = !!error && (isGoneError(error) || error === STORE_UNAVAILABLE);
   const offline = !online || (!!error && isNetworkError(error));
   const text = gone ? GONE_TEXT
     : offline ? 'Pas de connexion. Vérifie ton réseau : la fiche se chargera dès qu’il revient.'

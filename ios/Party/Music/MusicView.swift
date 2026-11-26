@@ -178,14 +178,25 @@ struct MusicView: View {
             // Action rapide « Ajouter un titre » (icône de l'app) : le clavier s'ouvre sur la recherche.
             .onAppear { takeSearchFocus() }
             .onReceive(NotificationCenter.default.publisher(for: .partyMusicSearch)) { _ in takeSearchFocus() }
+            // Attribution demandée par Spotify (titres et pochettes de son catalogue), comme la page web.
+            if !store.results.isEmpty {
+                Text("Résultats Spotify").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+            }
             ForEach(store.results) { track in
                 TrackRow(title: track.title, subtitle: track.artist, art: track.image, store: store) {
-                    Button { Haptics.tap(); Task { await store.add(track) } } label: {
-                        if store.busyTrack == track.id { ProgressView() } else { Image(systemName: "plus.circle.fill").font(.title2) }
+                    HStack(spacing: 14) {
+                        if let url = URL(string: "https://open.spotify.com/track/\(track.id)") {
+                            Link(destination: url) { Image(systemName: "arrow.up.right.square").font(.title3) }
+                                .foregroundStyle(.secondary)
+                                .accessibilityLabel("Ouvrir « \(track.title) » dans Spotify")
+                        }
+                        Button { Haptics.tap(); Task { await store.add(track) } } label: {
+                            if store.busyTrack == track.id { ProgressView() } else { Image(systemName: "plus.circle.fill").font(.title2) }
+                        }
+                        .tint(Palette.accent)
+                        .disabled(store.busyTrack != nil)
+                        .accessibilityLabel("Ajouter « \(track.title) »")
                     }
-                    .tint(Palette.accent)
-                    .disabled(store.busyTrack != nil)
-                    .accessibilityLabel("Ajouter « \(track.title) »")
                 }
                 .motionTransition()
             }

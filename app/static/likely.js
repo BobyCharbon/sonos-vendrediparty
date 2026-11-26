@@ -18,6 +18,10 @@ GAME_RULES.likely = `
   <h3>La fin</h3>
   <p>Après 10, 20 ou 30 questions, le podium désigne « le plus susceptible de la soirée ». Personne n'est obligé de boire de l'alcool : un verre d'eau compte aussi.</p>`;
 
+// App App Store : ni option gorgées, ni paquet « Entre amis » (refusés par le serveur, store_app).
+if (STORE) GAME_RULES.likely = GAME_RULES.likely.replace(" ; avec l'option alcool, il boit ses gorgées", "")
+  .replace(/\s*<li><b>😏 Entre amis<\/b>[^<]*<\/li>/, "");
+
 let lkReadyKey = "";  // le votant a touché « C'est moi » : la grille des prénoms s'affiche pour lui
 let lkSeen = "";
 
@@ -46,7 +50,7 @@ function lkSettingsHtml(g) {
   return `<div class="lk-setup">
     <div class="g-label">Questions</div><div class="lk-chips">${packs}</div>
     <div class="g-label">Nombre de questions</div><div class="lk-chips">${counts}</div>
-    <div class="g-label">Le plus désigné…</div><div class="lk-chips">${stakes}</div>
+    ${STORE ? "" : `<div class="g-label">Le plus désigné…</div><div class="lk-chips">${stakes}</div>`}
   </div>`;
 }
 

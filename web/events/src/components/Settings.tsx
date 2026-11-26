@@ -4,7 +4,7 @@ import { Pressable, View } from 'react-native';
 import { useAgendaBadge } from '@/lib/agenda';
 import { openPronoList, usePronoBadge } from '@/lib/pronos';
 import { useAuth } from '@/lib/auth';
-import { agendaOn, discussionsOn, pronosOn } from '@/lib/features';
+import { agendaOn, discussionsOn, pronosOn, storeApp } from '@/lib/features';
 import { useShellFeedback } from '@/lib/shellFeedback';
 import { hasCompleteIdentity } from '@/lib/profile';
 import { roleName, roleRank } from '@/lib/roles';
@@ -129,8 +129,13 @@ export function Settings({ topInset = false }: { topInset?: boolean }) {
           </>
         ) : null}
         {/* Page de Party (hors du module) : un onglet par jeu (Purify Test pour commencer), à montrer si on veut. */}
-        <LinkRow icon="🏆" tint="#FF9F0A" label="Mes stats de jeu" hint="Purify Test : ton dernier score, ton radar et ton record" onPress={() => openPartyTab('stats')} />
-        <RowDivider />
+        {/* App App Store : pas de Purify Test (refus 1.4.3, 25.11), donc pas de ses stats. */}
+        {storeApp ? null : (
+          <>
+            <LinkRow icon="🏆" tint="#FF9F0A" label="Mes stats de jeu" hint="Purify Test : ton dernier score, ton radar et ton record" onPress={() => openPartyTab('stats')} />
+            <RowDivider />
+          </>
+        )}
         {/* « Ton avis » : Guest+ et au-dessus (droit « Écrire un avis »), et l’hôte (« Retours »). Sorti de la barre
             d’onglets le 4.11 (onglet Zicou) : la pastille des avis à traiter / réponses reçues est sur cette ligne. */}
         {can('feedback.write') || feedback?.allowed ? (
