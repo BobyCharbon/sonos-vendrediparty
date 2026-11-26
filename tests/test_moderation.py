@@ -175,3 +175,19 @@ def test_queue_signs_photos_and_hiding_a_profile_photo_removes_the_file():
     assert ("DELETE", "/storage/v1/object/profile-photos", {"prefixes": [f"{LEA}/a.jpg"]}) in seen
     assert client.post("/api/account/moderation/act", json={"token": "t", "report_id": REPORT, "action": "suspend",
                                                             "days": 400}).status_code == 422
+
+
+def test_queue_signs_the_receipt_of_a_reported_expense_and_a_group_name_can_be_reported():
+    """Contrôle du 26.11, tour 2 : le ticket d'une dépense signalée (bucket tc-receipts) est signé pour le modérateur ;
+    le nom d'un groupe se signale (type 'group')."""
+    queue = [{"id": REPORT, "kind": "tc_expense", "target_id": LEA, "reason": "shocking", "comment": None,
+              "snapshot": {"text": "Courses", "photo_path": f"{LEA}/ticket.jpg", "bucket": "tc-receipts",
+                           "place": "Pot commun · Ski"}, "status": "open", "created_at": "2026-11-26T10:00:00Z",
+              "reporter": {"id": "x", "name": "Tom"}, "target_user": {"id": LEA, "name": "Léa", "status": "active"},
+              "same_target": 1, "user_reports": 1, "sanctions": []}]
+    client, seen = relay(queue=queue)
+    item = client.post("/api/account/moderation/queue", json={"token": "t"}).json()["reports"][0]
+    assert item["photo"].endswith(f"/tc-receipts/{LEA}/ticket.jpg?t=1")
+    r = client.post("/api/account/moderation/report", json={"token": "t", "kind": "group", "target": REPORT,
+                                                            "reason": "harassment"})
+    assert r.status_code == 200 and seen[-1][2]["p_kind"] == "group"

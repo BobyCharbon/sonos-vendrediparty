@@ -25,14 +25,14 @@ function myTurnKey(g) {
   switch (g.type) {
     case "blackjack": return g.bj?.my_turn ? `bj${g.round}-${g.bj.turn}` : ""; // <store-cut/>
     case "divan": return g.divan?.my_turn ? `dv${g.divan.n}` : "";
-    case "biskit": return g.bk?.my_turn ? `bk${g.bk.drawn}` : "";
-    case "pyramid": return g.phase === "deal" && g.pyr?.turn === me ? `py${g.pyr.step}-${g.pyr.turn}` : "";
+    case "biskit": return g.bk?.my_turn ? `bk${g.bk.drawn}` : ""; // <store-cut/>
+    case "pyramid": return g.phase === "deal" && g.pyr?.turn === me ? `py${g.pyr.step}-${g.pyr.turn}` : ""; // <store-cut/>
     case "tmc": return g.tmc?.duo?.role && ["answer", "guess"].includes(g.phase) ? `tm${g.round}-${g.phase}-${g.tmc.duo.role}` : "";
     case "undercover": return g.phase === "vote" && g.me.alive ? `uc${g.round}` : "";
-    case "whoof": case "never": return g.phase === "question" ? `q${g.round}` : "";
+    case "whoof": case "never": return g.phase === "question" ? `q${g.round}` : ""; // <store-cut/>
     case "likely": return g.phase === "ask" && g.likely?.voter?.mine ? `lk${g.likely.n}` : "";
     case "debate": return g.phase === "ask" && g.debate?.can_vote ? `db${g.debate.n}-${g.debate.round}` : "";
-    case "purity": return g.phase === "answering" && g.purity?.playing && !g.purity.submitted ? "pu" : "";
+    case "purity": return g.phase === "answering" && g.purity?.playing && !g.purity.submitted ? "pu" : ""; // <store-cut/>
     case "psy": return g.phase === "answering" && g.psy?.playing && !g.psy.done ? `ps${g.round}` : "";
     case "masque": return (g.phase === "write" && g.me && !g.masque?.mine) || (g.phase === "guess" && g.me && !g.masque?.sent) ? `ms${g.round}-${g.phase}` : "";
     case "reflet": return (g.phase === "pick" && g.reflet?.is_mirror) || (g.phase === "vote" && g.reflet?.can_vote) ? `rf${g.round}-${g.phase}` : "";
@@ -592,6 +592,7 @@ document.getElementById("gamesRoot").innerHTML = `
       </div>
       <!-- </store-cut> -->
 
+      <!-- <store-cut> -->
       ${PET_ON ? `<div class="gcard g-pt">
         ${newBadge("pet")}
         <div class="g-head">
@@ -602,6 +603,7 @@ document.getElementById("gamesRoot").innerHTML = `
         <div class="g-chips"><span>Solo</span><span>🔒 Compte connecté</span><span>🔥 Chaque jour</span></div>
         <button type="button" class="g-go" data-pet-open="pet">M'en occuper</button>
       </div>` : ""}
+      <!-- </store-cut> -->
 
       <div class="gcard g-br">
         ${newBadge("brain")}
@@ -1033,7 +1035,7 @@ function storeScrubCards(home) {
   const text = {
     ".g-nv .g-tag": "Avoue… ou garde ton secret.", // <store-cut/>
     ".g-nv .g-desc": "Une phrase tombe (« Je n'ai jamais dansé sur une table »). Chacun répond en secret « déjà fait » ou « jamais », puis tout est révélé : à ceux qui l'ont fait de raconter !", // <store-cut/>
-    ".g-wh .g-desc": "Une question tombe (« Qui de nous finira la soirée en pyjama ? »), chacun vote pour quelqu'un, puis on découvre qui a été désigné… et il raconte l'anecdote.",
+    ".g-wh .g-desc": "Une question tombe (« Qui de nous finira la soirée en pyjama ? »), chacun vote pour quelqu'un, puis on découvre qui a été désigné… et il raconte l'anecdote.", // <store-cut/>
     ".g-lk .g-desc": "« Qui est le plus mauvais perdant ? » Tout le monde désigne quelqu'un en secret, en même temps, puis on découvre le plus désigné : il prend un point. Sans téléphone ? On vote sur celui de l'animateur.",
     ".g-rl .g-desc": "Note les participants, lance la roue : celui qu'elle désigne a perdu. Pour savoir qui fait la vaisselle, qui choisit la musique, qui relève un défi… La roue tourne sur tous les téléphones.",
   };
@@ -1058,7 +1060,8 @@ function routeRoom(g) {
 let gReopen = store("vp_game") || "";
 let myGame = store("vp_game") || "", game = null, wordShown = "", wordUntil = 0, guessDraft = "", showRoles = false, autoJoin = false;
 const GAME_PHASES = { countdown: "Départ imminent", lobby: "Inscriptions", words: "Indices", vote: "Vote", white_guess: "Devinette du Fantôme",
-  reveal: "Résultat de la manche", end: "Partie terminée", question: "Question", results: "Résultats", spun: "Résultat", bet: "Mises", play: "Partie", card: "En séance",
+  reveal: "Résultat de la manche", end: "Partie terminée", question: "Question", results: "Résultats", spun: "Résultat", bet: "Mises", play: "Partie", card: "En séance", // <store-cut/>
+  // <store> reveal: "Résultat de la manche", end: "Partie terminée", question: "Question", results: "Résultats", play: "Partie", card: "En séance",
   answer: "Réponse en secret", guess: "À voix haute", judge: "Points", scored: "Résultat du duo", q: "Question", rev: "Réponse", run: "En jeu" };
 const phaseLabel = (g) => (g.type === "roulette" || isBJ(g) || g.type === "casino") && g.phase === "lobby" ? "Préparation" // <store-cut/>
   : g.type === "president" && g.phase === "exchange" ? "Échange des cartes" // <store-cut/>
@@ -1125,7 +1128,8 @@ function syncGameChrome() {
   mini.classList.toggle("hidden", !show);
   document.body.classList.toggle("has-mini", show);
   if (show) {
-    const phase = g.type === "pyramid" && g.pyr ? pyrPhase(g) : phaseLabel(g);
+    const phase = g.type === "pyramid" && g.pyr ? pyrPhase(g) : phaseLabel(g); // <store-cut/>
+    // <store> const phase = phaseLabel(g);
     mini.className = "g-mini " + (GAME_THEME[g.type] || "");
     mini.innerHTML = `<span class="g-mini-ico" aria-hidden="true">${GAME_ICONS[g.type] || "🎮"}</span>
       <span class="g-mini-txt"><b>${esc(g.name)}</b><small>${esc(phase || "")} · code ${esc(g.code)}</small></span>
@@ -1308,7 +1312,8 @@ function morphNode(x, y) {
 }
 const STEP_FADE = ["undercover", "whoof", "never", "blackjack", "roulette", "divan", "tmc", "casino"];  // étapes en fondu // <store-cut/>
 // <store> const STEP_FADE = ["undercover", "divan", "tmc"];
-const QUESTION_TYPES = ["whoof", "never"];  // jeux à questions (« Qui de nous ? », « Je n'ai jamais »)
+const QUESTION_TYPES = ["whoof", "never"];  // jeux à questions (« Qui de nous ? », « Je n'ai jamais ») // <store-cut/>
+// <store> const QUESTION_TYPES = [];
 // Raccourci : patch.gameHost = html  ⇔  morph($("gameHost"), html)
 // candy : dans l'app App Store, les gorgées s'affichent en points ici aussi (compteur du haut, listes…).
 const patch = new Proxy({}, { set(_, id, html) { morph($(id), candy(html)); return true; } });
@@ -1364,7 +1369,7 @@ function renderGame(g) {
   if (g?.type !== "heist" || !pyrFull || g.kicked || g.excluded) Heist.stop();
   if (g?.type !== "island" || !pyrFull || g.kicked || g.excluded) Island.stop();
   game = g;
-  window.ZicouHome?.gameSeen?.(g);   // invité sans compte : « Adopte ton Zicou » une fois, après sa 1re partie
+  window.ZicouHome?.gameSeen?.(g);   // invité sans compte : « Adopte ton Zicou » une fois, après sa 1re partie // <store-cut/>
   window.GuestGate?.gameSeen(g);     // invité sans compte : « Garde tes scores », puis compte requis (guest-gate.js)
   GameAudio.observe(g, g ? myTurnKey(g) : "");
   $("gHome").classList.toggle("hidden", !!g);
@@ -1460,10 +1465,10 @@ function renderGame(g) {
     } else if (g.phase === "reveal") {
       body = `${lastLine}<div class="artist">${g.is_host ? "Lance la manche suivante quand vous êtes prêts." : "L'animateur lance la manche suivante…"}</div>`;
     }
-  } else if (g.phase === "question" && QUESTION_TYPES.includes(g.type)) {
-    body = questionHtml(g, me);
-  } else if (g.phase === "results") {
-    body = `<div class="qs" data-key="r${g.round}"><div class="question qs-q qs-small">${esc(g.question)}</div>${resultsHtml(g)}</div>`;
+  } else if (g.phase === "question" && QUESTION_TYPES.includes(g.type)) { // <store-cut/>
+    body = questionHtml(g, me); // <store-cut/>
+  } else if (g.phase === "results") { // <store-cut/>
+    body = `<div class="qs" data-key="r${g.round}"><div class="question qs-q qs-small">${esc(g.question)}</div>${resultsHtml(g)}</div>`; // <store-cut/>
   }
   patch.gTop = gameTopBar(g);
   if (!pyrFull) {
@@ -1549,6 +1554,7 @@ function avatar(p, cls = "") {
   // Compte Party : sa photo de profil ; l'initiale reste dessous si l'image ne charge pas.
   return `<span class="qs-av ${cls}" style="--h:${h}" aria-hidden="true">${initial}${p.photo ? `<img src="${esc(p.photo)}" alt="" loading="lazy" onerror="this.remove()">` : ""}</span>`;
 }
+// <store-cut> jeux cachés dans l'app App Store (Qui de nous ?, Je n'ai jamais)
 // « Qui de nous ? » et « Je n'ai jamais » : la question, une consigne, les choix, et qui a déjà répondu.
 function questionHtml(g, me) {
   const n = g.votes_count, total = g.players.length, mine = me?.vote;
@@ -1599,6 +1605,8 @@ function resultsHtml(g) {
     ${rest.length ? `<div class="list qs-bars">${rest.map((r) => `<div class="bar" style="--w:${Math.round(100 * r.count / max)}%">
       <span>${whoName(g, r.name, r.pid)}</span><b>${r.count}</b></div>`).join("")}</div>` : ""}`;
 }
+// </store-cut>
+// <store> const resultsHtml = () => "";
 
 // <store-cut> jeu caché dans l'app App Store
 // 🎆 Animation de fin de main, seulement sur l'écran du joueur concerné.
@@ -1673,7 +1681,8 @@ function playFx(kind, sub) {
 
 // Compteur fixe en haut à droite : mes jetons (blackjack) et mes gorgées (bues / distribuées).
 function renderHud(g) {
-  const me = g.me, sips = (g.options?.sips || 0) > 0;
+  const me = g.me, sips = (g.options?.sips || 0) > 0; // <store-cut/>
+  // <store> const me = g.me;
   const chips = !me || sips ? null : isBJ(g) ? g.bj.seats.find((x) => x.pid === me.pid)?.chips // <store-cut/>
     : g.type === "casino" ? g.casino.me?.chips : null; // <store-cut/>
     // <store>   const chips = null;
@@ -1703,8 +1712,8 @@ function bumpCounters(gameId) {
   });
   bumpPrev = now;
 }
-const sipsBadge = (p) => p.drink || p.give ? ` <span class="artist">· 🍻 ${p.drink || 0}${p.give ? ` · 🎁 ${p.give}` : ""}</span>` : ""; // <store-cut/>
-// <store> const sipsBadge = () => "";
+const tallyBadge = (p) => p.drink || p.give ? ` <span class="artist">· 🍻 ${p.drink || 0}${p.give ? ` · 🎁 ${p.give}` : ""}</span>` : ""; // <store-cut/>
+// <store> const tallyBadge = () => "";
 
 // 🃏 Blackjack : table (croupier, ma main, mes boutons) et liste des joueurs. // <store-cut/>
 const SUITS = { S: "♠", H: "♥", D: "♦", C: "♣" };
@@ -1713,7 +1722,7 @@ function cardHtml(c, small = false) {
   const rank = c[0] === "T" ? "10" : c[0];
   return `<span class="pcard ${"HD".includes(c[1]) ? "red" : ""} ${small ? "sm" : ""}">${rank}<i>${SUITS[c[1]]}</i></span>`;
 }
-const drinks = (g) => (g.options?.sips || 0) > 0;
+const drinks = (g) => (g.options?.sips || 0) > 0; // <store-cut/>
 const sipWord = (n) => `${n} gorgée${n > 1 ? "s" : ""}`; // <store-cut/>
 // <store> const sipWord = (n) => `${n} point${n > 1 ? "s" : ""}`;
 // <store-cut> jeu caché dans l'app App Store
@@ -1794,7 +1803,7 @@ function renderBJHost(g, btn) {
       const forPlay = manual && g.phase === "play" && x.pid === t.turn && h ? `<div class="bj-actions"><button data-gact="hit" ${who}>Carte</button><button class="secondary" data-gact="stand" ${who}>Rester</button>
         ${h.cards.length === 2 && (drinks(g) || x.chips >= h.bet) ? `<button class="secondary" data-gact="double" ${who}>Doubler</button>` : ""}</div>` : "";
       return `<div class="track ${x.pid === t.turn ? "bj-turn" : ""}">
-        <div class="meta"><div class="title">${esc(x.name)}${manual ? " ✍️" : ""}${x.pid === t.turn ? " ⏳" : ""}${drinks(g) ? "" : `<span class="artist"> · 💰 ${x.chips}${x.rebuys ? ` (rechargé ${x.rebuys}×)` : ""}</span>`}${sipsBadge(g.players.find((p) => p.pid === x.pid) || {})}</div>
+        <div class="meta"><div class="title">${esc(x.name)}${manual ? " ✍️" : ""}${x.pid === t.turn ? " ⏳" : ""}${drinks(g) ? "" : `<span class="artist"> · 💰 ${x.chips}${x.rebuys ? ` (rechargé ${x.rebuys}×)` : ""}</span>`}${tallyBadge(g.players.find((p) => p.pid === x.pid) || {})}</div>
           <div class="artist">${info}${g.phase === "results" && h?.result ? ` · <b>${bjResultText(g, h)}</b>` : ""}</div>
           ${h?.cards.length ? `<div class="bj-cards" style="margin-top:4px">${h.cards.map((c) => cardHtml(c, true)).join("")}</div>` : ""}${forBet}${forPlay}</div>
         ${g.is_host && x.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(x.pid)}" title="Exclure de la table" aria-label="Exclure de la table">✕</button>` : ""}
@@ -1806,6 +1815,7 @@ function renderBJHost(g, btn) {
 
 // </store-cut>
 // 🔺 Pyramide : plein écran néon ; tout le monde suit la même table, l'animateur mène la partie.
+// <store-cut> Pyramide (cachée dans l'app App Store)
 const PYR_Q = {
   1: { q: "Rouge ou noir ?", opts: [["red", "Rouge", "♥ ♦", "py-red"], ["black", "Noir", "♠ ♣", "py-black"]] },
   2: { q: "Plus ou moins ?", opts: [["plus", "Plus", "▲", "py-cyan"], ["moins", "Moins", "▼", "py-pink"]] },
@@ -1814,9 +1824,10 @@ const PYR_Q = {
 };
 const PYR_ANS = { red: "rouge", black: "noir", plus: "plus", moins: "moins", dedans: "dedans", dehors: "dehors", S: "pique ♠", H: "cœur ♥", D: "carreau ♦", C: "trèfle ♣" };
 const PYR_VALUES = ["A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"];
+// </store-cut>
 let pyrFull = true, pyrSeen = { last: 0, reveal: 0, liars: 0, flip: 0, peek: 0, top: null }, pyrPeekSel = [], pyrMem = ["", "", "", ""], pyrMemSlot = 0,
   pyrMemFor = "", pyrTimer = null, pyrWheelSpin = "", pyrWheelRot = 0, pyrWheelShown = "";
-const cardLabel = (c) => (c[0] === "T" ? "10" : c[0]) + SUITS[c[1]];
+const cardLabel = (c) => (c[0] === "T" ? "10" : c[0]) + SUITS[c[1]]; // <store-cut/>
 function pyCard(c, size = "", extra = "") {
   if (!c || c === "??") return `<span class="py-card back ${size}" ${extra}><i></i></span>`;
   return `<span class="py-card ${"HD".includes(c[1]) ? "red" : ""} ${size}" ${extra}><b>${c[0] === "T" ? "10" : c[0]}</b><i>${SUITS[c[1]]}</i></span>`;
@@ -1892,7 +1903,7 @@ function pyrSeats(g, opts = {}) {
   const v = g.pyr;
   return `<div class="py-seats" data-key="seats">${v.seats.map((s) => `
     <div class="py-seat ${s.pid === v.turn ? "on" : ""} ${s.pid === g.me?.pid ? "me" : ""}">
-      <div class="py-seat-name">${esc(s.name)}${s.manual ? " ✍️" : ""}${sipsBadge(g.players.find((p) => p.pid === s.pid) || {})}</div>
+      <div class="py-seat-name">${esc(s.name)}${s.manual ? " ✍️" : ""}${tallyBadge(g.players.find((p) => p.pid === s.pid) || {})}</div>
       <div class="py-seat-cards">${s.cards.map((c, i) => pyCard(c, "sm", opts.memory && s.memory ? `data-ok="${s.memory[i] === c[0]}"` : "")).join("") || `<span class="artist">—</span>`}</div>
       ${opts.memory && s.memory ? `<div class="py-guess">${s.memory.map((m, i) => `<span class="${m === s.cards[i]?.[0] ? "ok" : "ko"}">${m === "T" ? "10" : m}</span>`).join("")}<b>${s.errors} erreur${s.errors > 1 ? "s" : ""}</b></div>` : ""}
     </div>`).join("")}</div>`;
@@ -1989,7 +2000,6 @@ function pyrHtml(g) {
   return `<div class="py-body">${pend}${wait}${body}</div>`;
 }
 
-// </store-cut>
 // 🧠 Mémorisation (avis 4c55c231a4d2) : chacun voit SES cartes au moins 30 s, puis l'animateur lance la pyramide.
 // App iPhone : les cartes sont montrées par l'app, dans un panneau qu'une capture d'écran rend noir (pyrSecretSync).
 function pyrLookHtml(g) {
@@ -2038,7 +2048,6 @@ function pyrSecretSync(g) {
   try { app.update(cards.length ? { cards, title: "Tes cartes · mémorise-les" } : null); } catch (e) { /* app d'avant */ }
 }
 
-// <store-cut> jeu caché dans l'app App Store
 function pyrBoard(g) {
   const v = g.pyr, rows = [];
   let i = 0;
@@ -2182,7 +2191,7 @@ document.addEventListener("click", (ev) => {
 
 function renderPyrHost(g) {
   patch.gameHost = `<h2>À la table (${g.players.length})</h2>
-    <div class="list">${g.players.map((p) => `<div class="track"><div class="meta"><div class="title">${esc(p.name)}${p.host ? " 🎲" : ""}${playerTag(g, p)}${sipsBadge(p)}</div></div>
+    <div class="list">${g.players.map((p) => `<div class="track"><div class="meta"><div class="title">${esc(p.name)}${p.host ? " 🎲" : ""}${playerTag(g, p)}${tallyBadge(p)}</div></div>
       ${g.is_host && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la partie" aria-label="Exclure de la partie">✕</button>` : ""}</div>`).join("")
       || `<p class="empty" style="padding:12px">Personne pour l'instant : fais scanner le QR ci-dessous.</p>`}</div>
     ${g.phase === "lobby" ? manualForm(g) : ""}
@@ -2413,7 +2422,7 @@ function renderBkHost(g) {
   const movable = g.is_host && g.phase === "lobby";
   patch.gameHost = `<h2>Autour de la table (${g.players.length})</h2>
     ${movable ? `<p class="artist" style="margin:-4px 0 8px">Range les joueurs dans l'ordre où ils sont assis (vers la gauche) avec ⬆ ⬇.</p>` : ""}
-    <div class="list">${g.players.map((p, i) => `<div class="track"><div class="meta"><div class="title">${i + 1}. ${esc(p.name)}${p.host ? " 🎲" : ""}${playerTag(g, p)}${sipsBadge(p)}</div></div>
+    <div class="list">${g.players.map((p, i) => `<div class="track"><div class="meta"><div class="title">${i + 1}. ${esc(p.name)}${p.host ? " 🎲" : ""}${playerTag(g, p)}${tallyBadge(p)}</div></div>
       <div class="icon-btns">
         ${movable && i > 0 ? `<button class="secondary" data-gact="up" data-target="${esc(p.pid)}" title="Monter" aria-label="Monter">⬆</button>` : ""}
         ${movable && i < g.players.length - 1 ? `<button class="secondary" data-gact="down" data-target="${esc(p.pid)}" title="Descendre" aria-label="Descendre">⬇</button>` : ""}
@@ -2424,6 +2433,7 @@ function renderBkHost(g) {
 }
 
 // </store-cut>
+// <store> function pyrSecretSync() {}
 // 🛋️ Le Divan : une grande carte de couleur, retournée à chaque tirage.
 const DV_ICONS = { experiences: "🌄", emotions: "💗", relations: "🤝", childhood: "🧸", dreams: "🌠", whatif: "🔮", couple: "💞" };
 let dvSeen = 0;
@@ -2774,7 +2784,7 @@ function renderCasinoHost(g, btn) {
     <h2>À la table (${g.players.length})</h2>
     <div class="list">${c.table.map((t) => `
       <div class="track">
-        <div class="meta"><div class="title">${esc(t.name)}${open && t.ready ? ` <span class="pill live">prêt ✓</span>` : ""}${c.drinks ? "" : `<span class="artist"> · 💰 ${t.chips}${t.rebuys ? ` (rechargé ${t.rebuys}×)` : ""}</span>`}${sipsBadge(g.players.find((p) => p.pid === t.pid) || {})}</div>
+        <div class="meta"><div class="title">${esc(t.name)}${open && t.ready ? ` <span class="pill live">prêt ✓</span>` : ""}${c.drinks ? "" : `<span class="artist"> · 💰 ${t.chips}${t.rebuys ? ` (rechargé ${t.rebuys}×)` : ""}</span>`}${tallyBadge(g.players.find((p) => p.pid === t.pid) || {})}</div>
           <div class="artist" style="white-space:normal">${t.staked ? summary(t) : g.phase === "bet" ? "réfléchit…" : "n'a pas misé"}${resultTxt(t) ? ` · <b>${resultTxt(t)}</b>` : ""}</div></div>
         ${g.is_host && t.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(t.pid)}" title="Exclure de la table" aria-label="Exclure de la table">✕</button>` : ""}
       </div>`).join("") || `<p class="empty" style="padding:12px">Personne à la table : fais scanner le QR ci-dessous.</p>`}</div>
@@ -2933,7 +2943,8 @@ function renderGameHost(g) {
   if (g.type === "likely") return renderLikelyHost(g);
   if (g.type === "debate") return renderDebateHost(g);
   if (g.type === "beerpong") return renderBeerpongHost(g); // <store-cut/>
-  if (["pyramid", "biskit", "quiz", "purity", "psy", "masque", "reflet", "room", "president", "neon", "island", "heist"].includes(g.type)) { patch.gameHost = ""; return; }
+  if (["pyramid", "biskit", "quiz", "purity", "psy", "masque", "reflet", "room", "president", "neon", "island", "heist"].includes(g.type)) { patch.gameHost = ""; return; } // <store-cut/>
+  // <store> if (["quiz", "psy", "masque", "reflet", "room", "president", "neon", "island", "heist"].includes(g.type)) { patch.gameHost = ""; return; }
   if (g.type === "tmc") return renderTmcHost(g, btn);
   const canEliminate = g.is_host && g.type === "undercover" && (g.phase === "words" || g.phase === "vote");
   const canRemove = g.is_host;
@@ -2941,6 +2952,7 @@ function renderGameHost(g) {
   const speaking = g.type === "undercover" && g.phase === "words";
   const canMove = g.is_host && (speaking || g.phase === "lobby");
   // Pendant les questions, la liste est dans le menu ☰ ; ici, seulement ceux qui jouent sans téléphone (l'animateur répond pour eux).
+  // <store-cut> jeux cachés dans l'app App Store (Qui de nous ?, Je n'ai jamais)
   if (QUESTION_TYPES.includes(g.type) && (g.phase === "question" || g.phase === "results")) {
     const manual = g.type === "never" && g.phase === "question" ? g.players.filter((p) => p.manual) : [];
     const whoofManual = g.type === "whoof" && g.phase === "question" ? g.players.filter((p) => p.manual) : [];
@@ -2955,6 +2967,7 @@ function renderGameHost(g) {
         <div class="chips" style="margin-top:6px">${g.players.filter((o) => o.pid !== p.pid).map((o) => `<button class="py-mini" data-gact="mvote" data-target="${esc(p.pid)}" data-guess="${esc(o.pid)}">${esc(o.name)}</button>`).join("")}</div></div></div>`).join("")}</div>` : ""}`;
     return;
   }
+  // </store-cut>
   const list = speaking ? g.order_pids.map((pid) => g.players.find((p) => p.pid === pid)).filter(Boolean)
     .concat(g.players.filter((p) => !g.order_pids.includes(p.pid))) : g.players;
   patch.gameHost = `
@@ -2962,13 +2975,12 @@ function renderGameHost(g) {
     <h2>${speaking ? "Ordre de parole" : "Joueurs"} (${g.players.length})${g.master && g.type === "undercover" ? ` <button class="secondary" data-gact="roles" style="padding:2px 8px">${showRoles ? "🙈 Cacher" : "👁 Rôles"}</button>` : ""}</h2>
     <div class="list">${list.map((p, i) => `
       <div class="track" style="${p.alive ? "" : "opacity:.55"}">
-        <div class="meta"><div class="title" ${p.waiting ? 'title="Joue à la prochaine partie"' : ""}>${speaking && p.alive ? `${i + 1}. ` : ""}${p.waiting ? "⏳ " : p.alive ? "" : "✝︎ "}${esc(p.name)}${p.host ? " 🎲" : ""}${(g.phase === "vote" || g.phase === "question") && p.voted ? " ✓" : ""}${sipsBadge(p)}${playerTag(g, p)}</div>
+        <div class="meta"><div class="title" ${p.waiting ? 'title="Joue à la prochaine partie"' : ""}>${speaking && p.alive ? `${i + 1}. ` : ""}${p.waiting ? "⏳ " : p.alive ? "" : "✝︎ "}${esc(p.name)}${p.host ? " 🎲" : ""}${(g.phase === "vote" || g.phase === "question") && p.voted ? " ✓" : ""}${tallyBadge(p)}${playerTag(g, p)}</div>
           ${p.role && (seeRoles || !p.alive) ? `<div class="artist">${esc(p.role)}${seeRoles && p.word ? " · " + esc(p.word) : ""}</div>` : ""}</div>
         <div class="icon-btns">
-          ${g.is_host && p.manual && g.type === "never" && g.phase === "question" ? `
+          ${g.is_host && p.manual && g.type === "never" && g.phase === "question" ? ` <!-- store-cut -->
             <button class="${p.answer === "yes" ? "" : "secondary"}" data-gact="mvote" data-target="${esc(p.pid)}" data-guess="yes" title="L'a déjà fait" aria-label="L'a déjà fait">🍻</button> <!-- store-cut -->
-            <!-- <store> <button class="${p.answer === "yes" ? "" : "secondary"}" data-gact="mvote" data-target="${esc(p.pid)}" data-guess="yes" title="L'a déjà fait" aria-label="L'a déjà fait">🙋</button> -->
-            <button class="${p.answer === "no" ? "" : "secondary"}" data-gact="mvote" data-target="${esc(p.pid)}" data-guess="no" title="Jamais" aria-label="Jamais">😇</button>` : ""}
+            <button class="${p.answer === "no" ? "" : "secondary"}" data-gact="mvote" data-target="${esc(p.pid)}" data-guess="no" title="Jamais" aria-label="Jamais">😇</button>` : ""} <!-- store-cut -->
           ${canMove && p.alive && i > 0 ? `<button class="secondary" data-gact="up" data-target="${esc(p.pid)}" title="Monter" aria-label="Monter">⬆</button>` : ""}
           ${canMove && p.alive && i < (speaking ? g.order_pids.length : list.length) - 1 ? `<button class="secondary" data-gact="down" data-target="${esc(p.pid)}" title="Descendre" aria-label="Descendre">⬇</button>` : ""}
           ${canEliminate && p.alive ? `<button class="danger" data-gact="eliminate" data-target="${esc(p.pid)}" title="Éliminer (vote à main levée)" aria-label="Éliminer (vote à main levée)">Éliminer</button>` : ""}
@@ -3000,6 +3012,7 @@ function gameFlashes(g) {
     if (g.phase === "end" && pPhase !== "end" && win) return pyrFlash("summit", `🏆 ${win}`, g.words ? `Civils : ${esc(g.words.civil)} · Intrus : ${esc(g.words.undercover)}` : "");
     if (g.last?.name && g.last.name !== pLast) return pyrFlash(g.last.role === "Civil" ? "bad" : "good", `${esc(g.last.name)} est éliminé·e`, `C'était ${esc(g.last.role)} !`);
   }
+  // <store-cut> jeux cachés dans l'app App Store
   if (g.type === "whoof" && g.phase === "results" && pPhase !== "results" && g.results?.length) {
     const max = Math.max(...g.results.map((r) => r.count)), top = g.results.filter((r) => r.count === max).map((r) => esc(r.name));
     const names = top.length > 4 ? `${top.slice(0, 3).join(", ")} et ${top.length - 3} autres` : top.length > 1 ? `${top.slice(0, -1).join(", ")} et ${top.at(-1)}` : top[0];
@@ -3009,6 +3022,7 @@ function gameFlashes(g) {
     const did = g.results.filter((r) => r.answer === "yes").map((r) => esc(r.name));
     return pyrFlash(did.length ? "good" : "summit", did.length ? `${CHEERS} ${did.length} l'ont déjà fait` : "😇 Personne ne l'a fait", did.join(", "));
   }
+  // </store-cut>
 }
 
 // Partie créée mais pas lancée : le QR et le code au premier plan, pour que tout le monde rejoigne facilement.
@@ -3188,8 +3202,10 @@ function renderPause(g) {
 
 // Barre du haut commune à tous les jeux : ☰ menu, nom + phase + chrono, ? règles.
 function gameTopBar(g) {
-  const phase = g.type === "pyramid" && g.pyr ? pyrPhase(g) : phaseLabel(g);
-  const round = g.round && g.phase !== "lobby" && !["pyramid", "quiz"].includes(g.type)
+  const phase = g.type === "pyramid" && g.pyr ? pyrPhase(g) : phaseLabel(g); // <store-cut/>
+  // <store> const phase = phaseLabel(g);
+  const round = g.round && g.phase !== "lobby" && !["pyramid", "quiz"].includes(g.type) // <store-cut/>
+  // <store> const round = g.round && g.phase !== "lobby" && g.type !== "quiz"
     ? ` · ${{ heist: "braquage", island: "manche", neon: "manche", president: "manche", undercover: "manche", roulette: "tirage", blackjack: "main", casino: "tour", divan: "carte", tmc: "duo", biskit: "carte", quiz: "question" }[g.type] || "question"} ${g.round}` : ""; // <store-cut/>
     // <store> ? ` · ${{ heist: "braquage", island: "manche", neon: "manche", president: "manche", undercover: "manche", divan: "carte", tmc: "duo", quiz: "question" }[g.type] || "question"} ${g.round}` : "";
   const alerts = (g.pyr?.pending?.length || 0) + (g.is_host ? (g.pyr?.peeks || []).filter((r) => r.status === "pending").length : 0);
@@ -3208,14 +3224,15 @@ function gameTopBar(g) {
 function renderDrawer(g) {
   const lead = g.is_host, movable = lead && g.phase === "lobby";
   patch.gDrawerPlayers = `<h2>Participants (${g.players.length})</h2>
-    <div class="list">${g.players.map((p, i) => `<div class="track ${p.online === false && p.pid !== g.me?.pid ? "g-away" : ""}">${p.account ? `<span ${profileAttrs(g, p)}>${avatar(p, "qs-av-sm")}</span>` : avatar(p, "qs-av-sm")}<div class="meta"><div class="title">${p.account ? `<span ${profileAttrs(g, p)}>${esc(p.name)}</span>` : esc(p.name)}${p.host ? " 🎲" : ""}${p.pid === g.me?.pid ? " (toi)" : ""}${presenceTag(p.pid === g.me?.pid ? { ...p, online: true } : p)}${playerTag(g, p)}${p.pending ? " ⏳" : ""}${sipsBadge(p)}</div></div>
+    <div class="list">${g.players.map((p, i) => `<div class="track ${p.online === false && p.pid !== g.me?.pid ? "g-away" : ""}">${p.account ? `<span ${profileAttrs(g, p)}>${avatar(p, "qs-av-sm")}</span>` : avatar(p, "qs-av-sm")}<div class="meta"><div class="title">${p.account ? `<span ${profileAttrs(g, p)}>${esc(p.name)}</span>` : esc(p.name)}${p.host ? " 🎲" : ""}${p.pid === g.me?.pid ? " (toi)" : ""}${presenceTag(p.pid === g.me?.pid ? { ...p, online: true } : p)}${playerTag(g, p)}${p.pending ? " ⏳" : ""}${tallyBadge(p)}</div></div>
       <div class="icon-btns">
         ${movable && i > 0 ? `<button class="secondary" data-gact="up" data-target="${esc(p.pid)}" title="Monter" aria-label="Monter">⬆</button>` : ""}
         ${movable && i < g.players.length - 1 ? `<button class="secondary" data-gact="down" data-target="${esc(p.pid)}" title="Descendre" aria-label="Descendre">⬇</button>` : ""}
         ${lead && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la partie" aria-label="Exclure de la partie">✕</button>` : ""}
       </div></div>`).join("") || `<p class="empty" style="padding:12px">Personne pour l'instant : fais scanner le QR.</p>`}</div>
-    ${movable && ["biskit", "pyramid"].includes(g.type) ? `<p class="artist" style="margin-top:6px">Range les joueurs dans l'ordre où ils sont assis (vers la gauche).</p>` : ""}
-    ${(g.type !== "pyramid" || g.phase === "lobby") ? manualForm(g) : ""}
+    ${movable && ["biskit", "pyramid"].includes(g.type) ? `<p class="artist" style="margin-top:6px">Range les joueurs dans l'ordre où ils sont assis (vers la gauche).</p>` : ""} <!-- store-cut -->
+    ${(g.type !== "pyramid" || g.phase === "lobby") ? manualForm(g) : ""} <!-- store-cut -->
+    <!-- <store> ${manualForm(g)} -->
     ${lead && !g.me && (g.phase === "lobby" || g.phase === "end") ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">🙋 Je joue aussi</button>` : ""}`;
   patch.gDrawerExit = exitHtml(g);
 }
@@ -3424,21 +3441,24 @@ async function exitGame(a, b) {
 // Options choisies sur la carte d'un jeu (création directe, ou lancement depuis la salle de jeux).
 function gamePayload(card, type) {
   const q = (sel) => card.querySelector(sel);
+  // <store-cut> gorgées (jamais dans l'app App Store)
   let sips = q("[data-opt=alcohol]") && !q("[data-opt=alcohol]").checked ? 0 : +(q("[data-opt-group=sips] [data-val-out]")?.textContent || 0);
   if (type === "quiz") sips = q("[data-opt=qzsips]")?.checked ? 1 : 0;
   if (type === "purity") sips = q("[data-opt=pualcohol]")?.checked ? +(q("[data-opt-group=pusips] .on")?.dataset.val || 2) : 0;
   if (type === "biskit") sips = q("[data-opt=bkalcohol]")?.checked ? +(q("[data-opt-group=bkmult] .on")?.dataset.val || 1) : 0;
   if (type === "likely") sips = q("[data-opt=lkalcohol]")?.checked ? +(q("[data-opt-group=lksips] .on")?.dataset.val || 1) : 0;
+  // </store-cut>
   return {
-    type, sips, white: q("[data-opt=white]")?.checked ?? true, plays: q("[data-opt=plays]")?.checked ?? true,
+    type, sips, white: q("[data-opt=white]")?.checked ?? true, plays: q("[data-opt=plays]")?.checked ?? true, // <store-cut/>
+    // <store> type, white: q("[data-opt=white]")?.checked ?? true, plays: q("[data-opt=plays]")?.checked ?? true,
     mode: q("[data-opt-group=mode] .on")?.dataset.val || "soft",
     cats: type === "likely" ? ["family", ...(q("[data-opt=lkfriends]")?.checked ? ["friends"] : [])]
       : [...card.querySelectorAll("[data-opt-group=cats] .on")].map((x) => x.dataset.val),
-    floors: +(q("[data-opt-group=floors] [data-val-out]")?.textContent || 5),
-    pmode: q("[data-opt-group=pmode] .on")?.dataset.val || "soft",
-    poteau: q("[data-opt-group=poteau] .on")?.dataset.val || "soft",
-    double: q("[data-opt-group=floorsips] .on")?.dataset.val === "2",
-    boat: q("[data-opt=boat]")?.checked ?? true,
+    floors: +(q("[data-opt-group=floors] [data-val-out]")?.textContent || 5), // <store-cut/>
+    pmode: q("[data-opt-group=pmode] .on")?.dataset.val || "soft", // <store-cut/>
+    poteau: q("[data-opt-group=poteau] .on")?.dataset.val || "soft", // <store-cut/>
+    double: q("[data-opt-group=floorsips] .on")?.dataset.val === "2", // <store-cut/>
+    boat: q("[data-opt=boat]")?.checked ?? true, // <store-cut/>
     impostors: +(q("[data-opt-group=impostors] .on")?.dataset.val || 0),
     reveal: q("[data-opt=reveal]")?.checked ?? false,
     hint: q("[data-opt=hint]")?.checked ?? false,
@@ -3456,10 +3476,12 @@ document.addEventListener("click", async (ev) => {
     closeRoomSheet();
     return pressed(b, gameAction("launch", { settings: payload }));
   }
+  // <store-cut> jeu caché dans l'app App Store
   if (payload.type === "purity") {
     payload.token = (typeof freshToken === "function" && await freshToken()) || "";
     if (!payload.token) { toast("🔒 Connecte-toi avec ton numéro pour lancer le Purify Test", "err"); return showTab("account"); }
   }
+  // </store-cut>
   b.disabled = true;
   try {
     const g = await gapi("/api/games", { guest_id: guestId, name: guestName, ...payload });
@@ -3484,7 +3506,7 @@ function rulesFor(type, g) {
 }
 function rulesForAll(type, g) {
   if (!g) return GAME_RULES[type];
-  const sips = g.options?.sips || 0;
+  const sips = g.options?.sips || 0; // <store-cut/>
   let facts = [];
   if (g.mode) facts.push(`Questions : <b>${esc(g.mode)}</b>`);
   if (type === "undercover") facts.push(g.options?.white ? "Avec <b>le Fantôme</b> (dès 5 joueurs)" : "<b>Sans</b> le Fantôme");
@@ -3522,10 +3544,12 @@ document.addEventListener("click", (ev) => {
     $("rulesBody").innerHTML = rulesFor(t, open.hasAttribute("data-ingame") ? game : null);
     $("rulesBody").scrollTop = 0;
     // Biskit Royal en pleine partie : la ligne de la carte tirée est surlignée, et on y va directement.
+    // <store-cut> jeu caché dans l'app App Store
     if (t === "biskit" && open.hasAttribute("data-ingame") && game?.bk?.key) {
       const row = $("rulesBody").querySelector(`[data-rule="${game.bk.key}"]`);
       if (row) { row.classList.add("hl"); setTimeout(() => row.scrollIntoView({ block: "center", behavior: "smooth" }), 250); }
     }
+    // </store-cut>
     $("rulesModal").classList.remove("hidden");
     document.body.style.overflow = "hidden";
     return;
@@ -3553,10 +3577,12 @@ document.addEventListener("click", (ev) => {
     if (cat === couple && cat.classList.contains("on")) on.forEach((b) => b !== cat && b.classList.remove("on"));
     else if (cat !== couple && cat.classList.contains("on")) couple?.classList.remove("on");
   }
-  const pm = ev.target.closest("[data-opt-group=pmode] [data-val], [data-opt-group=poteau] [data-val], [data-opt-group=floorsips] [data-val], [data-opt-group=bkmult] [data-val], [data-opt-group=impostors] [data-val], [data-opt-group=pusips] [data-val], [data-opt-group=lksips] [data-val]");
+  const pm = ev.target.closest("[data-opt-group=pmode] [data-val], [data-opt-group=poteau] [data-val], [data-opt-group=floorsips] [data-val], [data-opt-group=bkmult] [data-val], [data-opt-group=impostors] [data-val], [data-opt-group=pusips] [data-val], [data-opt-group=lksips] [data-val]"); // <store-cut/>
+  // <store> const pm = ev.target.closest("[data-opt-group=impostors] [data-val]");
   if (pm) pm.parentElement.querySelectorAll("[data-val]").forEach((x) => x.classList.toggle("on", x === pm));
   const opt = ev.target.closest("[data-opt-group=mode] [data-val]");
   if (opt) opt.parentElement.querySelectorAll("[data-val]").forEach((b) => b.classList.toggle("on", b === opt));
+  // <store-cut> jeux cachés dans l'app App Store
   const fl = ev.target.closest("[data-opt-group=floors] [data-step]");
   if (fl) {
     const out = fl.parentElement.querySelector("[data-val-out]");
@@ -3568,6 +3594,7 @@ document.addEventListener("click", (ev) => {
     const min = step.closest("[data-alcohol-only]") ? 1 : 0;  // mise max du blackjack : au moins 1 gorgée
     out.textContent = Math.max(min, Math.min(10, +out.textContent + +step.dataset.step));
   }
+  // </store-cut>
 });
 $("gJoinForm").addEventListener("submit", (ev) => { ev.preventDefault(); joinByCode(); });
 // On rejoint dès le 4ᵉ chiffre (app App Store : dès le 6ᵉ, ou « Rejoindre » pour un code de jeu à 4 chiffres).

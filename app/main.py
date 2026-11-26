@@ -1510,6 +1510,9 @@ def create_game(body: GameCreate, request: Request):
     if len(store.session.games) >= 30:
         raise HTTPException(429, "Trop de parties en cours, réessaie plus tard")
     check_game_terms(request, body.guest_id, [], body.terms)
+    # Prénom de l'animateur : même filtre que /api/presence (app App Store : ni boisson ni drogue ; contrôle du 26.11, tour 2).
+    if msg := name_refusal(clean_name(body.name), store_app.is_store(request)):
+        raise HTTPException(400, msg)
     g = build_game(body)
     if store_app.is_store(request):
         store_app.flag(g)  # app App Store : sans gorgées ni mode Hot, questions sans boisson
@@ -2634,6 +2637,17 @@ def account_tricount_member_remove(body: TcMember):
     if not body.member_id:
         raise HTTPException(400, "Personne à retirer ?")
     return account_call(lambda: tricount.remove_member(body.token, body.group_id, body.member_id))
+
+
+class TcShowPayment(TcRef):
+    on: bool
+
+
+@app.post("/api/account/tricount/show-payment")
+def account_tricount_show_payment(body: TcShowPayment, request: Request):
+    """Montrer (ou cacher) mes moyens de paiement aux autres membres de ce pot (contrôle Apple du 26.11, tour 2)."""
+    out = account_call(lambda: tricount.set_show_payment(body.token, body.group_id, body.on))
+    return store_app.neutral_emojis(out) if store_app.is_store(request) else out
 
 
 @app.post("/api/account/tricount/leave")
@@ -5446,9 +5460,12 @@ NO_CACHE = {"Cache-Control": "no-cache"}
 async def no_cache_static(request: Request, call_next):
     path = request.url.path
     # (Zicou, /static/pet/ : déjà 404 « Zicou arrive bientôt. » pour l'app, compagnon_off.)
-    if path.startswith("/static/") and not path.startswith("/static/pet/") and store_static.blocked(path[8:]) \
-            and store_app.is_store(request):
-        return JSONResponse({"detail": "Introuvable"}, status_code=404, headers=NO_CACHE)  # app App Store (26.11)
+    # App App Store (26.11) : fichiers des jeux cachés refusés, et tout script ou style par /static/ (la page de l'app
+    # n'utilise que /static-store/, tour 2 du contrôle : `/static/%2e%2e/static/purity.js` passait).
+    if path.startswith("/static/") and not path.startswith("/static/pet/") and store_app.is_store(request) and (
+            store_static.blocked(path[8:]) or store_static.blocked(request.scope.get("raw_path", b"").decode("latin-1")[8:])
+            or path.lower().endswith((".js", ".css", ".mjs", ".map"))):
+        return JSONResponse({"detail": "Introuvable"}, status_code=404, headers=NO_CACHE)
     response = await call_next(request)
     if request.url.path.startswith("/static/"):
         # Adresse versionnée (?v=…, change à chaque déploiement) : le téléphone la garde, pas d'aller-retour.
@@ -5926,13 +5943,18 @@ def admin_notice_clear(request: Request):
     return JSONResponse(_admin_notice(), headers=NO_CACHE)
 
 
+# Jamais ouverts dans l'app par un lien universel : admin, TV, API, fichiers, pages publiques de l'Agenda (/d/, /agenda/)
+# et des Pronos (/prono/), éteintes dans l'app App Store (contrôle du 26.11, tour 2).
+AASA_EXCLUDED = ("/admin*", "/tv*", "/api/*", "/static*", "/d/*", "/agenda/*", "/prono/*")
+
+
 @app.get("/.well-known/apple-app-site-association")
 def apple_app_site_association():
     # Liens universels : un QR code ou un lien Party ouvre l'app iOS si elle est installée, sinon le site.
     beta = urlparse(configured_public_url()).hostname == TEST_SITE_HOST
     app_id = IOS_BETA_APP_ID if beta else IOS_APP_ID
     return JSONResponse({"applinks": {"details": [{"appIDs": [app_id], "components": [
-        {"/": "/admin*", "exclude": True}, {"/": "/tv*", "exclude": True}, {"/": "/*"}]}]}},
+        *({"/": path, "exclude": True} for path in AASA_EXCLUDED), {"/": "/*"}]}]}},
                         headers=NO_CACHE)
 
 

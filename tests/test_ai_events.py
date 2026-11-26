@@ -80,15 +80,33 @@ def make(tmp_path, answer=READY, perms=("ai.use", "events.create", "events.publi
 def test_a_description_becomes_a_ready_draft_with_the_user_groups_and_categories(tmp_path):
     a, _, client = make(tmp_path)
     d = a.draft("ok", ["Raclette chez Léa samedi prochain à 20h, invite le groupe Ski"], None)
-    assert d["status"] == "ready" and d["title"] == "Raclette chez Léa" and d["audience"] == "Ski" and d["pot"]
+    assert d["status"] == "ready" and d["title"] == "Raclette chez Léa" and d["audience"] == "Ski" and "pot" not in d
     schema = client.calls[0]["output_config"]["format"]["schema"]
     assert schema["properties"]["audience"]["enum"] == ["Vendredi Party", "Ski", ev.ONLY_INVITEES, "Public (lien)"]
-    assert schema["properties"]["invitees"]["items"]["enum"] == ["Tom", "Léa"] and d["invitees"] == ["Tom"]
+    # Contrôle du 26.11, tour 2 : ni pot commun dans le schéma, ni l'annuaire chez Anthropic (noms dits, retrouvés ici).
+    assert "pot" not in schema["properties"] and "enum" not in schema["properties"]["invitees"]["items"]
+    assert d["invitees"] == ["Tom"]
+    assert "Tom" not in client.calls[0]["system"] and "Tom" not in str(schema)
     assert "Léa" in client.calls[0]["system"] and client.calls[0]["model"] == ev.MODEL
     assert "Soirée" in schema["properties"]["category"]["enum"]
     entry = a.ai.usage.items[0]
     assert entry["feature"] == "event" and entry["model"] == "claude-opus-5-5" and "invite le groupe Ski" in entry["said"]
     assert entry["cost_usd"] == pytest.approx((900 * 4 + 300 * 20) / 1e6)
+
+
+def test_people_already_chosen_go_to_the_ai_as_aliases_and_come_back_as_names(tmp_path):
+    """Contrôle du 26.11, tour 2 : le brouillon précédent part avec « P1 »… au lieu des noms ; la réponse est retraduite,
+    un nom dit est retrouvé dans l'annuaire par le serveur, un inconnu ou un nom ambigu est dit à la personne."""
+    a, accounts, client = make(tmp_path, {**READY, "invitees": ["P1", "tom", "Zoé"], "organizers": []})
+    accounts.groups = lambda token: {"groups": [], "people": [{"id": "p-tom", "name": "Tom Martin"},
+                                                                {"id": "p-lea", "name": "Léa Rochat"},
+                                                                {"id": "p-lea2", "name": "Léa Favre"}]}
+    d = a.draft("ok", ["Raclette samedi à 20h", "ajoute Tom et Zoé"], {**READY, "invitees": ["Léa Rochat"]})
+    sent = json.dumps(client.calls[0], ensure_ascii=False, default=str)
+    assert "Rochat" not in sent and "Martin" not in sent and "Favre" not in sent and 'P1' in sent
+    assert d["invitees"] == ["Léa Rochat", "Tom Martin"]
+    assert any("Zoé" in x for x in d["not_understood"])
+    assert ev.resolve_person("léa", {}, {"Léa Rochat": "1", "Léa Favre": "2"})[1].startswith("« léa » : plusieurs")
 
 
 def test_missing_date_or_title_always_comes_back_as_a_question(tmp_path):
@@ -128,7 +146,7 @@ def test_confirmed_draft_creates_the_event_as_the_user_then_publishes_it(tmp_pat
     assert out == {"id": "e1", "status": "published", "title": "Raclette chez Léa", "problems": []}
     row = next(j for m, p, j in accounts.calls if m == "POST" and p.startswith("/rest/v1/events"))
     assert row["status"] == "draft" and row["visibility"] == "invited" and row["category_id"] == "c-soiree"
-    assert row["location_address"].startswith("Rue du Lac") and row["pot_enabled"] and row["max_participants"] == 12
+    assert row["location_address"].startswith("Rue du Lac") and "pot_enabled" not in row and row["max_participants"] == 12
     assert ("POST", "/rest/v1/event_groups", {"event_id": "e1", "group_id": "g-ski"}) in accounts.calls
     assert any(p == "/rest/v1/bring_items" for _, p, _ in accounts.calls)
     assert accounts.calls[-1] == ("PATCH", "/rest/v1/events?id=eq.e1&select=status", {"status": "published"})

@@ -232,3 +232,65 @@ def test_the_ghost_word_is_never_sent_to_the_table():
     games.white_guess(g, white, "Pastèque")
     view = client(WEB_UA).get(f"/api/games/{code}?guest_id=ghost-p0-000").json()
     assert view["last"]["guess"] is True and "Pastèque" not in str(view)
+
+
+# ── Contrôle du 26.11, tour 2 ──
+def raw_get(path, ua=STORE_UA):
+    """Comme `curl --path-as-is` : le chemin arrive au serveur tel quel, `..` et `%2e` compris."""
+    import asyncio
+    import httpx
+
+    async def get():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=main.app), base_url="http://t",
+                                     headers={"User-Agent": ua}) as c:
+            req = c.build_request("GET", "http://t/")
+            req.url = req.url.copy_with(raw_path=path.encode())
+            return await c.send(req)
+    # Fil à part : un test de navigateur lancé plus tôt (Playwright) peut laisser une boucle asyncio sur ce fil.
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(1) as pool:
+        return pool.submit(asyncio.run, get()).result()
+
+
+@pytest.mark.parametrize("path", ["/static/%2e%2e/static/purity.js", "/static/../static/purity.js", "/static/./purity.js",
+                                  "/static/brain/../purity.js", "/static/%2E%2E/static/beerpong.css",
+                                  "/static-store/%2e%2e/static/purity.js", "/static-store/./purity.js",
+                                  "/static-store/brain/%2e%2e/purity.js"])
+def test_dot_segments_never_reach_a_hidden_game_file(path):
+    r = raw_get(path)
+    assert r.status_code == 404, (path, r.status_code)
+    assert "purity" not in r.text.lower()
+
+
+def test_the_store_app_gets_no_script_or_style_by_static():
+    c = client(STORE_UA)
+    for path in ("/static/games.js", "/static/style.css", "/static/likely.js", "/static/nav.js"):
+        assert c.get(path).status_code == 404, path
+    assert c.get("/static/icon-192.png").status_code == 200
+    web = client(WEB_UA)
+    assert web.get("/static/games.js").status_code == 200 and web.get("/static/style.css").status_code == 200
+    assert raw_get("/static/purity.js", WEB_UA).status_code == 200
+
+
+def test_no_dormant_hidden_game_or_zicou_text_in_the_store_app():
+    files = served(STORE_UA)
+    js = files[next(p for p in files if p.endswith("/games.js"))]
+    admin = files[next(p for p in files if p.endswith("/games-admin.js"))]
+    page = files["/"]
+    words = re.compile(r"pyramide|lancer la pyramide|\bmises?\b|purify|pyjama|zicou|gorgée|PYR_Q|pyrLook|questionHtml|"
+                       r"neverResults|\bsips\s*=|tallyTxt = \(p\)|whoof: \"", re.I)
+    for name, text in (("games.js", js), ("games-admin.js", admin), ("index", page)):
+        assert not words.findall(text), (name, sorted({w.lower() for w in words.findall(text)}))
+    assert "<!--" not in re.sub(r"<script(?![^>]*\bsrc=)[^>]*>.*?</script>", "", page, flags=re.S)
+    assert "purityStats" not in page and "Android" not in page
+    # Le web garde tout.
+    web = client(WEB_UA)
+    wjs = web.get("/static/games.js").text
+    assert "Lancer la pyramide" in wjs and "pyjama" in wjs and 'bet: "Mises"' in wjs and "data-pet-name" in wjs
+    assert "purityStats" in web.get("/").text
+
+
+def test_the_store_app_refuses_a_drink_name_when_creating_a_game():
+    r = create(STORE_UA, "store-create-name", terms=True, name="Vodka Max")
+    assert r.status_code == 400
+    assert create(WEB_UA, "web-create-name1", name="Vodka Max").status_code == 200

@@ -77,7 +77,7 @@ def draft_of(e: dict, o: Options) -> dict:
                    "multiple": False, "anonymous": False, "add_options": False} for p in e.get("polls") or []],
         "bring": [bring_text(b) for b in sorted(e.get("bring_items") or [], key=lambda b: b.get("sort") or 0)
                   if not b.get("added_by")],
-        "pot": bool(e.get("pot_enabled")), "summary": "", "not_understood": [], "cover_url": e.get("cover_url") or "",
+        "summary": "", "not_understood": [], "cover_url": e.get("cover_url") or "",
     }
 
 
@@ -105,7 +105,6 @@ def changes(old: dict, new: dict) -> list[str]:
     if old.get("description") != new.get("description"):
         out.append("Description mise à jour")
     for key, yes, no in [("plus_ones", "Accompagnants permis", "Pas d'accompagnant"),
-                         ("pot", "Pot commun ouvert", "Plus de pot commun"),
                          ("forum", "Discussion ouverte", "Discussion fermée"),
                          ("allow_maybe", "« Peut-être » permis", "Plus de « Peut-être »")]:
         if old.get(key) != new.get(key):
