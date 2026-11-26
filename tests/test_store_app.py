@@ -546,11 +546,11 @@ def test_round_four_review_notes_present_an_app_for_everyone_and_nothing_dormant
     notes = (_root() / "ios/appstore/review-notes.txt").read_text(encoding="utf-8").strip()
     guide = (_root() / "docs/app-store/notes-for-review.md").read_text(encoding="utf-8")
     assert len(notes) <= 4000 and notes in guide
-    assert "for anyone organising real-world events with friends" in notes
+    assert "to organise real-world events with friends" in notes
     assert "group of friends" not in guide and "for friends:" not in notes
     assert "wait for our approval" not in notes and 'tick group "Démo Apple" > Publish: live at once' in notes
     assert "off for this app on our server" not in notes and "switched off for this app on our server" not in guide
-    assert "submitted for review" in notes.split("Not in this version", 1)[1].split("\n", 1)[0]
+    assert "would need a new review" in notes.split("Not in this version", 1)[1].split("\n", 1)[0]
     assert "see attached video" not in notes and "video" not in guide.split("PART B", 1)[1].lower()  # 26.11 : aucune vidéo
     assert "grouped as Général, Musique" not in guide
     checklist = (_root() / "docs/app-store/checklist-envoi.md").read_text(encoding="utf-8")
@@ -618,7 +618,7 @@ def test_round_five_listing_notes_and_checklist():
     meta = json.loads((_root() / "ios/appstore/metadata-fr.json").read_text(encoding="utf-8"))
     assert "pour une bande d'amis" not in meta["description"] and "toutes tes soirées entre amis" in meta["description"]
     notes = (_root() / "ios/appstore/review-notes.txt").read_text(encoding="utf-8")
-    assert "Absent from this app" not in notes and "This build never opens them" in notes
+    assert "Absent from this app" not in notes and "never opened by this build" in notes
     assert '"Rembourser" shows' in notes and '"Payer" shows' not in notes
     checklist = (_root() / "docs/app-store/checklist-envoi.md").read_text(encoding="utf-8")
     assert "- [x] Captures iPhone Duo" not in checklist and "AUCUNE version tvOS" in checklist
@@ -673,7 +673,7 @@ def test_round_eight_texts_match_what_the_reviewer_can_try():
                  "to the organisers"):
         assert gone not in guide, gone
     assert "nothing digital is sold or unlocked" in notes and "photos and voice messages can be sent" in guide
-    assert '"Présent" (or being marked Présent by the organiser) adds you' in notes
+    assert '"Présent" at an event with a pot (or marked so) adds you' in notes
     assert "everyone who answers **Présent** is added" in guide and "anyone the organiser marks **Présent**" in guide
     # « Pas présent » ne retire PAS du pot (tc_rsvp_changed ajoute seulement) : on le quitte soi-même dans Réglages.
     assert "removes you" not in notes and "**Absent** removes" not in guide and "Quitter ce pot commun" in guide
@@ -703,7 +703,10 @@ def test_apple_check_round_one_texts_promise_only_what_the_reviewer_can_try():
     assert "messages from a blocked person disappear at once" in notes and "(last 10 messages if ticked)" in notes
     assert "photo/voice copied" not in notes  # la copie des photos signalées : guide seulement
     for text in (notes, guide):
-        assert "Live Activity" not in text and "Souvenir" not in text and "cover" not in text.lower()
+        assert "cover" not in text.lower()
+    # Tour 2 : l'Activité en direct est dans le build (décrite, facultative) ; Souvenirs : « Not in this version ».
+    assert "optional Live Activity for your song; it ends by itself" in notes
+    assert "Souvenirs" in notes.split("Not in this version", 1)[1].split("\n", 1)[0]
     assert "needs the host's Sonos" in notes  # Musique décrite, jamais cachée (2.3.1)
     titles = [l.split(" ", 2)[1] for l in part_b.splitlines() if l.startswith("#### B4.")]
     assert titles == [f"B4.{n}" for n in range(1, len(titles) + 1)], titles  # numérotation continue
@@ -763,3 +766,42 @@ def test_round_one_store_permission_texts_never_name_souvenirs_nor_the_agenda():
         "Party ne lit que les entrées qu'elle a ajoutées ; rien ne quitte ton iPhone.")
     assert "Agenda" in beta["NSCalendarsFullAccessUsageDescription"] and "Souvenirs" in beta["NSCameraUsageDescription"]
     assert 'PARTY_VARIANT: "STORE$(PARTY_BUNDLE_SUFFIX:c99extidentifier)"' in party["text"]
+
+
+def test_apple_check_round_two_texts_say_what_the_build_really_does():
+    """Contrôle Apple du 26.11, tour 2 (2.1, 2.3.1, 5.1.1, 1.2) : notes, guide et dossier App Store Connect."""
+    import plistlib
+    notes = (_root() / "ios/appstore/review-notes.txt").read_text(encoding="utf-8").strip()
+    guide = (_root() / "docs/app-store/notes-for-review.md").read_text(encoding="utf-8")
+    part_b = guide.split("## PART B", 1)[1]
+    flat = " ".join(guide.split("## PART B", 1)[1].split())
+    assert len(notes) <= 4000 and notes in guide
+    assert '"Mes amis dans Party" (contacts on Party; SMS invite you send)' in notes
+    assert "No select-all; Party sends nothing." in flat and '"Mes amis dans Party": numbers are hashed' in flat
+    assert "Live Activity" in part_b.split("#### B4.15", 1)[1].split("#### B4.16", 1)[0]
+    assert "Pronos, Agenda, companion, Souvenirs." in notes
+    assert '"Montrer mes moyens de paiement dans ce pot"' in notes and '"Signaler" on expenses and receipts' in notes
+    assert "**Montrer mes moyens de paiement dans ce pot**" in part_b
+    assert "**Signaler le groupe**" in part_b.split("#### B4.13", 1)[1].split("#### B4.14", 1)[0]
+    assert "**Signaler le groupe**" in part_b.split("### B6.", 1)[1].split("### B7.", 1)[0]
+    assert "aliases P1, P2…" in flat.split("### B7.", 1)[1]
+    assert "Why a last name" in flat and "Afficher mon nom et prénom" in flat
+    # B4.4 : aucune sous-liste (le script du PDF la numérotait comme une étape).
+    b44 = part_b.split("#### B4.4", 1)[1].split("#### B4.5", 1)[0]
+    assert not any(l.startswith(" ") and l.lstrip().startswith("- ") for l in b44.splitlines())
+    for words in ("alcohol", "wine", " bet ", "wager", "drunk"):
+        assert words not in notes.lower(), words
+    # App Store Connect § 5 : les types du manifeste, Payment Info compris.
+    asc = (_root() / "ios/appstore/app-store-connect.md").read_text(encoding="utf-8")
+    with open(_root() / "ios/Party/PrivacyInfo.xcprivacy", "rb") as f:
+        types = [e["NSPrivacyCollectedDataType"] for e in plistlib.load(f)["NSPrivacyCollectedDataTypes"]]
+    assert f"exactement **{len(types)} types**" in asc and "à ajouter** au manifeste" not in asc
+    assert "**à ajouter** au manifeste" not in asc
+    assert "ses événements partent « pour validation »" not in asc
+    tuto = (_root() / "docs/app-store/tutoriel-reviewer-fr.md").read_text(encoding="utf-8")
+    assert "section bar / paiements" not in tuto
+    checklist = (_root() / "docs/app-store/checklist-envoi.md").read_text(encoding="utf-8")
+    for words in ("Apple-test 2", "12.12", "20.12", "PRIVÉ", f"**{len(types)} types**", "storage_secret_key",
+                  "20261126100000", "20261126120000", "20261126130000", "20261126140000", "send-web-push", "xcodegen",
+                  "nettoyage de la démo appliqué"):
+        assert words in checklist, words

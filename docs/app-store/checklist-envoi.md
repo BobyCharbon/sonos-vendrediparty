@@ -97,8 +97,32 @@
       - [ ] `supabase/prod/2026-11-26-demo-nettoyage-apply.sql` appliqué (contrôle : migration `20261126110000` en prod) ;
       - [ ] couverture de l'événement « Verknipt » vérifiée / remplacée (aucune boisson visible) ;
       - [ ] lien Shotgun de « Hard Boat » nettoyé : sans paramètre `uhandle` ni `utm_*` ;
-      - [ ] App Privacy : **Payment Info** cochée (IBAN) ; manifeste `PrivacyInfo.xcprivacy` à compléter au même build
-            (`NSPrivacyCollectedDataTypePaymentInfo`, absent au 26.11).
+      - [ ] App Privacy : **Payment Info** cochée (IBAN) ; manifeste : `NSPrivacyCollectedDataTypePaymentInfo` y est
+            (tour 2 : 16 types en tout, voir § 6).
+- [ ] **Contrôle Apple, tour 2 (26.11) — LE JOUR DE L'ENVOI**, dans cet ordre :
+      - [ ] se connecter avec **Apple-test** ET **Apple-test 2** (app TestFlight du build choisi) ; « Demandes (1) » visible
+            chez Apple-test ;
+      - [ ] dates de la démo : « Soirée démo Vendredi Party » le **12.12** (encore à venir), demande de message
+            d'Apple-test 2 purgée vers le **20.12** (30 jours sans réponse) : si l'envoi glisse près de ces dates,
+            REFAIRE la soirée (nouvelle date) et la demande avant d'envoyer ;
+      - [ ] dépôt GitHub passé en **PRIVÉ** (ou `GITHUB_REPO` sur un dépôt privé à part) ;
+      - [ ] App Privacy : les **16 types** du manifeste cochés, ni plus ni moins (§ 6 et `ios/appstore/app-store-connect.md` § 5) ;
+      - [ ] clé `storage_secret_key` ajoutée dans le coffre Supabase de prod (contrôle : une ligne dans
+            `private.chat_files_gc_runs`) ;
+      - [ ] captures 6,9" et Duo refaites : les **4 onglets** (Jeux, Événements, Discussions, Réglages), **rien de vrai**
+            (données fictives, aucune vraie personne), **rien d'alcool**, rien qui contredise la note (contenu
+            présentable à tout public, comme pour une app 4+) ; ancienne **vidéo d'aperçu SUPPRIMÉE** (6,9" et Duo) ;
+      - [ ] **nettoyage de la démo appliqué** (`supabase/prod/2026-11-26-demo-nettoyage-apply.sql`, migration `20261126110000`
+            en prod) ; Billets QR allumés sur la Soirée démo et billet d'Apple-test remis (B2 et B4.10 le disent ; sinon
+            corriger le guide et régénérer le PDF) ;
+      - [ ] migrations **20261126100000**, **20261126120000**, **20261126130000** et **20261126140000** en prod
+            (`select version from supabase_migrations.schema_migrations where version like '20261126%'`) ;
+      - [ ] fonctions **send-push** ET **send-web-push** redéployées (dernière version de develop / main) ;
+      - [ ] avant toute archive locale : `xcodegen` dans `ios/` (sinon le projet Xcode garde l'ancien manifeste et les
+            anciens fichiers) ;
+      - [ ] notes (3996 caractères) recopiées dans App Store Connect = `ios/appstore/review-notes.txt` ; guide PDF du
+            tour 2 joint (B4.4 sans sous-liste, « Mes amis dans Party », Activité en direct facultative, Pot commun aux
+            moyens de paiement cachés par défaut, « Signaler le groupe », Souvenirs dans « Not in this version »).
 - [ ] Connexion testée avec « Apple-test 2 » (jamais connecté en prod au 25.11) et « Apple-test » le jour de l'envoi.
 - [ ] App Store Connect › Business : adresse du compte développeur en France (Segny) et statut DSA (non-commerçant) à jour.
 
@@ -154,7 +178,7 @@
 - [ ] **User name** : `+41 79 000 09 99` (compte « Apple-test »).
 - [ ] **Password** : le code fixe à 6 chiffres (Supabase prod › Authentication › Phone › Test OTP ; le fichier
       `~/sb-work/apple/demo.txt` n'existe pas sur ce Mac : le reprendre là où il est). **Jamais dans le dépôt.**
-- [ ] **Notes** : la partie A de `notes-for-review.md` (3997 caractères, limite 4 000 ; = `ios/appstore/review-notes.txt`). La recopier aussi dans
+- [ ] **Notes** : la partie A de `notes-for-review.md` (3996 caractères, contrôle Apple tour 2, limite 4 000 ; = `ios/appstore/review-notes.txt`). La recopier aussi dans
       `ios/appstore/review-notes.txt` avant d'utiliser `tools/appstore_submit.py` (il envoie ce fichier), puis lancer
       `.venv/bin/python -m pytest -q tests/test_ios_app.py -p no:cacheprovider` (la partie A contient les mots exigés).
 - [ ] **Pronos, Agenda, compagnon : PAS dans cette version** (jamais ouverts par ce build, quoi que dise le serveur) : les notes le disent (« Not in this version »),
@@ -212,15 +236,16 @@ Pour chaque type : **lié à l'identité : oui · suivi : non · finalité : App
       de « Nouveau message », même type, même finalité App Functionality : **rien de neuf à cocher**, relire la description)
 - [ ] User Content : **Photos or Videos**, **Audio Data** (messages vocaux des Discussions — nouveau), **Emails or Text
       Messages**, **Gameplay Content** (scores et stats de jeu), **Customer Support** (« Ton avis »), **Other User Content**
-- [ ] Purchases : **Purchase History** (commandes du bar, « J'ai payé » d'un événement — nouveau)
+- [ ] Purchases : **Purchase History** (« J'ai payé » d'un événement ; commandes du bar sur le web seulement)
 - [ ] Identifiers : **User ID**, **Device ID**
 - [ ] Usage Data : **Product Interaction**
 - [ ] Diagnostics : **Other Diagnostic Data**
 - [ ] Non collecté : e-mail, adresse, localisation, santé, navigation, recherche, données sensibles, crash / performance,
       publicité.
-- [ ] Manifeste `ios/Party/PrivacyInfo.xcprivacy` : la copie de travail du 16.11 déclare bien les 15 types ci-dessus
-      (Audio Data, Customer Support et Purchase History ajoutés, pas encore commités) : vérifier qu'ils sont dans le build
-      choisi.
+- [ ] Manifeste `ios/Party/PrivacyInfo.xcprivacy` (26.11, tour 2) : **16 types**, exactement ceux ci-dessus (Name,
+      Phone Number, Payment Info, Other Financial Info, Contacts, Photos or Videos, Audio Data, Emails or Text Messages,
+      Gameplay Content, Customer Support, Other User Content, Purchase History, User ID, Device ID, Product Interaction,
+      Other Diagnostic Data) : cocher les mêmes 16 dans App Store Connect, vérifier qu'ils sont dans le build choisi.
 - [ ] Textes d'autorisation (project.yml, annoncés par le coordinateur) : Caméra « Pour scanner un QR code (code de la
       soirée, billet d'un événement, carte du bar d'un invité) et prendre une photo de profil ou d'événement. » ; Micro
       « Seulement quand tu touches le micro : pour enregistrer un message vocal dans une discussion, ou dicter un texte. »
