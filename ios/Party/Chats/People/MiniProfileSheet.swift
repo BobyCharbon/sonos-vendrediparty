@@ -40,7 +40,9 @@ struct MiniProfileSheet: View {
         .preferredColorScheme(.dark)
         .task { await load() }
         .sheet(isPresented: $askTerms) {
-            if let people { TermsAcceptSheet(store: people.moderation, title: "Avant d'écrire") { accepted in if accepted { afterTerms() } } }
+            if let people { TermsAcceptSheet(store: people.moderation, title: "Avant d'écrire") { accepted in
+                if accepted { afterTerms() } else { problem = TermsLater.message("écrire", button: "Envoyer un message") }
+            } }
         }
         .sheet(isPresented: $showCard) {
             if let people { MemberCardView(store: people.privacy, memberID: userID).environment(\.writeDirect, nil) }
@@ -191,7 +193,7 @@ struct MiniProfileSheet: View {
     private func disabledReason(_ m: MemberMini) -> String? {
         if m.blocked { return "Tu as bloqué \(shownName) : elle ne peut plus t'écrire, te citer ni t'inviter. Débloque-la pour lui écrire." }
         guard writeDirect != nil, !m.restricted else { return nil }
-        if needsTerms { return "Pour écrire, accepte d'abord les conditions d'utilisation de Party : touche « Envoyer un message »." }
+        if needsTerms { return TermsLater.message("écrire", button: "Envoyer un message") }
         if !m.canWrite { return "Tu ne peux pas lui écrire pour l'instant." }
         return nil
     }

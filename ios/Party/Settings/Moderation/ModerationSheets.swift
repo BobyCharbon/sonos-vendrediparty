@@ -82,6 +82,15 @@ struct ReportSheet: View {
     }
 }
 
+/// « Plus tard » sur la feuille des CGU n'est jamais muet (contrôle Apple, tour 3) : la phrase dite à la place de l'action.
+/// Même texte que le web (`termsLater`, web/events/src/components/TermsSheet.tsx).
+enum TermsLater {
+    static func message(_ action: String, button: String? = nil) -> String {
+        "Pour \(action), accepte d’abord les conditions d’utilisation de Party : touche "
+            + (button.map { "« \($0) »" } ?? "à nouveau le bouton") + " pour les relire."
+    }
+}
+
 /// Avant le premier contenu (message, surnom, nom de groupe) : les conditions d'utilisation à accepter (Google UGC).
 struct TermsAcceptSheet: View {
     @ObservedObject var store: ModerationStore

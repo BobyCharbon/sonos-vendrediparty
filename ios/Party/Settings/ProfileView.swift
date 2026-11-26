@@ -85,7 +85,11 @@ struct ProfileView: View {
         }
         .onChange(of: picked) { item in Task { await load(item) } }
         .sheet(isPresented: $askTerms) {
-            TermsAcceptSheet(store: store.moderation) { accepted in if accepted { save() } }
+            TermsAcceptSheet(store: store.moderation) { accepted in
+                if accepted { save() } else {
+                    store.notice = .init(text: TermsLater.message("choisir ton surnom", button: "Enregistrer"), isError: true)
+                }
+            }
         }
     }
 

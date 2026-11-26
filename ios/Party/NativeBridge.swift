@@ -52,6 +52,12 @@ enum NativeBridge {
         }
         """
 
+    // Script injecté : aucun commentaire JavaScript n'y nomme une fonction absente de l'app App Store (contrôle Apple,
+    // tour 3). `secret` = cartes à mémoriser de la Pyramide (panneau qu'une capture rend noir) ; `pronos` = écrans natifs
+    // des Pronos ; `souvenirs` = appareil photo, story protégée, « Mes souvenirs » dans Photos (window.PartySouvenirs.changed
+    // à la fermeture) ; `agenda` = calendriers de l'iPhone (EventKit, plages « pris » arrondies seulement) ; `zicou` =
+    // bulle native de la BETA (pet/zicou-home.js). Tous valent null dans l'app App Store.
+
     /// Hôtes du pont, en tableau JavaScript : le script est injecté dans toutes les frames, mais ne pose rien ailleurs.
     static let bridgeHostsJS = "[" + AppConfig.bridgeHosts.map { "\"\($0)\"" }.joined(separator: ",") + "]"
 
@@ -80,8 +86,6 @@ enum NativeBridge {
             try { window.webkit.messageHandlers.\(PartyNoticeHandler.handler).postMessage(state || null); } catch (e) {}
           }
         },
-        // Pyramide (avis 4c55c231a4d2) : les cartes à mémoriser, montrées par l'app dans un panneau qu'une capture
-        // d'écran rend noir. null : plus de panneau.
         secret: \(secretScript),
         // Barre d'onglets native : la page la décrit (app/static/native-tabs.js), l'app la dessine.
         tabs: {
@@ -124,10 +128,7 @@ enum NativeBridge {
             try { window.webkit.messageHandlers.\(chatHandler).postMessage("settings:" + id); } catch (e) {}
           }
         },
-        // Pronos (17.11) : écrans natifs (liste, prono, création, classement) par-dessus la page.
         pronos: \(pronosScript),
-        // Souvenirs (24.11, contrat pont-ios.md) : appareil photo natif (3 poses, sans aperçu), story protégée des captures,
-        // photo de « Mes souvenirs » dans Photos. À la fermeture, l'app appelle window.PartySouvenirs.changed(eventId).
         souvenirs: \(souvenirsScript),
         // « Scanner les billets » (Événements) : lecteur QR d'Apple ; promesse du texte lu, ou null si l'on ferme.
         scan: {
@@ -151,12 +152,9 @@ enum NativeBridge {
           settle: function (req) { return window.webkit.messageHandlers.\(NativeCalendarBridge.handler).postMessage(Object.assign({ action: "settle" }, req || {})); },
           pending: function () { return window.webkit.messageHandlers.\(NativeCalendarBridge.handler).postMessage({ action: "pending" }); }
         },
-        // Agenda (17.11) : calendriers de l'iPhone (EventKit) ; préférences et rendez-vous restent sur l'iPhone, seules
-        // les plages « pris » arrondies partent, envoyées par l'app (syncBusy) quand le partage est actif.
         agenda: \(agendaScript),
-        // « Ajouter à l'app Cartes Apple » (billet) : feuille d'ajout PassKit ; promesse résolue à sa fermeture.
-        // Bulle de Zicou native (BETA) : la page la décrit (pet/zicou-home.js), l'app la dessine et la déplace.
         zicou: \(zicouScript),
+        // « Ajouter à l'app Cartes Apple » (billet) : feuille d'ajout PassKit ; promesse résolue à sa fermeture.
         wallet: {
           available: \(NativeWallet.available ? "true" : "false"),
           add: function (url) { return window.webkit.messageHandlers.\(NativeWallet.handler).postMessage(String(url)); }

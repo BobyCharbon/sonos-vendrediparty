@@ -69,5 +69,8 @@ struct FeedbackAITests {
     func consentText() {
         #expect(FeedbackAI.consentText.contains("Anthropic (Claude)") && FeedbackAI.consentText.contains("pour un ticket du pot commun, sa photo.")
                 && FeedbackAI.consentText.hasSuffix("sans ton prénom ni ton numéro."))
+        // Contrôle Apple, tour 3 : ce que l'assistant des événements envoie vraiment.
+        #expect(FeedbackAI.consentText.contains("ton surnom, les noms de tes groupes, les catégories et étiquettes")
+                && FeedbackAI.consentText.contains("sous un alias (P1, P2…), jamais leur nom"))
     }
 }

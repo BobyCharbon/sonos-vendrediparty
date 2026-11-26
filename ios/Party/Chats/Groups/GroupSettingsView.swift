@@ -70,7 +70,7 @@ struct GroupSettingsView: View {
                 TermsAcceptSheet(store: people.moderation) { accepted in
                     let retry = askTerms
                     askTerms = nil
-                    if accepted { retry?() }
+                    if accepted { retry?() } else { error = TermsLater.message("modifier le groupe") }
                 }
             }
         }

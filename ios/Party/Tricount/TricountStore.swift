@@ -403,7 +403,7 @@ extension View {
     func tcTermsGate(_ store: TricountStore, retry: (() async -> Void)? = nil) -> some View {
         sheet(isPresented: Binding(get: { store.needsTerms }, set: { store.needsTerms = $0 })) {
             TermsAcceptSheet(store: store.moderation, title: "Avant de continuer") { accepted in
-                guard accepted else { return }
+                guard accepted else { store.notice = TermsLater.message("utiliser le Pot commun"); return }
                 if let retry { Task { await retry() } } else { store.notice = "C'est accepté : tu peux réessayer" }
             }
         }

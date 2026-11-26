@@ -385,7 +385,9 @@ struct GroupsView: View {
         }
         .sheet(isPresented: $askTerms) {
             if let moderation {
-                TermsAcceptSheet(store: moderation) { accepted in if accepted { create() } }
+                TermsAcceptSheet(store: moderation) { accepted in
+                    if accepted { create() } else { store.notice = TermsLater.message("créer un groupe", button: "Créer") }
+                }
             }
         }
         .navigationDestination(isPresented: Binding(get: { created != nil }, set: { if !$0 { created = nil } })) {

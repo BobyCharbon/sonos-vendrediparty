@@ -382,6 +382,7 @@ struct EventChatInfoView: View {
             return
         }
         Haptics.success()
+        NotificationCenter.default.post(name: .partyBlockChanged, object: person.id)  // la liste des Discussions se relit
         Motion.animate { notice = on ? "\(person.name) est bloqué·e" : "\(person.name) est débloqué·e" }
         if let id = store.conversation?.id { await store.open(id) }  // ses messages disparaissent du fil
     }
