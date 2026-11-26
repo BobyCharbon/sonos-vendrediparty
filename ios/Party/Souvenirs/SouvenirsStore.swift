@@ -1,3 +1,6 @@
+// Compilé dans la BETA seulement (et les recettes E2E_HOOKS) : absent du binaire de l'App Store (Souvenirs, contrôle Apple du 26.11).
+#if BETA || E2E_HOOKS
+
 import Photos
 import SwiftUI
 import UIKit
@@ -245,3 +248,4 @@ private enum SouvenirAnyReply: Decodable {
 
     init(from decoder: Decoder) throws { self = .any }
 }
+#endif

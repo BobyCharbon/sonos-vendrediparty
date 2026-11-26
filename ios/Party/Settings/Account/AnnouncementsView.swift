@@ -82,20 +82,24 @@ struct AnnouncementsView: View {
 
 /// Mes stats de jeu, pour le seul titulaire du compte : Purify Test (dernier score, record, profil par catégorie)
 /// ou Méninges (Température, domaines, évolution, classement : BrainStatsView.swift).
+/// App App Store (refus Apple 1.4.3, 25.11 ; contrôle du 26.11) : l'écran du Purify Test n'est compilé que dans la BETA
+/// (`#if BETA`), le binaire de l'App Store ne montre que les stats de Méninges.
 struct GameStatsView: View {
+    @ObservedObject var store: AccountStore
+    let openGames: () -> Void
+    #if BETA
     enum Kind: String, CaseIterable, Identifiable {
         case purify, brain
         var id: String { rawValue }
         var label: String { self == .purify ? "Purify" : "🧠 Méninges" }
     }
 
-    @ObservedObject var store: AccountStore
-    let openGames: () -> Void
-    /// App App Store (refus Apple 1.4.3, 25.11) : le Purify Test n'y existe pas, seules les stats de Méninges.
     @State private var kind: Kind = AppConfig.isStoreApp ? .brain : .purify
+    #endif
 
     var body: some View {
         List {
+            #if BETA
             if !AppConfig.isStoreApp {
                 Section {
                     Picker("Jeu", selection: $kind) {
@@ -110,6 +114,9 @@ struct GameStatsView: View {
             case .purify: purify
             case .brain: BrainStatsSections(store: store, openGames: openGames)
             }
+            #else
+            BrainStatsSections(store: store, openGames: openGames)
+            #endif
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
@@ -119,8 +126,11 @@ struct GameStatsView: View {
         .overlay { if loading { ProgressView().transition(.opacity) } }
         .motion(Motion.smooth, value: loading)
         .refreshable { await reload() }
-        .task(id: kind) { await reload() }
+        .task(id: taskID) { await reload() }
     }
+
+    #if BETA
+    private var taskID: Kind { kind }
 
     private var loading: Bool {
         switch kind {
@@ -135,7 +145,15 @@ struct GameStatsView: View {
         case .brain: await store.loadBrain()
         }
     }
+    #else
+    private var taskID: Int { 0 }
 
+    private var loading: Bool { store.brain == nil && store.brainError == nil }
+
+    private func reload() async { await store.loadBrain() }
+    #endif
+
+    #if BETA
     @ViewBuilder private var purify: some View {
         if let stats = store.stats {
             if stats.plays == 0 {
@@ -206,4 +224,5 @@ struct GameStatsView: View {
             Text("🔒 Toi seul le vois.")
         }
     }
+    #endif
 }

@@ -128,7 +128,7 @@ struct FriendsView: View {
             }
             Section {
             } footer: {
-                Text("\(all.count) contact\(all.count > 1 ? "s" : "") sur Party, reconnu\(all.count > 1 ? "s" : "") grâce à une empreinte chiffrée des numéros : tes contacts restent sur ton iPhone.")
+                Text("\(all.count) contact\(all.count > 1 ? "s" : "") sur Party, reconnu\(all.count > 1 ? "s" : "") grâce à une empreinte des numéros : tes contacts restent sur ton iPhone.")
             }
         }
     }
@@ -290,7 +290,7 @@ private struct AccessSection: View {
             EmptyState(symbol: access == .notDetermined ? "person.crop.circle.badge.questionmark" : "person.crop.circle.badge.xmark",
                        title: access == .notDetermined ? "Retrouve tes amis" : "Accès aux contacts refusé",
                        text: access == .notDetermined
-                           ? "Party compare une empreinte chiffrée des numéros de tes contacts pour te montrer qui est déjà inscrit. Tes contacts restent sur ton iPhone."
+                           ? "Party compare une empreinte des numéros de tes contacts pour te montrer qui est déjà inscrit. Tes contacts restent sur ton iPhone."
                            : access == .restricted ? "Les restrictions de cet iPhone empêchent l'accès aux contacts."
                                                    : "Autorise Contacts pour Party dans les Réglages de l'iPhone pour voir tes amis.")
             if access == .notDetermined {

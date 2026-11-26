@@ -169,7 +169,9 @@ struct ConversationView: View {
             }
             if let chat {
                 // Souvenirs dévoilés (24.11) : la story s'ouvre d'ici pendant ses 24 h.
+                #if BETA || E2E_HOOKS
                 if chat.isEvent, !AppConfig.storeLocked { SouvenirChatBanner(eventID: group) }
+                #endif
                 let pins = chat.pins
                 if !pins.isEmpty {
                     pinnedBanner(pins, chat: chat).motionTransition(.unfold)

@@ -229,7 +229,7 @@ struct PrivacyView: View {
         ]),
         ("Ton agenda", [
             "Quand tu ajoutes un événement à ton agenda, ton agenda s'abonne à ton calendrier « Vendredi Party », un lien secret propre à toi : il n'y lit que les événements que tu y as ajoutés et, une fois l'agenda activé, ceux où tu réponds Présent ou Peut-être (ou votes Oui / Si besoin pour une date), jamais un événement que tu ne vois plus dans Party (titre, description, lieu, date, ou tes dates votées tant que la date n'est pas fixée) et suit leurs changements. Party note seulement quand ton agenda l'a relu pour la dernière fois, pour savoir qu'il est abonné. Tout disparaît avec ton compte.",
-            "App iPhone, seulement si tu l'autorises, si l'agenda abonné n'est pas disponible : l'app met elle-même les dates d'un sondage dans ton calendrier, puis, une fois la date fixée, garde la bonne et retire les autres. Elle ne lit que les entrées qu'elle a ajoutées ; rien de ton calendrier ne quitte ton iPhone.",
+            "App iPhone, seulement si tu l'autorises, si l'agenda abonné n'est pas disponible : l'app met elle-même les dates d'un sondage dans ton calendrier, puis, une fois la date fixée, garde la bonne et retire les autres. Elle ne garde ni n'envoie rien d'autre ; rien de ton calendrier ne quitte ton iPhone.",
         ]),
         ("Jeux, musique et stats", [
             "Pendant une soirée, ton prénom et tes réponses de jeu sont visibles par les joueurs de la partie (et sur l'écran de la soirée). Les titres que tu proposes sont envoyés à Spotify pour être recherchés et joués sur le compte de l'hôte, avec ton prénom visible dans la file.",

@@ -1,3 +1,6 @@
+// Compilé dans la BETA seulement (et les recettes E2E_HOOKS) : absent du binaire de l'App Store (Pronos, contrôle Apple du 26.11).
+#if BETA || E2E_HOOKS
+
 import SwiftUI
 
 // Pronos v2 (18.11.2026, direction C « Néon club », maquettes 1-* et 4-classement) : « Mes pronos », page Pronos d'un
@@ -2344,3 +2347,4 @@ struct PronoRouteView: View {
         .preferredColorScheme(.dark)
     }
 }
+#endif

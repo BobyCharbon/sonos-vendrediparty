@@ -1,3 +1,6 @@
+// Compilé dans la BETA seulement (et les recettes E2E_HOOKS) : absent du binaire de l'App Store (Souvenirs, contrôle Apple du 26.11).
+#if BETA || E2E_HOOKS
+
 import Foundation
 
 /// Souvenirs (avis 74d36b93e7bd, 24.11.2026, migration 20261124090000) : l'appareil photo de la soirée. La fiche de
@@ -291,3 +294,4 @@ enum SouvenirReportReason: String, CaseIterable, Identifiable {
         }
     }
 }
+#endif

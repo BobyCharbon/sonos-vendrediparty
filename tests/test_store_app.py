@@ -745,8 +745,8 @@ def test_round_one_native_app_souvenirs_bridge_terms_and_shared_expense_reports(
     sheets = (ios / "Settings/Moderation/ModerationSheets.swift").read_text(encoding="utf-8")
     assert "Tolérance zéro : un contenu choquant est retiré et son auteur peut être banni." in sheets
     assert "Les points des jeux n'ont aucune valeur en argent." in sheets and "objets du jeu" not in sheets
-    assert ("Sans elles, tu peux continuer à découvrir les événements publics. Écrire, publier, choisir ton surnom ou "
-            "jouer avec d'autres te les redemanderont.") in sheets
+    assert ("Sans elles, tu gardes les jeux. Écrire, publier, choisir ton surnom ou "
+            "répondre à un événement te les redemanderont.") in sheets
     assert "Écris à l'équipe de Party" in (ios / "Settings/SettingsView.swift").read_text(encoding="utf-8")
     # Pot commun : Signaler (dépense, ticket) et CGU avant d'enregistrer.
     editor = (ios / "Tricount/ExpenseEditor.swift").read_text(encoding="utf-8")
@@ -768,7 +768,7 @@ def test_round_one_store_permission_texts_never_name_souvenirs_nor_the_agenda():
         assert "Souvenirs" not in text and "Agenda" not in text and "chiffrée" not in text, key
     assert store["NSCalendarsFullAccessUsageDescription"] == store["NSCalendarsUsageDescription"] == (
         "Pour mettre les dates d'un sondage dans ton calendrier, puis retirer celles qui ne sont pas retenues. "
-        "Party ne lit que les entrées qu'elle a ajoutées ; rien ne quitte ton iPhone.")
+        "Party ne garde ni n'envoie rien d'autre ; rien ne quitte ton iPhone.")
     assert "Agenda" in beta["NSCalendarsFullAccessUsageDescription"] and "Souvenirs" in beta["NSCameraUsageDescription"]
     assert 'PARTY_VARIANT: "STORE$(PARTY_BUNDLE_SUFFIX:c99extidentifier)"' in party["text"]
 
@@ -810,3 +810,37 @@ def test_apple_check_round_two_texts_say_what_the_build_really_does():
                   "20261126100000", "20261126120000", "20261126130000", "20261126140000", "send-web-push", "xcodegen",
                   "nettoyage de la démo appliqué"):
         assert words in checklist, words
+
+
+def test_round_two_beta_features_are_not_compiled_into_the_app_store_binary():
+    # Contrôle Apple du 26.11, tour 2 : Souvenirs, Pronos, Agenda et l'écran du Purify Test ne sont compilés que dans la
+    # BETA (PARTY_SWIFT_CONDITIONS=BETA) et les recettes E2E_HOOKS ; le binaire de l'App Store n'en contient rien.
+    ios = _root() / "ios" / "Party"
+    for folder in ("Souvenirs", "Pronos", "Agenda"):
+        for f in (ios / folder).glob("*.swift"):
+            lines = f.read_text(encoding="utf-8").splitlines()
+            assert lines[1] == "#if BETA || E2E_HOOKS" and lines[-1] == "#endif", f
+    # Jetons partagés (Discussions, Groupes, modération) sortis de Pronos/ : compilés partout.
+    shared = (ios / "Chats/Neon/NeonShared.swift").read_text(encoding="utf-8")
+    for name in ("enum PronoTheme", "struct PronoFace", "struct PronoAvatar:", "struct PronoAvatarStack", "struct PronoKitPressStyle"):
+        assert name in shared and "#if BETA" not in shared, name
+    stats = (ios / "Settings/Account/AnnouncementsView.swift").read_text(encoding="utf-8")
+    purify = stats.index("@ViewBuilder private var purify")
+    assert stats.rfind("#if BETA", 0, purify) > stats.rfind("#endif", 0, purify)
+    assert "#else\n            BrainStatsSections(store: store, openGames: openGames)" in stats
+
+
+def test_round_two_pot_payment_toggle_and_group_report():
+    ios = _root() / "ios" / "Party"
+    view = (ios / "Tricount/TricountGroupView.swift").read_text(encoding="utf-8")
+    assert "Montrer mes moyens de paiement dans ce pot" in view and "ton IBAN et tes liens" in view
+    store = (ios / "Tricount/TricountStore.swift").read_text(encoding="utf-8")
+    assert "showPaymentMissing = true" in store  # fonction absente : caché, sans message
+    assert '"/api/account/tricount/show-payment"' in (ios / "Tricount/TricountModels.swift").read_text(encoding="utf-8")
+    page = (ios / "Chats/Groups/GroupPageView.swift").read_text(encoding="utf-8")
+    assert "ReportTarget(kind: .group, id: page.group.id" in page and "Signaler le groupe" in page
+    assert 'case group\n' in (ios / "Settings/Moderation/ModerationModels.swift").read_text(encoding="utf-8")
+    profile = (ios / "Settings/ProfileView.swift").read_text(encoding="utf-8")
+    assert "ProfileRules.missingText" in profile and "les autres à te reconnaître" in profile
+    for f in ("Contacts/ContactsViews.swift", "Contacts/FriendsView.swift"):
+        assert "empreinte chiffrée" not in (ios / f).read_text(encoding="utf-8"), f

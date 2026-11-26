@@ -20,6 +20,13 @@ struct ProfileView: View {
 
     var body: some View {
         Form {
+            // « Enregistrer » grisé : on dit ce qui manque, juste dessous (comme le web, IdentityForm).
+            if filled, let missing = ProfileRules.missingText(first: first, last: last, nickname: nickname) {
+                Section {
+                    Label(missing, systemImage: "exclamationmark.circle").font(.footnote).foregroundStyle(.orange)
+                        .accessibilityIdentifier("profile-missing")
+                }
+            }
             photoSection
             Section {
                 TextField("Prénom", text: $first).textContentType(.givenName)
@@ -98,7 +105,7 @@ struct ProfileView: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 6)
         } footer: {
-            Text("Facultative, mais vivement conseillée : elle aide le groupe à te reconnaître, dans les jeux comme dans les événements. La photo est recadrée en carré.")
+            Text("Facultative, mais vivement conseillée : elle aide les autres à te reconnaître, dans les jeux comme dans les événements. La photo est recadrée en carré.")
         }
     }
 

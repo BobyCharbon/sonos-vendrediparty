@@ -63,9 +63,12 @@ final class SettingsStore: ObservableObject {
     private(set) lazy var groups = GroupsStore(api: api, web: web)
     private(set) lazy var tricount = TricountStore(api: api, web: web)
     /// Réglages › Autres apps › Agenda : pastille des demandes de rendez-vous, calendriers de l'iPhone (PartyNative.agenda).
+    /// Agenda et Pronos : BETA seulement, absents du binaire de l'App Store (contrôle Apple du 26.11).
+    #if BETA || E2E_HOOKS
     private(set) lazy var agenda = AgendaStore(api: api, web: web)
     /// Réglages › Autres apps › Pronos (17.11) : pastille « à jouer / à dévoiler » et écrans natifs.
     private(set) lazy var pronos = PronosStore(api: api, web: web)
+    #endif
     private(set) lazy var aiEvent: AIEventStore = {
         let store = AIEventStore(api: api, web: web)
         store.moderation = moderation  // CGU exigées : feuille « Avant de publier » puis nouvel essai

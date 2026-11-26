@@ -218,6 +218,30 @@ final class TricountStore: ObservableObject {
         await refreshOverview()
     }
 
+    /// Le serveur ne connaît pas encore « montrer mes moyens de paiement » : l'interrupteur se cache, sans erreur.
+    @Published private(set) var showPaymentMissing = false
+
+    /// Mon interrupteur dans ce pot : nil = caché (serveur d'avant, ou fonction absente).
+    var myShowPayment: Bool? {
+        guard !showPaymentMissing, let g = group, let me = g.me else { return nil }
+        return g.member(me)?.show_payment
+    }
+
+    func setShowPayment(_ on: Bool) async {
+        guard let id = group?.id, let token = await web?.accountToken() else { return }
+        busy = true
+        defer { busy = false }
+        do {
+            group = try await api.setTricountShowPayment(token: token, id: id, on: on)
+        } catch PartyAPIError.termsRequired {
+            needsTerms = true
+        } catch PartyAPIError.server {
+            showPaymentMissing = true  // route ou fonction absente : caché sans message
+        } catch {
+            notice = error.localizedDescription
+        }
+    }
+
     func loadPayment() async { await run(loading: payment == nil) { token in payment = try await api.tricountPayment(token: token) } }
 
     func savePayment(_ p: TC.Payment) async -> Bool {

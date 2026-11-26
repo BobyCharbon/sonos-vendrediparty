@@ -1,3 +1,6 @@
+// Compilé dans la BETA seulement (et les recettes E2E_HOOKS) : absent du binaire de l'App Store (Pronos, contrôle Apple du 26.11).
+#if BETA || E2E_HOOKS
+
 import SwiftUI
 import UIKit
 
@@ -814,3 +817,4 @@ struct PronoRevealView: View {
         }
     }
 }
+#endif

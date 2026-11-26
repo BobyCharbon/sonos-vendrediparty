@@ -200,6 +200,8 @@ struct GroupPage: Decodable, Equatable {
     var showsPronos: Bool { member && !group.system }
     var canLeave: Bool { member && !group.system && group.createdBy != me }
     var canReportPhoto: Bool { group.photo != nil && !group.system && !manage }
+    /// « Signaler le groupe » (son nom, contrôle Apple du 26.11) : jamais Membres Vendredi Party, jamais qui le gère.
+    var canReportGroup: Bool { !group.system && !manage }
     var myName: String { members.first(where: \.me)?.name ?? "" }
 }
 

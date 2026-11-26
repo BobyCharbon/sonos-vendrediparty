@@ -1,3 +1,6 @@
+// Compilé dans la BETA seulement (et les recettes E2E_HOOKS) : absent du binaire de l'App Store (Souvenirs, contrôle Apple du 26.11).
+#if BETA || E2E_HOOKS
+
 import SwiftUI
 
 /// `PartyNative.souvenirs.camera(eventId)` : l'appareil photo de la soirée, plein écran (maquette v2, écran 3).
@@ -362,3 +365,4 @@ struct SouvenirCameraView: View {
         return (error as? LocalizedError)?.errorDescription ?? "Ça n'a pas marché. Réessaie dans un instant."
     }
 }
+#endif

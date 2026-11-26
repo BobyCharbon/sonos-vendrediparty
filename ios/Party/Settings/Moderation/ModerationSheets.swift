@@ -178,7 +178,7 @@ struct TermsAcceptSheet: View {
                         .font(.body).foregroundStyle(PronoTheme.t2).padding(.vertical, 6)
                         .accessibilityIdentifier("terms-later")
                     // Nouvel arrivant : il sait ce qu'il garde sans elles, rien ne le bloque (contrôle du 26.11).
-                    Text("Sans elles, tu peux continuer à découvrir les événements publics. Écrire, publier, choisir ton surnom ou jouer avec d'autres te les redemanderont.")
+                    Text("Sans elles, tu gardes les jeux. Écrire, publier, choisir ton surnom ou répondre à un événement te les redemanderont.")
                         .font(.footnote).foregroundStyle(PronoTheme.t2).multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("terms-later-hint")

@@ -302,6 +302,16 @@ enum ProfileRules {
         return !clean(first).isEmpty && !clean(last).isEmpty && !nick.isEmpty
             && (nick.count <= nicknameLength || nick == clean(saved))
     }
+
+    /// Ce qui manque pour enregistrer, comme le web (IdentityForm `missingText`) : « Écris ton prénom et ton surnom
+    /// pour continuer. » ; nil quand rien ne manque.
+    static func missingText(first: String, last: String, nickname: String) -> String? {
+        let missing = [(first, "ton prénom"), (last, "ton nom"), (nickname, "ton surnom")]
+            .filter { clean($0.0).isEmpty }.map(\.1)
+        guard let lastItem = missing.last else { return nil }
+        let list = missing.count > 1 ? missing.dropLast().joined(separator: ", ") + " et " + lastItem : lastItem
+        return "Écris \(list) pour continuer."
+    }
 }
 
 /// Abonnements (POST /api/account/subscriptions) : catégories et tags actifs, et ceux que le membre suit.

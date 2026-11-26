@@ -1,3 +1,6 @@
+// Compilé dans la BETA seulement (et les recettes E2E_HOOKS) : absent du binaire de l'App Store (Agenda, contrôle Apple du 26.11).
+#if BETA || E2E_HOOKS
+
 import Combine
 import EventKit
 import Foundation
@@ -209,3 +212,4 @@ final class AgendaStore: ObservableObject {
         try await api.agendaRPC(token: token, fn: fn, args: args)["result"]
     }
 }
+#endif
