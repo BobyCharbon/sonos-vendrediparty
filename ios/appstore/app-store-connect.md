@@ -10,7 +10,7 @@ drapeaux de prod lus sur https://party.bobycharbon.ch/api/features : `compagnon:
 | Champ | Valeur |
 |---|---|
 | Nouveautés (What's New) | **Rien** : 1.0.0 est la première version, Apple n'affiche pas ce champ. |
-| Notes pour la revue (App Review Information › Notes) | Copier `ios/appstore/review-notes.txt` (3997 caractères, limite 4 000 ; à jour au 26.11.2026 (contrôle Apple, tour 1) ; avant : 19.11.2026 : Discussions v2, groupes et discussion d'événement natifs (réservée à Présent / Peut-être) ; « Not in this version » : Pronos, Agenda, compagnon, jamais ouverts par ce build). |
+| Notes pour la revue (App Review Information › Notes) | Copier `ios/appstore/review-notes.txt` (3996 caractères, limite 4 000 ; à jour au 26.11.2026 (contrôle Apple, tour 2 : « Mes amis dans Party », Activité en direct facultative de la Musique, Souvenirs dans « Not in this version », moyens de paiement du Pot commun cachés par défaut et « Signaler ») ; avant : 19.11.2026 : Discussions v2, groupes et discussion d'événement natifs (réservée à Présent / Peut-être) ; « Not in this version » : Pronos, Agenda, compagnon, Souvenirs, jamais ouverts par ce build). |
 | URL d'assistance (Support URL) | `https://party.bobycharbon.ch/support` (page d'assistance : contact support@vendrediparty.ch, éditeur, questions fréquentes ; 25.11) |
 | URL de confidentialité (Privacy Policy URL) | `https://party.bobycharbon.ch/events/privacy?app=ios` (texte de l'app App Store, sans bar ni Pronos ; 25.11) |
 | URL marketing | Vide. **Jamais** `vendrediparty.ch` : ce domaine n'a pas de site (aucun enregistrement A), seulement la messagerie. |
@@ -41,8 +41,10 @@ Les deux pages sont dessinées en JavaScript : `curl` reçoit une page sans text
 
 À faire avant l'envoi :
 - Fait le 09.11 (prod) : « Apple-test » est **Guest+**, profil complet (prénom Apple, nom Review, photo neutre « AR »). La photo de profil est facultative depuis le 09.11.
-- Guest+ n'a pas `events.publish_direct` : ses événements partent « pour validation ». Prévoir de valider (ou
-  refuser) rapidement les propositions d'« Apple-test » pendant la revue.
+- Guest+ n'a pas `events.publish_direct`, mais depuis les groupes libres (22.11) un événement réservé à un de ses
+  groupes (« Démo Apple ») est publié aussitôt, sans validation du site. Seuls un événement public, Membres Vendredi
+  Party ou « Sur invitation » sans groupe partent « pour validation » : prévoir de valider (ou refuser) rapidement ces
+  propositions d'« Apple-test » pendant la revue.
 - Vérifier que le code fixe marche encore en production (connexion sur un iPhone avec l'app App Store/TestFlight) et
   que le plafond mensuel de l'IA n'est pas atteint.
 - Facultatif mais utile : la Musique (sans onglet dans l'app App Store depuis le 25.11) ne s'essaie qu'avec une soirée en
@@ -98,7 +100,7 @@ publicité, aucun SDK d'analyse. Pour chaque type ci-dessous : **lié à l'ident
 |---|---|---|---|
 | Contact Info | Name | Prénom, nom, surnom du compte | oui |
 | Contact Info | Phone Number | Connexion par SMS | oui |
-| Financial Info | **Payment Info** | IBAN et titulaire du compte (organisateur, Pot commun) : coordonnées de paiement (26.11) | **à ajouter** au manifeste (`NSPrivacyCollectedDataTypePaymentInfo`) au prochain build ; à cocher dans App Store Connect |
+| Financial Info | **Payment Info** | IBAN et titulaire du compte (organisateur, Pot commun) : coordonnées de paiement (26.11) | oui (`NSPrivacyCollectedDataTypePaymentInfo`, déjà dans le manifeste) ; à cocher dans App Store Connect |
 | Financial Info | Other Financial Info | Liens Twint/PayPal/Revolut de l'organisateur et du Pot commun | oui |
 | Contacts | Contacts | Empreintes chiffrées des numéros du répertoire comparées (rien n'est gardé) | oui (prudent : non stocké, donc facultatif, mais le garder est plus sûr) |
 | User Content | Photos or Videos | Photo de profil, d'événement, ticket du Pot commun, captures données à l'IA | oui |
@@ -109,12 +111,21 @@ publicité, aucun SDK d'analyse. Pour chaque type ci-dessous : **lié à l'ident
 | Identifiers | Device ID | Identifiant d'invité tiré au hasard, jeton de notifications APNs, inscription Wallet | oui |
 | Usage Data | Product Interaction | Journal d'usage de l'IA (plafond mensuel), journal admin | oui |
 | Diagnostics | **Other Diagnostic Data** | Modèle de l'appareil, version d'iOS et de l'app joints à chaque avis (« Ton avis ») | oui (ajouté le 14.11) |
+| User Content | **Audio Data** | Messages vocaux des Discussions | oui (16.11) |
+| User Content | **Customer Support** | « Ton avis » (idées, bugs) | oui (16.11) |
+| Purchases | **Purchase History** | « J'ai payé » d'un événement (et commandes du bar, sur le web seulement) | oui (16.11) |
 
 Pas collecté (à laisser décoché) : e-mail, adresse postale, localisation (aucun CoreLocation ; les adresses d'événement
 et la ville du covoiturage sont du contenu), santé, historique de navigation, historique de recherche (la recherche de
 titres n'est pas gardée), données sensibles (les profils par catégorie de Purify Test ne sont jamais gardés,
 `purity.scrub`), audio : **à cocher depuis le 16.11** (Audio Data : messages vocaux des Discussions, allumées en prod),
 Crash Data / Performance Data, publicité.
+
+**26.11.2026 (contrôle Apple, tour 2), fait foi** : le manifeste `ios/Party/PrivacyInfo.xcprivacy` déclare
+exactement **16 types**, tous liés à l'identité, sans suivi, pour le fonctionnement de l'app : Phone Number, Name,
+Photos or Videos, Contacts, Emails or Text Messages, Other User Content, Gameplay Content, User ID, Device ID, Product
+Interaction, Other Diagnostic Data, Other Financial Info, **Payment Info**, Audio Data, Purchase History, Customer
+Support. Cocher exactement ces 16 dans App Store Connect (le tableau ci-dessus les reprend tous). Historique :
 
 **État au 14.11.2026** : le manifeste `ios/Party/PrivacyInfo.xcprivacy` déclare exactement ces 12 types (Phone,
 Name, Photos, Contacts, Emails/Text, Other User Content, Gameplay Content, User ID, Device ID, Product Interaction,

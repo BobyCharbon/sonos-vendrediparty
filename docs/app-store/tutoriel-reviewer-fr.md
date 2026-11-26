@@ -16,11 +16,13 @@ et bar allumés, Zicou éteint). Ce qui ne l'est pas porte la marque **À VÉRIF
 - Second compte de démo **« Apple-test 2 »** (Discussions v2, 18.11) : autre numéro à code fixe, sans groupe ni événement
   privé en commun avec Apple-test, qui lui a envoyé une **demande de message** en attente (point 4 bis de l'encadré).
 - Guest+ n'a pas « Publier sans validation » ni « Voir les événements » (il voit les événements publics et ceux où il est
-  invité) : ses nouveaux événements attendent une validation. Valider vite pendant la revue.
+  invité). Groupes libres (22.11) : un événement réservé à « Démo Apple » est publié aussitôt ; un événement public ou
+  « Sur invitation » sans groupe attend une validation. Valider vite pendant la revue.
 - Corrections annoncées par le coordinateur (décrites ci-dessous comme en place) — **À VÉRIFIER en prod avant l'envoi** :
   « Bloquer » masque aussitôt les messages et prévient les modérateurs ; bar payant seulement sur un événement non public
   (bar offert partout) ; articles tabac / drogues refusés ; classements des jeux sans gorgées ; CGU « 18 ans et plus » +
-  section bar / paiements ; politique de confidentialité avec une section bar.
+  section paiements. Les sections bar des CGU et de la politique n'existent que sur le web : jamais avec `?app=ios`
+  ni dans le nouveau build (contrôle Apple, tour 2).
 
 ## 1. Plan de l'app
 
@@ -41,6 +43,10 @@ L'app s'ouvre sur **Événements** (sauf au milieu d'une partie de jeu). Barre d
 4. Le dernier onglet devient **Réglages** (profil en tête) ; l'onglet **Discussions** apparaît.
 
 Un nouveau compte passe ensuite par « Faisons connaissance » (prénom, nom, surnom de 12 caractères au plus, photo facultative).
+Pourquoi le nom : Party sert à des soirées réelles, souvent chez quelqu'un ; le nom complet permet aux admins de savoir à
+qui est un compte (validation des nouveaux comptes, signalements). Prénom et nom ne sont visibles que par la personne et
+les admins (« 🔒 Ton prénom et ton nom ne sont visibles que par toi et les admins »), sauf si elle allume **Afficher mon
+nom et prénom** (Réglages › Mon profil, éteint par défaut).
 
 ## 3. Événements
 
@@ -69,13 +75,17 @@ La proposition attend dans **Brouillons** (« En attente de validation »).
 infos » › lieu à confirmer sur la carte › **C'est juste ?** › **Oui, continuer** › page web « Qui est invité » : un
 toucher sur **🌍 Public + lien public**, **👥 Des groupes** (cocher puis « Publier pour … ») ou **✉️ Sur invitation
 seulement** publie (ou « Envoyer pour validation »). L'IA ne choisit jamais qui est invité ni qui voit l'événement,
-n'allume jamais billets, covoiturage ou annonce au groupe, et ne choisit jamais le mode de paiement. 📸 (étape 1)
+n'allume jamais billets, covoiturage ou annonce au groupe, et ne choisit jamais le mode de paiement. Les membres
+qu'on peut inviter lui sont envoyés en alias (P1, P2…), jamais par leur surnom. 📸 (étape 1)
 
 ### 3.5 Inviter
 Carte **Invités** › **+ Inviter** › **Une personne** ou **Plusieurs** (sans limite par défaut, − / + pour les places),
 nom du lien facultatif › **Partager le lien…**. Chaque invité voit les **chiffres** seulement et gère ses propres liens.
 Événement non public : la personne venue par le lien d'un invité attend dans **À accepter**. Groupes : Réglages ›
-Groupes › un groupe › **Inviter avec un lien**. 📸 (feuille Inviter)
+Groupes › un groupe › **Inviter avec un lien**. Amis : Réglages › **Mes amis dans Party** (facultatif, Contacts
+demandé après une explication) : contacts déjà sur Party (empreinte des numéros faite sur l'iPhone, aucun nom ne sort),
+et contacts pas encore sur Party, chacun avec son bouton qui ouvre Messages d'Apple avec mon lien personnel : je relis et
+j'envoie moi-même, un contact à la fois. Aucun « tout sélectionner » ; Party n'envoie rien. 📸 (feuille Inviter)
 
 ### 3.6 Répondre
 **Présent** · **Peut-être** · **Absent** (le libellé à l'écran est « Absent »). L'heure de chaque réponse s'affiche.
@@ -127,7 +137,8 @@ Confidentialité › **Personnes bloquées**. 📸
 
 ## 5. Groupes
 Réglages › **Groupes** : mes groupes, **Nouveau groupe**, membres, **Inviter avec un lien**, « Montrer mon numéro dans ce
-groupe » (caché par défaut).
+groupe » (caché par défaut). Page d'un groupe : **Signaler le groupe** (son nom) et
+**Signaler la photo du groupe**.
 
 ## 6. Jeux
 Onglet **Jeux** › **Salle de jeux** › **Créer une salle** (ou **Code** › **Rejoindre** : 4 chiffres = un jeu) ; dans la
@@ -143,9 +154,12 @@ catégorie « 🍻 Alcool »)
 
 ## 7. Musique
 **Pas d'onglet Musique dans l'app App Store** (25.11). Pendant une soirée chez l'hôte : Jeux › **Code** › le code de la
-soirée à **6 chiffres** (ou le QR de l'hôte) ouvre l'écran natif Musique › « Titre, artiste ou lien » › ajouter. Il faut une soirée en cours (enceintes et compte de musique de l'hôte) : aucune vidéo n'est jointe (26.11). L'Activité en direct « Me prévenir
-quand mon titre passe » n'est plus citée à Apple (contrôle du 26.11, 2.1 : impossible à essayer sans soirée en cours) ;
-la Musique reste décrite (sans démo) pour ne rien cacher (2.3.1).
+soirée à **6 chiffres** (ou le QR de l'hôte) ouvre l'écran natif Musique › « Titre, artiste ou lien » › ajouter. Il faut une soirée en cours (enceintes et compte de musique de l'hôte) : aucune vidéo n'est jointe (26.11). Activité en direct : elle EST dans le build App Store
+(PartyWidgets, `TrackLiveActivity`) ; contrôle Apple, tour 2 : on la DÉCRIT comme facultative (« optional Live Activity
+for your song; it ends by itself ») plutôt que de la taire : décompte « Ton titre arrive » tant qu'un de mes titres est
+dans la file, qui se termine seul une fois le titre passé, à couper dans Réglages de l'iPhone › Party. « Me prévenir
+quand mon titre passe » est une notification (interrupteur sur l'écran Musique). La Musique reste décrite (sans démo)
+pour ne rien cacher (2.3.1).
 
 ## 8. Réglages
 - **Notifications** : un interrupteur par type (Général, Jeux, Ton avis, Événements, Discussions des groupes,
@@ -153,7 +167,8 @@ la Musique reste décrite (sans démo) pour ne rien cacher (2.3.1).
 - **Pot commun** : dépenses partagées (rien n'est payé dans l'app), scan de ticket (IA facultative, avec accord). On y
   entre par son lien, ou d'office en répondant **Présent** (ou noté Présent par l'organisateur) à un événement dont l'organisateur a choisi le
   pot (on le quitte
-  à tout moment : Réglages › Pot commun › **Quitter ce pot commun**) ; les membres voient le nom de chacun et les moyens de paiement que chacun a choisi d'indiquer. Ajouter une dépense ou
+  à tout moment : Réglages › Pot commun › **Quitter ce pot commun**) ; les membres voient le nom de chacun ; les moyens de paiement d'un membre restent cachés dans ce pot tant qu'il ne
+  choisit pas **Montrer mes moyens de paiement dans ce pot**. Ajouter une dépense ou
   une photo de ticket demande les CGU ; chaque dépense et photo de ticket a **Signaler**.
 - **Mes amis dans Party**, **Mes stats de jeu**, **Ton avis** (selon le rôle ; écrit à l'équipe de Party, l'éditeur).
 - **Confidentialité** : Noms de mes contacts, **Personnes bloquées**, **Conditions d'utilisation** (contact
@@ -163,7 +178,8 @@ la Musique reste décrite (sans démo) pour ne rien cacher (2.3.1).
 
 ## 9. Ce qui vient du serveur (à assumer devant Apple)
 Événements et Jeux = le site `party.bobycharbon.ch` dans une WKWebView ; l'app App Store y reçoit toujours sa version à elle
-(sans jeux à boire, bar, Casino / Blackjack ni onglet Musique), pour tous ses utilisateurs ; natif : barre d'onglets,
+(sans jeux à boire, bar, Casino / Blackjack ni onglet Musique), pour tous ses utilisateurs ; Pronos, Agenda, Zicou et
+Souvenirs ne s'ouvrent jamais dans ce build (« Not in this version ») ; natif : barre d'onglets,
 écran Musique (ouvert par Jeux › Code), Réglages, Discussions, Groupes, Ton avis, assistant IA, Pot commun, écran hors ligne, bandeau d'annonce, QR,
 Cartes, Calendrier, Contacts, extension Partager, notifications. La page n'appelle que les fonctions
 natives prévues (`window.PartyNative`) ; tout autre site s'ouvre dans Safari. Toute grosse fonction livrée par le site
