@@ -27,6 +27,7 @@ import { SheetBackdrop } from './SheetGesture';
 import { LinkedText } from './LinkedText';
 import { ReportSheet } from './ReportSheet';
 import { RsvpButtons } from './RsvpButtons';
+import { PotPaymentToggle } from './PotPaymentToggle';
 import { termsLater, useTermsGate } from './TermsSheet';
 import { Avatar, Button, Chip, ErrorText, Input, Meter, Reveal, s, Section, T } from './ui';
 import { NameLinks, type NamedPerson } from './NameLinks';
@@ -273,6 +274,7 @@ export function RsvpCard({
           <T size={13} color={colors.textSoft}>💸 {potNotice(mine?.status === 'yes' && !waiting ? 'in' : stillInPot ? 'still' : 'out')}</T>
         </View>
       ) : null}
+      {event.pot_enabled && ((mine?.status === 'yes' && !waiting) || stillInPot) ? <PotPaymentToggle eventId={event.id} me={me} /> : null}
       {askGroup && !closed ? <GuestGroupCheck card={guestGroup!.group!} value={joinGroup} onChange={setJoinGroup} disabled={!!busy} /> : null}
       {mine && guestGroup && !organizer ? <GuestGroupJoin eventId={event.id} data={guestGroup} onJoined={reloadGuestGroup} /> : null}
       {plusOnes && mine?.status === 'yes' ? (

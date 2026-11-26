@@ -46,7 +46,7 @@ export default function AccountSettings() {
     <Screen edges={[]}>
       <Section title="Supprimer mon compte">
         <T>Cette action est définitive. Ton profil, tes messages, tes votes, tes réponses, tes préférences, tes stats de jeux et tes accords pour l’IA seront supprimés.</T>
-        <T>Les événements que tu as créés et leurs discussions seront également supprimés pour le groupe.</T>
+        <T>Les événements que tu as créés et leurs discussions seront également supprimés, pour tout le monde.</T>
         {profile?.role === 'admin' ? <T muted>Si tu es le dernier administrateur, désigne d’abord un autre administrateur dans la gestion des membres.</T> : null}
         <Field label="Écris SUPPRIMER pour confirmer" value={confirmation} onChangeText={setConfirmation} autoCapitalize="characters" autoCorrect={false} editable={!busy} maxLength={9} />
         <ErrorText error={error} />

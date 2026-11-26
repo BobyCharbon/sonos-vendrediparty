@@ -227,6 +227,11 @@ export default function GroupPage() {
             <Button small variant="ghost" label={allMembers ? 'Moins de membres' : `Voir les ${members.length} membres`} onPress={() => setAllMembers(!allMembers)} />
           ) : null}
           <T muted size={12} style={{ textAlign: 'center' }}>{createdLine(false, group.created_at, null).replace('Événement', 'Groupe')}</T>
+          {/* Le nom d'un groupe est un contenu (Apple 1.2) : on le signale comme sa photo (type « group », cible = le groupe). */}
+          {!system && !manage ? (
+            <Button small variant="ghost" label="Signaler le groupe"
+              onPress={() => setReport({ kind: 'group', id: group.id, label: 'le groupe' })} />
+          ) : null}
           {group.photo_path && !system && !manage ? (
             <Button small variant="ghost" label="Signaler la photo du groupe"
               onPress={() => setReport({ kind: 'group_photo', id: group.id, label: 'la photo du groupe' })} />

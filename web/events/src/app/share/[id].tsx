@@ -74,7 +74,7 @@ export default function PublicEventScreen() {
       <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center', gap: 12 }}>
         <Stack.Screen options={{ title: '' }} />
         <Title>{profile.status === 'banned' ? 'Accès retiré' : 'Compte en attente'}</Title>
-        <T muted>{profile.status === 'banned' ? 'Ton accès a été retiré par un admin du groupe.' : 'Ton compte n’est pas encore actif : réessaie un peu plus tard.'}</T>
+        <T muted>{profile.status === 'banned' ? 'Ton accès a été retiré par l’équipe de Party.' : 'Ton compte n’est pas encore actif : réessaie un peu plus tard.'}</T>
       </Screen>
     );
   }

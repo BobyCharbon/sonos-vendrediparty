@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { useTermsGate } from './TermsSheet';
+import { termsLater, useTermsGate } from './TermsSheet';
 import { Avatar, Button, Card, ErrorText, Field, T } from './ui';
 import {
   CarpoolError, MAX_SEATS, carpoolSummary, drive, drop, fetchCarpool, freeSeats, leave, pick, seek, takeSeat,
@@ -42,7 +42,7 @@ export function CarpoolCard({ eventId, answer, refreshKey }: { eventId: string; 
 
   async function run(job: () => Promise<Carpool>, withCity = false): Promise<void> {
     if (busy) return;
-    if (withCity && !terms.accepted && !(await terms.ensure())) return;
+    if (withCity && !terms.accepted && !(await terms.ensure())) return setError(termsLater('donner ta ville de départ'));
     setBusy(true);
     setError(null);
     try {
