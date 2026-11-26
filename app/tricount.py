@@ -42,8 +42,11 @@ class Tricount:
         signed = self._receipts(token, [e.get("receipt_path") for e in g.get("expenses", [])]) if receipts else {}
         members = []
         for m in g.get("members", []):
-            pay = m.get("payment") or {}
+            # Moyens de paiement d'un autre membre : seulement s'il les montre (la base le garantit déjà).
+            pay = (m.get("payment") or {}) if m.get("show_payment") or m["id"] == g.get("me") else {}
             members.append({"id": m["id"], "name": m["name"], "linked": m.get("linked"), "left": m.get("left"), "me": m["id"] == g.get("me"),
+                            # Moyens de paiement montrés aux autres membres (geste de la personne, migration 20261126140000).
+                            "show_payment": bool(m.get("show_payment")),
                             "balance_cents": s["balances"].get(m["id"], 0),
                             "payment": {"iban": tc.format_iban(pay["iban"]) if pay.get("iban") else None, "holder": pay.get("holder"),
                                         "links": pay.get("links") or {}, "note": pay.get("note")} if pay else None})
@@ -127,6 +130,11 @@ class Tricount:
 
     def remove_member(self, token: str, grp: str, member: str) -> dict:
         self.admin._rpc(token, "tc_remove_member", {"member": member})
+        return self.state(token, grp)
+
+    def set_show_payment(self, token: str, grp: str, show: bool) -> dict:
+        """« Montrer mes moyens de paiement dans ce pot » : mon geste, pour CE pot (tc_set_show_payment)."""
+        self.admin._rpc(token, "tc_set_show_payment", {"p_group": grp, "p_on": bool(show)}, "Le réglage n'a pas été enregistré.")
         return self.state(token, grp)
 
     def leave(self, token: str, grp: str) -> dict:

@@ -12,7 +12,7 @@ from .group_chats import GroupChats
 
 UUID = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
 KINDS = ("group_message", "direct_message", "event_message", "profile", "profile_photo", "event", "group_photo",
-         "pet_name", "pet_item", "pet_offer", "pet_showcase", "pet_word", "souvenir", "tc_expense")
+         "pet_name", "pet_item", "pet_offer", "pet_showcase", "pet_word", "souvenir", "tc_expense", "group")
 REASONS = {
     "harassment": "Harcèlement",
     "shocking": "Contenu choquant",
@@ -108,9 +108,12 @@ class Moderation:
         group = [s.get("photo_path") for s in snaps if s.get("place") == "Photo du groupe"]
         # Photo Souvenirs signalée : la copie porte bucket « souvenirs » ; le fichier est sur le disque du serveur.
         souvenirs = [s.get("photo_path") for s in snaps if s.get("bucket") == "souvenirs"]
+        # Ticket d'une dépense du Pot commun : lisible par les modérateurs tant que le signalement est ouvert (26.11).
+        receipts = [s.get("photo_path") for s in snaps if s.get("bucket") == "tc-receipts"]
         photos = {**self.chats._sign([p for s in snaps for p in (s.get("photo_path"), s.get("audio_path"))
                                       if p and s.get("place") not in ("Profil", "Photo du groupe") and not s.get("bucket")], token),
-                  **self.admin._photos(group, token, "group-photos"), **self.souvenir_links(souvenirs, token)}
+                  **self.admin._photos(group, token, "group-photos"), **self.admin._photos(receipts, token, "tc-receipts"),
+                  **self.souvenir_links(souvenirs, token)}
         # Copie gardée au signalement (Discussions v2) : lisible par les modérateurs même si le message a disparu.
         evidence = self.admin._photos([(s.get("evidence") or {}).get(k) for s in snaps for k in ("photo", "audio")],
                                       token, "moderation-evidence")

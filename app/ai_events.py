@@ -2,7 +2,10 @@
 ses questions s'il manque quelque chose ; l'app montre le récapitulatif complet, cherche le lieu, puis la personne
 confirme. L'IA remplit et modifie TOUS les champs du formulaire web (EventForm) : date fixe ou sondage de dates, lieu,
 prix et paiement, places et liste d'attente, accompagnants, réponses, invités, co-organisateurs, tags, mini-sondages,
-qui amène quoi, pot commun, discussion, notification.
+qui amène quoi, discussion, notification. Jamais le pot commun, les billets ni le covoiturage (options de l'organisateur).
+Les noms des personnes que la personne peut inviter ne partent JAMAIS chez Anthropic (contrôle Apple du 26.11, tour 2) :
+l'IA écrit les noms tels qu'ils sont dits, le serveur les retrouve dans l'annuaire (resolve_people) ; les personnes déjà
+choisies (brouillon précédent, événement modifié) lui sont données sous un alias « P1 », « P2 »… retraduit à la réponse.
 
 L'événement est écrit avec la session de la personne (règles de la base) : l'IA ne peut rien faire de plus qu'elle.
 Deux étapes (demande de l'admin, 06.11) : 1. « La soirée » : l'IA comprend la soirée, sans jamais demander qui inviter,
@@ -86,16 +89,20 @@ Tu remplis TOUT le formulaire de l'événement, et tu le modifies quand la perso
   « {only} » si elle n'invite que des personnes nommées.
 - invitees : tu ne demandes JAMAIS qui inviter et tu n'inventes aucun invité : la personne choisit elle-même ses invités
   à l'étape suivante, après avoir confirmé la soirée. Seulement si elle cite spontanément des personnes à inviter, mets
-  leurs noms ici, parmi la liste des personnes (rapproche les noms mal dictés) : elles lui seront proposées, cochées, à
-  l'étape des invitations ; tu ne les invites pas toi-même. Sinon : liste vide.
-- organizers : co-organisateurs nommés, parmi la liste des personnes.
+  leurs noms ici, tels qu'elle les dit (prénom, ou prénom et nom ; corrige seulement une faute de dictée évidente) : le
+  serveur les retrouve parmi ses contacts, elles lui seront proposées, cochées, à l'étape des invitations ;
+  tu ne les invites pas toi-même. Sinon : liste vide.
+- organizers : co-organisateurs nommés, écrits de la même façon.
+- « P1 », « P2 »… désignent des personnes déjà choisies (leur nom ne t'est pas donné) : garde-les telles quelles, ou
+  retire-les si la personne le demande.
 - polls : les mini-sondages demandés (« un sondage pour savoir qui mange la fondue ou autre chose ») : question claire
   et options (« Fondue moitié-moitié », « Autre plat ») ; multiple : plusieurs réponses permises ; anonymous : votes
   cachés ; add_options : les invités peuvent ajouter des options (« ouvert », « chacun propose »).
 - bring : « qui amène quoi » : la liste de ce que l'organisateur demande (« Salade », « Dessert », « Chips »).
   Avec une quantité, mets le nombre en tête (« 15 pizzas », « 3 paquets de chips ») : elle sera partagée,
   chacun dira combien il en amène (« j'en prends 2 »). Sans nombre, une seule personne prend l'objet en entier.
-- pot : pot commun pour partager les dépenses.
+- Pot commun et covoiturage : tu ne les actives JAMAIS (aucun champ pour ça). Si on te le demande, dis dans summary
+  que l'organisateur les ouvre lui-même dans l'événement.
 - summary : une phrase qui résume l'événement tel que tu l'as compris, en tutoyant.
 - Billets QR : tu ne les actives JAMAIS (aucun champ pour ça). Si on te le demande, dis dans summary que
   l'organisateur active lui-même « Billets QR » dans l'événement, puis remet les billets aux présents.
@@ -112,7 +119,7 @@ demande les infos manquantes.
 - not_understood : ce que tu n'as pas compris ou pas pu placer, cité avec ce que tu en penses. Vide si tout est clair.
 
 S'il manque la date (ou les dates à voter), l'adresse complète (address_complete false), ou si un point est vraiment ambigu (deux dates possibles, une heure sans
-matin/soir évident, un co-organisateur dont le nom correspond à plusieurs personnes), status = « needs_info » et questions
+matin/soir évident), status = « needs_info » et questions
 = les questions précises, courtes, en tutoyant (une par point). Ne pose pas de question sur ce que tu peux déduire, ni
 sur qui inviter (c'est l'étape suivante, faite par la personne elle-même). Sinon status =
 « ready ». Garde toujours tout ce qui est déjà compris ; quand la personne répond ou corrige, applique exactement ce
@@ -122,6 +129,9 @@ Catégories : {categories}
 Tags : {tags}
 Groupes (audience) : {audiences}
 Personnes : {people}"""
+# Ce que l'IA lit à la place de l'annuaire (les noms restent chez nous).
+PEOPLE_HINT = ("(les noms ne te sont pas donnés : écris les personnes telles qu'elles sont dites ; « P1 », « P2 »… sont "
+               "des personnes déjà choisies)")
 
 
 EDITING = """
@@ -156,8 +166,9 @@ def schema(choices: dict[str, list[str]]) -> dict:
         "allow_maybe": flag, "rsvp_deadline": text, "show_participants": flag, "forum": flag, "notify": flag,
         "category": {"type": "string", "enum": choices["categories"] + [""]}, "tags": among("tags"),
         "audience": {"type": "string", "enum": choices["audiences"]},
-        "invitees": among("people"), "organizers": among("people"),
-        "polls": {"type": "array", "items": poll}, "bring": texts, "pot": flag,
+        # Noms tels qu'ils sont dits (ou alias « P1 »…) : l'annuaire n'est jamais envoyé (resolve_people).
+        "invitees": texts, "organizers": texts,
+        "polls": {"type": "array", "items": poll}, "bring": texts,
         "summary": text, "not_understood": texts,
     }
     return {"type": "object", "properties": properties, "required": list(properties), "additionalProperties": False}
@@ -292,7 +303,6 @@ def clean_draft(raw: dict, now: datetime, choices: dict[str, list[str]]) -> dict
         "organizers": [n for n in _texts(raw.get("organizers"), 80, 10) if n in choices["people"]],
         "polls": polls,
         "bring": _texts(raw.get("bring"), 80, 20),
-        "pot": bool(raw.get("pot")),
         "summary": _text(raw, "summary", 300),
         "cover_url": safe_url(raw.get("cover_url")) or "",  # image de la page lue (jamais inventée par l'IA)
         "not_understood": _texts(raw.get("not_understood"), 200, 5),
@@ -347,6 +357,33 @@ def draft_audience(draft: dict, o: "Options") -> str:
     return said if said in o.audiences else PUBLIC_AUDIENCE
 
 
+def _plain(text: str) -> str:
+    import unicodedata
+    text = unicodedata.normalize("NFKD", str(text or "")).encode("ascii", "ignore").decode()
+    return " ".join(re.sub(r"[^a-z0-9 ]", " ", text.casefold()).split())
+
+
+def resolve_person(said: str, aliases: dict[str, str], people: dict[str, str]) -> tuple[str, str]:
+    """Une personne dite → (nom de l'annuaire, '') ; sinon ('', phrase pour la personne). Alias « P3 » : la personne
+    déjà choisie ; nom complet exact, sinon un seul nom qui contient tous les mots dits (« Léa » → « Léa Martin »)."""
+    said = str(said or "").strip()
+    if said in aliases:
+        return aliases[said], ""
+    want = _plain(said)
+    if not want:
+        return "", ""
+    exact = [n for n in people if _plain(n) == want]
+    if len(exact) == 1:
+        return exact[0], ""
+    words = want.split()
+    close = exact or [n for n in people if all(w in _plain(n).split() for w in words)]
+    if len(close) == 1:
+        return close[0], ""
+    if close:
+        return "", f"« {said} » : plusieurs personnes portent ce nom, choisis-la à l'étape des invités."
+    return "", f"« {said} » : je ne l'ai pas trouvé·e parmi les personnes que tu peux inviter."
+
+
 class Options:
     """Ce que la personne peut choisir : catégories et tags (nom → id), groupes (nom → id ; None = Vendredi Party,
     « people » = seulement les invités nommés, « public » = lien), personnes (nom → id, l'annuaire que ses droits lui
@@ -363,6 +400,33 @@ class Options:
 
     def clean(self, raw: dict, now: datetime) -> dict:
         return clean_draft(raw, now, self.choices)
+
+    def aliases(self, draft: dict | None) -> tuple[dict | None, dict[str, str]]:
+        """Brouillon envoyé à l'IA avec ses personnes sous alias (« P1 »…) ; rend aussi alias → nom."""
+        if not isinstance(draft, dict):
+            return draft, {}
+        names = [n for key in ("invitees", "organizers") for n in draft.get(key) or [] if isinstance(n, str)]
+        alias = {n: f"P{i + 1}" for i, n in enumerate(dict.fromkeys(names))}
+        hidden = {**draft, **{key: [alias.get(n, n) for n in draft.get(key) or [] if isinstance(n, str)]
+                              for key in ("invitees", "organizers")}}
+        return hidden, {a: n for n, a in alias.items()}
+
+    def resolve(self, raw: dict, back: dict[str, str]) -> None:
+        """Noms dits (ou alias) de la réponse de l'IA → noms de l'annuaire ; introuvable ou ambigu : dit à la personne."""
+        if not isinstance(raw, dict):
+            return
+        missed = []
+        for key in ("invitees", "organizers"):
+            found = []
+            for said in _texts(raw.get(key), 80, 50):
+                name, why = resolve_person(said, back, self.people)
+                if name and name not in found:
+                    found.append(name)
+                elif why:
+                    missed.append(why)
+            raw[key] = found
+        if missed:
+            raw["not_understood"] = [*_texts(raw.get("not_understood"), 200, 5), *missed][:5]
 
 
 class EventAssistant:
@@ -444,16 +508,17 @@ class EventAssistant:
         system = SYSTEM.format(now=f"{WEEKDAYS[now.weekday()]} {now:%d.%m.%Y %H:%M}", vip=VIP_AUDIENCE, public=PUBLIC_AUDIENCE, only=ONLY_INVITEES,
                                me=o.me or "La personne", first=o.me.split()[0] if o.me else "moi",
                                categories=", ".join(o.categories) or "(aucune)", tags=", ".join(o.tags) or "(aucun)",
-                               audiences=", ".join(o.audiences), people=", ".join(o.people) or "(aucune)")
+                               audiences=", ".join(o.audiences), people=PEOPLE_HINT)
+        hidden, back = o.aliases(previous)
         # Conversation : la description, le brouillon renvoyé (avec ses questions), puis les réponses de la personne.
         messages = [{"role": "user", "content": turns[0]}]
         if editing and previous:
             system += EDITING
             messages = [{"role": "user", "content": "Voici mon événement, déjà publié."},
-                        {"role": "assistant", "content": json.dumps(previous, ensure_ascii=False)[:8000]},
+                        {"role": "assistant", "content": json.dumps(hidden, ensure_ascii=False)[:8000]},
                         {"role": "user", "content": "\n".join(turns)}]
         elif previous and len(turns) > 1:
-            messages += [{"role": "assistant", "content": json.dumps(previous, ensure_ascii=False)[:8000]},
+            messages += [{"role": "assistant", "content": json.dumps(hidden, ensure_ascii=False)[:8000]},
                          {"role": "user", "content": "\n".join(turns[1:])}]
         elif len(turns) > 1:
             messages[0]["content"] += "\n\nPuis : " + "\n".join(turns[1:])
@@ -476,6 +541,7 @@ class EventAssistant:
             raw = json.loads(next(b.text for b in response.content if getattr(b, "type", "") == "text"))
         except (StopIteration, ValueError):
             raise AccountError(NOT_UNDERSTOOD) from None
+        o.resolve(raw, back)
         out = o.clean(raw, now)
         out["cover_url"] = self._cover(out, previous, cover, images if sources else None, bool(sources))
         return out
@@ -530,7 +596,7 @@ class EventAssistant:
             # Annonce au groupe (06.11) : jamais décidée par l'IA ; « Prévenir le groupe » se choisit à l'étape 2, et la
             # base la fait valider (migration 20261106220000).
             "announce_group": False,
-            "pot_enabled": d["pot"], "cover_url": d["cover_url"] or None, "reminders": REMINDERS, "created_by": uid, "status": "draft",
+            "cover_url": d["cover_url"] or None, "reminders": REMINDERS, "created_by": uid, "status": "draft",
         }
 
     def _add(self, token: str, path: str, rows, what: str, problems: list[str], one: bool = False):

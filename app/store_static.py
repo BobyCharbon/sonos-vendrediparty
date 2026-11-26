@@ -33,6 +33,8 @@ CSS_COMMENT = re.compile(r"/\*.*?\*/", re.S)
 # (beerpong.js, purity.css…), par /static-store/ comme par /static/.
 BLOCKED = re.compile(rf"^(?:pet/|(?:{'|'.join(store_app.HIDDEN_GAMES)})[.\-/])", re.IGNORECASE)
 INLINE_SCRIPT = re.compile(r"(<script(?![^>]*\bsrc=)[^>]*>)(.*?)(</script>)", re.S | re.I)
+HTML_COMMENT = re.compile(r"[ \t]*<!--.*?-->", re.S)
+KEEP_COMMENT = re.compile(r"[ \t]*<!-- /?compagnon -->")
 JS_URL = re.compile(r"""(["'`])/static/([\w./-]+\.(?:js|css))(?=["'`?])""")
 
 
@@ -56,9 +58,20 @@ def _trailing_comment(line: str) -> str:
     return line
 
 
+STATIC = Path(__file__).resolve().parent / "static"
+
+
 def blocked(path: str) -> bool:
-    """Chemin relatif à /static/ (ou /static-store/) refusé à l'app App Store."""
-    return bool(BLOCKED.match(posixpath.normpath("/" + path).lstrip("/")))
+    """Chemin relatif à /static/ (ou /static-store/) refusé à l'app App Store. Tout « .. » ou « %2e » (même encodé deux
+    fois) est refusé d'office ; sinon, test sur le chemin résolu relatif à STATIC (contrôle du 26.11, tour 2)."""
+    raw = path.replace("\\", "/")
+    if ".." in raw or "%2e" in raw.lower() or "%252e" in raw.lower() or "%5c" in raw.lower():
+        return True
+    try:
+        rel = (STATIC / raw.lstrip("/")).resolve().relative_to(STATIC).as_posix()
+    except ValueError:
+        return True
+    return bool(BLOCKED.match(rel) or BLOCKED.match(posixpath.normpath("/" + raw).lstrip("/")))
 
 
 def js(text: str) -> str:
@@ -76,6 +89,14 @@ def css(text: str) -> str:
 def html(text: str) -> str:
     """Page de l'app App Store : blocs coupés, scripts et styles servis par /static-store/."""
     text = CUT_HTML.sub("", text)
+    # Hors des scripts : lignes `<!-- store-cut -->` coupées, `<!-- <store> html -->` gardées, et plus aucun commentaire
+    # HTML (contrôle du 26.11, tour 2 : « Purify », « Zicou ») sauf les marques `<!-- compagnon -->` lues ensuite par
+    # main.compagnon_page.
+    parts = INLINE_SCRIPT.split(text)
+    for i in range(0, len(parts), 4):  # split : texte, <script>, code, </script>, texte…
+        part = STORE_HTML_LINE.sub(r"\1\2", CUT_LINE.sub("", parts[i]))
+        parts[i] = HTML_COMMENT.sub(lambda m: m.group(0) if KEEP_COMMENT.fullmatch(m.group(0)) else "", part)
+    text = "".join(parts)
     # Scripts écrits dans la page : mêmes coupes et sans commentaires (contrôle du 26.11 : « Zicou », « Android »…).
     text = INLINE_SCRIPT.sub(lambda m: m.group(1) + js(m.group(2)) + m.group(3), text)
     return re.sub(r"""(["'])/static/([\w./-]+\.(?:js|css))(?=["'?])""", rf"\1{PREFIX}\2", text)

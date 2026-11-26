@@ -165,10 +165,10 @@
     </header>
     <h1 class="screen-title" id="statsTitle">Mes stats de jeu</h1>
     <div class="seg stats-tabs" role="tablist" aria-label="Jeux">
-      <button type="button" role="tab" class="on" aria-selected="true" aria-controls="purityStats" data-stats-tab="purity">😈 Purify Test</button>
+      <button type="button" role="tab" class="on" aria-selected="true" aria-controls="purityStats" data-stats-tab="purity">😈 Purify Test</button> <!-- store-cut -->
       <button type="button" role="tab" aria-selected="false" aria-controls="brainStats" data-stats-tab="brain">🧠 Méninges</button>
     </div>
-    <div id="purityStats" class="g-pu pu-stats" role="tabpanel" data-stats-panel="purity"></div>
+    <div id="purityStats" class="g-pu pu-stats" role="tabpanel" data-stats-panel="purity"></div> <!-- store-cut -->
     <div id="brainStats" class="brs hidden" role="tabpanel" data-stats-panel="brain" aria-label="Stats Méninges"></div>
   </section>
 
@@ -533,7 +533,8 @@ function showTab(tab, eventTarget) {
   // quitte le plein écran (barre d'onglets, native comprise, de retour ; mini-barre pour revenir). Sinon : écran vide
   // sans barre, il fallait relancer l'app (avis 8d5ec90f63da, Purify Test, 11.11).
   if (typeof syncGameChrome === "function") syncGameChrome();
-  $("appTitle").textContent = ({ music: "Musique", games: "Jeux", pet: "Zicou", events: "Événements", chats: "Discussions", feedback: fbIsAdmin() ? "Retours" : "Ton avis", account: account ? "Réglages" : "Se connecter", host: "Invités et messages", notice: "Annonce et maintenance", stats: "Mes stats de jeu" })[tab];
+  $("appTitle").textContent = ({ music: "Musique", games: "Jeux", pet: "Zicou", events: "Événements", chats: "Discussions", feedback: fbIsAdmin() ? "Retours" : "Ton avis", account: account ? "Réglages" : "Se connecter", host: "Invités et messages", notice: "Annonce et maintenance", stats: "Mes stats de jeu" })[tab]; // <store-cut/>
+  // <store> $("appTitle").textContent = ({ music: "Musique", games: "Jeux", events: "Événements", chats: "Discussions", feedback: fbIsAdmin() ? "Retours" : "Ton avis", account: account ? "Réglages" : "Se connecter", host: "Invités et messages", notice: "Annonce et maintenance", stats: "Mes stats de jeu" })[tab];
   $("navBarTitle").textContent = $("appTitle").textContent;
   store("vp_tab", tab);
   // Un autre onglet : l'adresse oublie l'événement partagé (un rechargement ne ramène plus dessus).
@@ -542,7 +543,7 @@ function showTab(tab, eventTarget) {
   // Onglet Zicou : le panneau du Compagnon s'affiche dans la page (pet/pet.js) ; en partant, il s'arrête.
   if (tab === "pet") window.Pet?.openTab?.($("petTab"));
   else if (previous === "pet") window.Pet?.leaveTab?.();
-  window.ZicouHome?.tabChanged?.(tab);
+  window.ZicouHome?.tabChanged?.(tab); // <store-cut/>
   if (tab === "feedback") loadFeedback();
   if (tab === "music" && musicAdminMounted && fbIsAdmin()) MusicAdmin.show();
   if (tab === "host" && musicAdminMounted) { MusicAdmin.refresh(); window.AuditAdmin?.refresh(); }
@@ -573,8 +574,9 @@ function tabTransition(tab) {
 // 🏆 Mes stats de jeu : un onglet par jeu ; chaque jeu enregistre son affichage dans STATS_TABS (purity.js…).
 const STATS_TABS = {};
 // App App Store : pas de Purify Test (Apple 1.4.3, purity.js n'y est pas chargé) ; les stats n'ont que Méninges.
-if (STORE_APP) document.querySelector('[data-stats-tab="purity"]')?.remove();
-let statsTab = STORE_APP ? "brain" : "purity";
+if (STORE_APP) document.querySelector('[data-stats-tab="purity"]')?.remove(); // <store-cut/>
+let statsTab = STORE_APP ? "brain" : "purity"; // <store-cut/>
+// <store> let statsTab = "brain";
 function showStats(name = statsTab) {
   statsTab = name;
   document.querySelectorAll("[data-stats-tab]").forEach((b) => {
@@ -734,7 +736,7 @@ function showAccount() {
   pic.classList.toggle("hidden", !account?.photo);
   if (account?.photo && pic.getAttribute("src") !== account.photo) pic.src = account.photo;
   if (document.body.dataset.tab === "account") $("appTitle").textContent = account ? "Réglages" : "Se connecter";
-  window.ZicouHome?.accountChanged?.();   // pastille et accueil de Zicou (pet/zicou-home.js)
+  window.ZicouHome?.accountChanged?.();   // pastille et accueil de Zicou (pet/zicou-home.js) // <store-cut/>
 }
 function useIdentity(id, name) {
   const changed = id !== guestId || (name && name !== guestName);
@@ -1288,7 +1290,8 @@ addEventListener("DOMContentLoaded", async () => {
 // Proposition d'ajout à l'écran d'accueil (iOS : explication, Android/Chrome : vrai bouton).
 // App installée sur l'écran d'accueil ? iPhone : navigator.standalone ; Android et autres : le mode d'affichage du manifeste.
 const standalone = ["standalone", "fullscreen", "minimal-ui"].some((m) => matchMedia(`(display-mode: ${m})`).matches) || navigator.standalone === true;
-const android = /Android/i.test(navigator.userAgent);
+const android = /Android/i.test(navigator.userAgent); // <store-cut/>
+// <store> const android = false;
 const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 let installEvent = null;
 function offerInstall() {
@@ -1347,11 +1350,13 @@ function installSteps() {
   const v = safariVersion(), pos = barPos();
   const where = pos === "top" ? "en haut de l'écran" : pos === "bottom" ? "en bas de l'écran" : "en haut ou en bas, selon où est ta barre d'adresse";
   const step = (icon, html) => `<li><span class="i-ico">${ICONS[icon]}</span><span>${html}</span></li>`;
+  // <store-cut> instructions pour Android (jamais dans l'app App Store)
   if (android) return [
     step("menu", `Touche le menu du navigateur (<b>⋮</b> ou <b>≡</b>), en haut ou en bas à droite.`),
     step("add", `Touche <b>« Installer l'application »</b> ou <b>« Ajouter à l'écran d'accueil »</b>.`),
     step("app", `Confirme avec <b>Installer</b> : « Party ! » apparaît avec tes applis.`),
   ];
+  // </store-cut>
   if (chrome || firefox) return [
     step("share", `Touche <b>Partager</b> à côté de la barre d'adresse (${where}).`),
     step("add", `Touche <b>« Ajouter à l'écran d'accueil »</b>.`),
