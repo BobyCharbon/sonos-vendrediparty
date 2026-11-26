@@ -684,7 +684,7 @@ def test_round_eight_texts_match_what_the_reviewer_can_try():
     for path in ("web/events/src/app/privacy.tsx", "ios/Party/Settings/Account/SignInView.swift"):
         text = (_root() / path).read_text(encoding="utf-8").replace("’", "'")
         assert "Supabase (société américaine)" in text and "dont on ne peut pas retrouver le numéro" not in text, path
-        assert "toute personne qui répond « Présent » à cet événement y est ajoutée d'office" in text, path
+        assert "répondre « Présent » à cet événement, ou être noté « Présent » par l'organisateur, t'ajoute d'office à ce pot" in text, path
         assert "l'en fait sortir" not in text and "« Quitter ce pot commun »" in text, path
         assert "les surnoms des membres de Party que tu peux inviter" in text, path
         assert "Journal des connexions et des actions d'administration : 12 mois. Recherches de personnes : 1 heure." in text, path

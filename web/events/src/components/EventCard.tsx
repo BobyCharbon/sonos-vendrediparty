@@ -219,7 +219,7 @@ export function EventCard({
             accessibilityLabel={(k) => `${rsvpChoices[k].label} à ${event.title}`}
             label={(k) => (k === 'yes' && full && event.waitlist_enabled ? 'Liste d’attente' : rsvpChoices[k].label)}
           />
-          {event.pot_enabled ? <T size={12} muted>💸 {potNotice(false)}</T> : null}
+          {event.pot_enabled ? <T size={12} muted>💸 {potNotice('out')}</T> : null}
           <ErrorText error={error} />
         </View>
       ) : null}
@@ -251,7 +251,7 @@ export function EventCard({
         </View>
       ) : null}
       {quickRsvp && tone === 'maybe' && !closed && event.pot_enabled ? (
-        <T size={12} muted style={{ paddingHorizontal: 14, paddingBottom: 10 }}>💸 {potNotice(false)}</T>
+        <T size={12} muted style={{ paddingHorizontal: 14, paddingBottom: 10 }}>💸 {potNotice('out')}</T>
       ) : null}
       {tone === 'maybe' ? <ErrorText error={error} /> : null}
     </View>

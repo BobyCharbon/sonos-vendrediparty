@@ -51,7 +51,7 @@ export function InviteScreen({ kind, token }: { kind: 'event' | 'group'; token: 
         <View style={{ gap: 8 }}>
           <Title size={30}>Faisons connaissance</Title>
           <T muted>
-            Encore une étape : ton prénom, ton nom et ton surnom (une photo aussi, vivement conseillée), pour que le groupe te reconnaisse.
+            Encore une étape : ton prénom, ton nom et ton surnom (une photo aussi, vivement conseillée), pour que les autres te reconnaissent.
             Tu accèdes ensuite directement à {kind === 'event' ? 'l’événement' : 'ce groupe'}.
           </T>
         </View>

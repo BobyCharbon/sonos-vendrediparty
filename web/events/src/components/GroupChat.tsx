@@ -34,14 +34,14 @@ import { chatTimeline, directAsGroupMessage, EVENT_TAGS, eventChatPrefs, eventTa
   type TimelineRow, type VoiceRecording, CHAT_FOR_GUESTS } from '@/lib/chats';
 import { trackRead } from '@/lib/chatList';
 import { useLivePing, useQuery, useRealtime, type RealtimeRow } from '@/lib/data';
-import { discussionsOn } from '@/lib/features';
+import { discussionsOn, souvenirsOn } from '@/lib/features';
 import { groupEmoji, groupName } from '@/lib/groups';
 import { useMiniProfile } from '@/lib/miniProfile';
 import { openNativeDirect } from '@/lib/nativeChat';
 import { saveRsvp } from '@/lib/rsvp';
 import { must, supabase } from '@/lib/supabase';
 import { enter, pressTransition } from '@/lib/motion';
-import { dbMessage, type ReportTarget } from '@/lib/moderation';
+import { dbMessage, onBlocksChanged, type ReportTarget } from '@/lib/moderation';
 
 const PAGE = 150;
 /** Annonces et messages épinglés lus à part : le bandeau du haut les garde même au-delà des derniers messages. */
@@ -424,6 +424,8 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
   ] : [{ table: 'messages', filter: `event_id=eq.${id}` }], reload, onRow);
   // Événement : réactions, messages retirés, épingles, réglages : signal de la base (migration 20261116140000).
   useLivePing(event ? id : null, reload);
+  // Bloquer depuis un mini-profil (26.11) : les messages de la personne disparaissent aussitôt, sans attendre le temps réel.
+  useEffect(() => onBlocksChanged(() => { void reload(); }), [reload]);
 
   const ev = data?.event ?? null;
   const level: NotifyLevel = prefs?.level ?? ev?.level ?? 'mentions';
@@ -993,7 +995,7 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
           {/* Entré par sa réponse à un événement (17.11) : d'où il vient et « Quitter », à la première ouverture. */}
           {direct || event ? null : <GroupJoinNote groupId={id} me={me.id} onLeft={reload} />}
           {/* Souvenirs dévoilés (24.11) : la story s'ouvre d'ici pendant ses 24 h. */}
-          {event ? <SouvenirsChatBanner eventId={id} /> : null}
+          {event && souvenirsOn ? <SouvenirsChatBanner eventId={id} /> : null}
           {requestIn && other ? (
             <RequestBanner side="incoming" name={otherName} userId={other} photo={people.get(other)?.avatar_url ?? null}
               onProfile={() => mini.open(other)}

@@ -34,3 +34,11 @@ export const storeApp = typeof document !== 'undefined' && document.documentElem
 
 export const agendaOn = typeof document === 'undefined' || document.documentElement.dataset.agenda !== 'off';
 export const pronosOn = typeof document === 'undefined' || document.documentElement.dataset.pronos !== 'off';
+
+/**
+ * Souvenirs et Couverture d'événement (contrôle Apple du 26.11) : pas en prod — Party sert la page avec
+ * <html data-souvenirs="off"> / <html data-covers="off"> (app/features.py), et jamais dans l'app App Store (storeApp).
+ * Éteints : ni réglage, ni carte, ni bandeau, ni bouton, et le formulaire ne lit ni n'écrit leurs colonnes (absentes en prod).
+ */
+export const souvenirsOn = !storeApp && (typeof document === 'undefined' || document.documentElement.dataset.souvenirs !== 'off');
+export const coversOn = !storeApp && (typeof document === 'undefined' || document.documentElement.dataset.covers !== 'off');

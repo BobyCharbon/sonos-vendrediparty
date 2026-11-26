@@ -21,7 +21,7 @@ import { UNLIMITED_PLUS_ONES, VIP_GROUP_KEY } from '@/lib/types';
 import { Button, Cascade, Chip, ErrorText, Field, HeaderBack, Input, Reveal, Rows, s, Screen, Section, Segmented, T, ToggleRow } from './ui';
 import { afterPublish } from './InviteStep';
 import { PUBLIC_REVIEW } from './VisibilityChoice';
-import { invitesV2On } from '@/lib/features';
+import { coversOn, invitesV2On, souvenirsOn } from '@/lib/features';
 import { AudiencePicker, audienceError, saveAudience, audienceFromEvent, audienceToEvent, DEFAULT_AUDIENCE, mayUseVip, type AudienceValue, type Person } from './AudiencePicker';
 import { DateTimeField } from './DateTimeField';
 import { PlaceSearch } from './PlaceSearch';
@@ -203,6 +203,9 @@ async function bringBelowPromised(bring: Draft['bring']): Promise<string | null>
   return null;
 }
 
+// Couverture éteinte (prod, app App Store) : ses colonnes n'existent pas encore en prod, jamais lues (sinon « Modifier » plante).
+const FORM_EVENT_COLS = (coversOn ? 'status, created_by, cover_url, cover_credit, cover_credit_url' : 'status, created_by') as 'status, created_by, cover_url, cover_credit, cover_credit_url';
+
 async function loadDraft(eventId: string): Promise<Draft> {
   const res = await supabase
     .from('events')
@@ -331,7 +334,7 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
       supabase.from('profiles').select('id, display_name, role').eq('status', 'active').order('display_name'),
       supabase.from('member_groups').select('id, name, created_by, system_key, events_need_approval, member_group_members(user_id)').order('name'),
       supabase.from('group_settings').select('require_approval').single(),
-      eventId ? supabase.from('events').select('status, created_by, cover_url, cover_credit, cover_credit_url').eq('id', eventId).single() : Promise.resolve(null),
+      eventId ? supabase.from('events').select(FORM_EVENT_COLS).eq('id', eventId).single() : Promise.resolve(null),
       // Co-organisateurs : seulement des rôles qui peuvent modifier un événement publié (sinon ni Modifier ni Annuler).
       supabase.from('role_permissions').select('role').in('perm', ['events.edit_own_published', 'events.manage_all']),
     ]);
@@ -363,7 +366,7 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
       settings: must(settings) as { require_approval: boolean },
       status: current ? (must(current) as { status: EventRow['status'] }).status : null,
       createdBy: current ? (must(current) as { created_by?: string | null }).created_by ?? null : null,
-      cover: current ? (must(current) as Pick<EventRow, 'cover_url' | 'cover_credit' | 'cover_credit_url'>) : null,
+      cover: current && coversOn ? (must(current) as Pick<EventRow, 'cover_url' | 'cover_credit' | 'cover_credit_url'>) : null,
       editors: new Set((must(editorRoles) as { role: string }[]).map((r) => r.role)),
     };
   }, [eventId]);
@@ -513,7 +516,7 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
         carpool_enabled: d.carpool_enabled,
         tickets_enabled: d.tickets_enabled,
         // Réglés par l'organisation (garde souvenirs_guard) ; jamais écrits tant qu'on n'y a pas touché (base d'avant).
-        ...(d.souvenirs_enabled || d.souvenirs_was ? { souvenirs_enabled: d.souvenirs_enabled, souvenirs_keep: d.souvenirs_keep } : {}),
+        ...(souvenirsOn && (d.souvenirs_enabled || d.souvenirs_was) ? { souvenirs_enabled: d.souvenirs_enabled, souvenirs_keep: d.souvenirs_keep } : {}),
         forum_enabled: d.forum_enabled,
         // Public : jamais d'annonce (la base l'impose aussi, migration 20261106200000).
         notify_on_publish: d.who.audience === 'public' ? false : d.notify_on_publish,
@@ -743,7 +746,7 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
 
       <Section title="L’essentiel">
         {/* Couverture (25.11) : changée tout de suite par le serveur, jamais par l'enregistrement du formulaire. */}
-        {eventId && ctx.cover ? (
+        {eventId && ctx.cover && coversOn ? (
           <EventCover eventId={eventId} url={ctx.cover.cover_url} credit={ctx.cover.cover_credit} creditUrl={ctx.cover.cover_credit_url}
             canEdit onChanged={reloadCtx} />
         ) : null}
@@ -896,7 +899,7 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
           <ToggleRow label="Pot commun" hint="Qui répond Présent y entre tout seul (la fiche le lui dit) et voit les noms et moyens de paiement des autres membres ; tout est dans Réglages › Pot commun" value={d.pot_enabled} onChange={(v) => set({ pot_enabled: v })} />
           <ToggleRow label="Covoiturage" hint="Les participants proposent leurs places ou en cherchent une, ville de départ en option" value={d.carpool_enabled} onChange={(v) => set({ carpool_enabled: v })} />
         </Rows>
-        <SouvenirsSettings enabled={d.souvenirs_enabled} keep={d.souvenirs_keep} locked={d.souvenirs_locked} onChange={set} />
+        {souvenirsOn ? <SouvenirsSettings enabled={d.souvenirs_enabled} keep={d.souvenirs_keep} locked={d.souvenirs_locked} onChange={set} /> : null}
       </Section>
 
       {advanced ? (

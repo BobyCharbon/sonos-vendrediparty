@@ -16,6 +16,7 @@ import { acceptInvite, fetchInviteCard, unlimited, type Accepted, type InviteCar
 import { clearInviteAnswer, peekInviteAnswer, peekInviteJoin, rememberInviteAnswer } from '@/lib/inviteIntent';
 import { groupLabel } from '@/lib/guestGroup';
 import { openInParty } from '@/lib/partyShell';
+import { potNotice } from '@/lib/rsvp';
 import { canInstallWebApp, insideInstalledApp, installWebApp, isAndroid } from '@/lib/installPrompt';
 import { enter, pressTransition } from '@/lib/motion';
 import { safeHref } from '@/lib/links';
@@ -223,6 +224,10 @@ function Card({ card, onAnswer, join, onJoin }: { card: InviteCard; onAnswer: (a
           ))}
           {/* Juste sous les réponses, bien visible, décochée ; elle vaut pour les trois réponses (17.11). */}
           {card.guest_group ? <GuestGroupCheck card={card.guest_group} value={join} onChange={onJoin} /> : null}
+          {/* Pot commun (conformité 5.1.2) : dit AVANT « Je viens ! », comme sur la fiche. */}
+          {card.pot_enabled ? (
+            <View testID="pot-notice"><T size={13} color={colors.textSoft} style={{ textAlign: 'center' }}>💸 {potNotice(card.mine === 'yes' ? 'in' : 'out')}</T></View>
+          ) : null}
           {insideInstalledApp() ? null : <T muted size={13} style={{ textAlign: 'center' }}>Pas besoin d’installer l’app.</T>}
         </View>
       )}

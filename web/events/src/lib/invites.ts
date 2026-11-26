@@ -259,6 +259,8 @@ export type InviteCard = {
   approval?: boolean; host?: string | null;
   /** 17.11 : la case « Rejoindre aussi le groupe » à proposer (décochée), ou null. */
   guest_group?: GuestGroupCard | null;
+  /** 26.11 : l'événement a un pot commun (dit sous « Je viens ! » ; base plus ancienne : absent). */
+  pot_enabled?: boolean;
 };
 export type Accepted = {
   event_id: string; status: RsvpStatus | null; title: string; starts_at: string | null; ends_at: string | null; all_day: boolean;

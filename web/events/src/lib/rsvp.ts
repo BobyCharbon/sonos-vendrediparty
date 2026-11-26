@@ -93,13 +93,25 @@ function friendlyRsvpError(message: string): string {
 
 /**
  * Pot commun de l'événement (décision de l'admin du 26.11, conformité 5.1.2) : l'entrée reste automatique pour qui répond
- * Présent (private.tc_event_sync), mais on le DIT là où l'on répond. « Pas présent » n'y fait pas entrer ; en sortir se
- * fait soi-même (Réglages › Pot commun : la base ne retire personne d'un pot).
+ * Présent ou que l'organisateur note Présent (private.tc_event_sync), mais on le DIT là où l'on répond. « Pas présent » n'y
+ * fait pas entrer, ni sortir : en sortir se fait soi-même (Réglages › Pot commun : la base ne retire personne d'un pot).
+ * in : Présent et dans le pot ; still : plus Présent mais toujours dans le pot ; out : pas dans le pot.
  */
-export function potNotice(inPot: boolean): string {
-  return inPot
-    ? 'Tu es dans le pot commun de cet événement : ses membres voient ton nom et les moyens de paiement que tu as indiqués. Pour en sortir : Réglages › Pot commun › Quitter ce pot commun.'
-    : 'Cet événement a un pot commun : en répondant Présent, tu y es ajouté. Ses membres voient ton nom et les moyens de paiement que tu as indiqués. Pas présent : tu n’y entres pas.';
+export type PotState = 'in' | 'still' | 'out';
+export function potNotice(state: PotState): string {
+  if (state === 'in') {
+    return 'Tu es dans le pot commun de cet événement : ses membres voient ton nom et les moyens de paiement que tu as indiqués. Pour en sortir : Réglages › Pot commun › Quitter ce pot commun.';
+  }
+  if (state === 'still') {
+    return 'Tu es toujours dans le pot commun : Réglages › Pot commun › Quitter ce pot commun. Ses membres voient ton nom et les moyens de paiement que tu as indiqués.';
+  }
+  return 'Cet événement a un pot commun : en répondant Présent, ou si l’organisateur te note Présent, tu y es ajouté. Ses membres voient ton nom et les moyens de paiement que tu as indiqués. Pas présent : tu n’y entres pas.';
+}
+
+/** Suis-je encore dans le pot commun de cet événement ? (RLS de tc_groups : seuls ses membres actifs le lisent.) */
+export async function inEventPot(eventId: string): Promise<boolean> {
+  const { data, error } = await supabase.from('tc_groups').select('id').eq('event_id', eventId).limit(1);
+  return !error && Array.isArray(data) && data.length > 0;
 }
 
 export const rsvpChoices: Record<RsvpStatus, { label: string; icon: string; fg: string; bg: string; dim: string; mine: string }> = {

@@ -106,7 +106,8 @@ export function useTermsGate(title = 'Avant de publier') {
 
 const POINTS: [string, string][] = [
   ['🤝', 'On se respecte : ni harcèlement, ni propos haineux, ni contenu sexuel.'],
-  ['🚫', 'Pas d’arnaque ni de vente. Les objets du jeu n’ont aucune valeur en argent.'],
+  ['🚫', 'Pas d’arnaque ni de vente. Les points des jeux n’ont aucune valeur en argent.'],
+  ['⛔', 'Tolérance zéro : un contenu choquant est retiré et son auteur peut être banni.'],
   ['🚩', 'Tout contenu peut être signalé ; un modérateur peut le masquer, avertir, suspendre ou bannir un compte.'],
   ['💸', 'Party ne vend rien et ne touche jamais d’argent.'],
 ];

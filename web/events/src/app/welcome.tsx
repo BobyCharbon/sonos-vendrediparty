@@ -33,7 +33,7 @@ export default function Welcome() {
         </View>
       ) : complete && !editing ? (
         <View style={{ gap: 20 }}>
-          <Title size={32}>Les événements du groupe</Title>
+          <Title size={32}>Les événements où tu es invité</Title>
           <SignedIn name={profile?.display_name} />
           <Button label="Modifier mes informations" variant="ghost" onPress={() => setEditing(true)} />
         </View>
@@ -41,7 +41,7 @@ export default function Welcome() {
         <View style={{ gap: 20 }}>
           <View style={{ gap: 8 }}>
             <Title size={32}>Faisons connaissance</Title>
-            <T muted>Quelques infos pour que le groupe te reconnaisse.</T>
+            <T muted>Quelques infos pour que les autres te reconnaissent.</T>
           </View>
           <IdentityForm profile={profile} submitLabel="Continuer" onSaved={() => setEditing(false)} />
         </View>
