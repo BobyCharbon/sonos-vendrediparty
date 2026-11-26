@@ -464,11 +464,19 @@ async function changeName() {
   if (account) { showTab("account"); return toast("✏️ Ton surnom se change dans ton profil"); }
   const name = (prompt("Ton prénom :", guestName) || "").trim().slice(0, 30);
   if (!name || name === guestName) return;
+  // Le serveur vérifie d'abord le prénom (filtre commun ; app App Store : ni boisson ni drogue) : refusé, l'ancien reste.
+  let r;
+  try {
+    r = await fetch("/api/presence", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ guest_id: guestId, name }) });
+  } catch { return toast("Pas de réseau : ton prénom n'a pas changé. Réessaie.", "err"); }
+  if (!r.ok) {
+    const data = await r.json().catch(() => null);
+    return toast(typeof data?.detail === "string" ? `${data.detail} Ton prénom n'a pas changé.` : "Ton prénom n'a pas changé. Réessaie.", "err");
+  }
   guestName = name; store("vp_name", guestName);
   renderNameChip();
   // Musique (si le code a été saisi) et jeux : le nouveau prénom est envoyé partout.
   api("/api/hello", { method: "POST", body: JSON.stringify({ guest_id: guestId, guest_name: guestName }) }).catch(() => {});
-  fetch("/api/presence", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ guest_id: guestId, name: guestName }) }).catch(() => {});
   toast(`C'est noté, ${guestName} !`, "ok");
   refresh();
   if (typeof refreshGame === "function") refreshGame();

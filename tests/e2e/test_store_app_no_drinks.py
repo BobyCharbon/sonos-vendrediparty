@@ -55,7 +55,7 @@ def test_store_app_games_screen_rules_and_room_have_no_drinking(browser, server)
                 '[data-opt-group="sips"]', '.g-db [data-val="wtf"]'):
         assert page.locator(f"#gHome {sel}").count() == 0, sel
     assert page.locator("#gHome section.g-cat[data-cat=drinks]").count() == 0  # pas de catégorie vide
-    assert "Trou du cul" not in page.evaluate("rulesFor('president', null)")
+    assert "trou du cul" not in page.evaluate("rulesFor('president', null)").lower()
     # Règles « ? » de chaque jeu gardé, de la salle comprise.
     for kind in KEPT + ["room"]:
         html = page.evaluate("(t) => rulesFor(t, null) || ''", kind)

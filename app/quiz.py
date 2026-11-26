@@ -17,8 +17,11 @@ import threading
 import time
 from pathlib import Path
 
+from functools import lru_cache
+
 from . import quizbank as qb
 from . import store_app
+from .moderation import check as moderation_check
 
 MODES = {
     "classic": ("Classique", "🏆"),
@@ -583,8 +586,18 @@ def purge_guests(now: float | None = None) -> int:
         return len(players) - len(kept)
 
 
-def leaderboard(limit: int = 20) -> dict:
-    """Classement général et records par mode, pour l'écran d'accueil du quiz."""
+@lru_cache(maxsize=4096)
+def store_name(name: str) -> str:
+    """Prénom montré dans l'app App Store (contrôle du 26.11) : « Joueur » s'il contient un mot de boisson, de drogue
+    ou une insulte (prénom venu du web ou d'avant le filtre)."""
+    if not isinstance(name, str) or not name:
+        return name
+    return "Joueur" if store_app.drinky(name) or not moderation_check(name, "name").ok else name
+
+
+def leaderboard(limit: int = 20, store: bool = False) -> dict:
+    """Classement général et records par mode, pour l'écran d'accueil du quiz (app App Store : prénoms filtrés)."""
+    shown = store_name if store else (lambda n: n)
     data = _load_stats()
     ps = list(data.get("players", {}).values())
     top = sorted(ps, key=lambda x: -x["pts"])[:limit]
@@ -592,8 +605,8 @@ def leaderboard(limit: int = 20) -> dict:
     for m in MODES:
         best = max(ps, key=lambda x: x.get("records", {}).get(m, 0), default=None)
         if best and best.get("records", {}).get(m):
-            records[m] = {"name": best["name"], "value": best["records"][m]}
-    return {"top": [{"name": x["name"], "pts": x["pts"], "games": x["games"], "wins": x["wins"],
+            records[m] = {"name": shown(best["name"]), "value": best["records"][m]}
+    return {"top": [{"name": shown(x["name"]), "pts": x["pts"], "games": x["games"], "wins": x["wins"],
                      "rate": round(100 * x["ok"] / x["n"]) if x["n"] else 0, "streak": x["best_streak"]} for x in top],
             "records": records}
 
@@ -627,7 +640,7 @@ def view(g: dict, gid: str) -> dict:
         out["catalog"] = {"themes": [{"id": t, "name": n, "icon": i, "count": len(qb.BANK[t])} for t, (n, i) in qb.THEMES.items() if qb.BANK[t]],
                           "modes": [{"id": m, "name": n, "icon": i} for m, (n, i) in MODES.items()], "diffs": DIFFS}
     if g["phase"] in ("lobby", "end"):
-        out["leaderboard"] = leaderboard()
+        out["leaderboard"] = leaderboard(store=bool(g.get("store")))
     c = Q["cur"]
     if g["phase"] in ("q", "rev") and c:
         mine = c["answers"].get(gid)

@@ -118,7 +118,7 @@ function rfEndHtml(g) {
   const v = g.reflet, s = v.summary || {};
   const ranking = rankingHtml(s.ranking || []);
   const lucid = s.lucid?.length ? `<div class="db-award"${GameFx.fx("rise", `rf:${g.id}:end:l`)}><div class="db-award-k">🔮 Le plus lucide</div><div class="db-award-t">${s.lucid.map(esc).join(", ")}</div><div class="artist">Se voit comme les autres le voient</div></div>` : "";
-  const sur = s.surprise && s.surprise.gap ? `<div class="db-award"${GameFx.fx("rise", `rf:${g.id}:end:s`, 250)}><div class="db-award-k">🤯 La plus grande surprise</div><div class="db-award-t">« ${esc(s.surprise.text)} »</div><div class="artist">${esc(s.surprise.name)} pariait ${s.surprise.bet}, réponse ${s.surprise.yes}/${s.surprise.voters}</div></div>` : "";
+  const sur = s.surprise && s.surprise.gap ? `<div class="db-award"${GameFx.fx("rise", `rf:${g.id}:end:s`, 250)}><div class="db-award-k">🤯 La plus grande surprise</div><div class="db-award-t">« ${esc(s.surprise.text)} »</div><div class="artist">${esc(s.surprise.name)} estimait ${s.surprise.bet}, réponse ${s.surprise.yes}/${s.surprise.voters}</div></div>` : "";
   const una = s.unanimous?.length ? `<div class="db-award"${GameFx.fx("rise", `rf:${g.id}:end:u`, 500)}><div class="db-award-k">🤝 À l'unanimité</div>${s.unanimous.map((u) => `<div class="artist"><b>${esc(u.name)}</b> : « ${esc(u.text)} »</div>`).join("")}</div>` : "";
   return `<div class="lk-end-k">Bilan du miroir</div>${lucid}${sur}${una}<div class="list">${ranking}</div>
     ${g.is_host ? `${rfSettingsHtml(g)}<button class="lk-main" data-gact="restart">🔁 Rejouer avec les mêmes joueurs</button>` : ""}`;

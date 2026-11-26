@@ -508,7 +508,7 @@ WTF = [
     "Accepterais-tu de lécher la poignée d'une porte de gare chaque matin pendant un an pour 60 000 CHF ?",
     "Est-ce acceptable de faire semblant d'avoir adoré un cadeau coquin ?",
     "Vaut-il mieux croiser son ex dans un ascenseur en panne que dans une file de toilettes publiques ?",
-    "Accepterais-tu de te déshabiller pour un pari lors d'une soirée entre amis ?",
+    "Accepterais-tu de te déshabiller pour un défi lors d'une soirée entre amis ?",
     "Accepterais-tu de te teindre en vert fluo et de t'appeler Gérard jusqu'à la fin de tes jours pour 500 000 CHF ?",
     "Peut-on s'endormir pendant un moment romantique sans faire de drame ?",
     "Faut-il dire bonjour à chaque pigeon croisé sur le trottoir ?",

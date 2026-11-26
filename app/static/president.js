@@ -11,9 +11,9 @@ window.President = (() => {
     <p>Du plus faible au plus fort : <b>3, 4, 5, 6, 7, 8, 9, 10, Valet, Dame, Roi, As, 2</b>. Les couleurs ne départagent pas les cartes.</p>
     <h3>Vos jokers</h3><p>Un joker seul vaut un <b>3</b>. Avec d'autres cartes de même valeur, il les duplique : deux Rois et un joker font un brelan de Rois. Deux jokers seuls font une paire de 3. Pas de combinaison de plus de quatre cartes.</p>
     <h3>Passer</h3><p>Si tu passes, tu es <b>hors du pli</b> jusqu'à ce qu'il soit ramassé : ton tour est sauté et tu ne peux plus rien poser, même pour compléter une famille. Quand tous les autres ont passé, le pli est ramassé et tout le monde peut rejouer : la dernière personne à avoir joué ouvre le nouveau pli, ou le joueur suivant si elle a terminé. On ne peut pas passer pour ouvrir un pli.</p>
-    <p>La première manche commence chez la personne qui possède le 3 de trèfle. Après les échanges, le Trou du cul commence. <b>Interdit de finir sur un 2</b> : si ta dernière carte est un 2, tu sors aussitôt et tu seras Trou du cul. Si quelqu'un avait déjà fini sur un 2, il remonte d'un rang. Finir sur un joker est permis. Pas de révolution.</p>
-    <h3>Les places et les échanges</h3><p>Le premier devient Président, le dernier Trou du cul. À partir de quatre joueurs, il y a aussi un Vice-président et un Vice-trou du cul.</p>
-    <p>À la donne suivante, le Trou du cul donne ses <b>deux meilleures cartes</b> au Président, qui en choisit deux à lui rendre. Les vice échangent une carte. <b>Les jokers comptent comme des 3</b> pour choisir les meilleures cartes. Les choix restent secrets et tous les échanges se font ensemble.</p>
+    <p>La première manche commence chez la personne qui possède le 3 de trèfle. Après les échanges, le Dernier commence. <b>Interdit de finir sur un 2</b> : si ta dernière carte est un 2, tu sors aussitôt et tu seras Dernier. Si quelqu'un avait déjà fini sur un 2, il remonte d'un rang. Finir sur un joker est permis. Pas de révolution.</p>
+    <h3>Les places et les échanges</h3><p>Le premier devient Président, le dernier Dernier. À partir de quatre joueurs, il y a aussi un Vice-président et un Vice-dernier.</p>
+    <p>À la donne suivante, le Dernier donne ses <b>deux meilleures cartes</b> au Président, qui en choisit deux à lui rendre. Les vice échangent une carte. <b>Les jokers comptent comme des 3</b> pour choisir les meilleures cartes. Les choix restent secrets et tous les échanges se font ensemble.</p>
     <p>Le premier marque autant de points qu'il a d'adversaires, puis un point de moins par place, jusqu'à zéro pour le dernier. Les points s'ajoutent au tableau de la salle.</p>
     <h3>Arrivées et départs</h3><p>Un retardataire attend la prochaine donne. Un joueur qui quitte la manche est classé en dernier et ses cartes sont écartées. Après un changement de joueurs, la prochaine donne commence sans échange. Une simple déconnexion conserve la main : reviens avec le même navigateur.</p>`;
 
@@ -45,7 +45,7 @@ window.President = (() => {
 
   function seatHtml(p, spot) {
     const backs = Math.min(p.count, 5);
-    const state = p.departed ? "Parti" : p.dunce ? "Trou du cul · fini sur un 2" : p.place ? `${p.place}${p.place === 1 ? "er" : "e"}${p.place === 1 ? " · Président" : ""}`
+    const state = p.departed ? "Parti" : p.dunce ? "Dernier · fini sur un 2" : p.place ? `${p.place}${p.place === 1 ? "er" : "e"}${p.place === 1 ? " · Président" : ""}`
       : p.passed ? "A passé" : p.turn ? "Joue" : (p.role || "");
     return `<div class="pr-seat ${p.turn ? "pr-turn" : ""} ${p.me ? "pr-is-me" : ""} ${p.passed ? "pr-has-passed" : ""} ${p.place || p.dunce ? "pr-is-out" : ""}"
         data-key="seat-${esc(p.pid)}" style="left:${spot.left.toFixed(1)}%;top:${spot.top.toFixed(1)}%">
@@ -78,7 +78,7 @@ window.President = (() => {
     if (v.pile && !same && value < v.pile.value) return {ok: false, text: `Choisis une valeur égale ou supérieure à ${v.pile.rank}, ou passe.`};
     if (!v.my_turn && !(completes && cards.length === 2)) return {ok: false, text: same && cards.length === 2 ? `Hors tour, tu ne peux poser que si ça complète la famille de ${v.pile.rank}.` : "Attends ton tour."};
     if (completes) return {ok: true, out: !v.my_turn, text: `Tu complètes la famille de ${v.pile.rank} : le pli est pour toi !`};
-    if (value === 12 && cards.length === v.hand.length) return {ok: true, text: "Attention : finir sur un 2 est interdit, tu seras Trou du cul."};
+    if (value === 12 && cards.length === v.hand.length) return {ok: true, text: "Attention : finir sur un 2 est interdit, tu seras Dernier."};
     if (value === 12) return {ok: true, text: `${cards.length > 1 ? `${cards.length} × 2` : "Un 2"} : tu fermes le pli et tu rouvres.`};
     return {ok: true, text: `${["", "Une carte", "Une paire", "Un brelan", "Un carré"][cards.length]} de ${["3", "4", "5", "6", "7", "8", "9", "10", "Valets", "Dames", "Rois", "As", "2"][value]}.`};
   }
@@ -108,7 +108,7 @@ window.President = (() => {
     const title = x ? "Les cartes changent de mains" : v.my_turn ? "À toi de jouer" : `Au tour de ${turn?.name || "…"}`;
     const mine = v.seats.find(p => p.me), d = decision(g);
     const waiting = !!g.me?.waiting;
-    const status = waiting ? "Tu prendras place à la prochaine donne." : mine?.dunce ? "Tu as fini sur un 2 : tu seras Trou du cul." : mine?.place ? `Tu as terminé à la place ${mine.place}.` : !g.me ? "Tu regardes la partie. Les mains restent privées." : "";
+    const status = waiting ? "Tu prendras place à la prochaine donne." : mine?.dunce ? "Tu as fini sur un 2 : tu seras Dernier." : mine?.place ? `Tu as terminé à la place ${mine.place}.` : !g.me ? "Tu regardes la partie. Les mains restent privées." : "";
     const seats = v.seats.map((p, i) => seatHtml(p, seatSpot(v.seats, p))).join("");
     const table = x ? `<div class="pr-exchange">
       <p>${x.count ? x.sent ? `${x.automatic ? "Tes meilleures cartes sont réservées" : "Ton choix est enregistré"} pour <b>${esc(x.to)}</b>.` : `Tu donnes <b>${x.count} carte${x.count > 1 ? "s" : ""}</b> à <b>${esc(x.to)}</b>. Choisis avant de recevoir.` : "Ta place ne demande aucun échange."}</p>

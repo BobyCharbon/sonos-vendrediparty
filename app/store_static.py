@@ -10,6 +10,7 @@ et en remplaçant chaque adresse « /static/….js|css » d'un script par « /st
 Le site, l'app BETA et Android reçoivent /static/ tel quel. Test : tests/test_store_static.py (page + tous les scripts
 servis à PartyStore, aucun mot de CODE_DRINK_RE).
 """
+import posixpath
 import re
 from functools import lru_cache
 from pathlib import Path
@@ -28,6 +29,10 @@ STORE_LINE = re.compile(r"^([ \t]*)//[ \t]*<store>[ \t]?", re.M)
 STORE_HTML_LINE = re.compile(r"^([ \t]*)<!-- <store> (.*?) -->[ \t]*$", re.M)
 LINE_COMMENT = re.compile(r"^[ \t]*//[^\n]*\n", re.M)
 CSS_COMMENT = re.compile(r"/\*.*?\*/", re.S)
+# Fichiers jamais servis à l'app App Store (contrôle du 26.11) : Zicou (pet/) et tout fichier d'un jeu caché
+# (beerpong.js, purity.css…), par /static-store/ comme par /static/.
+BLOCKED = re.compile(rf"^(?:pet/|(?:{'|'.join(store_app.HIDDEN_GAMES)})[.\-/])", re.IGNORECASE)
+INLINE_SCRIPT = re.compile(r"(<script(?![^>]*\bsrc=)[^>]*>)(.*?)(</script>)", re.S | re.I)
 JS_URL = re.compile(r"""(["'`])/static/([\w./-]+\.(?:js|css))(?=["'`?])""")
 
 
@@ -51,6 +56,11 @@ def _trailing_comment(line: str) -> str:
     return line
 
 
+def blocked(path: str) -> bool:
+    """Chemin relatif à /static/ (ou /static-store/) refusé à l'app App Store."""
+    return bool(BLOCKED.match(posixpath.normpath("/" + path).lstrip("/")))
+
+
 def js(text: str) -> str:
     text = CUT_LINE.sub("", CUT_HTML.sub("", CUT_JS.sub("", text)))
     text = STORE_HTML_LINE.sub(r"\1\2", STORE_LINE.sub(r"\1", text))
@@ -66,6 +76,8 @@ def css(text: str) -> str:
 def html(text: str) -> str:
     """Page de l'app App Store : blocs coupés, scripts et styles servis par /static-store/."""
     text = CUT_HTML.sub("", text)
+    # Scripts écrits dans la page : mêmes coupes et sans commentaires (contrôle du 26.11 : « Zicou », « Android »…).
+    text = INLINE_SCRIPT.sub(lambda m: m.group(1) + js(m.group(2)) + m.group(3), text)
     return re.sub(r"""(["'])/static/([\w./-]+\.(?:js|css))(?=["'?])""", rf"\1{PREFIX}\2", text)
 
 
