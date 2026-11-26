@@ -21,6 +21,9 @@ export function partyUrl(path: string) {
 // (dans le cadre d'admin.html). Toute autre page du module ouverte seule repart dans Party.
 const ALONE = /^\/(invite|share|group-invite|join|prono-invite|sign-in|welcome|terms|privacy|admin)(\/|$)/;
 
+/** Page qui reste seule hors du cadre de Party (admin, CGU, liens publics…). */
+export const staysAlone = (path: string) => ALONE.test(path);
+
 /** Module ouvert seul sur une page « de l'app » : la page Party autour (même page du module). true : on part. */
 export function leaveIfAlone(routerPath?: string): boolean {
   if (insidePartyFrame()) return false;

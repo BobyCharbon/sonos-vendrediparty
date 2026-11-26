@@ -30,11 +30,17 @@ export const PIN_LIMIT = 5;
 
 export const chatKey = (c: Pick<ChatItem, 'kind' | 'id'>) => `${c.kind}:${c.id}`;
 
+/** Conditions d'utilisation pas encore acceptées : l'écran les ouvre (useTermsGate) puis réessaie ; jamais « va dans Réglages ». */
+export class TermsNeeded extends Error {
+  constructor() { super('Accepte d’abord les conditions d’utilisation de Party : touche à nouveau le bouton pour les lire.'); }
+}
+export const needsTerms = (e: unknown): boolean => e instanceof TermsNeeded;
+
 /** Erreur lisible d'une fonction de la base (le message est déjà en français quand la base l'écrit). */
 function fail(error: { message?: string; code?: string } | null, fallback: string): never {
   const msg = error?.message ?? '';
   if (/pin_limit/.test(msg)) throw new Error(`Tu peux épingler ${PIN_LIMIT} discussions au plus. Désépingles-en une d’abord.`);
-  if (/terms_required/.test(msg)) throw new Error('Accepte d’abord les conditions d’utilisation (Réglages).');
+  if (/terms_required/.test(msg)) throw new TermsNeeded();
   throw new Error(fallback);
 }
 
@@ -295,7 +301,7 @@ const REASONS: Record<string, string> = {
   blocked: 'Tu ne peux pas écrire à cette personne.',
   inactive: 'Ce compte n’est plus actif.',
   profile_required: 'Complète d’abord ton profil (prénom, nom, surnom).',
-  terms_required: 'Accepte d’abord les conditions d’utilisation (Réglages).',
+  terms_required: 'Accepte d’abord les conditions d’utilisation de Party : touche à nouveau le bouton pour les lire.',
   closed: 'Cette personne ne reçoit pas de demandes de message.',
   limit: 'Tu as envoyé beaucoup de demandes : réessaie plus tard.',
 };
@@ -307,6 +313,7 @@ export async function writeTo(userId: string, push: (path: string) => void): Pro
   const { data, error } = await supabase.rpc('open_direct_chat', { target: userId });
   if (error) fail(error, 'La conversation n’a pas pu s’ouvrir. Réessaie.');
   const r = data as { chat: string | null; status: string; reason: string | null };
+  if (!r?.chat && r?.reason === 'terms_required') throw new TermsNeeded();
   if (!r?.chat) throw new Error(REASONS[r?.reason ?? ''] ?? 'Tu ne peux pas écrire à cette personne pour l’instant.');
   push(`/chats/${r.chat}`);
 }

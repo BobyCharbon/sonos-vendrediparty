@@ -7,7 +7,7 @@ import { localAttendance, type Attendance } from '@/lib/attendance';
 import { rsvpCounts, type EventListItem } from '@/lib/data';
 import { enter, pressTransition } from '@/lib/motion';
 import { dateTile, formatShort, formatTime, plural, relativeDay } from '@/lib/format';
-import { onWaitlist, rsvpChoices, rsvpClosed, rsvpOptions, saveRsvp } from '@/lib/rsvp';
+import { onWaitlist, potNotice, rsvpChoices, rsvpClosed, rsvpOptions, saveRsvp } from '@/lib/rsvp';
 import { colors, font, radius } from '@/lib/theme';
 import type { RsvpStatus, Tag } from '@/lib/types';
 
@@ -219,6 +219,7 @@ export function EventCard({
             accessibilityLabel={(k) => `${rsvpChoices[k].label} à ${event.title}`}
             label={(k) => (k === 'yes' && full && event.waitlist_enabled ? 'Liste d’attente' : rsvpChoices[k].label)}
           />
+          {event.pot_enabled ? <T size={12} muted>💸 {potNotice(false)}</T> : null}
           <ErrorText error={error} />
         </View>
       ) : null}
@@ -248,6 +249,9 @@ export function EventCard({
             </Pressable>
           ))}
         </View>
+      ) : null}
+      {quickRsvp && tone === 'maybe' && !closed && event.pot_enabled ? (
+        <T size={12} muted style={{ paddingHorizontal: 14, paddingBottom: 10 }}>💸 {potNotice(false)}</T>
       ) : null}
       {tone === 'maybe' ? <ErrorText error={error} /> : null}
     </View>

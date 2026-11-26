@@ -5,7 +5,7 @@ import { Image, StyleSheet, View } from 'react-native';
 import { ColorPicker, EmojiPicker, FloatingEmojis, GroupTile } from '@/components/GroupBits';
 import { GroupInvitePanel } from '@/components/GroupInvite';
 import { GroupPhotoField } from '@/components/GroupPhotoField';
-import { useTermsGate } from '@/components/TermsSheet';
+import { termsLater, useTermsGate } from '@/components/TermsSheet';
 import { Button, ErrorText, HeaderAction, HeaderBack, Input, Screen, T } from '@/components/ui';
 import { useMe } from '@/lib/auth';
 import { GROUP_COLOR_KEYS, GROUP_EMOJIS, coverGradient, saveGroupPhoto, type GroupColor } from '@/lib/groups';
@@ -61,7 +61,7 @@ export default function NewGroup() {
   async function next() {
     if (!clean || busy) return;
     setError(null);
-    if (!(await terms.ensure())) return;
+    if (!(await terms.ensure())) return setError(termsLater('créer ton groupe', created ? 'Enregistrer et continuer' : 'Continuer'));
     setBusy(true);
     if (created) {
       const { error: failed } = await supabase.from('member_groups').update({ name: clean, emoji, color }).eq('id', created);

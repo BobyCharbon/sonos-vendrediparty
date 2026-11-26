@@ -2,7 +2,7 @@ import { router, type Href } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { useTermsGate } from './TermsSheet';
+import { termsLater, useTermsGate } from './TermsSheet';
 import { Button, ErrorText, Input, T, ToggleRow } from './ui';
 import { useQuery } from '@/lib/data';
 import {
@@ -134,7 +134,8 @@ export function useSaveGuestGroup() {
     try {
       return await saveGuestGroupSetting(eventId, value);
     } catch (e) {
-      if (!(e instanceof Error && isTermsError(e.message) && (await terms.ensure()))) throw e;
+      if (!(e instanceof Error && isTermsError(e.message))) throw e;
+      if (!(await terms.ensure())) throw new Error(termsLater('créer le groupe'));
       return saveGuestGroupSetting(eventId, value);
     }
   }
@@ -209,7 +210,8 @@ function KeepBand({ eventId, band, groups, title, onDone }: {
     try {
       let r;
       try { r = await keepBand(...args); } catch (e) {
-        if (!(e instanceof Error && isTermsError(e.message) && (await terms.ensure()))) throw e;
+        if (!(e instanceof Error && isTermsError(e.message))) throw e;
+        if (!(await terms.ensure())) throw new Error(termsLater('créer le groupe'));
         r = await keepBand(...args);
       }
       if (choice === 'none') onDone(); else setSent(r.invited);

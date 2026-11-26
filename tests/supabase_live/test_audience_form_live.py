@@ -6,6 +6,7 @@ from urllib.parse import quote
 import httpx
 import pytest
 
+from tests.supabase_live.party_shell import ALONE_INIT
 from tests.supabase_live.test_admin_pages_live import origin, pytestmark  # noqa: F401 (fixture, conditions)
 from tests.supabase_live.test_audiences_live import complete_profile
 from tests.supabase_live.test_member_admin_live import TEST_URL, Session
@@ -30,6 +31,7 @@ def sign_in(page, local_number: str):
 def test_admin_invites_vip_group_plus_a_phone_and_only_that_guest_sees_it(browser, origin):
     title = f'Live VIP + numéro {int(time.time())}'
     admin = browser.new_context(viewport={'width': 390, 'height': 844}).new_page()
+    admin.add_init_script(ALONE_INIT)  # le module reste seul (19.11 : sinon la page s'ouvre dans Party)
     errors = []; admin.on('pageerror', lambda e: errors.append(str(e)))
     admin.goto(origin + '/events/', wait_until='domcontentloaded')
     sign_in(admin, '079 000 00 04')
@@ -55,6 +57,7 @@ def test_admin_invites_vip_group_plus_a_phone_and_only_that_guest_sees_it(browse
             complete_profile(Session(phone), name)  # règle : profil complet avant de voir les sorties
         for number, sees in (('079 000 00 02', True), ('079 000 00 01', False)):
             guest = browser.new_context(viewport={'width': 390, 'height': 844}).new_page()
+            guest.add_init_script(ALONE_INIT)
             guest.goto(origin + '/events/', wait_until='domcontentloaded')
             sign_in(guest, number)
             pw.expect(guest.get_by_text('Tu es connecté à ton compte ✓', exact=True)).to_be_visible(timeout=30000)

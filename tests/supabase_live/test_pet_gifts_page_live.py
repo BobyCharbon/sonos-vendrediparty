@@ -12,6 +12,7 @@ from pathlib import Path
 import httpx
 import pytest
 
+from tests.supabase_live.party_shell import ALONE_INIT
 from tests.supabase_live.test_admin_pages_live import sign_in_as_admin
 from tests.supabase_live.test_pet_live import sql_test
 
@@ -54,6 +55,7 @@ def origin(tmp_path_factory):
 def test_the_admin_prepares_previews_and_publishes_the_event_gifts(browser, origin):
     SHOTS.mkdir(parents=True, exist_ok=True)
     page = browser.new_page(viewport={'width': 390, 'height': 844}, device_scale_factor=3)
+    page.add_init_script(ALONE_INIT)  # le module reste seul (19.11 : sinon la fiche s'ouvre dans Party)
     errors = []; page.on('pageerror', lambda e: errors.append(str(e)))
     try:
         page.goto(origin + '/events/admin/users', wait_until='domcontentloaded')

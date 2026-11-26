@@ -10,7 +10,7 @@ import { Button, ErrorText, HeaderBack, Loading, Screen, T, Title } from '@/comp
 import { DESTINATION_KEY } from '@/lib/destination';
 import { useEdgeSwipeBack } from '@/lib/edgeSwipe';
 import { useShellBack } from '@/lib/shellBack';
-import { leaveIfAlone } from '@/lib/partyShell';
+import { leaveIfAlone, staysAlone } from '@/lib/partyShell';
 import { agendaOn, pronosOn } from '@/lib/features';
 import { usePendingSync } from '@/lib/pending';
 import { hasCompleteIdentity } from '@/lib/profile';
@@ -103,7 +103,8 @@ function Gate() {
   }, [path]);
   useEffect(() => {
     if (path === toLink.current) toLink.current = null;  // le lien est atteint
-    if (path === '/' && (toLink.current || (intent.current && LINK_INTENT.test(intent.current)))) return;
+    // Même passage par « / » pour une page qui reste seule (admin ouvert seul, puis connexion SMS : il restait dans Party).
+    if (path === '/' && (toLink.current || (intent.current && (LINK_INTENT.test(intent.current) || staysAlone(intent.current))))) return;
     leaveIfAlone(path);
   }, [path]);
   // App iPhone : dates de sondage « À confirmer » dans le calendrier ; une fois par connexion, le ménage des sondages
@@ -152,7 +153,7 @@ function Gate() {
       intent.current = null;
       forgetStoredIntent();
       if (path !== target) {
-        if (LINK_INTENT.test(target)) toLink.current = target;
+        if (LINK_INTENT.test(target) || staysAlone(target)) toLink.current = target;
         requestAnimationFrame(() => router.replace(target as Href));
       }
     }

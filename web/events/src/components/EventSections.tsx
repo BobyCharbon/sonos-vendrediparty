@@ -11,7 +11,7 @@ import { waitlistQueue, waitlistRank } from '@/lib/eventChecks';
 import { useAuth } from '@/lib/auth';
 import { openMiniProfile } from '@/lib/miniProfile';
 import { dbMessage, type ReportTarget } from '@/lib/moderation';
-import { fetchRsvpNotes, guestsLine, onWaitlist, rsvpChoices, rsvpClosed, rsvpOptions, saveRsvp, totalPlusOnes, waitingPlusOnes } from '@/lib/rsvp';
+import { fetchRsvpNotes, guestsLine, onWaitlist, potNotice, rsvpChoices, rsvpClosed, rsvpOptions, saveRsvp, totalPlusOnes, waitingPlusOnes } from '@/lib/rsvp';
 import { noteToSend, othersNotes } from '@/lib/rsvpNote';
 import { supabase } from '@/lib/supabase';
 import { colors, font, radius } from '@/lib/theme';
@@ -27,7 +27,7 @@ import { SheetBackdrop } from './SheetGesture';
 import { LinkedText } from './LinkedText';
 import { ReportSheet } from './ReportSheet';
 import { RsvpButtons } from './RsvpButtons';
-import { useTermsGate } from './TermsSheet';
+import { termsLater, useTermsGate } from './TermsSheet';
 import { Avatar, Button, Chip, ErrorText, Input, Meter, Reveal, s, Section, T } from './ui';
 import { NameLinks, type NamedPerson } from './NameLinks';
 
@@ -216,7 +216,7 @@ export function RsvpCard({
     const next = noteToSend(savedNote, note);
     if (next === undefined) return;
     // Effacer son mot ne publie rien : pas de CGU à accepter pour ça.
-    if (next !== '' && !(await terms.ensure())) return;
+    if (next !== '' && !(await terms.ensure())) return setError(termsLater('envoyer ton mot', 'Envoyer'));
     if (await upsert('note', { note: next })) {
       setTyped(null);
       await reloadNotes();
@@ -265,6 +265,11 @@ export function RsvpCard({
         disabled={closed}
         onSelect={(k) => upsert(k, { status: k })}
       />
+      {event.pot_enabled && (!closed || mine?.status === 'yes') ? (
+        <View testID="pot-notice" style={[st.note, { borderLeftColor: colors.mint }]}>
+          <T size={13} color={colors.textSoft}>💸 {potNotice(mine?.status === 'yes' && !waiting)}</T>
+        </View>
+      ) : null}
       {askGroup && !closed ? <GuestGroupCheck card={guestGroup!.group!} value={joinGroup} onChange={setJoinGroup} disabled={!!busy} /> : null}
       {mine && guestGroup && !organizer ? <GuestGroupJoin eventId={event.id} data={guestGroup} onJoined={reloadGuestGroup} /> : null}
       {plusOnes && mine?.status === 'yes' ? (
@@ -632,7 +637,8 @@ export function PollSection({
   const [report, setReport] = useState<ReportTarget | null>(null);
   const addOption = async () => {
     const text = newOption.trim();
-    if (!text || !(await terms.ensure())) return;
+    if (!text) return;
+    if (!(await terms.ensure())) return setError(termsLater('proposer un choix', 'Ajouter'));
     if (await act(supabase.from('poll_options').insert({ poll_id: poll.id, label: text, created_by: me, sort: options.length }), onChange, setError)) setNewOption('');
   };
   const closed = !!poll.closes_at && new Date(poll.closes_at) < new Date();
@@ -755,7 +761,8 @@ export function BringSection({
   if (!items.length && !canParticipate) return null;
   const add = async () => {
     const text = label.trim();
-    if (!text || !(await terms.ensure())) return;
+    if (!text) return;
+    if (!(await terms.ensure())) return setError(termsLater('ajouter un objet', 'Ajouter'));
     const sort = items.reduce((max, it) => Math.max(max, it.sort), 0) + 1;
     if (await act(supabase.from('bring_items').insert({ event_id: eventId, label: text, sort, added_by: me, claimed_by: me }), onChange, setError)) setLabel('');
   };

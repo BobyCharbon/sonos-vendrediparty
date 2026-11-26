@@ -6,7 +6,7 @@ import { GroupTile } from '@/components/GroupBits';
 import { PhotoTap } from '@/components/ProfilePhotoViewer';
 import { ReportSheet } from '@/components/ReportSheet';
 import { SheetBackdrop, useSheetDrag, useSheetTop } from '@/components/SheetGesture';
-import { useTermsGate } from '@/components/TermsSheet';
+import { termsLater, useTermsGate } from '@/components/TermsSheet';
 import { Skeleton } from '@/components/ui';
 import { faceLook } from '@/components/pronos/KitTheme';
 import { discussionsOn } from '@/lib/features';
@@ -66,7 +66,7 @@ export function MiniProfileSheet({ userId, onClose }: { userId: string; onClose:
     try {
       let r = await openDirect(mini.id);
       if (r.reason === 'terms_required') {
-        if (!(await terms.ensure())) return;
+        if (!(await terms.ensure())) return setError(termsLater('écrire', 'Envoyer un message'));
         r = await openDirect(mini.id);
       }
       if (r.chat) go(`/chats/${r.chat}`);
@@ -80,7 +80,7 @@ export function MiniProfileSheet({ userId, onClose }: { userId: string; onClose:
 
   /** CGU pas encore acceptées (la base répond « none » à cause d'elles) : les conditions en grand, puis on écrit. */
   async function writeAfterTerms() {
-    if (!(await terms.ensure())) return;
+    if (!(await terms.ensure())) return setError(termsLater('écrire', 'Envoyer un message'));
     await write();
     void fetchMini(userId).then((m) => { if (m) setMini(m); }, () => undefined);
   }
@@ -92,6 +92,8 @@ export function MiniProfileSheet({ userId, onClose }: { userId: string; onClose:
     try {
       await setBlocked(mini.id, next);
       setConfirmBlock(false);
+      // L'écran change aussitôt (recette du 26.11 : bloqué en base, mais la feuille restait identique), puis la base relue.
+      setMini((m) => (m ? { ...m, blocked: next, link: next ? 'none' : m.link } : m));
       setVersion((v) => v + 1);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Le blocage n’a pas pu être enregistré.');

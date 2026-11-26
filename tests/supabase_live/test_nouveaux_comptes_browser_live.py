@@ -254,7 +254,8 @@ def test_a_new_account_joins_a_group_by_its_invite_link_then_leaves_it(browser, 
         frame.get_by_test_id('group-settings').click()
         frame.get_by_role('button', name='Quitter le groupe').click()
         frame.get_by_role('button', name='Confirmer : quitter le groupe').click()
-        pw.expect(frame.get_by_text(name, exact=True)).to_have_count(0, timeout=20000)
+        # Seul ce qui se VOIT compte : la page du groupe quittée reste cachée dans la pile du routeur.
+        pw.expect(frame.get_by_text(name, exact=True).locator('visible=true')).to_have_count(0, timeout=20000)
         assert admin.get(f'member_group_members?select=user_id&group_id=eq.{group}').json() == [{'user_id': admin.uid}]
         shot(page, '05-groupe-quitte')
 
@@ -315,9 +316,9 @@ def test_a_new_account_from_a_shared_link_reloads_answers_present_and_fills_its_
         me = httpx.get(f'{TEST_URL}/auth/v1/user', headers=headers_of(token), timeout=30).json()['id']
         assert admin.get(f'rsvps?select=status&event_id=eq.{event}&user_id=eq.{me}').json() == [{'status': 'yes'}]
 
-        # Agenda abonné : un toucher sur « Ajouter à mon agenda » l'active (ordinateur : Apple · Outlook).
+        # Agenda abonné : un toucher sur « Ajouter à mon agenda » l'active (ordinateur : Calendrier Apple).
         frame.get_by_role('button', name='Ajouter à mon agenda').first.click()
-        frame.get_by_role('button', name='Apple · Outlook').click()
+        frame.get_by_role('button', name='Calendrier Apple', exact=True).click()  # 19.11 : Apple, Google, Outlook séparés
         page.wait_for_timeout(1500)
         r = httpx.post(f'{TEST_URL}/rest/v1/rpc/calendar_feed_token', headers=headers_of(token), json={'e': event}, timeout=30)
         assert r.status_code == 200 and r.json()['added'] is True, r.text
@@ -370,13 +371,14 @@ def test_a_new_account_votes_the_dates_of_a_public_poll_and_the_organizer_sees_w
         shot(page, '12-sondage-sans-compte')
         page.get_by_role('button', name='Se connecter pour choisir mes dates').click()
         sign_in(page, page, local(phone))
-        complete_profile(page, 'Eli', 'Sondage', 'Eli S.', page, '12a-sondage-faisons-connaissance')
-        page.wait_for_url(f'**/events/event/{event}', timeout=30000)
-        pw.expect(page.get_by_text('Quelle date ?', exact=True)).to_be_visible(timeout=20000)
-        pw.expect(page.get_by_role('button', name=re.compile('^Présent'))).to_have_count(0)
-        page.get_by_role('button', name=re.compile('^Oui : ')).first.click()
-        page.get_by_role('button', name=re.compile('^Non : ')).nth(1).click()
-        pw.expect(page.get_by_text('1 votant', exact=True)).to_be_visible(timeout=15000)
+        # Module ouvert seul depuis le lien : « Faisons connaissance » là où il s'affiche, puis la fiche DANS Party (19.11).
+        complete_profile(where_visible(page, 'Faisons connaissance'), 'Eli', 'Sondage', 'Eli S.', page, '12a-sondage-faisons-connaissance')
+        frame = in_party(page, f'/events/event/{event}', timeout=45000)
+        pw.expect(frame.get_by_text('Quelle date ?', exact=True)).to_be_visible(timeout=20000)
+        pw.expect(frame.get_by_role('button', name=re.compile('^Présent'))).to_have_count(0)
+        frame.get_by_role('button', name=re.compile('^Oui : ')).first.click()
+        frame.get_by_role('button', name=re.compile('^Non : ')).nth(1).click()
+        pw.expect(frame.get_by_text('1 votant', exact=True)).to_be_visible(timeout=15000)
         shot(page, '13-sondage-vote')
         token = browser_token(page)
         me = httpx.get(f'{TEST_URL}/auth/v1/user', headers=headers_of(token), timeout=30).json()['id']

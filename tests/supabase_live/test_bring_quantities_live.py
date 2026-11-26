@@ -5,6 +5,7 @@ import httpx
 import pytest
 
 from tests.supabase_live.test_audiences_live import ADMIN, GUEST_A, GUEST_B, create_event
+from tests.supabase_live.party_shell import ALONE_INIT
 from tests.supabase_live.test_admin_pages_live import origin, pytestmark as needs_test_build  # noqa: F401 (fixture)
 from tests.supabase_live.test_member_admin_live import TEST_URL, Session, pytestmark  # noqa: F401
 
@@ -72,6 +73,7 @@ def test_in_the_browser_a_guest_says_she_brings_two_of_the_fifteen_bottles(brows
                json={'event_id': eid, 'label': 'Bouteilles de vin', 'quantity': 15, 'sort': 0}).raise_for_status()
     try:
         page = browser.new_context(viewport={'width': 390, 'height': 844}).new_page()
+        page.add_init_script(ALONE_INIT)  # le module reste seul (19.11 : sinon la fiche s'ouvre dans Party)
         errors = []; page.on('pageerror', lambda e: errors.append(str(e)))
         page.goto(origin + '/events/', wait_until='domcontentloaded')
         sign_in(page, '079 000 00 01')

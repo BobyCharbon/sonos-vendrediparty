@@ -6,7 +6,7 @@ import { CalendarButton } from './CalendarButton';
 import { GuestGroupCheck } from './GuestGroup';
 import { IdentityForm } from './IdentityForm';
 import { InviteDateVotes } from './InviteDateVotes';
-import { useTermsGate } from './TermsSheet';
+import { termsLater, useTermsGate } from './TermsSheet';
 import { Button, ErrorText, Loading, Screen, T, Title } from './ui';
 import { appDownload } from '@/lib/appInvite';
 import { useAuth } from '@/lib/auth';
@@ -303,6 +303,8 @@ function Respond({ token, card, answer, join, onBack, onDone, onRefused }: {
       }
     } catch (e) {
       const raw = e instanceof Error ? e.message : String(e);
+      // « Plus tard » sur les conditions : dire pourquoi, « Réessayer » les rouvre (jamais la phrase brute de la base).
+      if (isTermsError(raw)) return setError(termsLater('répondre', 'Réessayer'));
       const message = dbMessage(raw, raw || 'Ta réponse n’a pas pu être enregistrée. Réessaie.');
       // Refus définitif : on s'arrête au premier (jamais de nouvel essai automatique, ≈150 appels refusés avant).
       if (isFinalRefusal(message)) return onRefused(refusalText(message));

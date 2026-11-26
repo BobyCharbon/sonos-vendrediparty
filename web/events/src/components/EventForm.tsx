@@ -11,7 +11,7 @@ import { parseLocalDateTime, toLocalInput } from '@/lib/format';
 import { NO_REPEAT, REPEAT_CHOICES, repeatLabel, repeatOf, untilDate, type Repeat, type Series } from '@/lib/recurrence';
 import { friendlyError } from '@/lib/errors';
 import { dbMessage } from '@/lib/moderation';
-import { useTermsGate } from './TermsSheet';
+import { termsLater, useTermsGate } from './TermsSheet';
 import { enter, pressTransition, useChangedSinceMount } from '@/lib/motion';
 import { check, must, supabase } from '@/lib/supabase';
 import { colors, radius } from '@/lib/theme';
@@ -608,7 +608,7 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
     try {
       const v = validate();
       if (typeof v === 'string') return setError(v);
-      if (!savedEventId.current && !terms.accepted && !(await terms.ensure())) return;
+      if (!savedEventId.current && !terms.accepted && !(await terms.ensure())) return setError(termsLater('publier ton événement'));
       setBusy(true);
       await save(v, asDraft);
     } finally {
@@ -893,7 +893,7 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
           </>
         ) : null}
         <Rows>
-          <ToggleRow label="Pot commun" hint="Les présents le trouvent dans Réglages › Pot commun pour partager les dépenses" value={d.pot_enabled} onChange={(v) => set({ pot_enabled: v })} />
+          <ToggleRow label="Pot commun" hint="Qui répond Présent y entre tout seul (la fiche le lui dit) et voit les noms et moyens de paiement des autres membres ; tout est dans Réglages › Pot commun" value={d.pot_enabled} onChange={(v) => set({ pot_enabled: v })} />
           <ToggleRow label="Covoiturage" hint="Les participants proposent leurs places ou en cherchent une, ville de départ en option" value={d.carpool_enabled} onChange={(v) => set({ carpool_enabled: v })} />
         </Rows>
         <SouvenirsSettings enabled={d.souvenirs_enabled} keep={d.souvenirs_keep} locked={d.souvenirs_locked} onChange={set} />

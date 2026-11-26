@@ -59,7 +59,7 @@ def test_public_pages_have_no_serious_axe_violation(browser, party, events):  # 
 
 def test_signed_in_pages_and_invite_sheet_have_no_serious_axe_violation(browser, party, events):  # noqa: F811
     event, poll, _ = events
-    context, page, errors = phone_page(browser)
+    context, page, errors = phone_page(browser, alone=True)  # pages du module seul (19.11 : sinon renvoyées dans Party)
     try:
         page.goto(f'{party}/events/sign-in', wait_until='domcontentloaded')
         sign_in(page, '079 000 00 04')
