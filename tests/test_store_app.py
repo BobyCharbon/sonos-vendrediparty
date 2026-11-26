@@ -551,7 +551,7 @@ def test_round_four_review_notes_present_an_app_for_everyone_and_nothing_dormant
     assert "wait for our approval" not in notes and 'tick group "Démo Apple" > Publish: live at once' in notes
     assert "off for this app on our server" not in notes and "switched off for this app on our server" not in guide
     assert "submitted for review" in notes.split("Not in this version", 1)[1].split("\n", 1)[0]
-    assert "see attached video" in notes
+    assert "see attached video" not in notes and "video" not in guide.split("PART B", 1)[1].lower()  # 26.11 : aucune vidéo
     assert "grouped as Général, Musique" not in guide
     checklist = (_root() / "docs/app-store/checklist-envoi.md").read_text(encoding="utf-8")
     assert "le bar « Soirée démo »" not in checklist
@@ -633,7 +633,7 @@ def test_round_seven_shared_expenses_are_filtered_and_the_listing_names_both_ext
     assert "private.item_text_verdict(new.note, 'Note')" in mig and "'20261125110000'" in prod
     import json
     desc = json.loads((_root() / "ios/appstore/metadata-fr.json").read_text(encoding="utf-8"))["description"]
-    assert "Partager › Party" in desc and "Activité en direct" in desc and len(desc) <= 4000
+    assert "Partager › Party" in desc and "Activité en direct" not in desc and len(desc) <= 4000  # 26.11 : plus de Musique
     guide = (_root() / "docs/app-store/notes-for-review.md").read_text(encoding="utf-8")
     assert "names, titles and notes pass the app's word filter" in guide
 
@@ -659,3 +659,31 @@ def test_store_app_notification_settings_hide_music_and_groups_never_promise_pro
     assert "if !AppConfig.isStoreApp || store.hostMode { music }" in notif
     groups = (_root() / "ios/Party/Chats/Groups/GroupsListView.swift").read_text(encoding="utf-8")
     assert "pronos" not in groups.lower().split("emptyhero")[1][:1500]
+
+
+def test_round_eight_texts_match_what_the_reviewer_can_try():
+    """Contrôle de la prod du 26.11 : aucune promesse que l'app App Store ne tient pas (2.1, 2.3.1(a), 5.1.2)."""
+    import json
+    notes = (_root() / "ios/appstore/review-notes.txt").read_text(encoding="utf-8").strip()
+    guide = (_root() / "docs/app-store/notes-for-review.md").read_text(encoding="utf-8")
+    desc = json.loads((_root() / "ios/appstore/metadata-fr.json").read_text(encoding="utf-8"))["description"]
+    fiche = (_root() / "docs/app-store/fiche-app-store.md").read_text(encoding="utf-8")
+    assert len(notes) <= 4000 and notes in guide
+    for gone in ("attached video", "Paying unlocks nothing", "quick action", "joined only by link", "**✨ IA** (top right)",
+                 "to the organisers"):
+        assert gone not in guide, gone
+    assert "nothing digital is sold or unlocked" in notes and "photos and voice messages can be sent" in guide
+    assert '"Présent" to an event with a pot adds you' in notes and "everyone who answers **Présent** is added" in guide
+    # « Pas présent » ne retire PAS du pot (tc_rsvp_changed ajoute seulement) : on le quitte soi-même dans Réglages.
+    assert "removes you" not in notes and "**Absent** removes" not in guide and "Quitter ce pot commun" in guide
+    assert desc in fiche  # la fiche recopie la description envoyée
+    assert "mini-sondages" not in desc and "Soirée Musique" not in desc
+    assert "modération par notre équipe" not in desc and "aux organisateurs" not in desc
+    assert "signalements lus et traités par l'éditeur sous 24 heures" in desc and "à l'équipe de Party" in desc
+    for path in ("web/events/src/app/privacy.tsx", "ios/Party/Settings/Account/SignInView.swift"):
+        text = (_root() / path).read_text(encoding="utf-8").replace("’", "'")
+        assert "Supabase (société américaine)" in text and "dont on ne peut pas retrouver le numéro" not in text, path
+        assert "toute personne qui répond « Présent » à cet événement y est ajoutée d'office" in text, path
+        assert "l'en fait sortir" not in text and "« Quitter ce pot commun »" in text, path
+        assert "les surnoms des membres de Party que tu peux inviter" in text, path
+        assert "Journal des connexions et des actions d'administration : 12 mois. Recherches de personnes : 1 heure." in text, path

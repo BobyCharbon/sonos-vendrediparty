@@ -5,7 +5,7 @@ CHANGES SINCE THE 1.4.3 REJECTION (new build + server, permanent for this versio
 Removed from the App Store app: every game linked to drinking (Pyramide, Je n'ai jamais, Qui de nous ?, Roulette, Beer pong, Biskit, Purify Test), every drink option, Hot/Mix questions, the party bar, Casino, Blackjack and the Music tab. Not renamed or re-skinned: our server recognises this app and refuses them, even by code or QR. Our website is separate; the app never opens its games. No drink words, demo included.
 
 SIGN-IN
-Phone + 6-digit SMS code. Demo "Apple-test": number and code in the sign-in fields (fixed code, no SMS). Tab "Se connecter" > "Suisse +41" > number > code.
+Phone + 6-digit SMS code. Demo "Apple-test": number and code in the sign-in fields (fixed code, no SMS). Steps: guide B4.1.
 
 TRY IT
 1. Events > "Soirée démo Vendredi Party" (co-organiser): answer "Présent", see who comes, use the event chat.
@@ -14,25 +14,25 @@ TRY IT
 4. Games > "Créer une salle" > Quiz, or Méninges.
 
 NATIVE (4.2)
-Native tab bar; SwiftUI Settings, Discussions, Groups, event chat, "Ton avis", AI assistant, "Pot commun". Push (a switch per type), Live Activity (music, host's party only), Wallet (tickets), QR scanner, Calendar, Contacts (optional, hashed), dictation. Share sheet > Party: event from a link (AI).
+Native tab bar; SwiftUI Settings, Discussions, Groups, event chat, "Ton avis", AI assistant, "Pot commun". Push (a switch per type), Live Activity (music), Wallet (tickets), QR scanner, Calendar, Contacts (optional, hashed), dictation. Share sheet > Party: event from a link (AI).
 
 WEB CONTENT (2.5.2)
-Events and Games tabs: our own site in a WKWebView. Other sites: Safari. Games > Code: 4 digits = a game; 6 digits = a host's music party (native Music screen, no tab; needs the host's Sonos: see attached video). Not in this version: Pronos, Agenda, companion. This build never opens them; only a future version, submitted for review, could add them.
+Events and Games tabs: our own site in a WKWebView. Other sites: Safari. Games > Code: 4 digits = a game; 6 digits = a host's music party (native Music screen, no tab; needs a party running on the host's Sonos). Not in this version: Pronos, Agenda, companion. This build never opens them; a future version would be submitted for review.
 
 EVENTS
-Links for one person or "Plusieurs"; guests make, copy and stop own links (counts only). Not public: a guest's guest waits ("À accepter"). Date poll. Calendar feed. Carpool (no money), QR ticket + Wallet: organiser options (Modifier). Groups: "Inviter avec un lien". Sign-in for events (name, nickname of 12 characters max); games stay unlimited without an account. Updates live; tap a name to open the profile; each answer shows its time. Admins: "Nouveau compte", announcement or maintenance.
+Links for one person or "Plusieurs"; guests make, copy and stop own links. Not public: a guest's guest waits ("À accepter"). Date poll. Calendar feed. Carpool (no money), QR ticket + Wallet: organiser options. Groups: "Inviter avec un lien". Sign-in for events (name, nickname: 12 characters max); games need no account. Updates live; tap a name to open the profile; each answer shows its time. Admins: "Nouveau compte", announcement or maintenance.
 
 PAYMENTS (3.1.3(e))
-Party never sells, holds or moves money. Events: organiser's own Revolut/Twint/IBAN, ticketing link (Safari) or on site. Paying unlocks nothing in the app; the QR ticket is for door entry. "Pot commun": split real costs; "Rembourser" shows the friend's own IBAN/Revolut/Twint.
+Party never sells, holds or moves money. Events: organiser's own Revolut/Twint/IBAN, ticketing link (Safari) or on site. Once the organiser confirms it, the guest gets a QR entry ticket (Wallet) for the real-world event; nothing digital is sold or unlocked. "Pot commun": split real costs; "Présent" to an event with a pot adds you (leave it in Settings); members see names and payment details each chose to show; "Rembourser" shows them.
 
 DISCUSSIONS (1.2)
-Event chats: only guests who answered "Présent" / "Peut-être" and organisers. DMs only with a real link (shared group or event); others send a message request: one text, no photo/link/number: "Accepter / Supprimer / Bloquer / Signaler". Settings > Confidentialité > "Demandes de message". "Nouveau message": real links only, search by name; 2+ people make a private group, not read by admins. Terms first, word filter, "Signaler" on each message (photo/voice kept for moderators, last 10 messages if ticked); "Bloquer" hides messages at once and alerts moderators. Tap a name: mini-profile. Reports within 24 h. Demo "Apple-test 2" (see guide) sees the request from the other side. Contact: support@vendrediparty.ch.
+Event chats: only guests coming ("Présent"/"Peut-être") and organisers. DMs only with a real link (shared group or event); others send a message request: one text, no photo/link/number: "Accepter / Supprimer / Bloquer / Signaler". "Demandes de message" in Settings. "Nouveau message": real links only, search by name; 2+ people make a private group, not read by admins. Terms first, word filter, "Signaler" on each message (photo/voice copied, last 10 messages if ticked); "Bloquer" hides messages at once and alerts moderators. Tap a name: mini-profile. Reports read and handled by the publisher within 24 h. Demo "Apple-test 2" (guide) sees the sender side. Contact: support@vendrediparty.ch.
 
 AI (5.1.2(i))
-"Avec l'IA", "Ton avis" and receipts go to Anthropic (Claude) only after "J'accepte" (withdraw: Settings > Confidentialité).
+"Avec l'IA", "Ton avis" and receipts go to Anthropic (Claude) only after "J'accepte" (withdraw in Settings).
 
 GAMES (18+)
-No drinking games: quizzes, card, word, party and 3D games, points only; first-party content. No gambling, purchase, prize. Written answers: filter + "Signaler"; anyone can leave, the host can ban.
+No drinking games: quizzes, card, word and 3D games, points only; first-party. No gambling, purchase, prize. Written answers: filter + "Signaler"; anyone can leave, the host can ban.
 
 DELETION
 Settings > "Gérer mon compte" > "Supprimer mon compte" (type SUPPRIMER).

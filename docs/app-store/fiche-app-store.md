@@ -45,32 +45,32 @@ Vendredi Party réunit tes soirées et tes événements dans une seule app, pour
 • Invite avec un lien, pour une personne ou pour plusieurs. Chacun répond Présent, Peut-être ou Absent, en un geste.
 • Pas encore de date ? Lance un sondage : chacun vote Oui, Si besoin ou Non, puis tu fixes la date.
 • Ajoute l'événement à ton agenda : il se met à jour tout seul si l'organisateur change quelque chose.
-• Covoiturage entre participants, liste « qui amène quoi », mini-sondages et discussion de l'événement.
+• Covoiturage entre participants, liste « qui amène quoi » et discussion de l'événement.
 • Billets QR dans l'app Cartes d'Apple, scannés à l'entrée par l'organisateur.
 • Événement payant ? Chacun paie l'organisateur directement, en dehors de l'app (lien de paiement, virement ou sur place), puis le note dans Party.
 
 DISCUSSIONS
-Discute avec tes groupes et en message privé : texte, photos, messages vocaux. Chaque événement a sa discussion, réservée à ceux qui viennent. Signaler et bloquer en un geste, conditions d'utilisation claires et modération par notre équipe.
+Discute avec tes groupes et en message privé : texte, photos, messages vocaux. Chaque événement a sa discussion, réservée à ceux qui viennent. Signaler et bloquer en un geste, conditions d'utilisation claires, signalements lus et traités par l'éditeur sous 24 heures.
 
 JEUX
 Une salle de jeux pour toute la bande : un seul code, tout le monde rejoint, on vote pour le prochain jeu et l'animateur le lance. Quiz, Président, Braquage en miniature, Néon Knockout et bien d'autres, avec le tableau des scores de la soirée. En solo, Méninges fait chauffer ta mémoire, ta logique et ta vitesse chaque jour.
 
 ET AUSSI
 • Groupes avec photo, couleur et lien d'invitation réutilisable.
-• Pot commun : qui a payé quoi, qui doit combien.
+• Pot commun : qui a payé quoi, qui doit combien. Si l'organisateur d'un événement en a choisi un, répondre Présent t'y ajoute.
 • Notifications réglables une à une, pause en un geste.
-• Ton avis : une idée, un bug ? Écris-le directement aux organisateurs.
+• Ton avis, pour les membres qui y ont accès : une idée, un bug ? Écris-le directement à l'équipe de Party.
 • Depuis n'importe quelle app, Partager › Party crée un événement à partir d'un lien.
-• Soirée Musique chez un hôte (son code à 6 chiffres dans Jeux) : propose des titres, et l'écran verrouillé t'indique quand le tien passe (Activité en direct).
 
 Connexion simple par numéro de téléphone et code SMS, sans mot de passe. Suppression du compte directement dans l'app.
 
 Sans publicité, sans suivi publicitaire, sans achat intégré. Réservé aux personnes de 18 ans et plus.
 ```
 
-Longueur : 2 368 caractères (limite 4 000). Aucun nom de marque tierce, aucun mot sur l'alcool, Zicou, Casino ou Blackjack.
-« Sur place » est décrit sans promesse : la musique demande une soirée en cours chez un hôte équipé ; les billets
-n'existent que si l'organisateur les allume. Refus 1.4.3 (25.11) : plus de bar dans la fiche ni dans l'app App Store.
+Longueur : 2 334 caractères (limite 4 000 ; 26.11 : sans mini-sondages ni soirée Musique). Aucun nom de marque tierce, aucun mot sur l'alcool, Zicou, Casino ou Blackjack.
+« Sur place » est décrit sans promesse : les billets n'existent que si l'organisateur les allume. 26.11 : ni « mini-sondages »
+(les comptes de démo ne peuvent pas en créer) ni soirée Musique / Activité en direct (impossible à essayer sans l'hôte) ;
+modération = « signalements lus et traités par l'éditeur sous 24 heures » ; « Ton avis » écrit à l'équipe de Party. Refus 1.4.3 (25.11) : plus de bar dans la fiche ni dans l'app App Store.
 
 ## Mots-clés (100 car.)
 
@@ -96,7 +96,7 @@ Texte prêt pour la prochaine version (1.0.1), à mettre dans `ios/appstore/what
 
 iPhone seulement (`TARGETED_DEVICE_FAMILY: 1`) : **6,9 pouces (1320 × 2868)**, de 3 à 10 captures, sur la PRODUCTION
 (compagnon éteint) avec un compte de démo et des **données fictives** (aucun vrai nom, numéro ou visage sans accord).
-Les captures en place datent du 26.10 (Jeux, Musique, Ton avis, Réglages) : **à refaire** (ni Événements, ni Discussions,
+Les captures en place (25.11, et celles du 26.10) montrent encore l'onglet Musique : **à refaire sur le nouveau build App Store** (26.11) (ni Événements, ni Discussions,
 ni bar) et **sans l'onglet Musique**, caché dans l'app App Store depuis le 25.11. Règle 2.3.8 : captures adaptées à tous les publics même pour une app 18+ → **aucune boisson alcoolisée, aucune
 catégorie « 🍻 Alcool », aucun 🍻, ni Casino, ni Blackjack, ni Zicou**. Le script `ios/scripts/screenshots.sh` est en
 partie périmé (sa capture « 2-games-3d » vise une section cachée depuis l'accueil des Jeux du 15.11) : À VÉRIFIER / refaire
@@ -115,5 +115,6 @@ partie périmé (sa capture « 2-games-3d » vise une section cachée depuis l'a
 | 9 | Salle de jeux (tuiles d'« Ambiance » / « Jeux de cartes ») ou une question de Quiz | Jeux › Créer une salle | Une salle de jeux pour toute la bande |
 | 10 | Méninges (Faire chauffer) | Jeux › Méninges | Fais chauffer tes méninges |
 
-Aperçu vidéo (facultatif) : mêmes règles. Icône 1024 × 1024 sans transparence : en place
+Aperçu vidéo : **aucun** pour cet envoi (26.11 : l'ancien, `docs/app-store/visuels/apercu/`, montre l'onglet Musique ;
+le supprimer dans App Store Connect, 6,9 pouces et Duo). Icône 1024 × 1024 sans transparence : en place
 (`ios/Party/Assets.xcassets/AppIcon.appiconset/icon-1024.png`, vérifiée : 1024 px, pas de canal alpha) ; ne jamais la changer.

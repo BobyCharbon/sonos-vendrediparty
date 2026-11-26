@@ -139,13 +139,15 @@ catégorie « 🍻 Alcool »)
 ## 7. Musique
 **Pas d'onglet Musique dans l'app App Store** (25.11). Pendant une soirée chez l'hôte : Jeux › **Code** › le code de la
 soirée à **6 chiffres** (ou le QR de l'hôte) ouvre l'écran natif Musique › « Titre, artiste ou lien » › ajouter ; « Me
-prévenir quand mon titre passe » (Live Activity). Il faut une soirée en cours (enceintes et compte de musique de l'hôte).
+prévenir quand mon titre passe » (Live Activity). Il faut une soirée en cours (enceintes et compte de musique de l'hôte) : aucune vidéo n'est jointe (26.11).
 
 ## 8. Réglages
 - **Notifications** : un interrupteur par type (Général, Jeux, Ton avis, Événements, Discussions des groupes,
   Amis, Comptes et modération, Quand j'organise ; Musique seulement après avoir rejoint une soirée Musique) ; la lune en haut à droite met tout en pause.
-- **Pot commun** : dépenses partagées (rien n'est payé dans l'app), scan de ticket (IA facultative, avec accord).
-- **Mes amis dans Party**, **Mes stats de jeu**, **Ton avis**.
+- **Pot commun** : dépenses partagées (rien n'est payé dans l'app), scan de ticket (IA facultative, avec accord). On y
+  entre par son lien, ou d'office en répondant **Présent** à un événement dont l'organisateur a choisi le pot (on le quitte
+  à tout moment : Réglages › Pot commun › **Quitter ce pot commun**) ; les membres voient le nom de chacun et les moyens de paiement que chacun a choisi d'indiquer.
+- **Mes amis dans Party**, **Mes stats de jeu**, **Ton avis** (selon le rôle ; écrit à l'équipe de Party, l'éditeur).
 - **Confidentialité** : Noms de mes contacts, **Personnes bloquées**, **Conditions d'utilisation** (contact
   support@vendrediparty.ch), accord **IA de Party** (retirer / redonner), politique complète.
 - **Gérer mon compte** › écrire **SUPPRIMER** › **Supprimer définitivement mon compte** ; **Se déconnecter** dessous.

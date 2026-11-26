@@ -216,7 +216,7 @@ def test_privacy_policy_tells_the_data_added_since_november_9_and_the_eu_rules()
                   "RGPD", "Bases légales", "portabilité", "CNIL", "Autorité de protection des données", "CNPD",
                   "DSA", "point de contact unique", "Combien de temps", "support@vendrediparty.ch"):
         assert words in text, words
-    assert "25 novembre 2026" in read("web/events/src/app/privacy.tsx")  # éditeur établi en France (25.11)
+    assert "26 novembre 2026" in read("web/events/src/app/privacy.tsx")  # éditeur établi en France (25.11)
 
 
 # ── 4.8 et 3.1 ──

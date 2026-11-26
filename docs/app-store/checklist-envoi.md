@@ -34,17 +34,16 @@
 - [ ] Tour 4 (25.11) : `2026-11-25-surnom-sans-logo-apply.sql` retire aussi U+F8FF des 27 notifications déjà envoyées
       et (tour 7) des 3 noms du Pot commun (`tc_members`, dont « Cobalt Project Paintball ») ; contrôle : 0 ligne
       `notifications` / `tc_members` avec chr(63743). Son retour arrière ne remet PAS les notifications (leur texte n'entre
-      jamais dans le dépôt public) ; vidéo Musique tournée sur un vrai iPhone (Jeux › Code à 6
-      chiffres, recherche, ajout d'un titre, Live Activity) JOINTE à l'envoi (les notes disent « see attached video ») ;
-      le jour de l'envoi, valider dans l'heure toute proposition d'Apple-test (les événements publics passent par la
+      jamais dans le dépôt public) ; ~~vidéo Musique jointe~~ : abandonnée le 26.11 (les notes ne promettent plus de
+      vidéo, « see attached video » retiré) ; le jour de l'envoi, valider dans l'heure toute proposition d'Apple-test (les événements publics passent par la
       modération) ; PDF du guide régénéré (partie B).
 - [ ] Tour 5 (25.11) : AUCUNE version tvOS (app Apple TV « Party », même identifiant) jointe à l'envoi de la 1.0.0 iOS :
       elle affiche encore « 🍻 Boit », « 🍺 gorgées » et « Un shot » (ios/PartyTV, binaire). Avant toute version tvOS : nouveau
       build qui cache ces lignes. Retirer Apple-test du « Cobalt Project Paintball » (vrai événement, vraies personnes) :
       il ne garde que la démo et « Démo Apple ». Vérifier où est hébergé le serveur (IP chez Orange France) : la confidentialité
       dit désormais « chez l'éditeur, en France » ; si c'est faux, corriger privacy.tsx et SignInView.swift avant l'envoi.
-      Si la vidéo Musique n'est pas jointe : retirer « see attached video » des notes AVANT l'envoi (et adapter le test
-      `test_round_four_review_notes_*`). Nouveau build : Pronos, Agenda, Zicou et bar éteints dans l'app quoi que dise le
+      Vidéo Musique : abandonnée, « see attached video » retiré des notes le 26.11 (test `test_round_four_review_notes_*`
+      adapté). Nouveau build : Pronos, Agenda, Zicou et bar éteints dans l'app quoi que dise le
       serveur ; Pot commun « Rembourser » ; Apple TV sans ligne « Boit » / gorgées (pour une future version tvOS).
 - [ ] Tour 6 (25.11) : filtre des événements publics de l'app élargi (happy hour, afterwork, pinte, Oktoberfest, ti-punch,
       binouze, pub crawl, margarita, shooters, Ricard, Heineken, chicha, narguilé, vapoter, puff, Jäger, pils, IPA ;
@@ -61,10 +60,28 @@
       filtré : noms, titres, notes ; testé sur la base de TEST). Accord IA version 3 (« publié sur GitHub, où tout le monde
       peut le lire ») : chacun le redonne avant le prochain envoi à l'IA ; si le dépôt passe en privé, le texte reste vrai
       par excès (on peut le rendre plus court plus tard, version 4). Fiche : section « ET AUSSI » de `metadata-fr.json`
-      recopiée dans App Store Connect (extension Partager › Party, Activité en direct de la Musique, 4.4). Historique de
+      recopiée dans App Store Connect (extension Partager › Party, 4.4 ; 26.11 : plus de puce Musique / Activité en direct). Historique de
       `fix-143` réécrit le 25.11 (les 27 notifications sorties du retour arrière) : vérifier avant tout push que
       `git log -p origin/main..fix-143 -- supabase/prod/2026-11-25-surnom-sans-logo-rollback.sql | grep -c "update public.notifications"`
       vaut 0.
+- [ ] Tour 8 (26.11, contrôle de la prod, textes corrigés sur develop) : notes, guide PDF, fiche, tutoriel et politique
+      de confidentialité corrigés (plus de « see attached video », plus de « ✨ IA » sur la fiche, « photos and voice
+      messages can be sent », plus de « mini-sondages » ni de puce Musique / Activité en direct dans la description,
+      « Paying unlocks nothing » remplacé par le billet QR remis une fois le paiement confirmé, plus de « quick action »,
+      « signalements lus et traités par l'éditeur sous 24 heures », « Ton avis » écrit à l'équipe de Party). Pot commun
+      (décision de l'admin) : l'entrée automatique est GARDÉE (Présent à un événement avec pot = membre ; on le quitte dans Réglages › Pot commun ; « Pas présent » ne retire PAS du pot) ;
+      B4.17 et la politique le disent. Politique du 26 novembre 2026 : Supabase (société américaine, données à Zurich) dans
+      les transferts, empreinte des contacts plus dite « irréversible », surnoms envoyés à l'assistant IA, journal de
+      connexion gardé 12 mois et recherches de personnes 1 heure. RESTE À FAIRE avant l'envoi :
+      - [ ] la purge à 12 mois d'`audit.jsonl` et à 1 h de `group_search_log` est EN PLACE en prod (agent « serveur » du
+            26.11) ; sinon retirer ces deux durées de la politique (web et iPhone) avant l'envoi ;
+      - [ ] captures 6,9" et Duo REFAITES sur le nouveau build App Store (barre à 4 onglets, 09 = Méninges ou la Salle
+            de jeux, données fictives, aucune boisson) ; ancienne vidéo d'aperçu SUPPRIMÉE dans App Store Connect
+            (aucune nouvelle vidéo) ; vérifier qu'aucune ancienne image ne reste en ligne ;
+      - [ ] guide PDF joint = celui du 26.11 (régénéré depuis la partie B) ; notes recopiées (3993 caractères) ;
+      - [ ] clé `storage_secret_key` AJOUTÉE par l'admin dans le coffre de prod (contrôle : `private.chat_files_gc_runs`) ;
+      - [ ] dépôt GitHub `BobyCharbon/sonos-vendrediparty` passé en PRIVÉ (ou `GITHUB_REPO` sur un dépôt privé à part) ;
+      - [ ] nouveau build iPhone : la politique native (`SignInView.swift`) est celle du 26.11, mot pour mot la page web.
 - [ ] Connexion testée avec « Apple-test 2 » (jamais connecté en prod au 25.11) et « Apple-test » le jour de l'envoi.
 - [ ] App Store Connect › Business : adresse du compte développeur en France (Segny) et statut DSA (non-commerçant) à jour.
 
@@ -107,10 +124,11 @@
       jamais vers le site et ses jeux, jamais `vendrediparty.ch` ; `metadata-fr.json` l'efface).
 - [ ] Droits d'auteur : `© 2026 Ludovic Trombert`.
 - [ ] Catégories : Style de vie / Divertissement.
-- [ ] Captures 6,9" **refaites sur la prod** (celles du 26.10 sont périmées : ni Événements, ni Discussions, ni bar) :
+- [ ] Captures 6,9" **refaites sur la prod avec le nouveau build** (celles du 25.11 et du 26.10 sont périmées) :
       liste et légendes dans `fiche-app-store.md`. Ni alcool mis en avant, ni « 🍻 Alcool », ni Casino / Blackjack, ni
       Zicou, ni vraie personne sans accord. **Sans l'onglet Musique** (caché depuis le 25.11) : les captures et l'aperçu
-      vidéo actuels le montrent tous, la capture 09 « musique » est à remplacer (Méninges ou une autre).
+      vidéo actuels le montrent tous, la capture 09 « musique » est à remplacer (Méninges ou une autre). Aperçu vidéo :
+      le SUPPRIMER (26.11 : aucune vidéo pour cet envoi).
 - [ ] Icône 1024 inchangée.
 
 ## 4. App Review Information
@@ -119,14 +137,14 @@
 - [ ] **User name** : `+41 79 000 09 99` (compte « Apple-test »).
 - [ ] **Password** : le code fixe à 6 chiffres (Supabase prod › Authentication › Phone › Test OTP ; le fichier
       `~/sb-work/apple/demo.txt` n'existe pas sur ce Mac : le reprendre là où il est). **Jamais dans le dépôt.**
-- [ ] **Notes** : la partie A de `notes-for-review.md` (3994 caractères, limite 4 000 ; = `ios/appstore/review-notes.txt`). La recopier aussi dans
+- [ ] **Notes** : la partie A de `notes-for-review.md` (3993 caractères, limite 4 000 ; = `ios/appstore/review-notes.txt`). La recopier aussi dans
       `ios/appstore/review-notes.txt` avant d'utiliser `tools/appstore_submit.py` (il envoie ce fichier), puis lancer
       `.venv/bin/python -m pytest -q tests/test_ios_app.py -p no:cacheprovider` (la partie A contient les mots exigés).
 - [ ] **Pronos, Agenda, compagnon : PAS dans cette version** (éteints sur le serveur) : les notes le disent (« Not in this version »),
       aucune section PRONOS, aucun prono de démo à préparer.
       Questionnaire : Simulated Gambling **None** tant qu'ils restent éteints.
       Aucun code de compte dans le dépôt.
-- [x] **Attachment** : `guide-revue-apple.pdf` (partie B de `notes-for-review.md`, mise en page A4, refait le 20.11),
+- [x] **Attachment** : `guide-revue-apple.pdf` (partie B de `notes-for-review.md`, mise en page A4, refait le 26.11),
       envoyé par `tools/appstore_submit.py attach` (workflow « App iOS → revue App Store », mode attach).
 - [ ] **Contact** : prénom, nom, téléphone qui répond vraiment pendant la revue (+41…), e-mail `support@vendrediparty.ch`
       (s'envoyer un message de test) — **À FOURNIR** (rien dans le dépôt).
@@ -221,7 +239,7 @@ Pour chaque type : **lié à l'identité : oui · suivi : non · finalité : App
 
 ## 20.11.2026 : contrôle complet avant le nouvel envoi
 - [x] En-tête (3840 × 1646) et Résultats de recherche (3840 × 2560) : `visuels/app-store-connect/` (zones sûres d'Apple).
-- [ ] Captures iPhone Duo (10) et vidéo d'aperçu (grand écran) : à REFAIRE sur le nouveau build (barre sans Musique, 25.11), ou supprimer l'aperçu.
+- [ ] Captures iPhone Duo (10) : à REFAIRE sur le nouveau build (barre sans Musique, 25.11) ; vidéo d'aperçu (grand écran) : à SUPPRIMER (26.11).
 - [x] Classification par âge : nouvelles questions « Position partagée » = Non, « Rencontres et relations » = Non (18+).
 - [x] Confidentialité (15 types, sans suivi), conformité (DSA déclaré ; Chine hors distribution), prix et 26 pays,
       pas de Mac ni de Vision Pro, comptes de démo et codes fixes valables jusqu'à fin 2027.
