@@ -111,3 +111,21 @@ def test_a_person_without_account_takes_a_place(people):
     full = post(admin, {'event_id': eid, 'name': 'Une de trop', 'status': 'yes'})
     assert full.status_code >= 400 and 'complet' in full.text
     assert attendance(admin, eid)['going'] == 1
+
+
+def test_removing_a_person_without_account_frees_the_place_for_the_waitlist(people):
+    """apply_waitlist part des Présents sans compte : le membre arrivé ensuite attend ; on retire la ligne, il passe."""
+    admin, ga, vip, made = people
+    eid = event(admin, made, 'Test présences liste d’attente', max_participants=1, waitlist_enabled=True)
+    assert httpx.post(f'{TEST_URL}/rest/v1/event_invites', headers=admin.headers, timeout=30,
+                      json={'event_id': eid, 'user_id': ga.uid}).status_code == 201
+    gid = post(admin, {'event_id': eid, 'name': 'Pote Théo', 'status': 'yes'}).json()[0]['id']
+    r = httpx.post(f'{TEST_URL}/rest/v1/rsvps', headers=ga.headers, timeout=30,
+                   json={'event_id': eid, 'user_id': ga.uid, 'status': 'yes', 'plus_ones': 0})
+    assert r.status_code == 201, r.text
+    mine = lambda: ga.get(f'rsvps?select=status,waitlisted&event_id=eq.{eid}&user_id=eq.{ga.uid}').json()[0]
+    assert mine() == {'status': 'yes', 'waitlisted': True}
+    assert attendance(ga, eid)['going'] == 1 and attendance(ga, eid)['waitlist'] == 1
+    assert httpx.delete(f'{TEST_URL}/rest/v1/{TABLE}?id=eq.{gid}', headers=admin.headers, timeout=30).status_code in (200, 204)
+    assert mine() == {'status': 'yes', 'waitlisted': False}
+    assert attendance(ga, eid)['going'] == 1 and attendance(ga, eid)['waitlist'] == 0
