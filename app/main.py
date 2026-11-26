@@ -41,7 +41,7 @@ from .souvenirs import start_chores as start_souvenir_chores
 from .chat_rpc import chat_rpc_router, start_files_gc
 from . import pet_pot, tv_star
 # Adresse du déploiement et fonctions en bêta (Compagnon : allumé sur le site de test seulement).
-from .features import COMPAGNON_SOON, TEST_SITE_HOST, agenda_enabled, app_store_url, bar_enabled, compagnon_enabled, configured_public_url, discussions_enabled, invites_v2_enabled, patates_enabled, pronos_enabled
+from .features import COMPAGNON_SOON, TEST_SITE_HOST, agenda_enabled, app_store_url, bar_enabled, compagnon_enabled, configured_public_url, covers_enabled, souvenirs_enabled, discussions_enabled, invites_v2_enabled, patates_enabled, pronos_enabled
 from .game_lock import LOCK as GAMES_LOCK
 from .accounts import AccountError, Accounts, ServiceUnavailable, TermsRequired
 from .account_auth import AccountAuth
@@ -196,7 +196,8 @@ async def lifespan(app):
         threading.Thread(target=absorb_local_feedback, daemon=True).start()
     if "pytest" not in sys.modules:  # fichiers orphelins des Discussions : au démarrage puis toutes les 6 h (jamais en test)
         start_files_gc(group_chats)
-        start_souvenir_chores(souvenir_service)  # Souvenirs : corbeille (disque) et originaux de 7 jours, toutes les 5 min
+        if souvenirs_enabled():  # drapeau du serveur seul (sans requête)
+            start_souvenir_chores(souvenir_service)  # Souvenirs : corbeille (disque) et originaux de 7 jours, toutes les 5 min
         threading.Thread(target=retention_loop, daemon=True, name="retention").start()
     yield
 
@@ -4234,6 +4235,9 @@ async def discussions_off(request: Request, call_next):
 # Agenda et Pronos gardés en test (décision du 19.11) : leurs routes répondent 404 hors site de test.
 AGENDA_PATHS = ("/api/account/agenda/", "/d/", "/agenda/")
 PRONOS_PATHS = ("/api/account/pronos/", "/prono/")
+# Souvenirs et couverture d'événement (contrôle Apple du 26.11) : site de test seulement, jamais dans l'app App Store.
+SOUVENIRS_PATHS = ("/api/account/souvenirs/", "/api/souvenirs/")
+COVERS_PATHS = ("/api/account/event-cover/",)
 APPS_OFF = "Bientôt dans Party."
 
 
@@ -4243,6 +4247,9 @@ async def apps_off(request: Request, call_next):
     store = store_app.is_store(request)  # app App Store : Agenda et Pronos toujours éteints (version 1.0.0)
     if (path.startswith(AGENDA_PATHS) and (store or not agenda_enabled())) \
             or (path.startswith(PRONOS_PATHS) and (store or not pronos_enabled())):
+        return JSONResponse({"detail": APPS_OFF}, status_code=404, headers=NO_CACHE)
+    if (path.startswith(SOUVENIRS_PATHS) and not souvenirs_enabled(request)) \
+            or (path.startswith(COVERS_PATHS) and not covers_enabled(request)):
         return JSONResponse({"detail": APPS_OFF}, status_code=404, headers=NO_CACHE)
     return await call_next(request)
 
@@ -5457,9 +5464,11 @@ def bar_page(html: str, store: bool = False) -> str:
 
 
 def apps_page(html: str, store: bool = False) -> str:
-    """Agenda et Pronos gardés en test (19.11) : <html data-agenda="off"> / data-pronos="off", lus par le module Événements
+    """Agenda et Pronos gardés en test (19.11), Souvenirs et couverture (26.11) : <html data-agenda="off"> / data-pronos,
+    data-souvenirs, data-covers="off", lus par le module Événements
     (ni entrée dans les Réglages ni l'en-tête, ni carte, ni page). App App Store : toujours éteints."""
-    for name, on in (("pronos", pronos_enabled()), ("agenda", agenda_enabled())):
+    for name, on in (("covers", covers_enabled()), ("souvenirs", souvenirs_enabled()),
+                     ("pronos", pronos_enabled()), ("agenda", agenda_enabled())):
         if store or not on:
             html = html.replace("<html", f'<html data-{name}="off"', 1)
     return html
@@ -5477,7 +5486,8 @@ def features_page(html: str, store: bool = False) -> str:
 def page(name: str, store: bool = False) -> Response:
     """Page HTML avec des adresses de scripts et de styles versionnées (mises en cache jusqu'au prochain déploiement).
     store : app App Store (store_app.is_store), sans bar."""
-    key = (name, compagnon_enabled(), discussions_enabled(), invites_v2_enabled(), bar_enabled(), agenda_enabled(), pronos_enabled(), store)
+    key = (name, compagnon_enabled(), discussions_enabled(), invites_v2_enabled(), bar_enabled(), agenda_enabled(), pronos_enabled(),
+           souvenirs_enabled(), covers_enabled(), store)
     if key not in _pages:
         html = features_page((STATIC / name).read_text(encoding="utf-8"), store)
         _pages[key] = re.sub(r'(/static(?:-store)?/[\w./-]+\.(?:js|css))(?=")', rf"\1?v={BUILD_ID}", html)
@@ -5800,7 +5810,8 @@ def features(request: Request):
     return JSONResponse({"compagnon": compagnon_enabled(request), "discussions": discussions_enabled(),
                          "invites_v2": invites_v2_enabled(), "bar": bar_enabled() and not store,
                          "patates": patates_enabled() and pronos_enabled() and not store,
-                         "agenda": agenda_enabled() and not store, "pronos": pronos_enabled() and not store},
+                         "agenda": agenda_enabled() and not store, "pronos": pronos_enabled() and not store,
+                         "souvenirs": souvenirs_enabled(request), "covers": covers_enabled(request)},
                         headers=NO_CACHE)
 
 
@@ -5888,7 +5899,8 @@ def apple_app_site_association():
     # Liens universels : un QR code ou un lien Party ouvre l'app iOS si elle est installée, sinon le site.
     beta = urlparse(configured_public_url()).hostname == TEST_SITE_HOST
     app_id = IOS_BETA_APP_ID if beta else IOS_APP_ID
-    return JSONResponse({"applinks": {"details": [{"appIDs": [app_id], "components": [{"/": "/*"}]}]}},
+    return JSONResponse({"applinks": {"details": [{"appIDs": [app_id], "components": [
+        {"/": "/admin*", "exclude": True}, {"/": "/tv*", "exclude": True}, {"/": "/*"}]}]}},
                         headers=NO_CACHE)
 
 

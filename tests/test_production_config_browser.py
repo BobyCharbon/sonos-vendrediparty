@@ -20,7 +20,7 @@ def prod_origin(tmp_path_factory):
         sock.bind(('127.0.0.1', 0))
         port = sock.getsockname()[1]
     env = {**os.environ, 'DATA_DIR': str(tmp_path_factory.mktemp('party-prod-data')), 'COMPAGNON_ENABLED': '0',
-           'DISCUSSIONS_ENABLED': '0', 'AGENDA_ENABLED': '', 'PRONOS_ENABLED': '', 'PARTY_PUBLIC_URL': 'https://party.bobycharbon.ch',
+           'DISCUSSIONS_ENABLED': '0', 'AGENDA_ENABLED': '', 'PRONOS_ENABLED': '', 'SOUVENIRS_ENABLED': '', 'COVERS_ENABLED': '', 'PARTY_PUBLIC_URL': 'https://party.bobycharbon.ch',
            'EVENTS_WEB_DIR': str(ROOT / 'web/events/dist'), 'ADMIN_PIN': '8462',
            'SPOTIFY_CLIENT_ID': '', 'SPOTIFY_CLIENT_SECRET': '', 'PYTHONDONTWRITEBYTECODE': '1'}
     process = subprocess.Popen([sys.executable, '-m', 'uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', str(port), '--lifespan', 'off'],
@@ -55,9 +55,11 @@ def test_server_says_production_features(prod_origin):
     assert httpx.get(f'{prod_origin}/api/features').json() == {'compagnon': False, 'discussions': False, 'invites_v2': False,
                                                               'bar': False,  # bar de la soirée : en construction
                                                               'patates': False,  # confettis des Pronos v2 (clé « patates ») : bêta
-                                                              'agenda': False, 'pronos': False}  # gardés en test (19.11)
+                                                              'agenda': False, 'pronos': False,  # gardés en test (19.11)
+                                                              'souvenirs': False, 'covers': False}  # gardés en test (26.11)
     page = httpx.get(prod_origin).text
     assert 'data-discussions="off"' in page and 'data-compagnon="off"' in page and 'data-events=' not in page
+    assert 'data-souvenirs="off"' in page and 'data-covers="off"' in page
     module = httpx.get(f'{prod_origin}/events/').text
     assert 'data-discussions="off"' in module and 'data-invites="off"' in module and 'data-events=' not in module
     assert 'data-bar="off"' in module  # bar de la soirée absent de la production

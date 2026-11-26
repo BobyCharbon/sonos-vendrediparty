@@ -15,7 +15,9 @@ def app_ids(monkeypatch, public_url):
     assert r.status_code == 200
     assert r.headers["content-type"] == "application/json"
     details = r.json()["applinks"]["details"]
-    assert [d["components"] for d in details] == [[{"/": "/*"}]]
+    # Admin et Apple TV restent dans le navigateur (contrôle Apple du 26.11) : exclus avant « tout le reste ».
+    assert [d["components"] for d in details] == [[{"/": "/admin*", "exclude": True}, {"/": "/tv*", "exclude": True},
+                                                   {"/": "/*"}]]
     return details[0]["appIDs"]
 
 
