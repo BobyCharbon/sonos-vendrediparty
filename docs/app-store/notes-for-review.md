@@ -498,6 +498,10 @@ New build, and our server, permanent for this version of the App Store app:
 - "Pot commun" names, expense titles and notes now pass the same word filter as the rest of the app (1.2).
 - The App Store description lists the "Partager › Party" extension (an event from a link); it no longer mentions the
   music party nor "mini-sondages", which the demo accounts cannot create.
+- Small changes of this build: "Ajouter quelqu'un" to a group also finds a member by their exact Swiss phone number
+  (never a list of members); the invitation page says, like the event page, that answering Présent joins the event's
+  "Pot commun"; refusing the terms ("Plus tard") always says what to do next and where to accept them later; a blocked
+  person's mini-profile offers "Débloquer".
 - Payments: once the organiser confirms a payment, the guest gets a QR entry ticket (Wallet) for the real-world event;
   nothing digital is sold or unlocked.
 - "Pot commun": answering **Présent** to an event whose organiser chose a pot (or being marked Présent by the organiser) adds you to it (you can leave it at any time in Réglages › Pot commun);
