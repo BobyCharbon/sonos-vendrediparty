@@ -1,4 +1,4 @@
-"""« Le Reflet » : qui est devant le miroir choisit et parie en secret, les autres votent anonymement, points selon
+"""« Le Reflet » : qui est devant le miroir choisit et devine en secret, les autres votent anonymement, points selon
 l'écart, tours qui s'enchaînent, départs en pleine partie, et actions vérifiées par le serveur."""
 import json
 import random

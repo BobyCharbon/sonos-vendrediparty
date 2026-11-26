@@ -18,7 +18,9 @@ GAME_RULES.debate = `
   <h3>Sans téléphone ?</h3>
   <p>L'animateur ajoute les participants sans téléphone : son écran dit à qui le passer. La personne touche « C'est moi », vote, et l'écran se cache aussitôt.</p>
   <h3>La fin</h3>
-  <p>Après 10, 20 ou 30 dilemmes, le bilan : le dilemme le plus divisant, le plus unanime, et celui qui a fait changer le plus d'avis. Pas de gagnant${STORE ? "" : ", pas de gorgées"} : juste de belles discussions.</p>`;
+  <p>Après 10, 20 ou 30 dilemmes, le bilan : le dilemme le plus divisant, le plus unanime, et celui qui a fait changer le plus d'avis. Pas de gagnant${STORE ? "" : ", pas de gorgées"} : juste de belles discussions.</p> <!-- store-cut -->
+  <!-- <store> <p>Après 10, 20 ou 30 dilemmes, le bilan : le dilemme le plus divisant, le plus unanime, et celui qui a fait changer le plus d'avis. Pas de gagnant : juste de belles discussions.</p> -->
+  `;
 
 const DB_EMOJI = ["👎", "🙁", "🤔", "🙂", "👍"];
 let dbReadyKey = "";  // le votant sans téléphone a touché « C'est moi » : l'échelle s'affiche pour lui

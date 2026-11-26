@@ -98,3 +98,17 @@ b[data-bump] { display: inline-block; }
 
 /* Avis 36c47b3d1f82 : nom d'un joueur avec un compte, dans les résultats : il ouvre sa fiche profil. */
 .g-who { cursor: pointer; text-decoration: underline dotted; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+
+/* Conditions d'utilisation des jeux (app App Store, contrôle du 26.11) : case sous « Comment tu t'appelles ? », grande et
+   lisible ; le lien ouvre les conditions dans un panneau, sur place (la partie n'est jamais quittée). */
+.g-terms { display: flex; align-items: flex-start; gap: 12px; margin: 16px 0 0; padding: 14px 16px; border-radius: 16px;
+  background: rgba(255, 255, 255, .06); box-shadow: inset 0 0 0 1px var(--hairline, rgba(255, 255, 255, .12)); font-size: .95rem; line-height: 1.4;
+  cursor: pointer; transition: box-shadow .2s, background .2s; }
+.g-terms input { flex: none; width: 26px; height: 26px; margin: 1px 0 0; accent-color: var(--accent); cursor: pointer; }
+.g-terms.warn { background: rgba(255, 79, 154, .12); box-shadow: inset 0 0 0 2px var(--accent); }
+.g-terms-link { display: inline; min-height: 0; padding: 0; border: 0; background: none; color: var(--accent-2); font: inherit; font-weight: 700;
+  text-decoration: underline; text-underline-offset: 3px; box-shadow: none; }
+.g-terms-note { margin: 10px 4px 0; color: var(--muted); font-size: .85rem; }
+.g-terms-later { width: 100%; margin-top: 12px; }
+.g-terms-sheet { height: min(88vh, 900px); }
+.g-terms-frame { flex: 1; width: 100%; min-height: 0; border: 0; border-radius: 14px; background: #fff; }

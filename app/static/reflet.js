@@ -1,20 +1,20 @@
-// 🪞 Le Reflet : à tour de rôle, un joueur choisit une affirmation sur lui-même et parie combien d'amis seront
+// 🪞 Le Reflet : à tour de rôle, un joueur choisit une affirmation sur lui-même et devine combien d'amis seront
 // d'accord ; les autres votent oui ou non en secret ; on révèle le compteur et l'écart, puis on en parle.
 // Chargé après games.js (utilise gameAction, pressed, esc, toast, haptic, GameFx…).
 GAME_THEME.reflet = "g-rf";
 GAME_RULES.reflet = `
   <h3>Le principe</h3>
-  <p>À tour de rôle, un joueur passe <b>devant le miroir</b>. Il choisit une affirmation sur lui-même parmi trois (« On me confie facilement ses secrets ») et parie <b>en secret</b> combien de ses amis diront « oui, c'est vrai ».</p>
+  <p>À tour de rôle, un joueur passe <b>devant le miroir</b>. Il choisit une affirmation sur lui-même parmi trois (« On me confie facilement ses secrets ») et devine <b>en secret</b> combien de ses amis diront « oui, c'est vrai ».</p>
   <h3>Le vote</h3>
   <p>Les autres votent <b>oui ou non</b>, chacun sur son téléphone. Le vote est anonyme : on ne saura jamais qui a voté quoi, seulement combien. Avec moins de deux votes, le résultat reste secret. Il faut au moins 4 joueurs.</p>
   <h3>La révélation</h3>
-  <p>Le compteur des « oui » monte, puis l'écart avec le pari. <b>Pile</b> : 3 points ; <b>à un près</b> : 1 point. Ensuite, qui veut dit pourquoi : c'est le meilleur moment.</p>
+  <p>Le compteur des « oui » monte, puis l'écart avec son estimation. <b>Pile</b> : 3 points ; <b>à un près</b> : 1 point. Ensuite, qui veut dit pourquoi : c'est le meilleur moment.</p>
   <h3>La fin</h3>
   <p>Après un ou deux passages devant le miroir pour chacun : le plus lucide, la plus grande surprise et les affirmations qui ont fait l'unanimité.</p>`;
 
 
 let rfPick = null;    // affirmation choisie (devant le miroir)
-let rfBet = null;     // pari en cours
+let rfBet = null;     // estimation en cours
 let rfRoundKey = "";
 let rfOptions = "";
 
@@ -28,7 +28,7 @@ function rfSyncRound(g) {
   const key = `${g.id}:${g.round}`;
   if (key !== rfRoundKey) {
     rfRoundKey = key; rfPick = null; rfBet = null;
-    try {  // page rechargée pendant le choix : l'affirmation et le pari reviennent
+    try {  // page rechargée pendant le choix : l'affirmation et l'estimation reviennent
       const saved = JSON.parse(sessionStorage.getItem("vp_reflet") || "null");
       if (saved?.key === key) { rfPick = saved.pick; rfBet = saved.bet; rfOptions = saved.options || ""; }
     } catch { /* stockage indisponible : on repart de zéro */ }
@@ -70,7 +70,7 @@ function rfPickHtml(g) {
   const v = g.reflet;
   if (!v.is_mirror) {
     return `${rfTurn(v)}<div class="rf-mirror"${GameFx.fx("pop", rfKey(g, "who"))}><div class="rf-mirror-k">Devant le miroir</div><div class="lk-name">${esc(v.mirror?.name || "")}</div>
-      <p class="artist">choisit une affirmation sur soi et parie en secret…</p></div>
+      <p class="artist">choisit une affirmation sur soi et devine en secret…</p></div>
       ${v.can_swap_lead ? `<button class="lk-sub" data-gact="rfswap" style="width:100%">🔀 Lui proposer d'autres affirmations</button>` : ""}`;
   }
   const opts = v.options.map((t, i) => `<button type="button" class="ps-opt ${rfPick === i ? "on" : ""}" data-rf-pick="${i}" aria-pressed="${rfPick === i}"${GameFx.fx("rise", rfKey(g, `opt${i}`), 100 * i)}>« ${esc(t)} »</button>`).join("");
@@ -90,9 +90,9 @@ function rfVoteHtml(g) {
   const v = g.reflet;
   const ask = v.can_vote ? `<div class="lk-who"${GameFx.fx("rise", rfKey(g, "ask"))}>🤫 Es-tu d'accord ? Personne ne saura ce que tu as voté.</div>
       <div class="rf-votes"><button type="button" class="rf-yes" data-rf-vote="1">👍 Oui, c'est vrai</button><button type="button" class="rf-no" data-rf-vote="0">👎 Non</button></div>`
-    : v.is_mirror ? `<div class="lk-card lk-done"><div class="artist">Ton pari, gardé secret</div><div class="lk-name">${v.bet} « oui »</div></div>`
+    : v.is_mirror ? `<div class="lk-card lk-done"><div class="artist">Ton estimation, gardée secrète</div><div class="lk-name">${v.bet} « oui »</div></div>`
     : v.my_vote ? `<div class="lk-card lk-done"${GameFx.fx("pop", rfKey(g, "voted"))}><div class="lk-name">🤫 Vote enregistré</div><div class="artist">Résultat quand tout le monde a voté.</div></div>`
-    : v.late ? `<div class="lk-card lk-done"><div class="artist">Tu es arrivé après le pari : tu voteras au prochain tour.</div></div>` : "";
+    : v.late ? `<div class="lk-card lk-done"><div class="artist">Tu es arrivé après l'estimation : tu voteras au prochain tour.</div></div>` : "";
   const dots = `<div class="lk-dots" role="img" aria-label="${v.done} sur ${v.voters} ont voté">${Array.from({ length: v.voters }, (_, i) => `<i class="${i < v.done ? "on" : ""}"></i>`).join("")}</div>`;
   const host = g.is_host && v.waiting?.length ? `<div class="lk-card lk-waiting"><div class="artist">Votent encore…</div><div class="lk-row">${v.waiting.map((x) => `<button class="lk-sub" data-rf-skip="${esc(x.pid)}" data-rf-name="${esc(x.name)}" aria-label="Ne plus attendre le vote de ${esc(x.name)}">⏭ Passer ${esc(x.name)}</button>`).join("")}</div></div>` : "";
   return `${rfTurn(v)}${rfCard(g, v)}${ask}${dots}${host}`;
@@ -110,7 +110,7 @@ function rfResultHtml(g) {
   return `${rfTurn(v, true)}${rfCard(g, v)}
     <div class="rf-count"${GameFx.fx("pop", rfKey(g, "count"))}><div class="rf-count-n"><span${GameFx.num(rfKey(g, "yes"), r.yes, 0)}>${r.yes}</span><small>/${r.voters}</small></div>
       <div class="artist">disent « oui, c'est vrai »</div></div>
-    <div class="lk-win"${GameFx.fx("land", rfKey(g, "verdict"), 700)}><div class="lk-win-k">Pari : ${r.bet}</div><div class="lk-win-t">${verdict}</div>${r.points ? `<div class="artist">+${r.points} point${r.points > 1 ? "s" : ""} pour ${esc(v.mirror?.name || "")}</div>` : ""}</div>
+    <div class="lk-win"${GameFx.fx("land", rfKey(g, "verdict"), 700)}><div class="lk-win-k">Estimation : ${r.bet}</div><div class="lk-win-t">${verdict}</div>${r.points ? `<div class="artist">+${r.points} point${r.points > 1 ? "s" : ""} pour ${esc(v.mirror?.name || "")}</div>` : ""}</div>
     <p class="db-talk">💬 Qui veut dire pourquoi ? Personne n'est obligé.</p>${next}`;
 }
 

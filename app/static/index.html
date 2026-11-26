@@ -16,9 +16,13 @@
   <link rel="stylesheet" href="/static/neon.css">
   <link rel="stylesheet" href="/static/island.css">
   <link rel="stylesheet" href="/static/heist.css">
+  <!-- <store-cut> : jeu caché dans l'app App Store (app/store_static.py) -->
   <link rel="stylesheet" href="/static/purity.css">
+  <!-- </store-cut> -->
   <link rel="stylesheet" href="/static/likely.css">
+  <!-- <store-cut> : jeu caché dans l'app App Store (app/store_static.py) -->
   <link rel="stylesheet" href="/static/beerpong.css">
+  <!-- </store-cut> -->
   <link rel="stylesheet" href="/static/debate.css">
   <link rel="stylesheet" href="/static/psy.css">
   <link rel="stylesheet" href="/static/masque.css">
@@ -560,7 +564,7 @@ function tabTransition(tab) {
 }
 // 🏆 Mes stats de jeu : un onglet par jeu ; chaque jeu enregistre son affichage dans STATS_TABS (purity.js…).
 const STATS_TABS = {};
-// App App Store : pas de Purify Test (alcool, drogue : Apple 1.4.3) ; les stats n'ont que Méninges.
+// App App Store : pas de Purify Test (Apple 1.4.3, purity.js n'y est pas chargé) ; les stats n'ont que Méninges.
 if (STORE_APP) document.querySelector('[data-stats-tab="purity"]')?.remove();
 let statsTab = STORE_APP ? "brain" : "purity";
 function showStats(name = statsTab) {
@@ -1497,13 +1501,17 @@ function listen() {
 <script src="/static/notice-admin.js"></script>
 <script src="/static/games-admin.js"></script>
 <script src="/static/quiz.js"></script>
+<!-- <store-cut> : jeu caché dans l'app App Store (app/store_static.py) -->
 <script src="/static/purity.js"></script>
+<!-- </store-cut> -->
 <script src="/static/likely.js"></script>
 <script src="/static/debate.js"></script>
 <script src="/static/psy.js"></script>
 <script src="/static/masque.js"></script>
 <script src="/static/reflet.js"></script>
+<!-- <store-cut> : jeu caché dans l'app App Store (app/store_static.py) -->
 <script src="/static/beerpong.js"></script>
+<!-- </store-cut> -->
 <script src="/static/brain/core.js"></script>
 <script src="/static/brain/stats.js"></script>
 <!-- compagnon -->

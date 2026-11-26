@@ -28,7 +28,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.gzip import GZipMiddleware
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from . import store_app
+from . import store_app, store_static
 from . import beerpong, brain, brain_game, calendar_ics, debate, games, heist, island, likely, links, masque, neon, president, psy, purity, quiz, reflet
 from . import pet, pet_coll_store, pet_reactions, pet_store
 from . import tv_zicou
@@ -1408,6 +1408,7 @@ class GameCreate(BaseModel):
     hint: bool = False  # Undercover : indice (catégorie du mot) pour les imposteurs qui se savent imposteurs
     white_hint: bool = False  # Undercover : indice pour Mr. White
     token: str = Field(default="", max_length=4096)  # Purify Test : jeton du compte Party (création réservée aux comptes)
+    terms: bool = False  # app App Store : conditions d'utilisation acceptées sur ce téléphone (check_game_terms)
 
 
 ACCOUNT_GAMES = ("purity",)  # jeux réservés aux comptes Party connectés
@@ -1458,6 +1459,35 @@ def check_store_access(request: Request, g: dict):
         save_games(g["code"], g.get("room") or "")
 
 
+# Contrôle du 26.11 (Apple 1.2) : dans l'app App Store, un joueur n'écrit rien que la table lira (son prénom, une réponse,
+# un mot, un prénom ajouté, un dilemme) avant d'avoir accepté les conditions d'utilisation : case « J'ai 18 ans ou plus et
+# j'accepte les conditions » sous « Comment tu t'appelles ? » (games.js), envoyée avec chaque requête des jeux (`terms`)
+# et notée sur le joueur. Un compte Party (identifiant « acct- ») les a acceptées en créant son profil. Le site et la
+# BETA : inchangés.
+GAME_TEXT_ACTIONS = {"join", "guess", "tanswer", "addguest", "names", "dbpropose", "mswrite", "bpick"}
+GAME_TERMS_MESSAGE = ("Pour écrire dans les jeux (prénom, réponses, mots), accepte d'abord les conditions d'utilisation : "
+                      "coche la case sous « Comment tu t'appelles ? ».")
+
+
+class GameTermsRequired(TermsRequired):
+    """403 {"code": "games_terms"} : la page rouvre la case des conditions (games.js)."""
+    code = "games_terms"
+
+
+def game_terms_ok(request: Request, players: list[dict], accepted: bool) -> bool:
+    """Le joueur peut écrire : hors app App Store, case cochée (cette requête, notée sur ses places) ou déjà notée."""
+    if accepted:
+        for p in players:
+            p["terms"] = True
+        return True
+    return not store_app.is_store(request) or any(p.get("terms") for p in players)
+
+
+def check_game_terms(request: Request, gid: str, players: list[dict], accepted: bool):
+    if not (gid.startswith("acct-") or game_terms_ok(request, players, accepted)):
+        raise GameTermsRequired(GAME_TERMS_MESSAGE)
+
+
 @app.post("/api/games")
 def create_game(body: GameCreate, request: Request):
     check_guest_id(body.guest_id)
@@ -1476,9 +1506,11 @@ def create_game(body: GameCreate, request: Request):
     prune_games()
     if len(store.session.games) >= 30:
         raise HTTPException(429, "Trop de parties en cours, réessaie plus tard")
+    check_game_terms(request, body.guest_id, [], body.terms)
     g = build_game(body)
     if store_app.is_store(request):
         store_app.flag(g)  # app App Store : sans gorgées ni mode Hot, questions sans boisson
+    game_terms_ok(request, [p for p in g["players"] if p["id"] == body.guest_id], body.terms)
     _game_creations[ip] = recent + [time.time()]
     game_presence(request, body.guest_id, body.name)
     title, text = f"🎮 {games.GAMES[g['type']]}", f"{g['host_name']} lance une partie · code {g['code']}"
@@ -1561,7 +1593,7 @@ def room_launch(room: dict, me: str, settings: dict):
         raise HTTPException(403, "Connecte-toi avec ton numéro pour lancer le Purify Test")
     host = room["host"] or me
     hp = games.player(room, host)
-    fields = {k: v for k, v in settings.items() if k in GameCreate.model_fields and k not in ("guest_id", "name", "type", "token")}
+    fields = {k: v for k, v in settings.items() if k in GameCreate.model_fields and k not in ("guest_id", "name", "type", "token", "terms")}
     fields["plays"] = bool(hp) and fields.get("plays", True) and (not accounts_only or seat_linked(room, host)) \
         and (games_free(host) or not guest_gate.blocked(host))  # invité au bout de ses parties : il anime sans jouer
     body = GameCreate(guest_id=host, name=room.get("host_name") or "Animateur", type=kind, **fields)
@@ -3596,6 +3628,7 @@ class GameAction(BaseModel):
     done: bool = False  # Purify Test : affirmation cochée (« déjà fait ») ou décochée
     token: str = Field(default="", max_length=4096)  # Purify Test : jeton du compte Party pour rejoindre
     step: str = Field(default="", max_length=60)  # « Suivant » : l'étape vue par la page (phase:manche), voir plus bas
+    terms: bool = False  # app App Store : conditions d'utilisation acceptées sur ce téléphone (check_game_terms)
 
 
 PURITY_ONLY = {"puset", "puans", "pusub", "puunsub", "pureveal"}
@@ -3614,7 +3647,7 @@ PURITY_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", 
 # masque (msguess, settings = {picks: {réponse: pid}, unmask}) ; l'animateur règle, change, montre, retire, révèle.
 MASQUE_ONLY = {"msset", "mswrite", "msswap", "msshow", "msguess", "mshide", "msreveal", "msreport"}
 MASQUE_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "pause", "resume"} | MASQUE_ONLY
-# « Le Reflet » : qui est devant le miroir choisit et parie (rfpick, settings = {i, bet}) ; les autres votent (rfvote,
+# « Le Reflet » : qui est devant le miroir choisit et devine (rfpick, settings = {i, bet}) ; les autres votent (rfvote,
 # done = oui) ; l'animateur règle et n'attend plus un absent (rfskip).
 REFLET_ONLY = {"rfset", "rfpick", "rfswap", "rfvote", "rfskip"}
 REFLET_ACTIONS = {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "pause", "resume"} | REFLET_ONLY
@@ -3670,6 +3703,13 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     check_guest_id(body.guest_id)
     g = get_game(code)
     check_store_access(request, g)
+    # Ses places (partie et salle) : la case des conditions y est notée, et lue avant tout texte libre.
+    seats = [p for x in filter(None, (g, room_child(g) if g["type"] == "room" else room_of(g)))
+             for p in x["players"] if p["id"] == canonical_gid(x, body.guest_id)]
+    if body.action in GAME_TEXT_ACTIONS:
+        check_game_terms(request, canonical_gid(g, body.guest_id), seats, body.terms)
+    elif body.terms:
+        game_terms_ok(request, seats, True)
     game_presence(request, body.guest_id, body.name)
     if body.action == "join":
         if g["type"] in ACCOUNT_GAMES:
@@ -3854,6 +3894,8 @@ def perform_game_action(code: str, body: GameAction, request: Request):
                 games.add_guest(other, body.guess, action_result["id"])
         except games.GameError:
             pass
+    if a == "join" and body.terms:  # place toute neuve (partie et salle) : la case cochée y est notée
+        game_terms_ok(request, [p for x in filter(None, (g, other)) for p in x["players"] if p["id"] == me], True)
     if not g["players"] and not g["host"]:
         store.session.games.pop(g["code"], None)
     save_games(g["code"], g.get("room") or "", g.get("current") or "")
@@ -5382,8 +5424,8 @@ COMPAGNON_BLOCK = re.compile(r"[ \t]*<!-- compagnon -->.*?<!-- /compagnon -->\n?
 
 
 def compagnon_page(html: str, store: bool = False) -> str:
-    """Compagnon éteint (ou app App Store) : <html data-compagnon="off"> (lu par les scripts et le module Événements),
-    morceaux retirés."""
+    """Compagnon éteint : <html data-compagnon="off"> (lu par les scripts et le module Événements), morceaux retirés.
+    App App Store : toujours éteint, comme dans son code natif (contrôle du 26.11 : aucun script de Zicou servi)."""
     if compagnon_enabled() and not store:
         return html
     return COMPAGNON_BLOCK.sub("", html.replace("<html", '<html data-compagnon="off"', 1))
@@ -5428,7 +5470,7 @@ def features_page(html: str, store: bool = False) -> str:
     # App App Store (store_app) : <html data-store="1">, lu par le module Événements (aucun emoji de boisson).
     html = bar_page(apps_page(html, store), store)
     if store:
-        html = html.replace("<html", '<html data-store="1"', 1)
+        html = store_static.html(html.replace("<html", '<html data-store="1"', 1))
     return discussions_page(compagnon_page(invites_page(html), store))
 
 
@@ -5438,7 +5480,7 @@ def page(name: str, store: bool = False) -> Response:
     key = (name, compagnon_enabled(), discussions_enabled(), invites_v2_enabled(), bar_enabled(), agenda_enabled(), pronos_enabled(), store)
     if key not in _pages:
         html = features_page((STATIC / name).read_text(encoding="utf-8"), store)
-        _pages[key] = re.sub(r'(/static/[\w./-]+\.(?:js|css))(?=")', rf"\1?v={BUILD_ID}", html)
+        _pages[key] = re.sub(r'(/static(?:-store)?/[\w./-]+\.(?:js|css))(?=")', rf"\1?v={BUILD_ID}", html)
     return Response(_pages[key], media_type="text/html; charset=utf-8", headers=NO_CACHE)
 
 
@@ -5452,6 +5494,22 @@ def index(request: Request, tab: str = Query("", max_length=20), event: str = Qu
         return response
     html = event_preview.with_preview(response.body.decode(), accounts, event_id, configured_public_url())
     return Response(html, media_type="text/html; charset=utf-8", headers=NO_CACHE)
+
+
+@app.get("/static-store/{path:path}")
+def static_store(path: str, request: Request):
+    """Scripts et styles de l'app App Store, sans code des jeux cachés ni mot de boisson (app/store_static.py) ; tout
+    autre fichier : le même que /static/."""
+    file = (STATIC / path).resolve()
+    if not file.is_relative_to(STATIC.resolve()) or not file.is_file():
+        raise HTTPException(404, "Introuvable")
+    versioned = request.query_params.get("v") == BUILD_ID
+    headers = {"Cache-Control": "public, max-age=31536000, immutable" if versioned else "no-cache"}
+    if file.suffix == ".js":
+        return Response(store_static.render(file), media_type="text/javascript; charset=utf-8", headers=headers)
+    if file.suffix == ".css":
+        return Response(store_static.render(file), media_type="text/css; charset=utf-8", headers=headers)
+    return FileResponse(file, headers=headers)
 
 
 @app.get("/admin")

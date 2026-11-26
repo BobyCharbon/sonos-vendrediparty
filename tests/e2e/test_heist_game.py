@@ -107,7 +107,8 @@ def test_heist_coop_touch_late_join_and_network_recovery(phones):
 
 
 def test_heist_floating_joystick_and_quit_by_touch(phones):
-    """Toucher la moitié gauche de l'écran de jeu amène le joystick sous le doigt ; « Quitter », en haut à droite, ouvre le menu de sortie."""
+    """Toucher la moitié gauche de l'écran de jeu amène le joystick sous le doigt ; « Quitter », en haut à droite, quitte
+    vraiment (après confirmation) : seul à jouer, l'animateur ferme sa partie (D4, recette iPhone du 26.11)."""
     p=phones('HeistThumb');p.create('heist');ready(p)
     p.page.locator('.hs-primary[data-gact="start"]').tap();wait_state(p,lambda g:g['phase']=='play')
     expect(p.page.locator('.hs-root.hs-playing')).to_be_visible();p.page.wait_for_timeout(600)  # commandes actives
@@ -120,5 +121,6 @@ def test_heist_floating_joystick_and_quit_by_touch(phones):
     cdp.send('Input.dispatchTouchEvent',{'type':'touchEnd','touchPoints':[]})
     expect(p.page.locator('.hs-stick')).to_have_attribute('style',re.compile(r'^(?!.*translate)'))  # revenu à sa place
     q=p.page.locator('.g-quit').bounding_box();assert q['x']+q['width']>vw['width']-30  # dans le coin, bien visible
+    asked=[];p.page.once('dialog',lambda d:(asked.append(d.message),d.accept()))
     p.page.locator('.g-quit').tap()
-    expect(p.page.locator('#gDrawerExit [data-exit]').first).to_be_visible()
+    expect(p.page.locator('#gHome')).to_be_visible();assert asked==['Quitter et fermer la partie ?']

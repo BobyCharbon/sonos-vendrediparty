@@ -16,7 +16,7 @@ NATIVE_BRIDGE = """
 Object.defineProperty(navigator, "standalone", { get: () => true, configurable: true });
 window.__tabStates = [];
 window.PartyNative = { platform: "ios", tabs: { update: (s) => window.__tabStates.push(JSON.parse(JSON.stringify(s))) } };
-localStorage.setItem("vp_install_dismissed", "1"); localStorage.setItem("vp_name", "Léa");
+localStorage.setItem("vp_install_dismissed", "1"); localStorage.setItem("vp_name", "Léa"); localStorage.setItem("vp_games_terms", "1");
 """
 
 

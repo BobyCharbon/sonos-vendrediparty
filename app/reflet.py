@@ -1,9 +1,9 @@
 """« Le Reflet » — te vois-tu comme les autres te voient ?
 
 À tour de rôle, un joueur est « devant le miroir » : il choisit une affirmation sur lui-même parmi trois (« On me
-confie facilement ses secrets ») et parie en secret combien d'amis seront d'accord. Les autres votent oui ou non,
-anonymement, chacun sur son téléphone. La révélation : le compteur des « oui » monte, puis l'écart avec le pari.
-Ensuite, qui veut dit pourquoi. Points : pari exact 3, à un près 1. Fin après un ou deux passages devant le miroir.
+confie facilement ses secrets ») et devine en secret combien d'amis seront d'accord. Les autres votent oui ou non,
+anonymement, chacun sur son téléphone. La révélation : le compteur des « oui » monte, puis l'écart avec l'estimation.
+Ensuite, qui veut dit pourquoi. Points : estimation exacte 3, à un près 1. Fin après un ou deux passages devant le miroir.
 
 Votes toujours anonymes : seul le nombre de « oui » sort, jamais qui a voté quoi.
 
@@ -104,7 +104,7 @@ def mirror(g: dict) -> dict | None:
 
 
 def _voters(g: dict) -> list[dict]:
-    """Ceux qui votent : tous sauf le joueur devant le miroir ; une fois le pari fait, seulement ceux d'alors."""
+    """Ceux qui votent : tous sauf le joueur devant le miroir ; une fois l'estimation faite, seulement ceux d'alors."""
     S = state(g)
     m = mirror(g)
     out = [p for p in g["players"] if not m or p["id"] != m["id"]]
@@ -114,7 +114,7 @@ def _voters(g: dict) -> list[dict]:
 
 
 def pick(g: dict, gid: str, index, bet):
-    """Qui est devant le miroir choisit son affirmation et parie (en secret) le nombre de « oui »."""
+    """Qui est devant le miroir choisit son affirmation et devine (en secret) le nombre de « oui »."""
     S = state(g)
     m = mirror(g)
     if g["phase"] != "pick" or not m or m["id"] != gid:
@@ -124,8 +124,8 @@ def pick(g: dict, gid: str, index, bet):
     if not 0 <= index < len(S["options"]):
         raise RefletError("Choix inconnu")
     if not 0 <= bet <= len(_voters(g)):
-        raise RefletError(f"Parie entre 0 et {len(_voters(g))}")
-    # Les votants sont ceux pour qui le pari a été fait : un retardataire votera au tour suivant.
+        raise RefletError(f"Choisis un nombre entre 0 et {len(_voters(g))}")
+    # Les votants sont ceux pour qui l'estimation a été faite : un retardataire votera au tour suivant.
     S.update(card=S["options"][index], bet=bet, electors=[p["id"] for p in _voters(g)])
     g["phase"] = "vote"
 
@@ -177,7 +177,7 @@ def settle(g: dict):
     m = mirror(g)
     voters = len(S["votes"])
     yes = sum(1 for v in S["votes"].values() if v) if voters >= MIN_VOTES else 0
-    # Le pari se compare aux vrais votants : un absent passé compte comme « non » s'il avait été parié.
+    # L'estimation se compare aux vrais votants : un absent passé compte comme « non » s'il était compté.
     gap = abs(S["bet"] - yes)
     # Trop peu de votes (votants passés ou partis) : rien n'est publié ni compté, l'anonymat passe avant le jeu.
     hidden = voters < MIN_VOTES

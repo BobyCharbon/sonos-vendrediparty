@@ -28,7 +28,7 @@ def client(ua, **headers):
 
 def create(ua, kind, gid, **options):
     main._game_creations.clear()
-    return client(ua).post("/api/games", json={"guest_id": gid, "name": "Léa", "type": kind, **options})
+    return client(ua).post("/api/games", json={"guest_id": gid, "name": "Léa", "type": kind, "terms": True, **options})
 
 
 def test_store_app_cannot_open_the_hidden_games():
@@ -249,7 +249,7 @@ def test_store_app_guests_play_without_limit_while_the_web_keeps_its_cap(monkeyp
     assert web[:2] == [200, 200] and web[2] == 403
     # Une partie web rejointe depuis l'app : pas de plafond non plus.
     code = create(WEB_UA, "likely", "web-host-xyz").json()["code"]
-    r = client(STORE_UA).post(f"/api/games/{code}", json={"guest_id": "store-guest-01", "action": "join", "name": "Léa"})
+    r = client(STORE_UA).post(f"/api/games/{code}", json={"guest_id": "store-guest-01", "action": "join", "name": "Léa", "terms": True})
     assert r.status_code == 200, r.text
 
 
@@ -403,7 +403,7 @@ def test_a_tmc_answer_can_be_reported_and_disappears_for_the_table(monkeypatch):
     code = create(STORE_UA, "tmc", "store-tmc-host").json()["code"]
     c = client(STORE_UA)
     for gid in ("store-tmc-b", "store-tmc-c"):
-        assert c.post(f"/api/games/{code}", json={"guest_id": gid, "name": gid, "action": "join"}).status_code == 200
+        assert c.post(f"/api/games/{code}", json={"guest_id": gid, "name": gid, "action": "join", "terms": True}).status_code == 200
     g = main.store.session.games[code]
     games.tmc_next(g, random.Random(1))
     d = g["tmc"]["duo"]

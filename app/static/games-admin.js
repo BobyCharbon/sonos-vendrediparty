@@ -13,8 +13,11 @@
     answer: "Réponse en secret", guess: "À voix haute", judge: "Points", scored: "Résultat du duo",
     bet: "Mises", play: "Partie en cours", spun: "Résultat", card: "En séance", deal: "Distribution", pyramid: "Pyramide",
     memory: "Test de mémoire", memres: "Résultats de mémoire", boatpick: "Qui fait le bateau ?", boat: "Le bateau", answering: "Réponses en secret" };
-  const EMOJI = { undercover: "🕵️", whoof: "🙋", likely: "🫵", debate: "⚖️", never: "🍻", roulette: "🎡", blackjack: "🃏", casino: "🎰", divan: "🛋️", tmc: "💞",
+  const EMOJI = { undercover: "🕵️", whoof: "🙋", likely: "🫵", debate: "⚖️", never: "🍻", roulette: "🎡", blackjack: "🃏", casino: "🎰", divan: "🛋️", tmc: "💞", // <store-cut/>
+  // <store> const EMOJI = { undercover: "🕵️", whoof: "🙋", likely: "🫵", debate: "⚖️", divan: "🛋️", tmc: "💞",
     pyramid: "🔺", quiz: "🧠", purity: "😇", room: "🏠", president: "👑", neon: "🥊", island: "🏝️", heist: "💎", biskit: "🍪" };
+  const sipsTxt = (p) => `🍻 ${p.drink} · 🎁 ${p.give}`; // <store-cut/>
+  // <store> const sipsTxt = () => "";
   let root = null, onState = () => {}, games = [];
   const open = new Set();
 
@@ -34,7 +37,7 @@
       ${isOpen ? `<div class="gs-more">
         ${g.facts?.length ? `<ul class="gs-facts">${g.facts.map((f) => `<li>${escape(f)}</li>`).join("")}</ul>` : ""}
         <div class="gs-table">${players.map((p) => `<div class="gs-row"><span class="grow">${p.host ? "🎲 " : ""}${escape(p.name)}${p.manual ? " <small>✍️ sans téléphone</small>" : ""}${p.pending ? " <small>⏳ attend l'animateur</small>" : ""}</span>
-          <span>${p.extra ? escape(p.extra) + " · " : ""}🍻 ${p.drink} · 🎁 ${p.give}</span></div>`).join("")}</div>
+          <span>${p.extra ? escape(p.extra) + " · " : ""}${sipsTxt(p)}</span></div>`).join("")}</div>
         <div class="artist">Dernière activité à ${hhmm(g.updated_at)} · code ${code}</div>
         <div class="row" style="margin-top:8px">
           ${mine ? `<span class="pill live">ta partie</span>` : `<button type="button" class="secondary grow" data-ga-join="${code}">Rejoindre</button>`}

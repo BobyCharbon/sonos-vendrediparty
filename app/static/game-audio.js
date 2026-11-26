@@ -56,7 +56,8 @@ const GameAudio = (() => {
     else if (old.card !== next.card) play("card");
     else if (old.round !== next.round || old.phase !== next.phase) {
       // Les roues et résultats de quiz ont leurs annonces synchronisées propres.
-      if (!["roulette", "casino", "quiz"].includes(g.type)) play("reveal");
+      if (!["roulette", "casino", "quiz"].includes(g.type)) play("reveal"); // <store-cut/>
+      // <store> if (!["quiz"].includes(g.type)) play("reveal");
     }
   }
   function tick(id, seconds) {

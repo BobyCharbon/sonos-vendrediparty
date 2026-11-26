@@ -23,7 +23,7 @@ function myTurnKey(g) {
   const me = g?.me?.pid;
   if (!me || g.kicked) return "";
   switch (g.type) {
-    case "blackjack": return g.bj?.my_turn ? `bj${g.round}-${g.bj.turn}` : "";
+    case "blackjack": return g.bj?.my_turn ? `bj${g.round}-${g.bj.turn}` : ""; // <store-cut/>
     case "divan": return g.divan?.my_turn ? `dv${g.divan.n}` : "";
     case "biskit": return g.bk?.my_turn ? `bk${g.bk.drawn}` : "";
     case "pyramid": return g.phase === "deal" && g.pyr?.turn === me ? `py${g.pyr.step}-${g.pyr.turn}` : "";
@@ -38,7 +38,7 @@ function myTurnKey(g) {
     case "reflet": return (g.phase === "pick" && g.reflet?.is_mirror) || (g.phase === "vote" && g.reflet?.can_vote) ? `rf${g.round}-${g.phase}` : "";
     case "quiz": return g.phase === "q" && !g.quiz?.q?.out ? `qz${g.quiz.n}` : "";
     case "president": return g.president?.my_turn && (!navigator.userActivation || navigator.userActivation.hasBeenActive) ? `pr${g.round}-${g.president.token}` : "";
-    case "casino": return g.phase === "bet" ? `cs${g.round}` : "";
+    case "casino": return g.phase === "bet" ? `cs${g.round}` : ""; // <store-cut/>
     default: return "";
   }
 }
@@ -56,28 +56,32 @@ function turnSignal(g) {
 // Icônes des jeux (traits, couleur héritée) : chapeau et lunettes d'espion, deux personnes et un « ? ».
 const GAME_ICONS = {
   undercover: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 22h38"/><path d="M12 22l3-11h18l3 11"/><circle cx="16" cy="32" r="5.5"/><circle cx="32" cy="32" r="5.5"/><path d="M21.5 32h5"/></svg>`,
+  // <store-cut> jeu caché dans l'app App Store
   whoof: `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13" cy="24" r="5"/><circle cx="35" cy="24" r="5"/><path d="M4 41c1-6 4.5-9 9-9s8 3 9 9"/><path d="M26 41c1-6 4.5-9 9-9s8 3 9 9"/><path d="M20 9.5a4 4 0 1 1 5.5 3.7c-1.2.5-1.5 1.3-1.5 2.8"/><path d="M24 20.5v.1"/></svg>`,
+  // </store-cut>
 };
-GAME_ICONS.never = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7h13l-1.6 14a4.9 4.9 0 0 1-9.8 0z"/><path d="M14.5 26v12"/><path d="M9.5 38h10"/><path d="M27 7h13l-1.6 14a4.9 4.9 0 0 1-9.8 0z"/><path d="M33.5 26v12"/><path d="M28.5 38h10"/><path d="M9 14h11M28 14h11"/></svg>`;
-GAME_ICONS.roulette = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="24" cy="27" r="17"/><circle cx="24" cy="27" r="3"/><path d="M24 10v14M24 30v14M7 27h14M27 27h14M12 15l10 10M26 29l10 10M36 15L26 25M22 29L12 39"/><path d="M20 3h8l-4 6z"/></svg>`;
-GAME_ICONS.blackjack = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="21" height="29" rx="3" transform="rotate(-10 15.5 25.5)"/><rect x="21" y="8" width="21" height="29" rx="3" transform="rotate(8 31.5 22.5)"/><path d="M31.5 15.5c-2.8 2.8-5.5 4.6-5.5 7.2a2.7 2.7 0 0 0 4.6 1.9l-.9 3h3.6l-.9-3a2.7 2.7 0 0 0 4.6-1.9c0-2.6-2.7-4.4-5.5-7.2z"/></svg>`;
-GAME_ICONS.beerpong = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 18h14l-2.5 22h-9z"/><path d="M26 18h14l-2.5 22h-9z"/><circle cx="24" cy="8" r="4.5" fill="currentColor" stroke="none"/></svg>`;
+GAME_ICONS.never = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 7h13l-1.6 14a4.9 4.9 0 0 1-9.8 0z"/><path d="M14.5 26v12"/><path d="M9.5 38h10"/><path d="M27 7h13l-1.6 14a4.9 4.9 0 0 1-9.8 0z"/><path d="M33.5 26v12"/><path d="M28.5 38h10"/><path d="M9 14h11M28 14h11"/></svg>`; // <store-cut/>
+GAME_ICONS.roulette = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="24" cy="27" r="17"/><circle cx="24" cy="27" r="3"/><path d="M24 10v14M24 30v14M7 27h14M27 27h14M12 15l10 10M26 29l10 10M36 15L26 25M22 29L12 39"/><path d="M20 3h8l-4 6z"/></svg>`; // <store-cut/>
+GAME_ICONS.blackjack = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="21" height="29" rx="3" transform="rotate(-10 15.5 25.5)"/><rect x="21" y="8" width="21" height="29" rx="3" transform="rotate(8 31.5 22.5)"/><path d="M31.5 15.5c-2.8 2.8-5.5 4.6-5.5 7.2a2.7 2.7 0 0 0 4.6 1.9l-.9 3h3.6l-.9-3a2.7 2.7 0 0 0 4.6-1.9c0-2.6-2.7-4.4-5.5-7.2z"/></svg>`; // <store-cut/>
+GAME_ICONS.beerpong = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 18h14l-2.5 22h-9z"/><path d="M26 18h14l-2.5 22h-9z"/><circle cx="24" cy="8" r="4.5" fill="currentColor" stroke="none"/></svg>`; // <store-cut/>
 // Jeux « Parler vrai » : icônes ici (l'accueil se dessine avant le chargement de psy.js, masque.js, reflet.js).
 GAME_ICONS.masque = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 14c6-3 12-4 18-4s12 1 18 4c0 14-6 24-18 24S6 28 6 14z"/><path d="M14 21c2-2 5-2 7 0"/><path d="M27 21c2-2 5-2 7 0"/><path d="M19 30c3 2 7 2 10 0"/></svg>`;
 GAME_ICONS.reflet = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="24" cy="20" rx="13" ry="15"/><path d="M24 35v8"/><path d="M16 43h16"/><path d="M18 14c2-3 5-4 8-3"/></svg>`;
 GAME_ICONS.psy = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="24" cy="22" r="14"/><path d="M18 18c0-3 2.7-5 6-5s6 2 6 5c0 4-6 4-6 8"/><path d="M24 31h.01"/><path d="M16 40h16"/></svg>`;
-GAME_ICONS.casino = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="24" cy="24" r="19"/><circle cx="24" cy="24" r="10"/><path d="M24 5v9M24 34v9M5 24h9M34 24h9M10.6 10.6l6.3 6.3M31.1 31.1l6.3 6.3M37.4 10.6l-6.3 6.3M16.9 31.1l-6.3 6.3"/><circle cx="24" cy="24" r="2.5" fill="currentColor"/><circle cx="36" cy="8" r="3" fill="currentColor" stroke="none"/></svg>`;
+GAME_ICONS.casino = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="24" cy="24" r="19"/><circle cx="24" cy="24" r="10"/><path d="M24 5v9M24 34v9M5 24h9M34 24h9M10.6 10.6l6.3 6.3M31.1 31.1l6.3 6.3M37.4 10.6l-6.3 6.3M16.9 31.1l-6.3 6.3"/><circle cx="24" cy="24" r="2.5" fill="currentColor"/><circle cx="36" cy="8" r="3" fill="currentColor" stroke="none"/></svg>`; // <store-cut/>
 GAME_ICONS.divan = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 24v-7a5 5 0 0 1 5-5h18a5 5 0 0 1 5 5v7"/><path d="M6 24a4 4 0 0 1 8 0v4h20v-4a4 4 0 0 1 8 0v10H6z"/><path d="M10 34v4M38 34v4"/></svg>`;
 GAME_ICONS.tmc = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="15" cy="15" r="6"/><circle cx="33" cy="15" r="6"/><path d="M4 38c1-7 5-11 11-11 3 0 5 1 7 3M44 38c-1-7-5-11-11-11-3 0-5 1-7 3"/><path d="M24 44s-6-3.6-6-7.6a3 3 0 0 1 6-1 3 3 0 0 1 6 1c0 4-6 7.6-6 7.6z"/></svg>`;
-GAME_ICONS.pyramid = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="19" y="5" width="10" height="12" rx="2"/><rect x="12" y="19" width="10" height="12" rx="2"/><rect x="26" y="19" width="10" height="12" rx="2"/><rect x="5" y="33" width="10" height="12" rx="2"/><rect x="19" y="33" width="10" height="12" rx="2"/><rect x="33" y="33" width="10" height="12" rx="2"/></svg>`;
-GAME_ICONS.biskit = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 18l6 6 10-12 10 12 6-6-3 16H11z"/><rect x="15" y="34" width="18" height="10" rx="3"/><circle cx="21" cy="39" r="1" fill="currentColor"/><circle cx="27" cy="39" r="1" fill="currentColor"/></svg>`;
+GAME_ICONS.pyramid = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="19" y="5" width="10" height="12" rx="2"/><rect x="12" y="19" width="10" height="12" rx="2"/><rect x="26" y="19" width="10" height="12" rx="2"/><rect x="5" y="33" width="10" height="12" rx="2"/><rect x="19" y="33" width="10" height="12" rx="2"/><rect x="33" y="33" width="10" height="12" rx="2"/></svg>`; // <store-cut/>
+GAME_ICONS.biskit = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 18l6 6 10-12 10 12 6-6-3 16H11z"/><rect x="15" y="34" width="18" height="10" rx="3"/><circle cx="21" cy="39" r="1" fill="currentColor"/><circle cx="27" cy="39" r="1" fill="currentColor"/></svg>`; // <store-cut/>
 GAME_ICONS.quiz = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M24 4a15 15 0 0 1 9 27c-2 1.6-3 3.4-3 6v1H18v-1c0-2.6-1-4.4-3-6A15 15 0 0 1 24 4z"/><path d="M19 43h10"/><path d="M20 17a4 4 0 1 1 6 3.4c-1.3.8-2 1.7-2 3.1"/><circle cx="24" cy="29" r="0.6" fill="currentColor"/></svg>`;
-GAME_ICONS.purity = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="24" cy="9" rx="11" ry="4"/><circle cx="24" cy="27" r="11"/><path d="M19 25h.01M29 25h.01"/><path d="M19.5 31c2.5 2.5 6.5 2.5 9 0"/><path d="M15 44c2-3 5-4.5 9-4.5s7 1.5 9 4.5"/></svg>`;
+GAME_ICONS.purity = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="24" cy="9" rx="11" ry="4"/><circle cx="24" cy="27" r="11"/><path d="M19 25h.01M29 25h.01"/><path d="M19.5 31c2.5 2.5 6.5 2.5 9 0"/><path d="M15 44c2-3 5-4.5 9-4.5s7 1.5 9 4.5"/></svg>`; // <store-cut/>
 GAME_ICONS.room = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 22L24 8l17 14"/><path d="M11 19v21h26V19"/><rect x="19" y="27" width="10" height="13" rx="2"/><path d="M30 13V9h5v8"/></svg>`;
 GAME_ICONS.likely = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="16" y="9" width="16" height="27" rx="3.5"/><path d="M22 31h4"/><path d="M24 15.5a3.5 3.5 0 1 1 2.6 3.4c-1 .3-1.6 1-1.6 2v1"/><path d="M25 25.5h.01"/><path d="M8 18a17 17 0 0 0 3 19"/><path d="M8 31l3 6 6-2"/><path d="M40 30a17 17 0 0 0-3-19"/><path d="M40 17l-3-6-6 2"/></svg>`;
 GAME_ICONS.debate = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M24 6v34"/><path d="M15 42h18"/><path d="M8 12h32"/><path d="M8 12l-5 13a5 5 0 0 0 10 0z"/><path d="M40 12l-5 13a5 5 0 0 0 10 0z"/></svg>`;
-const GAME_THEME = { room: "g-rm", biskit: "g-bk", pyramid: "g-py", undercover: "g-uc", whoof: "g-wh", never: "g-nv", roulette: "g-rl", blackjack: "g-bj", casino: "g-cs", divan: "g-dv", tmc: "g-tm" };
-const isBJ = (g) => g.type === "blackjack";
+const GAME_THEME = { room: "g-rm", biskit: "g-bk", pyramid: "g-py", undercover: "g-uc", whoof: "g-wh", never: "g-nv", roulette: "g-rl", blackjack: "g-bj", casino: "g-cs", divan: "g-dv", tmc: "g-tm" }; // <store-cut/>
+// <store> const GAME_THEME = { room: "g-rm", undercover: "g-uc", divan: "g-dv", tmc: "g-tm" };
+const isBJ = (g) => g.type === "blackjack"; // <store-cut/>
+// <store> const isBJ = () => false;
 GAME_ICONS.heist = Heist.icon;
 GAME_THEME.heist = "g-hs";
 GAME_ICONS.island = Island.icon;
@@ -86,9 +90,9 @@ GAME_ICONS.neon = Neon.icon;
 GAME_THEME.neon = "g-nk";
 GAME_ICONS.president = President.crown;
 GAME_THEME.president = "g-pr";
-// Jeux récents : étiquette « NEW » sur leur carte et leur tuile dans la salle de jeux (retirer le type pour l'enlever).
+// Jeux récents : étiquette « Nouveau » sur leur carte et leur tuile dans la salle de jeux (retirer le type pour l'enlever).
 const NEW_GAMES = ["pet", "brain", "masque", "reflet", "psy", "debate", "beerpong"];
-const newBadge = (type) => NEW_GAMES.includes(type) ? `<span class="g-new" aria-label="Nouveau jeu">NEW</span>` : "";
+const newBadge = (type) => NEW_GAMES.includes(type) ? `<span class="g-new" aria-label="Nouveau jeu">Nouveau</span>` : "";
 // Catégories de l'écran Jeux et de la salle de jeux : [id, titre, jeux dans l'ordre d'affichage].
 // Tout nouveau jeu doit y figurer (tests/test_game_categories.py le vérifie).
 // Méninges en tête : la première chose qu'on voit dans la liste (demande de l'admin, 03.11.2026).
@@ -99,18 +103,23 @@ const PET_ON = document.documentElement.dataset.compagnon !== "off";
 // BLOQUÉS pour la 1.0.0). Le serveur refuse aussi ces jeux et ces parties (app/store_app.py HIDDEN_GAMES) ; le site, l'app
 // BETA et Android gardent tout.
 const STORE = document.documentElement.classList.contains("party-store");
-const STORE_HIDDEN = STORE ? ["casino", "blackjack", "beerpong", "biskit", "purity", "pyramid", "never", "whoof", "roulette"] : [];
+const STORE_HIDDEN = STORE ? ["casino", "blackjack", "beerpong", "biskit", "purity", "pyramid", "never", "whoof", "roulette"] : []; // <store-cut/>
+// <store> const STORE_HIDDEN = ["beerpong", "biskit", "purity", "pyramid", "never", "whoof", "roulette"];  // et deux jeux de cartes, retirés par le serveur
 // « ⭐ Mode points » (gorgées converties en points, Pyramide en points) : ÉTEINT pour la 1.0.0 (décision du 25.11). Il ne
 // reviendra que dans une mise à jour décrite à Apple : le code reste en place, inactif tant que STORE_POINTS est faux.
 const STORE_POINTS = false;
 // Toujours dans l'app : jamais une phrase sur la boisson (on la retire, sans la convertir) ni un rang grossier (Président).
+// <store-cut> jeu caché dans l'app App Store
 const STORE_SWAPS = [
   [/\s*Personne n['’]est obligé de boire[^<]*?(?=<\/p>|$)/g, ""],
   [/\s*Buvez avec modération !/g, ""],
   [/Vice-trou du cul/g, "Vice-dernier"], [/Trou du cul/g, "Dernier"], [/trou du cul/g, "dernier"],
 ];
+// </store-cut>
+// <store> const STORE_SWAPS = [[/Vice-trou du cul/g, "Vice-dernier"], [/Trou du cul/g, "Dernier"], [/trou du cul/g, "dernier"]];
 const POINTS_RULE = "On joue aux points : celui qui en reçoit le moins gagne.";
 const pts = (n) => `${n} point${+n > 1 ? "s" : ""}`;
+// <store-cut> jeu caché dans l'app App Store
 const CANDY_SWAPS = [
   [/Personne n['’]est obligé de boire[^<.]*\.(\s*Buvez avec modération !)?(\s*Avec 0 gorgée, c['’]est la version sans alcool\.)?/g, POINTS_RULE],
   [/\s*Buvez avec modération !/g, ""],
@@ -129,27 +138,33 @@ const CANDY_SWAPS = [
   [/[Ss]ans alcool/g, "sans points"], [/[Aa]vec alcool/g, "avec points"], [/\balcool\b/gi, "points"],
   [/\bshots?\b/g, "défi"], [/verre d['’]eau/g, "point"],
 ];
+// </store-cut>
+// <store> const CANDY_SWAPS = [];
 const candy = (s) => STORE && typeof s === "string"
   ? (STORE_POINTS ? [...STORE_SWAPS, ...CANDY_SWAPS] : STORE_SWAPS).reduce((t, [re, to]) => t.replace(re, to), s) : s;
-const CHEERS = STORE ? "🙋" : "🍻";  // « Je l'ai déjà fait » (Je n'ai jamais)
+const CHEERS = STORE ? "🙋" : "🍻";  // « Je l'ai déjà fait » (Je n'ai jamais) // <store-cut/>
+// <store> const CHEERS = "🙋";
 // Icône de « Je n'ai jamais » : deux verres sur le web ; une bulle « ! » (un aveu) dans l'app App Store.
 if (STORE) GAME_ICONS.never = `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 10h32a3 3 0 0 1 3 3v17a3 3 0 0 1-3 3H22l-9 8v-8H8a3 3 0 0 1-3-3V13a3 3 0 0 1 3-3z"/><path d="M24 15v8"/><path d="M24 28h.01"/></svg>`;
 const GAME_CATEGORIES = [
   ["brain", "✨ Chaque jour", ["pet", "brain"]],
-  ["drinks", "🍻 Alcool", ["beerpong", "whoof", "never", "roulette", "biskit", "casino", "purity"]],
+  ["drinks", "🍻 Alcool", ["beerpong", "whoof", "never", "roulette", "biskit", "casino", "purity"]], // <store-cut/>
   ["three", "🎮 Jeux 3D", ["neon", "island", "heist"]],
   ["talk", "💞 Parler vrai", ["masque", "reflet", "psy", "divan", "debate", "tmc"]],
-  ["cards", "🃏 Jeux de cartes", ["pyramid", "blackjack", "president"]],
+  ["cards", "🃏 Jeux de cartes", ["pyramid", "blackjack", "president"]], // <store-cut/>
+  // <store>   ["cards", "🃏 Jeux de cartes", ["president"]],
   ["mood", "🎉 Ambiance", ["quiz", "undercover", "likely"]]
 ];
 // App App Store : la catégorie « Alcool » n'existe pas (tous ses jeux y sont cachés : groupHomeCards ne garde pas une
 // catégorie vide, roomCatalogHtml non plus).
 // Jeux rangés hors « Alcool » qui se jouent aussi avec des gorgées : étiquette 🍻 (chaque jeu n'apparaît qu'une fois).
-const DRINK_TAG_GAMES = ["pyramid", "blackjack", "quiz", "likely"];
-const drinkTag = (type) => !STORE && DRINK_TAG_GAMES.includes(type) ? `<span class="g-drink" title="Se joue aussi avec de l'alcool" aria-label="Se joue aussi avec de l'alcool">🍻</span>` : "";
+const DRINK_TAG_GAMES = ["pyramid", "blackjack", "quiz", "likely"]; // <store-cut/>
+const drinkTag = (type) => !STORE && DRINK_TAG_GAMES.includes(type) ? `<span class="g-drink" title="Se joue aussi avec de l'alcool" aria-label="Se joue aussi avec de l'alcool">🍻</span>` : ""; // <store-cut/>
+// <store> const drinkTag = () => "";
 const helpBtn = (type, inGame = false) => `<button type="button" class="g-help" data-rules="${type}" ${inGame ? "data-ingame" : ""} aria-label="Règles du jeu">?</button>`;
 
 // Règles détaillées, ouvertes par le « ? » de chaque jeu.
+// <store-cut> jeu caché dans l'app App Store
 const BJ_RULES_COMMON = `
     <h3>Le but</h3>
     <p>Battre le <b>croupier</b> (l'app) : avoir un total plus proche de 21 que lui, <b>sans dépasser 21</b>.</p>
@@ -216,6 +231,7 @@ const CASINO_RULES_DRINKS = `
     </ul>
     <p>Exemple : 2 gorgées sur Rouge et 1 sur le 17. Le 17 (noir) sort : tu bois 2 (Rouge perdu) et tu distribues 10 (jackpot) !</p>
     <p>Personne n'est obligé de boire de l'alcool : un verre d'eau compte aussi. Buvez avec modération !</p>`;
+// </store-cut>
 const GAME_RULES = {
   neon: Neon.rules,
   island: Island.rules,
@@ -228,9 +244,10 @@ const GAME_RULES = {
     <p>Choisis un jeu dans la salle, règle ses options, puis <b>« Lancer pour toute la salle »</b> : chaque téléphone bascule tout seul dans le jeu, avec tous les joueurs déjà inscrits (y compris ceux sans téléphone).</p>
     <p>Pour passer au jeu suivant, l'animateur touche <b>« 🎮 Changer de jeu »</b> (ou ☰ → « Terminer ce jeu et revenir à la salle ») : tout le monde revient à la salle, prêt pour le suivant.</p>
     <h3>Le tableau de la soirée</h3>
-    <p>Les points du Quiz et les gorgées de tous les jeux s'additionnent d'un jeu à l'autre.</p>
+    <p>Les points du Quiz et les gorgées de tous les jeux s'additionnent d'un jeu à l'autre.</p> <!-- store-cut -->
     <h3>Arriver en retard</h3>
     <p>Scanner le QR de la salle suffit : on rejoint la salle et le jeu en cours.</p>`,
+  // <store-cut> jeu caché dans l'app App Store
   get biskit() { return bkRulesHtml(); },
   pyramid: `
     <h3>Le principe</h3>
@@ -263,6 +280,7 @@ const GAME_RULES = {
     <h3>L'animateur</h3>
     <p>Il peut exclure un joueur à tout moment (✕, depuis la vue normale : touche ‹ en haut). Il distribue, retourne les cartes, valide « bu » ou « menteur », accepte les demandes pour revoir ses cartes, lance le test de mémoire et le bateau. Il peut répondre à la place d'un joueur (participant sans téléphone, ou qui a laissé son téléphone).</p>
     <p>Buvez avec modération : un verre d'eau compte aussi.</p>`,
+  // </store-cut>
   tmc: `
     <h3>Le principe</h3>
     <p>Qui te connaît le mieux ? À chaque tour, <b>deux joueurs</b> sont tirés au sort : l'un répond à une question sur lui-même, l'autre doit <b>deviner sa réponse</b>.</p>
@@ -311,6 +329,7 @@ const GAME_RULES = {
       <li><b>Confidentialité</b> : ce qui se dit sur le divan reste sur le divan.</li>
     </ul>
     <p>C'est un jeu de discussion, pas une vraie thérapie : si un sujet réveille quelque chose de lourd, parles-en à un professionnel.</p>`,
+  // <store-cut> jeu caché dans l'app App Store
   casino: CASINO_RULES_COMMON + CASINO_RULES_CHIPS + CASINO_RULES_DRINKS,
   blackjack: BJ_RULES_COMMON + `
     <h3>Mode jetons</h3>
@@ -357,6 +376,7 @@ const GAME_RULES = {
     <p>Aucune phrase ne revient avant que toutes celles du mode soient passées. L'animateur peut changer de phrase avec ⏭.</p>
     <h3>À savoir</h3>
     <p>Il faut au moins 2 joueurs, et on peut rejoindre en cours de route. On joue honnêtement ! Personne n'est obligé de boire de l'alcool : un verre d'eau compte aussi. Avec 0 gorgée, c'est la version sans alcool.</p>`,
+  // </store-cut>
   undercover: `
     <h3>Le but</h3>
     <p>Les <b>civils</b> doivent démasquer les intrus. Les <b>intrus</b> doivent se fondre dans la masse sans se faire repérer. <b>Le Fantôme</b> doit bluffer… et deviner le mot des civils.</p>
@@ -386,6 +406,7 @@ const GAME_RULES = {
     <h3>L'animateur</h3>
     <p>C'est la personne qui a créé la partie. Il distribue les mots, lance le vote et la manche suivante, peut changer l'ordre de parole, éliminer quelqu'un après un vote à main levée ou exclure un joueur. S'il ne joue pas, il est <b>maître du jeu</b> et peut voir les rôles.</p>
     <p>Arrivé en retard ? Rejoins quand même : tu joueras à la partie suivante.</p>`,
+  // <store-cut> jeu caché dans l'app App Store
   whoof: `
     <h3>Le but</h3>
     <p>Découvrir ce que vos amis pensent vraiment de vous… et faire boire la personne désignée.</p>
@@ -407,6 +428,7 @@ const GAME_RULES = {
     <p>Aucune question ne revient avant que toutes celles du mode soient passées. L'animateur peut changer de question avec ⏭.</p>
     <h3>À savoir</h3>
     <p>Il faut au moins 2 joueurs, et on peut rejoindre en cours de route. Personne n'est obligé de boire de l'alcool : un verre d'eau compte aussi. Avec 0 gorgée, c'est la version sans alcool.</p>`,
+  // </store-cut>
 };
 // App App Store (refus Apple 1.4.3) : mêmes jeux, sans gorgées ni mode Hot / Mix (le serveur les refuse aussi).
 const STORE_MODES = `
@@ -416,6 +438,7 @@ const STORE_MODES = `
       <li><b>😬 Malaisant</b> : petites hontes, souvenirs embarrassants, secrets.</li>
     </ul>`;
 // Règles « en points » de jeux BLOQUÉS dans la 1.0.0 (gardées pour la mise à jour décrite à Apple, STORE_POINTS).
+// <store-cut> mode points éteint (jeux cachés)
 if (STORE && STORE_POINTS) Object.assign(GAME_RULES, {
   never: `
     <h3>Le but</h3>
@@ -450,9 +473,11 @@ if (STORE && STORE_POINTS) Object.assign(GAME_RULES, {
   roulette: GAME_RULES.roulette.replace(/\s*<li>Qui boit[^<]*<\/li>\s*<li>Qui paie[^<]*<\/li>/, ""),
   pyramid: GAME_RULES.pyramid + `<h3>⭐ Les points</h3><p>${POINTS_RULE} Le tableau des points s'affiche pendant la partie et à la fin. Gage final facultatif, au choix de la table, pour celui qui en a le plus.</p>`,
 });
+// </store-cut>
 if (STORE) Object.assign(GAME_RULES, {
-  room: GAME_RULES.room.replace("Les points du Quiz et les gorgées de tous les jeux s'additionnent d'un jeu à l'autre.",
-    "Les points des jeux (Quiz, Qui est le plus…, Président, jeux 3D) s'additionnent d'un jeu à l'autre."),
+  // <store> room: GAME_RULES.room.replace("<h3>Le tableau de la soirée</h3>", "<h3>Le tableau de la soirée</h3>\n    <p>Les points des jeux (Quiz, Qui est le plus…, Président, jeux 3D) s'additionnent d'un jeu à l'autre.</p>"),
+  room: GAME_RULES.room.replace("Les points du Quiz et les gorgées de tous les jeux s'additionnent d'un jeu à l'autre.", // <store-cut/>
+    "Les points des jeux (Quiz, Qui est le plus…, Président, jeux 3D) s'additionnent d'un jeu à l'autre."), // <store-cut/>
 });
 
 document.getElementById("gamesRoot").innerHTML = `
@@ -462,6 +487,22 @@ document.getElementById("gamesRoot").innerHTML = `
         <input id="gNameInput" class="grow" type="text" aria-label="Ton prénom" spellcheck="false" maxlength="30" placeholder="Ton prénom" autocomplete="given-name" required>
         <button>OK</button>
       </form>
+      ${STORE ? `<label class="g-terms" id="gTermsBox">
+        <input type="checkbox" id="gTermsCheck" aria-describedby="gTermsNote">
+        <span>J'ai 18 ans ou plus et j'accepte les <button type="button" class="g-terms-link" data-gterms="open">conditions d'utilisation</button> (tolérance zéro pour les contenus abusifs)</span>
+      </label>
+      <p class="g-terms-note" id="gTermsNote" role="status">Ton prénom et ce que tu écris dans les jeux sont lus par les autres joueurs : coche la case pour jouer avec eux. Tu peux aussi revenir plus tard.</p>
+      <button type="button" class="secondary g-terms-later hidden" id="gTermsLater" data-gterms="later">Plus tard</button>
+      <div id="gTermsSheet" class="g-modal hidden" role="dialog" aria-modal="true" aria-labelledby="gTermsTitle">
+        <div class="g-sheet g-terms-sheet">
+          <div class="g-head">
+            <div class="g-meta"><div class="g-title" id="gTermsTitle">Conditions d'utilisation</div><div class="g-tag">Vendredi Party</div></div>
+            <button type="button" class="g-help" data-gterms="close" aria-label="Fermer">✕</button>
+          </div>
+          <iframe class="g-terms-frame" id="gTermsFrame" title="Conditions d'utilisation"></iframe>
+          <button type="button" class="g-go" data-gterms="close">Fermer</button>
+        </div>
+      </div>` : ""}
     </div>
 
     <div id="gHome" class="hidden">
@@ -529,11 +570,12 @@ document.getElementById("gamesRoot").innerHTML = `
         </div>
         <p class="g-desc">Culture générale, géo, histoire, sciences, cinéma, musique, sport, Suisse… Classique, Rapidité, Survie, Contre-la-montre ou Paliers : seul ou à plusieurs, avec un classement général entre les parties.</p>
         <div class="g-chips"><span>Solo ou 2+ joueurs</span><span>5 modes</span><span>Classement général</span></div>
-        <label class="g-opt"><span>🍻 Une erreur = une gorgée</span><input type="checkbox" class="switch" data-opt="qzsips"></label>
+        <label class="g-opt"><span>🍻 Une erreur = une gorgée</span><input type="checkbox" class="switch" data-opt="qzsips"></label> <!-- store-cut -->
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="quiz">Créer un quiz</button>
       </div>
 
+      <!-- <store-cut> jeu caché dans l'app App Store -->
       <div class="gcard g-pu">
         <div class="g-head">
           <div class="g-icon">${GAME_ICONS.purity}</div>
@@ -549,6 +591,7 @@ document.getElementById("gamesRoot").innerHTML = `
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="purity">Lancer le test</button>
       </div>
+      <!-- </store-cut> -->
 
       ${PET_ON ? `<div class="gcard g-pt">
         ${newBadge("pet")}
@@ -592,6 +635,7 @@ document.getElementById("gamesRoot").innerHTML = `
         <button class="g-go" data-create="undercover">Créer une partie</button>
       </div>
 
+      <!-- <store-cut> jeu caché dans l'app App Store -->
       <div class="gcard g-wh">
         <div class="g-head">
           <div class="g-icon">${GAME_ICONS.whoof}</div>
@@ -611,6 +655,7 @@ document.getElementById("gamesRoot").innerHTML = `
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="whoof">Créer une partie</button>
       </div>
+      <!-- </store-cut> -->
 
       <div class="gcard g-lk">
         <div class="g-head">
@@ -618,17 +663,19 @@ document.getElementById("gamesRoot").innerHTML = `
           <div class="g-meta"><div class="g-title">Qui est le plus…&nbsp;?</div><div class="g-tag">Chacun vote sur son téléphone. Tout le monde joue.</div></div>
           ${helpBtn("likely")}
         </div>
-        <p class="g-desc">« Qui est le plus mauvais perdant ? » Tout le monde désigne quelqu'un en secret, en même temps, puis on découvre le plus désigné : il prend un point… ou une petite gorgée. Sans téléphone ? On vote sur celui de l'animateur.</p>
+        <p class="g-desc">« Qui est le plus mauvais perdant ? » Tout le monde désigne quelqu'un en secret, en même temps, puis on découvre le plus désigné : il prend un point… ou une petite gorgée. Sans téléphone ? On vote sur celui de l'animateur.</p> <!-- store-cut -->
+        <!-- <store> <p class="g-desc">« Qui est le plus mauvais perdant ? » Tout le monde désigne quelqu'un en secret, en même temps, puis on découvre le plus désigné : il prend un point. Sans téléphone ? On vote sur celui de l'animateur.</p> -->
         <div class="g-chips"><span>👨‍👩‍👧 Avec les parents aussi</span><span>2+ joueurs</span><span>Sans téléphone : OK</span><span>365 questions</span></div>
         <label class="g-opt"><span>😏 Paquet « Entre amis » <small>en plus : soirées, ex, petits secrets (jamais sexuel)</small></span><input type="checkbox" class="switch" data-opt="lkfriends"></label>
-        <label class="g-opt"><span>🍻 Le plus désigné boit <small>sinon il prend un point</small></span><input type="checkbox" class="switch" data-opt="lkalcohol"></label>
-        <div class="g-modes" data-opt-group="lksips">
-          <button type="button" data-val="1" class="on">1 gorgée</button><button type="button" data-val="2">2</button><button type="button" data-val="3">3</button>
-        </div>
+        <label class="g-opt"><span>🍻 Le plus désigné boit <small>sinon il prend un point</small></span><input type="checkbox" class="switch" data-opt="lkalcohol"></label> <!-- store-cut -->
+        <div class="g-modes" data-opt-group="lksips"> <!-- store-cut -->
+          <button type="button" data-val="1" class="on">1 gorgée</button><button type="button" data-val="2">2</button><button type="button" data-val="3">3</button> <!-- store-cut -->
+        </div> <!-- store-cut -->
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="likely">Créer une partie</button>
       </div>
 
+      <!-- <store-cut> jeu caché dans l'app App Store -->
       <div class="gcard g-bp">
         ${newBadge("beerpong")}
         <div class="g-head">
@@ -641,6 +688,7 @@ document.getElementById("gamesRoot").innerHTML = `
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="beerpong">Créer une partie</button>
       </div>
+      <!-- </store-cut> -->
 
       <div class="gcard g-ms">
         ${newBadge("masque")}
@@ -650,7 +698,8 @@ document.getElementById("gamesRoot").innerHTML = `
           ${helpBtn("masque")}
         </div>
         <p class="g-desc">Une question profonde, chacun écrit sa réponse en secret. Les réponses s'affichent sans prénom : à toi de deviner qui a écrit quoi. Masques levés ou gardés : l'organisateur choisit pour toute la table.</p>
-        <div class="g-chips"><span>3+ joueurs</span><span>Sans alcool</span><span>Chacun son téléphone</span><span>6 catégories</span></div>
+        <div class="g-chips"><span>3+ joueurs</span><span>Sans alcool</span><span>Chacun son téléphone</span><span>6 catégories</span></div> <!-- store-cut -->
+        <!-- <store> <div class="g-chips"><span>3+ joueurs</span><span>Chacun son téléphone</span><span>6 catégories</span></div> -->
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="masque">Créer une partie</button>
       </div>
@@ -662,8 +711,9 @@ document.getElementById("gamesRoot").innerHTML = `
           <div class="g-meta"><div class="g-title">Le Reflet</div><div class="g-tag">Te vois-tu comme les autres te voient ?</div></div>
           ${helpBtn("reflet")}
         </div>
-        <p class="g-desc">Devant le miroir, choisis une affirmation sur toi (« On me confie facilement ses secrets ») et parie combien d'amis diront oui. Ils votent en secret, le compteur monte… puis on en parle.</p>
-        <div class="g-chips"><span>4+ joueurs</span><span>Sans alcool</span><span>Chacun son téléphone</span><span>Votes anonymes</span></div>
+        <p class="g-desc">Devant le miroir, choisis une affirmation sur toi (« On me confie facilement ses secrets ») et devine combien d'amis diront oui. Ils votent en secret, le compteur monte… puis on en parle.</p>
+        <div class="g-chips"><span>4+ joueurs</span><span>Sans alcool</span><span>Chacun son téléphone</span><span>Votes anonymes</span></div> <!-- store-cut -->
+        <!-- <store> <div class="g-chips"><span>4+ joueurs</span><span>Chacun son téléphone</span><span>Votes anonymes</span></div> -->
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="reflet">Créer une partie</button>
       </div>
@@ -676,7 +726,8 @@ document.getElementById("gamesRoot").innerHTML = `
           ${helpBtn("psy")}
         </div>
         <p class="g-desc">12 questions en secret, sur ton téléphone : ta façon d'aimer, de réagir, de penser… et 3 énigmes de logique. À la révélation, chacun découvre son profil (Meneur, Âme de la fête, Stratège ou Cœur tendre), le plus logique du groupe et les deux âmes sœurs.</p>
-        <div class="g-chips"><span>1+ joueurs</span><span>Sans alcool</span><span>Chacun son téléphone</span><span>4 profils</span></div>
+        <div class="g-chips"><span>1+ joueurs</span><span>Sans alcool</span><span>Chacun son téléphone</span><span>4 profils</span></div> <!-- store-cut -->
+        <!-- <store> <div class="g-chips"><span>1+ joueurs</span><span>Chacun son téléphone</span><span>4 profils</span></div> -->
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="psy">Créer une partie</button>
       </div>
@@ -689,7 +740,8 @@ document.getElementById("gamesRoot").innerHTML = `
           ${helpBtn("debate")}
         </div>
         <p class="g-desc">« Faut-il dire à un ami que son ou sa partenaire le trompe ? » Chacun se place en secret de « Totalement contre » à « Totalement pour », on découvre la répartition, puis on en parle. Après le débat, on peut revoter pour voir qui a changé d'avis.</p>
-        <div class="g-chips"><span>2+ joueurs</span><span>Sans alcool</span><span>Sans téléphone : OK</span><span>540 dilemmes + les vôtres</span></div>
+        <div class="g-chips"><span>2+ joueurs</span><span>Sans alcool</span><span>Sans téléphone : OK</span><span>540 dilemmes + les vôtres</span></div> <!-- store-cut -->
+        <!-- <store> <div class="g-chips"><span>2+ joueurs</span><span>Sans téléphone : OK</span><span>540 dilemmes + les vôtres</span></div> -->
         <div class="g-label">Thèmes</div>
         <div class="g-modes" data-opt-group="cats">
           <button type="button" data-val="moral" class="on">⚖️ Morale</button><button type="button" data-val="society" class="on">🏛️ Société</button>
@@ -701,6 +753,7 @@ document.getElementById("gamesRoot").innerHTML = `
         <button class="g-go" data-create="debate">Créer une partie</button>
       </div>
 
+      <!-- <store-cut> jeu caché dans l'app App Store -->
       <div class="gcard g-nv">
         <div class="g-head">
           <div class="g-icon">${GAME_ICONS.never}</div>
@@ -720,7 +773,9 @@ document.getElementById("gamesRoot").innerHTML = `
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="never">Créer une partie</button>
       </div>
+      <!-- </store-cut> -->
 
+      <!-- <store-cut> jeu caché dans l'app App Store -->
       <div class="gcard g-rl">
         <div class="g-head">
           <div class="g-icon">${GAME_ICONS.roulette}</div>
@@ -731,7 +786,9 @@ document.getElementById("gamesRoot").innerHTML = `
         <div class="g-chips"><span>2+ noms</span><span>Hasard</span><span>Pour tout trancher</span></div>
         <button class="g-go" data-create="roulette">Créer une roulette</button>
       </div>
+      <!-- </store-cut> -->
 
+      <!-- <store-cut> jeu caché dans l'app App Store -->
       <div class="gcard g-bk">
         <div class="g-head">
           <div class="g-icon">${GAME_ICONS.biskit}</div>
@@ -748,7 +805,9 @@ document.getElementById("gamesRoot").innerHTML = `
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="biskit">Ouvrir la table</button>
       </div>
+      <!-- </store-cut> -->
 
+      <!-- <store-cut> jeu caché dans l'app App Store -->
       <div class="gcard g-py">
         <div class="g-head">
           <div class="g-icon">${GAME_ICONS.pyramid}</div>
@@ -776,6 +835,7 @@ document.getElementById("gamesRoot").innerHTML = `
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="pyramid">Ouvrir la table</button>
       </div>
+      <!-- </store-cut> -->
 
       <div class="gcard g-tm">
         <div class="g-head">
@@ -796,7 +856,8 @@ document.getElementById("gamesRoot").innerHTML = `
           ${helpBtn("divan")}
         </div>
         <p class="g-desc">Chacun passe à son tour sur le divan : une carte est tirée et tu y réponds à voix haute. Souvenirs, émotions, relations, enfance, rêves, « et si… » et un mode couple pour (re)découvrir l'autre. Pour se découvrir autrement, avec bienveillance.</p>
-        <div class="g-chips"><span>2+ joueurs</span><span>7 000 cartes</span><span>Sans alcool</span></div>
+        <div class="g-chips"><span>2+ joueurs</span><span>7 000 cartes</span><span>Sans alcool</span></div> <!-- store-cut -->
+        <!-- <store> <div class="g-chips"><span>2+ joueurs</span><span>7 000 cartes</span></div> -->
         <div class="g-label">Catégories</div>
         <div class="g-modes dv-cats" data-opt-group="cats">
           <button type="button" data-val="experiences" class="on">🌄 Expériences</button><button type="button" data-val="emotions" class="on">💗 Émotions</button>
@@ -808,6 +869,7 @@ document.getElementById("gamesRoot").innerHTML = `
         <button class="g-go" data-create="divan">Ouvrir une séance</button>
       </div>
 
+      <!-- <store-cut> jeu caché dans l'app App Store -->
       <div class="gcard g-cs">
         <div class="g-head">
           <div class="g-icon">${GAME_ICONS.casino}</div>
@@ -823,7 +885,9 @@ document.getElementById("gamesRoot").innerHTML = `
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="casino">Ouvrir la table</button>
       </div>
+      <!-- </store-cut> -->
 
+      <!-- <store-cut> jeu caché dans l'app App Store -->
       <div class="gcard g-bj">
         <div class="g-head">
           <div class="g-icon">${GAME_ICONS.blackjack}</div>
@@ -839,12 +903,14 @@ document.getElementById("gamesRoot").innerHTML = `
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="blackjack">Ouvrir une table</button>
       </div>
+      <!-- </store-cut> -->
     </div>
 
     <div id="gamePlay" class="hidden">
       <div id="gTop" class="g-top"></div>
       <div id="gameHud" class="g-hud hidden" aria-live="polite"></div>
       <div id="game" class="card game"></div>
+      <!-- <store-cut> jeu caché dans l'app App Store -->
       <div id="casinoWheel" class="cwheel hidden">
         <div class="cw-wrap">
           <svg id="cwSvg" viewBox="-110 -110 220 220" role="img" aria-label="Roulette"></svg>
@@ -853,6 +919,7 @@ document.getElementById("gamesRoot").innerHTML = `
         <div id="cwResult" class="cw-result" aria-live="polite"></div>
         <div id="cwHistory" class="cw-history"></div>
       </div>
+      <!-- </store-cut> -->
       <div id="roulette" class="roulette hidden">
         <div class="wheel-wrap"><div class="wheel-pointer" aria-hidden="true"></div><svg id="wheel" viewBox="-100 -100 200 200" role="img" aria-label="Roue"></svg></div>
         <div id="rouletteResult" class="roulette-result" aria-live="polite"></div>
@@ -960,7 +1027,8 @@ function storeScrubCards(home) {
     .forEach((el) => (el.closest(".g-opt") || el.closest(".g-sips, .g-row") || el).remove());
   home.querySelectorAll("[data-opt-group=lksips], .g-db [data-opt-group=cats] [data-val=wtf]").forEach((el) => el.remove());
   home.querySelectorAll("[data-opt-group=mode] [data-val=hot], [data-opt-group=mode] [data-val=mix]").forEach((b) => b.remove());
-  home.querySelectorAll(".g-chips span").forEach((c) => { if (/alcool|gorgée|Hot/i.test(c.textContent)) c.remove(); });
+  home.querySelectorAll(".g-chips span").forEach((c) => { if (/alcool|gorgée|Hot/i.test(c.textContent)) c.remove(); }); // <store-cut/>
+  // <store>   home.querySelectorAll(".g-chips span").forEach((c) => { if (/Hot/i.test(c.textContent)) c.remove(); });
   const text = {
     ".g-nv .g-tag": "Avoue… ou garde ton secret.",
     ".g-nv .g-desc": "Une phrase tombe (« Je n'ai jamais dansé sur une table »). Chacun répond en secret « déjà fait » ou « jamais », puis tout est révélé : à ceux qui l'ont fait de raconter !",
@@ -985,27 +1053,32 @@ function routeRoom(g) {
   } else if (g?.room) { myRoom = g.room; store("vp_room", g.room); }
   return false;
 }
+// Partie gardée d'une ouverture précédente de l'app : relue une fois au démarrage (voir refreshGame, D4).
+let gReopen = store("vp_game") || "";
 let myGame = store("vp_game") || "", game = null, wordShown = "", wordUntil = 0, guessDraft = "", showRoles = false, autoJoin = false;
 const GAME_PHASES = { countdown: "Départ imminent", lobby: "Inscriptions", words: "Indices", vote: "Vote", white_guess: "Devinette du Fantôme",
   reveal: "Résultat de la manche", end: "Partie terminée", question: "Question", results: "Résultats", spun: "Résultat", bet: "Mises", play: "Partie", card: "En séance",
   answer: "Réponse en secret", guess: "À voix haute", judge: "Points", scored: "Résultat du duo", q: "Question", rev: "Réponse", run: "En jeu" };
-const phaseLabel = (g) => (g.type === "roulette" || isBJ(g) || g.type === "casino") && g.phase === "lobby" ? "Préparation"
-  : g.type === "president" && g.phase === "exchange" ? "Échange des cartes"
+const phaseLabel = (g) => (g.type === "roulette" || isBJ(g) || g.type === "casino") && g.phase === "lobby" ? "Préparation" // <store-cut/>
+  : g.type === "president" && g.phase === "exchange" ? "Échange des cartes" // <store-cut/>
+  // <store> const phaseLabel = (g) => g.type === "president" && g.phase === "exchange" ? "Échange des cartes"
   : g.type === "president" && g.phase === "end" ? "Classement"
-  : g.type === "casino" && g.phase === "bet" ? "Faites vos jeux"
+  : g.type === "casino" && g.phase === "bet" ? "Faites vos jeux" // <store-cut/>
   : g.type === "masque" ? { write: "Écriture en secret", guess: "Qui a écrit quoi ?", reveal: g.masque?.mask === "closed" ? "Les votes" : "Les masques tombent" }[g.phase] || GAME_PHASES[g.phase]
   : g.type === "reflet" ? { pick: "Devant le miroir", vote: "Vote secret", result: "Le reflet" }[g.phase] || GAME_PHASES[g.phase]
   : GAME_PHASES[g.phase];
 const WINNERS = { civils: "Les civils ont gagné 🎉", impostors: "Les intrus ont gagné 🕵️", white: "Le Fantôme a trouvé le mot et gagne 👻" };
 
 async function gapi(path, body) {
+  if (body && STORE && path.startsWith("/api/games") && gamesTermsOk()) body = { ...body, terms: true };
   const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 8000);
   try {
     const r = await fetch(path, body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: controller.signal } : {signal: controller.signal});
     const data = await r.json().catch(e => { if (e.name === "AbortError") throw e; return null; });
     if (!r.ok) {
       const e = new Error(typeof data?.detail === "string" ? data.detail : data?.detail?.message || "Erreur");
-      e.status = r.status; e.detail = data?.detail;
+      e.status = r.status; e.detail = data?.detail; e.code = data?.code;
+      if (e.code === "games_terms") askGamesTerms(e.message);
       throw e;
     }
     return data;
@@ -1019,7 +1092,7 @@ function setGame(code) {
   // Une nouvelle partie (créée, rejointe par code ou par QR) s'ouvre toujours en plein écran.
   if (code && code !== myGame) pyrFull = true;
   // Autre partie (jeu lancé dans la salle, retour à la salle…) : elle s'ouvre en haut, pas au défilement de la précédente.
-  if (code !== myGame) { gSeq++; if ($("gamePlay")) $("gamePlay").scrollTop = 0; }
+  if (code !== myGame) { gSeq++; gReopen = ""; if ($("gamePlay")) $("gamePlay").scrollTop = 0; }
   myGame = code; store("vp_game", code); $("gameDot")?.classList.toggle("hidden", !code);
   if (!code) syncGameChrome();
 }
@@ -1079,10 +1152,57 @@ function minimizeGame() {
 // Changement d'onglet (page invités ou admin) : on remet le plein écran / la mini-barre à jour.
 document.addEventListener("click", (ev) => { if (ev.target.closest("button[data-tab]")) setTimeout(syncGameChrome, 0); });
 
+// Conditions d'utilisation des jeux (contrôle du 26.11, Apple 1.2) : dans l'app App Store, la case sous « Comment tu
+// t'appelles ? » (18 ans ou plus, conditions acceptées) se coche une fois par appareil ; un compte Party les a déjà
+// acceptées. Sans elle, le serveur refuse tout texte lu par la table (prénom, réponse, mot : main.py check_game_terms)
+// et la page rouvre la case. « Plus tard » : on revient à l'accueil des jeux (Méninges reste ouvert).
+const G_TERMS_KEY = "vp_games_terms";
+let gTermsMem = false, gTermsLater = false;  // gTermsMem : repli quand le stockage du navigateur est indisponible
+function gamesTermsOk() {
+  return !STORE || gTermsMem || store(G_TERMS_KEY) === "1" || String(guestId || "").startsWith("acct-");
+}
+function setGamesTerms(on) {
+  gTermsMem = on;
+  try { if (on) localStorage.setItem(G_TERMS_KEY, "1"); else localStorage.removeItem(G_TERMS_KEY); } catch {}
+}
+function askGamesTerms(msg) {
+  if (!STORE) return;
+  setGamesTerms(false);
+  gTermsLater = false;
+  if ($("gTermsCheck")) $("gTermsCheck").checked = false;
+  if (msg && $("gTermsNote")) $("gTermsNote").textContent = msg;
+  $("gTermsBox")?.classList.add("warn");
+  refreshGame();
+}
+function openGamesTerms(open) {
+  const sheet = $("gTermsSheet");
+  if (!sheet) return;
+  if (open && !$("gTermsFrame").getAttribute("src")) $("gTermsFrame").src = "/events/terms?app=ios";
+  sheet.classList.toggle("hidden", !open);
+  document.body.style.overflow = open ? "hidden" : "";
+}
+document.addEventListener("click", (ev) => {
+  const t = ev.target.closest("[data-gterms]");
+  if (!t && ev.target.id !== "gTermsSheet") return;
+  const what = t ? t.dataset.gterms : "close";
+  if (what === "open") { ev.preventDefault(); return openGamesTerms(true); }
+  if (what === "close") return openGamesTerms(false);
+  if (what === "later") { gTermsLater = true; refreshGame(); }
+});
+document.addEventListener("change", (ev) => {
+  if (ev.target.id !== "gTermsCheck") return;
+  $("gTermsBox").classList.remove("warn");
+  setGamesTerms(ev.target.checked);
+  if (ev.target.checked && guestName) refreshGame();  // prénom déjà donné : on retrouve les jeux
+});
+
 let gSeq = 0;  // numéro du dernier chargement de la partie demandé
 async function refreshGame() {
-  $("gName").classList.toggle("hidden", !!guestName);
-  if (!guestName) {
+  const askTerms = STORE && !gamesTermsOk() && !gTermsLater;
+  $("gName").classList.toggle("hidden", !!guestName && !askTerms);
+  if (!guestName || askTerms) {
+    if (askTerms && guestName && !$("gNameInput").value) $("gNameInput").value = guestName;
+    $("gTermsLater")?.classList.toggle("hidden", !guestName);
     $("gHome").classList.add("hidden"); $("gamePlay").classList.add("hidden");
     if (typeof maybeInstallSheet === "function") maybeInstallSheet();
     return;
@@ -1099,6 +1219,14 @@ async function refreshGame() {
     if (autoJoin && (g.me || g.is_owner || g.kicked)) autoJoin = false;
     if (autoJoin && !g.me && !g.is_owner) { autoJoin = false; return gameAction("join"); }
     if (routeRoom(g)) return;
+    // Réouverture de l'app (D4, recette iPhone du 26.11) : une partie où l'on ne joue plus (« Arrêter de jouer ») ne se
+    // rouvre pas en plein écran. Spectateur : retour à l'accueil des jeux ; animateur qui ne joue plus, ou seul dans le
+    // salon d'attente d'un jeu 3D : partie réduite (onglets visibles, mini-barre pour y revenir).
+    if (gReopen && code === gReopen) {
+      gReopen = "";
+      if (!g.me && !g.is_owner && !g.kicked && g.type !== "room") { setGame(""); return renderGame(null); }
+      if ((!g.me && g.type !== "room") || (["island", "neon", "heist"].includes(g.type) && g.phase === "lobby" && g.players.length <= 1)) pyrFull = false;
+    }
     renderGame(g);
   } catch (e) {
     if (seq !== gSeq || code !== myGame) return;
@@ -1177,7 +1305,8 @@ function morphNode(x, y) {
   for (const { name, value } of [...y.attributes]) if (x.getAttribute(name) !== value && !(field && name === "value")) x.setAttribute(name, value);
   if (!field) morphKids(x, y);
 }
-const STEP_FADE = ["undercover", "whoof", "never", "blackjack", "roulette", "divan", "tmc", "casino"];  // étapes en fondu
+const STEP_FADE = ["undercover", "whoof", "never", "blackjack", "roulette", "divan", "tmc", "casino"];  // étapes en fondu // <store-cut/>
+// <store> const STEP_FADE = ["undercover", "divan", "tmc"];
 const QUESTION_TYPES = ["whoof", "never"];  // jeux à questions (« Qui de nous ? », « Je n'ai jamais »)
 // Raccourci : patch.gameHost = html  ⇔  morph($("gameHost"), html)
 // candy : dans l'app App Store, les gorgées s'affichent en points ici aussi (compteur du haut, listes…).
@@ -1252,28 +1381,29 @@ function renderGame(g) {
   patch.gRoomSwitch = g.room && g.is_host && !g.kicked && !["island", "neon", "heist"].includes(g.type)
     ? `<button type="button" class="g-go g-room-switch" data-exit="end">🎮 Changer de jeu</button>` : "";
   if (g.kicked || (g.excluded && !autoJoin)) return renderKicked(g);
-  renderCasino(g);  // avant le texte : il dépend de l'état de la bille (en train de rouler ou arrêtée)
+  renderCasino(g);  // avant le texte : il dépend de l'état de la bille (en train de rouler ou arrêtée) // <store-cut/>
   const title = `<div class="g-head g-play-head"><div class="g-icon">${GAME_ICONS[g.type] || ""}</div>
     <div class="g-meta"><div class="g-title">${esc(g.name)}</div>
-    <div class="g-tag">${g.mode ? esc(g.mode) + " · " : ""}${phaseLabel(g)}${g.round && g.phase !== "lobby" ? ` · ${{ undercover: "manche", roulette: "tirage", blackjack: "main", casino: "tour", divan: "carte", tmc: "duo", psy: "test", reflet: "passage" }[g.type] || "question"} ${g.type === "masque" ? g.masque?.n : g.type === "reflet" ? Math.min((g.reflet?.done_turns || 0) + 1, g.reflet?.total || 1) : g.round}` : ""} · ⏱ <span id="gTimer">${fmtDuration(g.elapsed)}</span></div></div>
+    <div class="g-tag">${g.mode ? esc(g.mode) + " · " : ""}${phaseLabel(g)}${g.round && g.phase !== "lobby" ? ` · ${{ undercover: "manche", roulette: "tirage", blackjack: "main", casino: "tour", divan: "carte", tmc: "duo", psy: "test", reflet: "passage" }[g.type] || "question"} ${g.type === "masque" ? g.masque?.n : g.type === "reflet" ? Math.min((g.reflet?.done_turns || 0) + 1, g.reflet?.total || 1) : g.round}` : ""} · ⏱ <span id="gTimer">${fmtDuration(g.elapsed)}</span></div></div> <!-- store-cut -->
+    <!-- <store> <div class="g-tag">${g.mode ? esc(g.mode) + " · " : ""}${phaseLabel(g)}${g.round && g.phase !== "lobby" ? ` · ${{ undercover: "manche", divan: "carte", tmc: "duo", psy: "test", reflet: "passage" }[g.type] || "question"} ${g.type === "masque" ? g.masque?.n : g.type === "reflet" ? Math.min((g.reflet?.done_turns || 0) + 1, g.reflet?.total || 1) : g.round}` : ""} · ⏱ <span id="gTimer">${fmtDuration(g.elapsed)}</span></div></div> -->
     ${helpBtn(g.type, true)}</div>`;
-  const lastLine = g.last?.name ? `<p class="sub" style="margin:8px 0">${esc(g.last.name)} était <b>${esc(g.last.role)}</b>.${g.last.guess ? ` Le Fantôme a proposé « ${esc(g.last.guess)} »… raté !` : ""}</p>` : "";
+  const lastLine = g.last?.name ? `<p class="sub" style="margin:8px 0">${esc(g.last.name)} était <b>${esc(g.last.role)}</b>.${g.last.guess ? " Le Fantôme s'est trompé de mot." : ""}</p>` : "";
   let body = "";
 
   if (g.type === "room") {
     body = roomHtml(g);
   } else if (g.type === "president") {
     body = President.html(g);
-  } else if (g.type === "purity") {
-    body = purityHtml(g);
+  } else if (g.type === "purity") { // <store-cut/>
+    body = purityHtml(g); // <store-cut/>
   } else if (g.type === "divan") {
     body = divanHtml(g);
   } else if (g.type === "tmc" && g.phase !== "lobby" && (me || g.master) && !g.kicked) {
     body = tmcHtml(g);
-  } else if (g.type === "casino") {
-    body = casinoStatusHtml(g);
-  } else if (isBJ(g)) {
-    body = bjTableHtml(g);
+  } else if (g.type === "casino") { // <store-cut/>
+    body = casinoStatusHtml(g); // <store-cut/>
+  } else if (isBJ(g)) { // <store-cut/>
+    body = bjTableHtml(g); // <store-cut/>
   } else if (g.type === "roulette") {
     body = g.is_host
       ? `<div class="artist">${g.names.length < 2 ? "Note au moins 2 noms ci-dessous, puis lance la roue." : "Prêt ? Lance la roue !"}</div>`
@@ -1306,7 +1436,7 @@ function renderGame(g) {
       : `<button class="secondary" data-gact="show" data-key="${esc(key)}" style="width:100%">👁 Voir mon mot (en cachette)</button>`;
     if (g.phase === "end") {
       body = `<div class="title">${WINNERS[g.winner]}</div>
-        <p class="sub" style="margin:6px 0">Mot des civils : <b>${esc(g.words.civil)}</b> · Mot de l'intrus : <b>${esc(g.words.undercover)}</b>${g.last?.guess ? ` · Le Fantôme a proposé « ${esc(g.last.guess)} »` : ""}</p>
+        <p class="sub" style="margin:6px 0">Mot des civils : <b>${esc(g.words.civil)}</b> · Mot de l'intrus : <b>${esc(g.words.undercover)}</b>${g.last?.guess && g.winner !== "white" ? " · Le Fantôme s'est trompé de mot" : ""}</p>
         <div class="artist">${g.is_host ? "Tu peux relancer une partie avec les mêmes joueurs." : "L'animateur peut relancer une partie."}</div>`;
     } else if (!me.alive && !(g.phase === "white_guess" && g.last?.me)) {
       body = `<div class="title">Tu es éliminé 👀</div><div class="artist">Regarde la suite… sans rien dire !</div>${lastLine}`;
@@ -1364,12 +1494,12 @@ function renderGame(g) {
     setGameHtml(lobbyInvite(g) + masqueHtml(g));
   } else if (g.type === "reflet") {
     setGameHtml(lobbyInvite(g) + refletHtml(g));
-  } else if (g.type === "beerpong") {
-    setGameHtml(lobbyInvite(g) + beerpongHtml(g));
-  } else if (g.type === "pyramid" || g.type === "biskit") {
-    // Mise à jour fine (morph) : une carte déjà retournée ne se retourne plus quand un autre joueur agit.
-    morphGameHtml(lobbyInvite(g) + (g.type === "biskit" ? bkHtml(g) : pyrHtml(g) + (STORE && STORE_POINTS ? pyrPointsHtml(g) : "")));
-    if (g.type === "pyramid") { pyrWheel(g); pyrLookStart(); }
+  } else if (g.type === "beerpong") { // <store-cut/>
+    setGameHtml(lobbyInvite(g) + beerpongHtml(g)); // <store-cut/>
+  } else if (g.type === "pyramid" || g.type === "biskit") { // <store-cut/>
+    // Mise à jour fine (morph) : une carte déjà retournée ne se retourne plus quand un autre joueur agit. // <store-cut/>
+    morphGameHtml(lobbyInvite(g) + (g.type === "biskit" ? bkHtml(g) : pyrHtml(g) + (STORE && STORE_POINTS ? pyrPointsHtml(g) : ""))); // <store-cut/>
+    if (g.type === "pyramid") { pyrWheel(g); pyrLookStart(); } // <store-cut/>
   } else {
     // Jeux simples : chaque étape (phase) arrive en fondu ; même clé = même nœud, rien ne se rejoue entre deux étapes.
     const step = STEP_FADE.includes(g.type) ? `<div class="g-step" data-key="${esc(`${g.type}:${g.phase}`)}">${body}</div>` : body;
@@ -1378,7 +1508,7 @@ function renderGame(g) {
   }
   renderDrawer(g);
   gameFlashes(g);
-  if (g.type === "purity") puAnnounce(g);
+  if (g.type === "purity") puAnnounce(g); // <store-cut/>
   if (g.type === "likely") lkAnnounce(g);
   if (g.type === "president") President.after(g);
   turnSignal(g);
@@ -1386,7 +1516,7 @@ function renderGame(g) {
   if (input && !input._vp) { input._vp = 1; input.value = guessDraft; input.addEventListener("input", () => { guessDraft = input.value; }); }
   renderRoulette(g);
   renderHud(g);
-  bjOutcomeFx(g);
+  bjOutcomeFx(g); // <store-cut/>
   renderGameHost(g);
   bumpCounters(g.id);
   const joinCode = g.room || g.code;  // dans une salle : on invite à rejoindre la salle (puis le jeu suit)
@@ -1429,9 +1559,11 @@ function questionHtml(g, me) {
   const choices = !me || (g.type !== "never" && mine) ? "" : g.type === "never"
     ? `<div class="qs-yn" role="group" aria-label="Ta réponse">
         <button type="button" class="qs-opt ${mine === "yes" ? "on" : ""}" data-gact="vote" data-target="yes" aria-pressed="${mine === "yes"}">
-          <span class="qs-emo" aria-hidden="true">${CHEERS}</span><b>Je l'ai déjà fait</b>${sips ? `<small>Je bois ${sips} gorgée${sips > 1 ? "s" : ""}</small>` : ""}</button>
+          <span class="qs-emo" aria-hidden="true">${CHEERS}</span><b>Je l'ai déjà fait</b>${sips ? `<small>Je bois ${sips} gorgée${sips > 1 ? "s" : ""}</small>` : ""}</button> <!-- store-cut -->
+          <!-- <store> <span class="qs-emo" aria-hidden="true">${CHEERS}</span><b>Je l'ai déjà fait</b></button> -->
         <button type="button" class="qs-opt ${mine === "no" ? "on" : ""}" data-gact="vote" data-target="no" aria-pressed="${mine === "no"}">
-          <span class="qs-emo" aria-hidden="true">😇</span><b>Jamais</b>${sips ? `<small>Je ne bois pas</small>` : ""}</button>
+          <span class="qs-emo" aria-hidden="true">😇</span><b>Jamais</b>${sips ? `<small>Je ne bois pas</small>` : ""}</button> <!-- store-cut -->
+          <!-- <store> <span class="qs-emo" aria-hidden="true">😇</span><b>Jamais</b></button> -->
       </div>`
     : `<div class="qs-grid" role="group" aria-label="Ton vote">${g.players.map((p) => `
         <button type="button" class="qs-pick" data-gact="vote" data-target="${esc(p.pid)}">
@@ -1448,12 +1580,14 @@ function questionHtml(g, me) {
 
 function resultsHtml(g) {
   if (!g.results) return "";
-  if (g.type === "never") return neverResultsHtml(g);
+  if (g.type === "never") return neverResultsHtml(g); // <store-cut/>
+  // <store>   if (g.type === "never") return "";
   const max = Math.max(1, ...g.results.map((r) => r.count));
   const sips = g.options?.sips || 0;
   const top = g.results.filter((r) => r.count === max && r.count > 0);
   if (!top.length) return `<p class="qs-help">Personne n'a voté.</p>`;
-  const drink = sips ? `<div class="qs-drink">🍻 ${top.length > 1 ? "Ils boivent" : "Boit"} ${sips} gorgée${sips > 1 ? "s" : ""}</div>` : "";
+  const drink = sips ? `<div class="qs-drink">🍻 ${top.length > 1 ? "Ils boivent" : "Boit"} ${sips} gorgée${sips > 1 ? "s" : ""}</div>` : ""; // <store-cut/>
+  // <store>   const drink = "";
   const rest = g.results.filter((r) => !top.includes(r));
   return `<div class="qs-win">
       <div class="qs-win-names">${top.map((r) => `<span>👑 ${whoName(g, r.name, r.pid)}</span>`).join("")}</div>
@@ -1463,6 +1597,7 @@ function resultsHtml(g) {
       <span>${whoName(g, r.name, r.pid)}</span><b>${r.count}</b></div>`).join("")}</div>` : ""}`;
 }
 
+// <store-cut> jeu caché dans l'app App Store
 // 🎆 Animation de fin de main, seulement sur l'écran du joueur concerné.
 let fxSeen = "";
 function bjOutcomeFx(g) {
@@ -1488,14 +1623,19 @@ function bjOutcomeFx(g) {
   const wait = Math.max(0, FX_AFTER_DEAL - (g.bj.finished_age ?? 0) * 1000);
   setTimeout(() => { if (game?.id === g.id && game.round === g.round) playFx(kind, sub); }, wait);
 }
+// </store-cut>
 const FX_AFTER_DEAL = 700;  // ms
 function playFx(kind, sub) {
-  GameAudio.play(["win", "blackjack", "jackpot"].includes(kind) ? "win" : ["lose", "bust"].includes(kind) ? "lose" : "reveal");
+  GameAudio.play(["win", "blackjack", "jackpot"].includes(kind) ? "win" : ["lose", "bust"].includes(kind) ? "lose" : "reveal"); // <store-cut/>
+  // <store>   GameAudio.play(["win", "jackpot"].includes(kind) ? "win" : ["lose", "bust"].includes(kind) ? "lose" : "reveal");
   document.querySelector(".fx")?.remove();
-  const title = { win: "GAGNÉ !", blackjack: "BLACKJACK !", jackpot: "JACKPOT !", push: "ÉGALITÉ", mixed: "MITIGÉ", lose: "PERDU", bust: "SAUTÉ !" }[kind];
-  const good = ["win", "blackjack", "jackpot"].includes(kind), bad = kind === "lose" || kind === "bust";
+  const title = { win: "GAGNÉ !", blackjack: "BLACKJACK !", jackpot: "JACKPOT !", push: "ÉGALITÉ", mixed: "MITIGÉ", lose: "PERDU", bust: "SAUTÉ !" }[kind]; // <store-cut/>
+  // <store>   const title = { win: "GAGNÉ !", jackpot: "JACKPOT !", push: "ÉGALITÉ", mixed: "MITIGÉ", lose: "PERDU", bust: "SAUTÉ !" }[kind];
+  const good = ["win", "blackjack", "jackpot"].includes(kind), bad = kind === "lose" || kind === "bust"; // <store-cut/>
+  // <store>   const good = ["win", "jackpot"].includes(kind), bad = kind === "lose" || kind === "bust";
   const fx = document.createElement("div");
-  fx.className = `fx fx-${good ? "good" : bad ? "bad" : "even"}${kind === "blackjack" || kind === "jackpot" ? " fx-bj" : ""}`;
+  fx.className = `fx fx-${good ? "good" : bad ? "bad" : "even"}${kind === "blackjack" || kind === "jackpot" ? " fx-bj" : ""}`; // <store-cut/>
+  // <store>   fx.className = `fx fx-${good ? "good" : bad ? "bad" : "even"}${kind === "jackpot" ? " fx-bj" : ""}`;
   fx.setAttribute("role", "status");
   let bits = "";
   if (good) {
@@ -1508,12 +1648,13 @@ function playFx(kind, sub) {
     }
   } else if (bad) {
     for (let i = 0; i < 14; i++) {
-      bits += `<i class="fx-drop" style="--x:${Math.round(Math.random() * 100)}vw;--d:${(0.2 + Math.random() * 1.2).toFixed(2)}s;--s:${(0.8 + Math.random() * 0.8).toFixed(2)}">${drinks(game) ? "🍻" : "💸"}</i>`;
+      bits += `<i class="fx-drop" style="--x:${Math.round(Math.random() * 100)}vw;--d:${(0.2 + Math.random() * 1.2).toFixed(2)}s;--s:${(0.8 + Math.random() * 0.8).toFixed(2)}">${drinks(game) ? "🍻" : "💸"}</i>`; // <store-cut/>
+      // <store> bits += `<i class="fx-drop" style="--x:${Math.round(Math.random() * 100)}vw;--d:${(0.2 + Math.random() * 1.2).toFixed(2)}s;--s:${(0.8 + Math.random() * 0.8).toFixed(2)}">💸</i>`;
     }
   }
   fx.innerHTML = candy(`${good ? `<div class="fx-rays"></div>` : ""}${bits}
     <div class="fx-box">
-      ${kind === "blackjack" ? `<div class="fx-cards"><span class="pcard">A<i>♠</i></span><span class="pcard red">K<i>♥</i></span></div>` : ""}
+      ${kind === "blackjack" ? `<div class="fx-cards"><span class="pcard">A<i>♠</i></span><span class="pcard red">K<i>♥</i></span></div>` : ""} <!-- store-cut -->
       <div class="fx-title" data-text="${title}">${title}</div>
       <div class="fx-sub">${esc(sub)}</div>
     </div>`);
@@ -1521,22 +1662,27 @@ function playFx(kind, sub) {
   const close = () => { fx.classList.add("fx-out"); fx.style.pointerEvents = "none"; setTimeout(() => fx.remove(), 350); };
   fx.addEventListener("click", close);
   document.body.append(fx);
-  haptic({ win: [80, 60, 80], blackjack: [100, 50, 100, 50, 220], jackpot: [100, 50, 100, 50, 100, 50, 300],
+  haptic({ win: [80, 60, 80], blackjack: [100, 50, 100, 50, 220], jackpot: [100, 50, 100, 50, 100, 50, 300], // <store-cut/>
+  // <store>   haptic({ win: [80, 60, 80], jackpot: [100, 50, 100, 50, 100, 50, 300],
     push: [60], mixed: [60, 60, 60], lose: [320], bust: [120, 60, 320] }[kind]);
-  setTimeout(close, kind === "blackjack" || kind === "jackpot" ? 3800 : 3000);
+  setTimeout(close, kind === "blackjack" || kind === "jackpot" ? 3800 : 3000); // <store-cut/>
+  // <store>   setTimeout(close, kind === "jackpot" ? 3800 : 3000);
 }
 
 // Compteur fixe en haut à droite : mes jetons (blackjack) et mes gorgées (bues / distribuées).
 function renderHud(g) {
   const me = g.me, sips = (g.options?.sips || 0) > 0;
-  const chips = !me || sips ? null : isBJ(g) ? g.bj.seats.find((x) => x.pid === me.pid)?.chips
-    : g.type === "casino" ? g.casino.me?.chips : null;
+  const chips = !me || sips ? null : isBJ(g) ? g.bj.seats.find((x) => x.pid === me.pid)?.chips // <store-cut/>
+    : g.type === "casino" ? g.casino.me?.chips : null; // <store-cut/>
+    // <store>   const chips = null;
   const items = [];
   if (chips != null) items.push(`<div class="hud-item"><span>💰</span><b data-bump="hud-chips">${chips}</b><small>jetons</small></div>`);
+  // <store-cut> gorgées (jamais dans l'app)
   if (sips && me) {
     items.push(`<div class="hud-item"><span>🍻</span><b data-bump="hud-drink">${me.drink || 0}</b><small>bue${me.drink > 1 ? "s" : ""}</small></div>`);
     if (isBJ(g)) items.push(`<div class="hud-item"><span>🎁</span><b data-bump="hud-give">${me.give || 0}</b><small>donnée${me.give > 1 ? "s" : ""}</small></div>`);
   }
+  // </store-cut>
   patch.gameHud = items.join("");
   $("gameHud").className = "g-hud " + (GAME_THEME[g.type] || "") + (items.length && g.phase !== "lobby" ? "" : " hidden");
 }
@@ -1555,9 +1701,10 @@ function bumpCounters(gameId) {
   });
   bumpPrev = now;
 }
-const sipsBadge = (p) => p.drink || p.give ? ` <span class="artist">· 🍻 ${p.drink || 0}${p.give ? ` · 🎁 ${p.give}` : ""}</span>` : "";
+const sipsBadge = (p) => p.drink || p.give ? ` <span class="artist">· 🍻 ${p.drink || 0}${p.give ? ` · 🎁 ${p.give}` : ""}</span>` : ""; // <store-cut/>
+// <store> const sipsBadge = () => "";
 
-// 🃏 Blackjack : table (croupier, ma main, mes boutons) et liste des joueurs.
+// 🃏 Blackjack : table (croupier, ma main, mes boutons) et liste des joueurs. // <store-cut/>
 const SUITS = { S: "♠", H: "♥", D: "♦", C: "♣" };
 function cardHtml(c, small = false) {
   if (c === "??") return `<span class="pcard back ${small ? "sm" : ""}" aria-label="Carte cachée"></span>`;
@@ -1565,7 +1712,9 @@ function cardHtml(c, small = false) {
   return `<span class="pcard ${"HD".includes(c[1]) ? "red" : ""} ${small ? "sm" : ""}">${rank}<i>${SUITS[c[1]]}</i></span>`;
 }
 const drinks = (g) => (g.options?.sips || 0) > 0;
-const sipWord = (n) => `${n} gorgée${n > 1 ? "s" : ""}`;
+const sipWord = (n) => `${n} gorgée${n > 1 ? "s" : ""}`; // <store-cut/>
+// <store> const sipWord = (n) => `${n} point${n > 1 ? "s" : ""}`;
+// <store-cut> jeu caché dans l'app App Store
 function bjResultText(g, h) {
   if (!h?.result) return "";
   if (drinks(g)) return { lose: `🍻 Perdu : bois ${sipWord(-h.sips)}`, win: `🎉 Gagné : distribue ${sipWord(h.sips)}`,
@@ -1653,6 +1802,7 @@ function renderBJHost(g, btn) {
     ${g.is_host && !g.me ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
 }
 
+// </store-cut>
 // 🔺 Pyramide : plein écran néon ; tout le monde suit la même table, l'animateur mène la partie.
 const PYR_Q = {
   1: { q: "Rouge ou noir ?", opts: [["red", "Rouge", "♥ ♦", "py-red"], ["black", "Noir", "♠ ♣", "py-black"]] },
@@ -1685,6 +1835,7 @@ function pyrFlash(kind, title, sub = "", card = "", ms = 2300) {
   setTimeout(() => { el.classList.add("out"); el.style.pointerEvents = "none"; }, ms);
   setTimeout(() => el.remove(), ms + 400);
 }
+// <store-cut> jeu caché dans l'app App Store
 function pyrEvents(g) {
   const v = g.pyr;
   if (!v.event) return;
@@ -1836,6 +1987,7 @@ function pyrHtml(g) {
   return `<div class="py-body">${pend}${wait}${body}</div>`;
 }
 
+// </store-cut>
 // 🧠 Mémorisation (avis 4c55c231a4d2) : chacun voit SES cartes au moins 30 s, puis l'animateur lance la pyramide.
 // App iPhone : les cartes sont montrées par l'app, dans un panneau qu'une capture d'écran rend noir (pyrSecretSync).
 function pyrLookHtml(g) {
@@ -1884,6 +2036,7 @@ function pyrSecretSync(g) {
   try { app.update(cards.length ? { cards, title: "Tes cartes · mémorise-les" } : null); } catch (e) { /* app d'avant */ }
 }
 
+// <store-cut> jeu caché dans l'app App Store
 function pyrBoard(g) {
   const v = g.pyr, rows = [];
   let i = 0;
@@ -2268,6 +2421,7 @@ function renderBkHost(g) {
     ${g.is_host && !g.me && g.phase === "lobby" ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
 }
 
+// </store-cut>
 // 🛋️ Le Divan : une grande carte de couleur, retournée à chaque tirage.
 const DV_ICONS = { experiences: "🌄", emotions: "💗", relations: "🤝", childhood: "🧸", dreams: "🌠", whatif: "🔮", couple: "💞" };
 let dvSeen = 0;
@@ -2340,7 +2494,8 @@ document.addEventListener("pointerup", dvRelease);
 document.addEventListener("pointercancel", dvRelease);
 
 // 📵 Participants sans téléphone : l'animateur les ajoute à la main et agit pour eux.
-const MANUAL_GAMES = ["divan", "tmc", "never", "whoof", "blackjack", "casino", "pyramid", "biskit", "likely", "debate", "room", "beerpong"];
+const MANUAL_GAMES = ["divan", "tmc", "never", "whoof", "blackjack", "casino", "pyramid", "biskit", "likely", "debate", "room", "beerpong"]; // <store-cut/>
+// <store> const MANUAL_GAMES = ["divan", "tmc", "likely", "debate", "room"];
 const playerTag = (g, p) => !MANUAL_GAMES.includes(g.type) ? "" : p.manual
   ? ` <span class="pill tag-manual" title="Ajouté·e à la main par l'animateur">✍️ sans téléphone</span>`
   : ` <span class="tag-phone" title="Joue sur son téléphone">📱</span>`;
@@ -2456,6 +2611,7 @@ function renderTmcHost(g, btn) {
     ${g.is_host && !g.me && (g.phase === "lobby" || g.phase === "end") ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:8px">Je joue aussi</button>` : ""}`;
 }
 
+// <store-cut> jeu caché dans l'app App Store
 // 🎰 Casino : roue européenne en SVG ; la roue et la bille tournent en sens inverse, même tirage sur tous les écrans.
 const WHEEL = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
 const RED = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
@@ -2635,6 +2791,7 @@ document.addEventListener("click", (ev) => {
   }
 });
 
+// </store-cut>
 // 🎡 Roulette : roue dessinée en SVG, tournée en CSS ; même tirage (index + décalage) sur tous les téléphones.
 const WHEEL_COLORS = ["#ff4f9a", "#ffb347", "#4fd1c5", "#8b7bff", "#ffe14d", "#3ddc97", "#ff7a59", "#5ab0ff"];
 let wheelSig = null, wheelSpinId = "", wheelRot = 0, wheelShown = "", spinningUntil = 0;
@@ -2738,6 +2895,7 @@ function renderRouletteHost(g, btn) {
   patch.rlSpect = g.players.length ? `<h2>Spectateurs (${g.players.length})</h2><div class="chips">${g.players.map((p) => `<span class="pill">${esc(p.name)}</span>`).join("")}</div>` : "";
 }
 
+// <store-cut> jeu caché dans l'app App Store
 // « Je n'ai jamais » : ceux qui l'ont déjà fait boivent.
 function neverResultsHtml(g) {
   const did = g.results.filter((r) => r.answer === "yes"), never = g.results.filter((r) => r.answer === "no");
@@ -2751,6 +2909,7 @@ function neverResultsHtml(g) {
   return drink + `<div class="never-res">${col(CHEERS, "L'ont déjà fait", did, "did")}${col("😇", "Jamais", never, "nev")}</div>`;
 }
 
+// </store-cut>
 // Commandes de l'animateur (créateur de la partie) et liste des joueurs.
 function renderGameHost(g) {
   const btn = (action, label, cls = "", extra = "") => `<button class="${cls}" data-gact="${action}" ${extra}>${label}</button>`;
@@ -2767,12 +2926,12 @@ function renderGameHost(g) {
     end: btn("restart", "🔁 Rejouer avec les mêmes joueurs", "grow"),
   }[g.phase] || "";
   if (g.type === "roulette") return renderRouletteHost(g, btn);
-  if (isBJ(g)) return renderBJHost(g, btn);
-  if (g.type === "casino") return renderCasinoHost(g, btn);
+  if (isBJ(g)) return renderBJHost(g, btn); // <store-cut/>
+  if (g.type === "casino") return renderCasinoHost(g, btn); // <store-cut/>
   if (g.type === "divan") return renderDivanHost(g, btn);
   if (g.type === "likely") return renderLikelyHost(g);
   if (g.type === "debate") return renderDebateHost(g);
-  if (g.type === "beerpong") return renderBeerpongHost(g);
+  if (g.type === "beerpong") return renderBeerpongHost(g); // <store-cut/>
   if (["pyramid", "biskit", "quiz", "purity", "psy", "masque", "reflet", "room", "president", "neon", "island", "heist"].includes(g.type)) { patch.gameHost = ""; return; }
   if (g.type === "tmc") return renderTmcHost(g, btn);
   const canEliminate = g.is_host && g.type === "undercover" && (g.phase === "words" || g.phase === "vote");
@@ -2787,7 +2946,8 @@ function renderGameHost(g) {
     patch.gameHost = `${controls ? `<div class="row qs-host">${controls}</div>` : ""}
       ${manual.length ? `<h2>Sans téléphone : réponds pour eux</h2><div class="list">${manual.map((p) => `<div class="track"><div class="meta"><div class="title">${esc(p.name)}</div></div>
         <div class="icon-btns">
-          <button class="${p.answer === "yes" ? "" : "secondary"}" data-gact="mvote" data-target="${esc(p.pid)}" data-guess="yes" aria-pressed="${p.answer === "yes"}">🍻 Déjà fait</button>
+          <button class="${p.answer === "yes" ? "" : "secondary"}" data-gact="mvote" data-target="${esc(p.pid)}" data-guess="yes" aria-pressed="${p.answer === "yes"}">🍻 Déjà fait</button> <!-- store-cut -->
+          <!-- <store> <button class="${p.answer === "yes" ? "" : "secondary"}" data-gact="mvote" data-target="${esc(p.pid)}" data-guess="yes" aria-pressed="${p.answer === "yes"}">🙋 Déjà fait</button> -->
           <button class="${p.answer === "no" ? "" : "secondary"}" data-gact="mvote" data-target="${esc(p.pid)}" data-guess="no" aria-pressed="${p.answer === "no"}">😇 Jamais</button>
         </div></div>`).join("")}</div>` : ""}
       ${whoofManual.length ? `<h2>Sans téléphone : vote pour eux</h2><div class="list">${whoofManual.map((p) => `<div class="track"><div class="meta"><div class="title">${esc(p.name)}${p.voted ? " ✓" : ""}</div>
@@ -2805,7 +2965,8 @@ function renderGameHost(g) {
           ${p.role && (seeRoles || !p.alive) ? `<div class="artist">${esc(p.role)}${seeRoles && p.word ? " · " + esc(p.word) : ""}</div>` : ""}</div>
         <div class="icon-btns">
           ${g.is_host && p.manual && g.type === "never" && g.phase === "question" ? `
-            <button class="${p.answer === "yes" ? "" : "secondary"}" data-gact="mvote" data-target="${esc(p.pid)}" data-guess="yes" title="L'a déjà fait" aria-label="L'a déjà fait">🍻</button>
+            <button class="${p.answer === "yes" ? "" : "secondary"}" data-gact="mvote" data-target="${esc(p.pid)}" data-guess="yes" title="L'a déjà fait" aria-label="L'a déjà fait">🍻</button> <!-- store-cut -->
+            <!-- <store> <button class="${p.answer === "yes" ? "" : "secondary"}" data-gact="mvote" data-target="${esc(p.pid)}" data-guess="yes" title="L'a déjà fait" aria-label="L'a déjà fait">🙋</button> -->
             <button class="${p.answer === "no" ? "" : "secondary"}" data-gact="mvote" data-target="${esc(p.pid)}" data-guess="no" title="Jamais" aria-label="Jamais">😇</button>` : ""}
           ${canMove && p.alive && i > 0 ? `<button class="secondary" data-gact="up" data-target="${esc(p.pid)}" title="Monter" aria-label="Monter">⬆</button>` : ""}
           ${canMove && p.alive && i < (speaking ? g.order_pids.length : list.length) - 1 ? `<button class="secondary" data-gact="down" data-target="${esc(p.pid)}" title="Descendre" aria-label="Descendre">⬇</button>` : ""}
@@ -2874,7 +3035,7 @@ function lobbyInviteFull(g) {
 
 // ── Salle de jeux ──
 // Tuile d'un jeu de la salle : l'animateur la touche pour lancer le jeu ; un participant, pour voter (un seul choix).
-// En haut à gauche : le compteur de votes (vu de tous), sinon « NEW » ; en haut à droite : « ? », les règles du jeu, pour
+// En haut à gauche : le compteur de votes (vu de tous), sinon « Nouveau » ; en haut à droite : « ? », les règles du jeu, pour
 // savoir ce que c'est avant de voter (avis de l'admin, 10.11). Le « ? » est à côté de la tuile, jamais dedans (un bouton
 // dans un bouton) : le toucher ouvre les règles sans voter.
 function roomTileHtml(c, R = {}, lead = false) {
@@ -3028,7 +3189,8 @@ function renderPause(g) {
 function gameTopBar(g) {
   const phase = g.type === "pyramid" && g.pyr ? pyrPhase(g) : phaseLabel(g);
   const round = g.round && g.phase !== "lobby" && !["pyramid", "quiz"].includes(g.type)
-    ? ` · ${{ heist: "braquage", island: "manche", neon: "manche", president: "manche", undercover: "manche", roulette: "tirage", blackjack: "main", casino: "tour", divan: "carte", tmc: "duo", biskit: "carte", quiz: "question" }[g.type] || "question"} ${g.round}` : "";
+    ? ` · ${{ heist: "braquage", island: "manche", neon: "manche", president: "manche", undercover: "manche", roulette: "tirage", blackjack: "main", casino: "tour", divan: "carte", tmc: "duo", biskit: "carte", quiz: "question" }[g.type] || "question"} ${g.round}` : ""; // <store-cut/>
+    // <store> ? ` · ${{ heist: "braquage", island: "manche", neon: "manche", president: "manche", undercover: "manche", divan: "carte", tmc: "duo", quiz: "question" }[g.type] || "question"} ${g.round}` : "";
   const alerts = (g.pyr?.pending?.length || 0) + (g.is_host ? (g.pyr?.peeks || []).filter((r) => r.status === "pending").length : 0);
   return `<button type="button" class="py-icon g-burger" data-gdrawer="open" aria-label="Menu : joueurs, code, QR"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>${alerts ? `<i class="badge">${alerts}</i>` : ""}</button>
     <div class="g-top-mid"><div class="g-top-name"><span class="g-top-ico" aria-hidden="true">${GAME_ICONS[g.type] || ""}</span>${esc(g.name)}</div>
@@ -3036,7 +3198,7 @@ function gameTopBar(g) {
     ${GameAudio.button()}
     ${g.is_host && !["lobby", "end"].includes(g.phase) && g.type !== "room" ? `<button type="button" class="py-icon g-pause-btn" data-gact="${g.paused ? "resume" : "pause"}"
       aria-label="${g.paused ? "Reprendre la partie" : "Mettre la partie en pause"}">${g.paused ? "▶" : "⏸"}</button>` : ""}
-    <button type="button" class="py-icon g-min" data-gdrawer="minimize" aria-label="Réduire le jeu (revenir à la musique)">
+    <button type="button" class="py-icon g-min" data-gdrawer="minimize" aria-label="Réduire le jeu (revenir aux onglets)">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
     ${helpBtn(g.type, true)}
     ${["island","neon","heist"].includes(g.type) ? '<button type="button" class="g-quit" data-gdrawer="exit" aria-label="Quitter la partie">✕ Quitter</button>' : ""}`;
@@ -3045,7 +3207,7 @@ function gameTopBar(g) {
 function renderDrawer(g) {
   const lead = g.is_host, movable = lead && g.phase === "lobby";
   patch.gDrawerPlayers = `<h2>Participants (${g.players.length})</h2>
-    <div class="list">${g.players.map((p, i) => `<div class="track ${p.online === false ? "g-away" : ""}">${p.account ? `<span ${profileAttrs(g, p)}>${avatar(p, "qs-av-sm")}</span>` : avatar(p, "qs-av-sm")}<div class="meta"><div class="title">${p.account ? `<span ${profileAttrs(g, p)}>${esc(p.name)}</span>` : esc(p.name)}${p.host ? " 🎲" : ""}${p.pid === g.me?.pid ? " (toi)" : ""}${presenceTag(p)}${playerTag(g, p)}${p.pending ? " ⏳" : ""}${sipsBadge(p)}</div></div>
+    <div class="list">${g.players.map((p, i) => `<div class="track ${p.online === false && p.pid !== g.me?.pid ? "g-away" : ""}">${p.account ? `<span ${profileAttrs(g, p)}>${avatar(p, "qs-av-sm")}</span>` : avatar(p, "qs-av-sm")}<div class="meta"><div class="title">${p.account ? `<span ${profileAttrs(g, p)}>${esc(p.name)}</span>` : esc(p.name)}${p.host ? " 🎲" : ""}${p.pid === g.me?.pid ? " (toi)" : ""}${presenceTag(p.pid === g.me?.pid ? { ...p, online: true } : p)}${playerTag(g, p)}${p.pending ? " ⏳" : ""}${sipsBadge(p)}</div></div>
       <div class="icon-btns">
         ${movable && i > 0 ? `<button class="secondary" data-gact="up" data-target="${esc(p.pid)}" title="Monter" aria-label="Monter">⬆</button>` : ""}
         ${movable && i < g.players.length - 1 ? `<button class="secondary" data-gact="down" data-target="${esc(p.pid)}" title="Descendre" aria-label="Descendre">⬇</button>` : ""}
@@ -3079,7 +3241,9 @@ document.addEventListener("click", (ev) => {
   const b = ev.target.closest("[data-gdrawer]");
   if (b) {
     const a = b.dataset.gdrawer;
-    if (a === "open" || a === "exit") { openDrawer(); $("gDrawer").querySelector(".g-drawer-panel").scrollTop = 0; }
+    const how = a === "exit" && game ? (!game.is_owner ? "away" : game.players.length <= 1 ? "end" : "") : "";
+    if (how) exitGame(how, b);
+    else if (a === "open" || a === "exit") { openDrawer(); $("gDrawer").querySelector(".g-drawer-panel").scrollTop = 0; }
     else if (a === "close") closeDrawer();
     else if (a === "minimize") minimizeGame();
     return;
@@ -3219,10 +3383,11 @@ function exitHtml(g) {
     : `<button type="button" class="danger g-exit" data-exit="end">${g.type === "room" ? "Fermer la salle pour tout le monde" : g.players.length <= 1 ? "Quitter et fermer la partie" : "Fermer la partie pour tout le monde"}</button>`);
   return out.join("");
 }
-document.addEventListener("click", async (ev) => {
+document.addEventListener("click", (ev) => {
   const b = ev.target.closest("[data-exit]");
-  if (!b || !game) return;
-  const a = b.dataset.exit;
+  if (b && game) exitGame(b.dataset.exit, b);
+});
+async function exitGame(a, b) {
   if (a === "pick") { handoverOpen = !handoverOpen; return renderDrawer(game); }
   if (a === "to") {
     const p = game.players.find((x) => x.pid === b.dataset.target);
@@ -3235,7 +3400,7 @@ document.addEventListener("click", async (ev) => {
     return toast(`${p.name} anime maintenant la partie`, "ok");
   }
   if (a === "end") {
-    const msg = game.room ? "Changer de jeu ? Celui-ci se termine et tout le monde revient à la salle pour choisir le suivant." : game.type === "room" ? "Fermer la salle pour tout le monde ?" : "Fermer la partie pour tout le monde ?";
+    const msg = game.room ? "Changer de jeu ? Celui-ci se termine et tout le monde revient à la salle pour choisir le suivant." : game.type === "room" ? "Fermer la salle pour tout le monde ?" : game.players.length <= 1 ? "Quitter et fermer la partie ?" : "Fermer la partie pour tout le monde ?";
     if (confirm(msg)) { closeDrawer(); gameAction("end"); }
     return;
   }
@@ -3252,7 +3417,7 @@ document.addEventListener("click", async (ev) => {
     myRoom = ""; store("vp_room", "");
     setGame(""); renderGame(null);
   }
-});
+}
 // Options choisies sur la carte d'un jeu (création directe, ou lancement depuis la salle de jeux).
 function gamePayload(card, type) {
   const q = (sel) => card.querySelector(sel);
@@ -3320,26 +3485,30 @@ function rulesForAll(type, g) {
   let facts = [];
   if (g.mode) facts.push(`Questions : <b>${esc(g.mode)}</b>`);
   if (type === "undercover") facts.push(g.options?.white ? "Avec <b>le Fantôme</b> (dès 5 joueurs)" : "<b>Sans</b> le Fantôme");
-  if (type === "blackjack") facts.push(sips ? `Mode <b>gorgées</b> · mise de 1 à <b>${sipWord(sips)}</b>` : "Mode <b>jetons</b> · 100 jetons au départ");
+  if (type === "blackjack") facts.push(sips ? `Mode <b>gorgées</b> · mise de 1 à <b>${sipWord(sips)}</b>` : "Mode <b>jetons</b> · 100 jetons au départ"); // <store-cut/>
+  // <store-cut> jeux cachés dans l'app App Store
   if (type === "pyramid") facts.push(`${g.pyr?.floors || g.options?.floors || 5} étages`,
     g.pyr?.hard ? "Distribution <b>hard</b> : 1, 2, 3, 4 gorgées" : "Distribution <b>soft</b> : 1 gorgée par carte",
     g.pyr?.poteau_hard ? "Poteau <b>hard</b> : un shot (ou un verre d'eau) pour le tireur" : "Poteau <b>soft</b> : tout le monde boit 1",
     g.pyr?.double ? "Étages : <b>2, 4, 6…</b> gorgées" : "Étages : <b>1, 2, 3…</b> gorgées", g.pyr?.boat_on ? "<b>Avec</b> le bateau" : "<b>Sans</b> bateau");
   if (type === "biskit") facts.push(g.bk?.alcohol ? `Avec alcool · gorgées <b>×${g.bk.mult}</b>` : "<b>Sans alcool</b> (points de gage)",
     g.bk?.biskit ? `Le Biskit : <b>${esc(g.bk.biskit)}</b>` : "", g.bk?.key ? `Dernière carte : <b>${esc(BK_RULES[g.bk.key][1])}</b> (surlignée plus bas)` : "");
-  if (type === "casino") facts.push(sips ? `Mode <b>gorgées</b> · jusqu'à <b>${sipWord(sips)}</b> misées par tour` : "Mode <b>jetons</b> · 100 jetons au départ");
-  else if (type === "whoof" || type === "never") facts.push(sips ? `<b>${sipWord(sips)}</b> ${type === "whoof" ? "pour la personne désignée" : "pour ceux qui l'ont fait"}` : STORE ? "" : "<b>Sans alcool</b>");
+  // </store-cut>
+  if (type === "casino") facts.push(sips ? `Mode <b>gorgées</b> · jusqu'à <b>${sipWord(sips)}</b> misées par tour` : "Mode <b>jetons</b> · 100 jetons au départ"); // <store-cut/>
+  else if (type === "whoof" || type === "never") facts.push(sips ? `<b>${sipWord(sips)}</b> ${type === "whoof" ? "pour la personne désignée" : "pour ceux qui l'ont fait"}` : STORE ? "" : "<b>Sans alcool</b>"); // <store-cut/>
   facts.push(`Animée par <b>${esc(g.host_name || "?")}</b> · code <b>${esc(g.code)}</b>`);
   facts = facts.filter(Boolean);
   let body = GAME_RULES[type];
-  if (type === "casino") body = CASINO_RULES_COMMON + (sips ? CASINO_RULES_DRINKS : CASINO_RULES_CHIPS);
-  if (type === "blackjack") body = BJ_RULES_COMMON + (sips ? BJ_RULES_DRINKS : GAME_RULES.blackjack.slice(BJ_RULES_COMMON.length).replace(BJ_RULES_DRINKS, ""));
+  if (type === "casino") body = CASINO_RULES_COMMON + (sips ? CASINO_RULES_DRINKS : CASINO_RULES_CHIPS); // <store-cut/>
+  if (type === "blackjack") body = BJ_RULES_COMMON + (sips ? BJ_RULES_DRINKS : GAME_RULES.blackjack.slice(BJ_RULES_COMMON.length).replace(BJ_RULES_DRINKS, "")); // <store-cut/>
   return `<div class="g-facts"><h3>Cette partie</h3><ul>${facts.map((f) => `<li>${f}</li>`).join("")}</ul></div>` + body;
 }
 
 // « ? » : règles détaillées du jeu.
-const GAME_NAMES = { masque: "Le Masque", reflet: "Le Reflet", psy: "Qui es-tu vraiment ?", beerpong: "Beer pong", undercover: "L'Intrus", whoof: "Qui de nous ?", likely: "Qui est le plus… ?", debate: "Pour ou contre", never: "Je n'ai jamais", roulette: "Roulette",
-  blackjack: "Blackjack", casino: "Casino", divan: "Le Divan", tmc: "Tu me connais ?", pyramid: "Pyramide", biskit: "Biskit Royal", quiz: "Quiz", purity: "Purify Test", room: "Salle de jeux", president: "Président", neon: "Néon Knockout", island: "L’île qui s’effondre", heist: "Braquage en miniature" };
+const GAME_NAMES = { masque: "Le Masque", reflet: "Le Reflet", psy: "Qui es-tu vraiment ?", beerpong: "Beer pong", undercover: "L'Intrus", whoof: "Qui de nous ?", likely: "Qui est le plus… ?", debate: "Pour ou contre", never: "Je n'ai jamais", roulette: "Roulette", // <store-cut/>
+// <store> const GAME_NAMES = { masque: "Le Masque", reflet: "Le Reflet", psy: "Qui es-tu vraiment ?", undercover: "L'Intrus", likely: "Qui est le plus… ?", debate: "Pour ou contre", 
+  blackjack: "Blackjack", casino: "Casino", divan: "Le Divan", tmc: "Tu me connais ?", pyramid: "Pyramide", biskit: "Biskit Royal", quiz: "Quiz", purity: "Purify Test", room: "Salle de jeux", president: "Président", neon: "Néon Knockout", island: "L’île qui s’effondre", heist: "Braquage en miniature" }; // <store-cut/>
+  // <store> divan: "Le Divan", tmc: "Tu me connais ?", quiz: "Quiz", room: "Salle de jeux", president: "Président", neon: "Néon Knockout", island: "L’île qui s’effondre", heist: "Braquage en miniature" };
 document.addEventListener("click", (ev) => {
   const open = ev.target.closest("[data-rules]");
   if (open) {
@@ -3407,6 +3576,16 @@ $("gNameForm").addEventListener("submit", (ev) => {
   ev.preventDefault();
   const name = $("gNameInput").value.trim().slice(0, 30);
   if (!name) return;
+  if (STORE && !gamesTermsOk()) {
+    if (!$("gTermsCheck").checked) {
+      $("gTermsNote").textContent = "Pour jouer avec les autres, coche d'abord la case : ton prénom et tes réponses sont lus par toute la table.";
+      $("gTermsBox").classList.add("warn");
+      $("gTermsCheck").focus();
+      return;
+    }
+    setGamesTerms(true);
+  }
+  gTermsLater = false;
   guestName = name; store("vp_name", guestName);
   if (typeof renderNameChip === "function") renderNameChip();
   // L'hôte voit la personne dans ses Réglages dès qu'elle a donné son prénom.

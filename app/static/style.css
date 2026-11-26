@@ -223,13 +223,13 @@ details[open] > summary h2::after { content: " ▾"; }
 .g-music-back { width: 100%; margin-top: 10px; }
 .gcard { background: var(--g-bg); color: #fff; border-radius: 26px; padding: 20px; display: flex; flex-direction: column; gap: 14px; margin-bottom: 14px; }
 .g-head { display: flex; gap: 14px; align-items: center; }
-/* Étiquette « NEW » d'un jeu récent : à cheval sur le coin haut droit de la carte (au-dessus du bouton « ? »). */
+/* Étiquette « Nouveau » d'un jeu récent : à cheval sur le coin haut droit de la carte (au-dessus du bouton « ? »). */
 .gcard, .g-room-tile { position: relative; }
 .g-new { position: absolute; top: -9px; right: 16px; z-index: 1; padding: 3px 10px; border-radius: 999px; pointer-events: none;
   font: 900 .72rem/1.2 system-ui, sans-serif; letter-spacing: .08em; color: #3a1800;
   background: linear-gradient(135deg, #ffe27a, #ff9f43); box-shadow: 0 4px 12px rgba(255, 159, 67, .45), 0 0 0 2px rgba(0, 0, 0, .18); }
 .g-room-tile .g-new { top: -7px; right: auto; left: 0; padding: 2px 7px; font-size: .62rem; }
-/* Salle de jeux : « ? » en haut à droite de chaque jeu (règles), « NEW » / votes en haut à gauche (avis du 10.11). */
+/* Salle de jeux : « ? » en haut à droite de chaque jeu (règles), « Nouveau » / votes en haut à gauche (avis du 10.11). */
 .g-room-cell { position: relative; display: grid; }
 .g-room-help { position: absolute; top: -8px; right: -2px; z-index: 2; width: 26px; height: 26px; min-width: 0; min-height: 0; padding: 0; margin: 0; border: 0; border-radius: 50%; line-height: 1;
   display: grid; place-items: center; font: 900 .85rem system-ui; color: #fff; background: rgba(40, 32, 70, .92);
@@ -337,7 +337,9 @@ html.party-store .gcard.g-cs, html.party-store .gcard.g-bj { display: none; }
 .game.g-bj button:not(.secondary), .game.g-bd button:not(.secondary) { background: var(--g-accent); color: var(--g-ink); }
 .game.g-bj button.secondary, .game.g-bd button.secondary { background: var(--g-chip); color: #fff; }
 .game.g-bj button.g-help, .game.g-bd button.g-help { background: rgba(255,255,255,.16); color: #fff; }
+/* <store-cut> jeu caché dans l'app App Store (app/store_static.py) */
 .bj-dealer, .bj-me { margin-top: 12px; }
+/* </store-cut> */
 .bj-cards { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 .pcard { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; width: 44px; height: 62px;
   border-radius: 8px; background: #fbf8f1; color: #16121f; font: 800 1.1rem/1 system-ui, sans-serif; box-shadow: 0 3px 8px rgba(0,0,0,.35);
@@ -352,7 +354,9 @@ html.party-store .gcard.g-cs, html.party-store .gcard.g-bj { display: none; }
 .bj-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
 .bj-actions button { height: 54px; font-size: 1.05rem; }
 .bj-result { margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(0,0,0,.25); font-weight: 800; }
+/* <store-cut> jeu caché dans l'app App Store (app/store_static.py) */
 .bj-result.win, .bj-result.blackjack { background: var(--g-accent); color: var(--g-ink); }
+/* </store-cut> */
 .track.bj-turn { outline: 2px solid var(--accent-2); }
 /* Compteur fixe en haut à droite (jetons, gorgées) : presque transparent et sans flou, le texte du jeu reste lisible
    dessous ; une ombre garde les chiffres lisibles ; les touchers le traversent (il ne masque jamais un bouton). */

@@ -87,20 +87,20 @@ export function createScene(canvas) {
       mesh(geos.top,grass,g,0,-.02,0);
       // Angular fracture on the top: it lights up only before collapse.
       const points=[new THREE.Vector3(-.8,.112,-.8),new THREE.Vector3(-.28,.113,-.35),new THREE.Vector3(.15,.113,-.45),new THREE.Vector3(.02,.113,.10),new THREE.Vector3(.5,.113,.55),new THREE.Vector3(.8,.113,1.)];
-      const crack=new THREE.Group();
+      const fissure=new THREE.Group();
       const fractureMaterial=new THREE.MeshBasicMaterial({color:'#76250b',toneMapped:false});
       for(let j=1;j<points.length;j++) {
-        const a=points[j-1],b=points[j],segment=mesh(new THREE.CylinderGeometry(.085,.085,a.distanceTo(b),5),fractureMaterial,crack);
+        const a=points[j-1],b=points[j],segment=mesh(new THREE.CylinderGeometry(.085,.085,a.distanceTo(b),5),fractureMaterial,fissure);
         segment.position.copy(a).add(b).multiplyScalar(.5);segment.position.y=.14;
         segment.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),b.clone().sub(a).normalize());
       }
-      crack.visible=false;g.add(crack);
+      fissure.visible=false;g.add(fissure);
       if(t.ring===3 && i%3===0)palm(g,.4,-.4,.85+rand(i)*.3,i);
       if(i%4===0) {
         const rocklet=mesh(geos.boulder,stoneLight,g,-1,.26,.25);rocklet.scale.set(1.3,.8,1);
         for(let j=0;j<3;j++){const leaf=mesh(geos.leaf,j%2?leaves:leafLight,g,-.95+j*.17,.24,.65);leaf.scale.set(.12,.37,.12);leaf.rotation.z=(j-1)*.5;}
       }
-      islands.set(t.id,{g,grass,baseColor:grass.color.clone(),crack,rock,index:i});
+      islands.set(t.id,{g,grass,baseColor:grass.color.clone(),fissure,rock,index:i});
     }
   }
   function character(p) {
@@ -197,7 +197,7 @@ export function createScene(canvas) {
       o.splashed=sunk;
       o.grass.color.copy(warn?WARN_COLOR:o.baseColor);
       o.grass.emissive.copy(warn?WARN_GLOW:NO_GLOW);o.grass.emissiveIntensity=warn?.12+urgency*.25*(.5+.5*Math.sin(now*.02)):0;
-      o.crack.visible=warn;
+      o.fissure.visible=warn;
     }
     const fighters=v.phase==='lobby'?roster.map((p,i)=>({...p,x:Math.cos(i*2.4)*4,y:Math.sin(i*2.4)*3,z:0,alive:true,color:['#20c9d0','#f66b60','#f4bd40','#a185e8','#78ba60','#ef91ba','#539cef','#ef984b'][i]})):v.fighters;
     const ids=new Set(fighters.map(p=>p.pid));

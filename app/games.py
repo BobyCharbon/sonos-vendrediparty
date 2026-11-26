@@ -2577,7 +2577,9 @@ def view(g: dict, gid: str) -> dict:
     if last.get("eliminated"):
         p = player(g, last["eliminated"])
         out["last"] = {"pid": p["pid"] if p else None, "name": p["name"] if p else "?",
-                       "role": ROLE_LABELS.get(last["role"]), "guess": last.get("guess"), "me": last["eliminated"] == gid}
+                       # Le mot proposé par le Fantôme n'est jamais montré à la table (contrôle du 26.11, Apple 1.2) :
+                       # seulement s'il a proposé un mot (raté ; trouvé, la partie est gagnée par le Fantôme).
+                       "role": ROLE_LABELS.get(last["role"]), "guess": bool(last.get("guess")), "me": last["eliminated"] == gid}
     elif last.get("tie"):
         out["last"] = {"tie": True}
     if g["results"] and g["type"] == "never":

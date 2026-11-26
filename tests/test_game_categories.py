@@ -11,6 +11,7 @@ JS = (Path(__file__).resolve().parent.parent / "app" / "static" / "games.js").re
 
 def categories() -> list[tuple[str, str, list[str]]]:
     block = re.search(r"const GAME_CATEGORIES = (\[.*?\]);\n", JS, re.S).group(1)
+    block = re.sub(r"[ \t]*//[^\n]*", "", block)  # marques de la version App Store (app/store_static.py)
     return [tuple(c) for c in json.loads(block)]
 
 

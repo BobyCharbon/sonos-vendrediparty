@@ -14,7 +14,8 @@ from tests.e2e.helpers import Server
 UA = ("Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 "
       "PartyApp-iOS/1.0.0")
 IPHONE = {"viewport": {"width": 390, "height": 760}, "is_mobile": True, "has_touch": True, "locale": "fr-CH"}
-INIT = 'localStorage.setItem("vp_install_dismissed", "1"); localStorage.setItem("vp_name", "Léa");'
+INIT = ('localStorage.setItem("vp_install_dismissed", "1"); localStorage.setItem("vp_name", "Léa");'
+        'localStorage.setItem("vp_games_terms", "1");')  # case des conditions des jeux déjà cochée
 KEPT = ["undercover", "likely", "quiz", "debate", "divan", "tmc", "masque", "reflet", "psy", "president", "neon", "island", "heist"]
 
 
