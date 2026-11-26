@@ -686,7 +686,12 @@ def test_round_eight_texts_match_what_the_reviewer_can_try():
         assert "Supabase (société américaine)" in text and "dont on ne peut pas retrouver le numéro" not in text, path
         assert "répondre « Présent » à cet événement, ou être noté « Présent » par l'organisateur, t'ajoute d'office à ce pot" in text, path
         assert "l'en fait sortir" not in text and "« Quitter ce pot commun »" in text, path
-        assert "les surnoms des membres de Party que tu peux inviter" in text, path
+        # Contrôle Apple, tour 2 : l'IA reçoit des alias à la place des surnoms ; pot : paiement montré seulement si choisi.
+        assert "la liste des membres de Party que tu peux inviter, chacun remplacé par un alias (jamais leur surnom" in text, path
+        assert "les surnoms des membres de Party que tu peux inviter" not in text, path
+        assert "tes moyens de paiement seulement si tu choisis de les montrer dans ce pot" in text, path
+        assert "Une recherche par numéro exact révèle qu'une personne qui a ce numéro est sur Party" in text, path
+        assert "empreinte chiffrée" not in text, path
         assert "Journal des connexions et des actions d'administration : 12 mois. Recherches de personnes : 1 heure." in text, path
 
 

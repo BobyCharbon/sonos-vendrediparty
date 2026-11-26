@@ -33,7 +33,7 @@ type Report = {
 
 const KIND_LABELS: Record<string, string> = {
   group_message: 'Message de groupe', direct_message: 'Message direct', event_message: 'Discussion d’événement',
-  profile: 'Profil', profile_photo: 'Photo de profil', group_photo: 'Photo de groupe', event: 'Événement',
+  profile: 'Profil', profile_photo: 'Photo de profil', group: 'Groupe (nom)', group_photo: 'Photo de groupe', event: 'Événement',
   rsvp_note: 'Petit mot', poll: 'Sondage', poll_option: 'Choix de sondage', bring_item: 'Objet à amener', pet_name: 'Nom du Zicou', pet_item: 'Objet de Zicou',
   pet_offer: 'Offre d’échange', pet_showcase: 'Vitrine', pet_word: 'Mot de Zicou',
   // Agenda (17.11) : demande d'une personne sans compte (« Masquer » l'efface) ; page publique d'un lien (« Masquer » l'arrête).

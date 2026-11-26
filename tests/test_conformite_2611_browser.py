@@ -31,7 +31,7 @@ def test_the_event_says_present_joins_its_common_pot_before_and_how_to_leave_aft
     try:
         notice = page.get_by_test_id('pot-notice')
         pw.expect(notice).to_contain_text('Cet événement a un pot commun : en répondant Présent, ou si l’organisateur te note Présent, tu y es ajouté.', timeout=15000)
-        pw.expect(notice).to_contain_text('Ses membres voient ton nom et les moyens de paiement que tu as indiqués.')
+        pw.expect(notice).to_contain_text('Ses membres voient ton nom ; tes moyens de paiement restent cachés tant que tu ne choisis pas de les montrer.')
         pw.expect(notice).to_contain_text('Pas présent : tu n’y entres pas.')
         assert not errors, errors
     finally:

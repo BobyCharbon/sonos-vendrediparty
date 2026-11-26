@@ -100,12 +100,36 @@ function friendlyRsvpError(message: string): string {
 export type PotState = 'in' | 'still' | 'out';
 export function potNotice(state: PotState): string {
   if (state === 'in') {
-    return 'Tu es dans le pot commun de cet événement : ses membres voient ton nom et les moyens de paiement que tu as indiqués. Pour en sortir : Réglages › Pot commun › Quitter ce pot commun.';
+    return 'Tu es dans le pot commun de cet événement : ses membres voient ton nom ; tes moyens de paiement restent cachés tant que tu ne choisis pas de les montrer. Pour en sortir : Réglages › Pot commun › Quitter ce pot commun.';
   }
   if (state === 'still') {
-    return 'Tu es toujours dans le pot commun : Réglages › Pot commun › Quitter ce pot commun. Ses membres voient ton nom et les moyens de paiement que tu as indiqués.';
+    return 'Tu es toujours dans le pot commun : Réglages › Pot commun › Quitter ce pot commun. Ses membres voient ton nom ; tes moyens de paiement restent cachés tant que tu ne choisis pas de les montrer.';
   }
-  return 'Cet événement a un pot commun : en répondant Présent, ou si l’organisateur te note Présent, tu y es ajouté. Ses membres voient ton nom et les moyens de paiement que tu as indiqués. Pas présent : tu n’y entres pas.';
+  return 'Cet événement a un pot commun : en répondant Présent, ou si l’organisateur te note Présent, tu y es ajouté. Ses membres voient ton nom ; tes moyens de paiement restent cachés tant que tu ne choisis pas de les montrer. Pas présent : tu n’y entres pas.';
+}
+
+/**
+ * « Montrer mes moyens de paiement dans ce pot » (contrôle Apple du 26.11, migration 20261126140000) : ajouté d'office,
+ * show_payment est faux ; la base ne renvoie l'IBAN et les liens d'un membre aux autres que s'il l'a allumé.
+ * null : pas dans le pot, ou base d'avant (colonne absente) → l'interrupteur se cache sans erreur.
+ */
+export async function potPaymentChoice(eventId: string, me: string): Promise<{ group: string; on: boolean } | null> {
+  const { data: groups, error } = await supabase.from('tc_groups').select('id').eq('event_id', eventId).limit(1);
+  const group = !error && Array.isArray(groups) ? (groups[0] as { id?: string } | undefined)?.id : undefined;
+  if (!group) return null;
+  const { data, error: e2 } = await supabase.from('tc_members').select('show_payment')
+    .eq('group_id', group).eq('user_id', me).is('left_at', null).maybeSingle();
+  const row = data as { show_payment?: unknown } | null;
+  if (e2 || !row || typeof row.show_payment !== 'boolean') return null;
+  return { group, on: row.show_payment };
+}
+
+/** false : la fonction n'existe pas encore (base d'avant) ; une autre erreur remonte avec sa phrase. */
+export async function setPotPayment(group: string, on: boolean): Promise<boolean> {
+  const { error } = await supabase.rpc('tc_set_show_payment', { p_group: group, p_on: on });
+  if (!error) return true;
+  if (error.code === 'PGRST202' || /could not find the function/i.test(error.message)) return false;
+  throw new Error(friendlyRsvpError(error.message));
 }
 
 /** Suis-je encore dans le pot commun de cet événement ? (RLS de tc_groups : seuls ses membres actifs le lisent.) */

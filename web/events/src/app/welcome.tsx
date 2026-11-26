@@ -29,7 +29,7 @@ export default function Welcome() {
       {profile?.status === 'banned' ? (
         <View style={{ gap: 12 }}>
           <Title size={32}>Accès retiré</Title>
-          <T muted>Ton accès a été retiré par un admin du groupe.</T>
+          <T muted>Ton accès a été retiré par l’équipe de Party.</T>
         </View>
       ) : complete && !editing ? (
         <View style={{ gap: 20 }}>

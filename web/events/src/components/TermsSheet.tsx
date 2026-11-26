@@ -95,6 +95,7 @@ export function useTermsGate(title = 'Avant de publier') {
           <ErrorText error={error} />
           <Button label="J’accepte les conditions" loading={busy} onPress={() => void accept()} />
           <Button variant="secondary" label="Plus tard" onPress={() => finish(false)} />
+          <T muted size={12} style={{ textAlign: 'center' }}>Sans elles, tu gardes les jeux. Écrire, publier, choisir ton surnom ou répondre à un événement te les redemanderont.</T>
         </View>
       </View>
     </Modal>

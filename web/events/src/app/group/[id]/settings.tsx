@@ -9,7 +9,7 @@ import { InviteLinkCard } from '@/components/InviteLinkCard';
 import { openProfile } from '@/components/NameLinks';
 import { usePersonText } from '@/components/PersonName';
 import { SheetBackdrop, SheetTop, useSheetSignal, useSheetTop } from '@/components/SheetGesture';
-import { useTermsGate } from '@/components/TermsSheet';
+import { termsLater, useTermsGate } from '@/components/TermsSheet';
 import { Avatar, Button, ConfirmButton, ErrorText, Input, Loading, Screen, Section, T, Title, Toast, ToggleRow } from '@/components/ui';
 import { useAuth, useMe } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
@@ -76,7 +76,7 @@ export default function GroupSettings() {
 
   async function saveLook() {
     if (!draft || !draft.name.trim()) return;
-    if (!(await terms.ensure())) return;  // le nom d'un groupe est un contenu (CGU, filtre de la base)
+    if (!(await terms.ensure())) return setError(termsLater('modifier le groupe', 'Enregistrer'));  // le nom d'un groupe est un contenu (CGU, filtre de la base)
     const call = p.legacy
       ? supabase.from('member_groups').update({ name: draft.name.trim(), emoji: draft.emoji, color: draft.color }).eq('id', group.id)
       : supabase.rpc('update_group_look', { grp: group.id, group_name: draft.name.trim(), group_emoji: draft.emoji, group_color: draft.color });
@@ -84,7 +84,7 @@ export default function GroupSettings() {
   }
 
   async function changePhoto(uri: string | null) {
-    if (uri && !(await terms.ensure())) return;  // une photo est un contenu (CGU)
+    if (uri && !(await terms.ensure())) return setError(termsLater('ajouter une photo au groupe'));  // une photo est un contenu (CGU)
     setBusy(true);
     try {
       await saveGroupPhoto(group.id, uri, group.photo);

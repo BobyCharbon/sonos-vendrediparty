@@ -17,6 +17,7 @@ import { clearInviteAnswer, peekInviteAnswer, peekInviteJoin, rememberInviteAnsw
 import { groupLabel } from '@/lib/guestGroup';
 import { openInParty } from '@/lib/partyShell';
 import { potNotice } from '@/lib/rsvp';
+import { PotPaymentToggle } from './PotPaymentToggle';
 import { canInstallWebApp, insideInstalledApp, installWebApp, isAndroid } from '@/lib/installPrompt';
 import { enter, pressTransition } from '@/lib/motion';
 import { safeHref } from '@/lib/links';
@@ -143,6 +144,7 @@ function Host({ card }: { card: InviteCard }) {
 function Card({ card, onAnswer, join, onJoin }: { card: InviteCard; onAnswer: (a: Answer) => void; join: boolean; onJoin: (v: boolean) => void }) {
   const closed = card.state === 'full' || card.state === 'expired' || card.state === 'revoked' || card.state === 'removed';
   const cancelled = card.status === 'cancelled';
+  const { session } = useAuth();
   // Sondage : on compte les votants, comme le sondage de la fiche (10.11 : « 2 viennent » mais 3 votes).
   const poll = card.date_mode === 'poll';
   const names = poll ? card.voter_names ?? [] : card.going_names;
@@ -228,6 +230,7 @@ function Card({ card, onAnswer, join, onJoin }: { card: InviteCard; onAnswer: (a
           {card.pot_enabled ? (
             <View testID="pot-notice"><T size={13} color={colors.textSoft} style={{ textAlign: 'center' }}>💸 {potNotice(card.mine === 'yes' ? 'in' : 'out')}</T></View>
           ) : null}
+          {card.pot_enabled && card.mine === 'yes' && card.event_id && session ? <PotPaymentToggle eventId={card.event_id} me={session.user.id} /> : null}
           {insideInstalledApp() ? null : <T muted size={13} style={{ textAlign: 'center' }}>Pas besoin d’installer l’app.</T>}
         </View>
       )}
