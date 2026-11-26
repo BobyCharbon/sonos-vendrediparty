@@ -10,7 +10,7 @@ drapeaux de prod lus sur https://party.bobycharbon.ch/api/features : `compagnon:
 | Champ | Valeur |
 |---|---|
 | Nouveautés (What's New) | **Rien** : 1.0.0 est la première version, Apple n'affiche pas ce champ. |
-| Notes pour la revue (App Review Information › Notes) | Copier `ios/appstore/review-notes.txt` (3996 caractères, limite 4 000 ; à jour au 26.11.2026 (contrôle Apple, tour 2 : « Mes amis dans Party », Activité en direct facultative de la Musique, Souvenirs dans « Not in this version », moyens de paiement du Pot commun cachés par défaut et « Signaler ») ; avant : 19.11.2026 : Discussions v2, groupes et discussion d'événement natifs (réservée à Présent / Peut-être) ; « Not in this version » : Pronos, Agenda, compagnon, Souvenirs, jamais ouverts par ce build). |
+| Notes pour la revue (App Review Information › Notes) | Copier `ios/appstore/review-notes.txt` (3994 caractères, limite 4 000 ; à jour au 26.11.2026 (contrôle Apple, tour 3 : billet de démo à se remettre soi-même par « Remettre à tous les présents » ; tour 2 : « Mes amis dans Party », Activité en direct facultative de la Musique, Souvenirs dans « Not in this version », moyens de paiement du Pot commun cachés par défaut et « Signaler ») ; avant : 19.11.2026 : Discussions v2, groupes et discussion d'événement natifs (réservée à Présent / Peut-être) ; « Not in this version » : Pronos, Agenda, compagnon, Souvenirs, jamais ouverts par ce build). |
 | URL d'assistance (Support URL) | `https://party.bobycharbon.ch/support` (page d'assistance : contact support@vendrediparty.ch, éditeur, questions fréquentes ; 25.11) |
 | URL de confidentialité (Privacy Policy URL) | `https://party.bobycharbon.ch/events/privacy?app=ios` (texte de l'app App Store, sans bar ni Pronos ; 25.11) |
 | URL marketing | Vide. **Jamais** `vendrediparty.ch` : ce domaine n'a pas de site (aucun enregistrement A), seulement la messagerie. |
@@ -106,7 +106,7 @@ publicité, aucun SDK d'analyse. Pour chaque type ci-dessous : **lié à l'ident
 | User Content | Photos or Videos | Photo de profil, d'événement, ticket du Pot commun, captures données à l'IA | oui |
 | User Content | Emails or Text Messages | Messages de la Discussion d'un événement, messages à l'hôte | oui |
 | User Content | Other User Content | Événements, sondages, votes, avis (et leurs modifications), titres demandés, dépenses | oui |
-| User Content | **Gameplay Content** | Scores et stats de jeu liés au compte (Mes stats de jeu : Méninges, Purify Test, Quiz) ; Pronos : réponses, soldes et confettis lancés, historique du sac, contestations, réactions (18.11) | oui (ajouté le 09.11) |
+| User Content | **Gameplay Content** | Scores et stats de jeu liés au compte (Mes stats de jeu : Méninges, Quiz) | oui (ajouté le 09.11) |
 | Identifiers | User ID | Identifiant du compte | oui |
 | Identifiers | Device ID | Identifiant d'invité tiré au hasard, jeton de notifications APNs, inscription Wallet | oui |
 | Usage Data | Product Interaction | Journal d'usage de l'IA (plafond mensuel), journal admin | oui |
@@ -158,8 +158,9 @@ file musicale ni de Purify Test (absents de l'app App Store depuis le 25.11).
   sur le nouveau build App Store** (26.11), avec les 4 onglets de l'app : **Jeux, Événements, Discussions, Réglages**.
   La capture 09 est remplacée par **Méninges** ou la **Salle de jeux**. Aucune catégorie « 🍻 Alcool », aucun jeu retiré.
 - **Vidéo d'aperçu** (6,9" et iPhone Duo) : à **supprimer** dans App Store Connect (elle montre l'ancienne app).
-- Le workflow compile en Debug (condition BETA présente) : sans conséquence tant que le site de production a
-  `compagnon: false`, mais vérifier qu'aucune bulle de Zicou n'apparaît.
+- Le workflow `ios-screenshots.yml` compile en Debug AVEC la condition BETA (Souvenirs, Pronos, Agenda, Zicou compilés) :
+  ne pas utiliser son artefact. Captures faites avec le binaire App Store sans BETA : `PARTY_SWIFT_CONDITIONS=` et
+  `PARTY_BUNDLE_SUFFIX=` (variante STORE), commande complète dans `docs/app-store/checklist-envoi.md` (contrôle Apple, tour 3).
 
 ## 8. Apple TV
 

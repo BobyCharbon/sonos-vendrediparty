@@ -78,11 +78,11 @@
       - [ ] captures 6,9" et Duo REFAITES sur le nouveau build App Store (barre à 4 onglets, 09 = Méninges ou la Salle
             de jeux, données fictives, aucune boisson) ; ancienne vidéo d'aperçu SUPPRIMÉE dans App Store Connect
             (aucune nouvelle vidéo) ; vérifier qu'aucune ancienne image ne reste en ligne ;
-      - [ ] guide PDF joint = celui du 26.11 (régénéré depuis la partie B) ; notes recopiées (3997 caractères) ;
+      - [ ] guide PDF joint = celui du 26.11 (régénéré depuis la partie B) ; notes recopiées (3994 caractères) ;
       - [ ] clé `storage_secret_key` AJOUTÉE par l'admin dans le coffre de prod (contrôle : `private.chat_files_gc_runs`) ;
       - [ ] dépôt GitHub `BobyCharbon/sonos-vendrediparty` passé en PRIVÉ (ou `GITHUB_REPO` sur un dépôt privé à part) ;
       - [ ] nouveau build iPhone : la politique native (`SignInView.swift`) est celle du 26.11, mot pour mot la page web.
-- [ ] Contrôle Apple, tour 1 (26.11, textes de soumission) : notes (3997 caractères), guide PDF (B4.3 : « Sur invitation »
+- [ ] Contrôle Apple, tour 1 (26.11, textes de soumission) : notes (3994 caractères), guide PDF (B4.3 : « Sur invitation »
       puis « Démo Apple · 2 » ; B4.14 : case « J'ai 18 ans ou plus… » vérifiée par le serveur, prénoms filtrés même changés
       en cours de partie ; B4.16 : Pot commun aussi pour qui est noté Présent par l'organisateur, dépenses et photos de
       tickets avec CGU et « Signaler » ; numérotation B4.12 corrigée) ; plus aucune Activité en direct promise (musique
@@ -113,16 +113,44 @@
             (données fictives, aucune vraie personne), **rien d'alcool**, rien qui contredise la note (contenu
             présentable à tout public, comme pour une app 4+) ; ancienne **vidéo d'aperçu SUPPRIMÉE** (6,9" et Duo) ;
       - [ ] **nettoyage de la démo appliqué** (`supabase/prod/2026-11-26-demo-nettoyage-apply.sql`, migration `20261126110000`
-            en prod) ; Billets QR allumés sur la Soirée démo et billet d'Apple-test remis (B2 et B4.10 le disent ; sinon
-            corriger le guide et régénérer le PDF) ;
+            en prod) ; Billets QR allumés sur la Soirée démo (`tickets_enabled = true`), AUCUN billet remis d'avance : la partie A,
+            B2 et B4.10 disent à Apple de répondre Présent puis « Remettre à tous les présents » (sinon corriger les
+            trois et régénérer le PDF) ;
       - [ ] migrations **20261126100000**, **20261126120000**, **20261126130000** et **20261126140000** en prod
             (`select version from supabase_migrations.schema_migrations where version like '20261126%'`) ;
       - [ ] fonctions **send-push** ET **send-web-push** redéployées (dernière version de develop / main) ;
       - [ ] avant toute archive locale : `xcodegen` dans `ios/` (sinon le projet Xcode garde l'ancien manifeste et les
             anciens fichiers) ;
-      - [ ] notes (3996 caractères) recopiées dans App Store Connect = `ios/appstore/review-notes.txt` ; guide PDF du
+      - [ ] notes (3994 caractères) recopiées dans App Store Connect = `ios/appstore/review-notes.txt` ; guide PDF du
             tour 2 joint (B4.4 sans sous-liste, « Mes amis dans Party », Activité en direct facultative, Pot commun aux
             moyens de paiement cachés par défaut, « Signaler le groupe », Souvenirs dans « Not in this version »).
+- [ ] **Contrôle Apple, tour 3 (26.11, textes de soumission)** :
+      - [ ] Soirée démo : se connecter avec Apple-test, répondre **Présent**, carte **Billets QR** › **Remettre à tous
+            les présents** › carte **Ton billet** et badge « Ajouter à l'app Cartes Apple » visibles (partie A TRY IT 1,
+            B2, B4.10) ;
+      - [ ] « Apple-test 2 » : le guide dit « same fixed code as the first demo account » : le VÉRIFIER en se
+            connectant avec ce numéro et le code d'Apple-test le jour de l'envoi (sinon corriger B2 et régénérer le PDF) ;
+      - [ ] captures 6,9" et Duo faites avec le binaire App Store, SANS la condition BETA. Le workflow
+            `.github/workflows/ios-screenshots.yml` compile en Debug avec `PARTY_SWIFT_CONDITIONS=BETA` (Souvenirs,
+            Pronos, Agenda, Zicou compilés) : ne PAS prendre son artefact. Sur le Mac, depuis `ios/` :
+            ```
+            xcodegen
+            xcodebuild build -project Party.xcodeproj -scheme Party -configuration Debug \
+              -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/PartyStore \
+              CODE_SIGNING_ALLOWED=NO PARTY_SWIFT_CONDITIONS= PARTY_BUNDLE_SUFFIX= \
+              PARTY_HOST=party.bobycharbon.ch PARTY_DISPLAY_NAME=Party ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon
+            cd .. && BUNDLE_ID=ch.bobycharbon.party ios/scripts/screenshots.sh \
+              /tmp/PartyStore/Build/Products/Debug-iphonesimulator/Party.app <dossier des captures>
+            ```
+            `PARTY_SWIFT_CONDITIONS=` retire BETA (reste seulement DEBUG, qui ne sert qu'à `PARTY_DEBUG_JS`, le choix
+            de l'onglet par le script) ; `PARTY_BUNDLE_SUFFIX=` donne la variante **STORE** (`AppConfig.storeLocked`,
+            textes d'autorisation de l'App Store). Pour des captures à la main : mêmes réglages avec
+            `-configuration Release` (`Release-iphonesimulator/Party.app`), en touchant soi-même les écrans ;
+      - [ ] ce qu'elles montrent : la barre à **4 onglets** (Jeux, Événements, Discussions, Réglages), les **10 écrans**
+            de `fiche-app-store.md` (09 = **Méninges** ou la **Salle de jeux**), comptes et données **fictifs** ; RIEN
+            d'alcool, de Casino / Blackjack, de Zicou, de Souvenirs, de Pronos ni d'Agenda ; tout présentable comme pour
+            une app **4+** (2.3.8) ;
+      - [ ] **vidéo d'aperçu SUPPRIMÉE** dans App Store Connect (6,9" ET iPhone Duo), aucune nouvelle vidéo.
 - [ ] Connexion testée avec « Apple-test 2 » (jamais connecté en prod au 25.11) et « Apple-test » le jour de l'envoi.
 - [ ] App Store Connect › Business : adresse du compte développeur en France (Segny) et statut DSA (non-commerçant) à jour.
 
@@ -178,7 +206,7 @@
 - [ ] **User name** : `+41 79 000 09 99` (compte « Apple-test »).
 - [ ] **Password** : le code fixe à 6 chiffres (Supabase prod › Authentication › Phone › Test OTP ; le fichier
       `~/sb-work/apple/demo.txt` n'existe pas sur ce Mac : le reprendre là où il est). **Jamais dans le dépôt.**
-- [ ] **Notes** : la partie A de `notes-for-review.md` (3996 caractères, contrôle Apple tour 2, limite 4 000 ; = `ios/appstore/review-notes.txt`). La recopier aussi dans
+- [ ] **Notes** : la partie A de `notes-for-review.md` (3994 caractères, contrôle Apple tour 2, limite 4 000 ; = `ios/appstore/review-notes.txt`). La recopier aussi dans
       `ios/appstore/review-notes.txt` avant d'utiliser `tools/appstore_submit.py` (il envoie ce fichier), puis lancer
       `.venv/bin/python -m pytest -q tests/test_ios_app.py -p no:cacheprovider` (la partie A contient les mots exigés).
 - [ ] **Pronos, Agenda, compagnon : PAS dans cette version** (jamais ouverts par ce build, quoi que dise le serveur) : les notes le disent (« Not in this version »),
@@ -246,8 +274,9 @@ Pour chaque type : **lié à l'identité : oui · suivi : non · finalité : App
       Phone Number, Payment Info, Other Financial Info, Contacts, Photos or Videos, Audio Data, Emails or Text Messages,
       Gameplay Content, Customer Support, Other User Content, Purchase History, User ID, Device ID, Product Interaction,
       Other Diagnostic Data) : cocher les mêmes 16 dans App Store Connect, vérifier qu'ils sont dans le build choisi.
-- [ ] Textes d'autorisation (project.yml, annoncés par le coordinateur) : Caméra « Pour scanner un QR code (code de la
-      soirée, billet d'un événement, carte du bar d'un invité) et prendre une photo de profil ou d'événement. » ; Micro
+- [ ] Textes d'autorisation (project.yml, annoncés par le coordinateur) : Caméra (`PARTY_USAGE_CAMERA_STORE`) « Pour scanner un QR
+      code (code de la soirée ou d'un jeu, billet) ou un ticket du Pot commun, et prendre une photo de profil,
+      d'événement, de groupe ou à envoyer dans une discussion. » (B8 du guide dit la même chose) ; Micro
       « Seulement quand tu touches le micro : pour enregistrer un message vocal dans une discussion, ou dicter un texte. »
       — À VÉRIFIER dans le build choisi.
 

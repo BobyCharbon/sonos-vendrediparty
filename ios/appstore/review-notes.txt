@@ -2,14 +2,14 @@ ABOUT
 "Vendredi Party": free app by Ludovic Trombert, an individual developer based in France, to organise real-world events with friends, chats and party games. French, 18+. No ads, tracking or in-app purchase. Guide attached (PDF).
 
 CHANGES SINCE THE 1.4.3 REJECTION (new build + server, permanent for this version)
-Removed from this app: every drinking-related game (Pyramide, Je n'ai jamais, Qui de nous ?, Roulette, Beer pong, Biskit, Purify Test), every drink option, Hot/Mix questions, the party bar, Casino, Blackjack and the Music tab. Not renamed or re-skinned: our server refuses them to this app, even by code or QR. Demo: no drink words.
+Removed from this app: every drinking-related game (Pyramide, Je n'ai jamais, Qui de nous ?, Roulette, Beer pong, Biskit, Purify Test), every drink option, Hot/Mix questions, the party bar, Casino, Blackjack and the Music tab. Not renamed or re-skinned: our server refuses them to this app, even by code or QR.
 
 SIGN-IN
 Phone + 6-digit SMS code. Demo "Apple-test": number and code in the sign-in fields (fixed, no SMS).
 
 TRY IT
-1. Events > "Soirée démo Vendredi Party" (co-organiser): answer "Présent", see who comes, event chat.
-2. Events > "+ Proposer" > "Sur invitation" (or "Avec l'IA" > "Des groupes") > tick group "Démo Apple" > Publish: live at once. Public events: moderated first (1.2).
+1. Events > "Soirée démo Vendredi Party" (co-organiser): answer "Présent", see who comes, event chat, then "Remettre à tous les présents": your QR ticket.
+2. Events > "+ Proposer" > "Sur invitation" > tick group "Démo Apple" > Publish: live at once. Public events: moderated first (1.2).
 3. Discussions > "Démo Apple": long-press > "Signaler"; "Nouveau message"; "Demandes".
 4. Games > "Créer une salle" > Quiz, or Méninges.
 

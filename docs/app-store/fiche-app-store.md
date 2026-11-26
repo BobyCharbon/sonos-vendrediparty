@@ -109,7 +109,7 @@ partie périmé (sa capture « 2-games-3d » vise une section cachée depuis l'a
 | 3 | « Créer avec l'IA », étape 1 (description tapée) | Événements › ✨ Avec l'IA | Décris ta soirée, l'IA prépare tout |
 | 4 | Feuille « Inviter » (Une personne / Plusieurs, lien) | Carte Invités › + Inviter | Invite avec un simple lien |
 | 5 | Sondage de dates (Oui / Si besoin / Non) | Pastille Sondages › un sondage fictif | Trouvez la date ensemble |
-| 6 | Ton billet (QR + badge « Ajouter à Cartes Apple ») | Événement à billets, billet remis | Ton billet dans Cartes |
+| 6 | Ton billet (QR + badge « Ajouter à l'app Cartes Apple ») | Événement à billets, billet remis (« Remettre à tous les présents ») | Ton billet dans Cartes |
 | 7 | Discussion de l'événement (messages fictifs) | Fiche › Discussion | Toute la soirée se prépare ici |
 | 8 | Discussions : une conversation de groupe fictive | Onglet Discussions | Discute avec tes groupes |
 | 9 | Salle de jeux (tuiles d'« Ambiance » / « Jeux de cartes ») ou une question de Quiz | Jeux › Créer une salle | Une salle de jeux pour toute la bande |

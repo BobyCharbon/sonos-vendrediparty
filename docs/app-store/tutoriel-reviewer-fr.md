@@ -75,8 +75,9 @@ La proposition attend dans **Brouillons** (« En attente de validation »).
 infos » › lieu à confirmer sur la carte › **C'est juste ?** › **Oui, continuer** › page web « Qui est invité » : un
 toucher sur **🌍 Public + lien public**, **👥 Des groupes** (cocher puis « Publier pour … ») ou **✉️ Sur invitation
 seulement** publie (ou « Envoyer pour validation »). L'IA ne choisit jamais qui est invité ni qui voit l'événement,
-n'allume jamais billets, covoiturage ou annonce au groupe, et ne choisit jamais le mode de paiement. Les membres
-qu'on peut inviter lui sont envoyés en alias (P1, P2…), jamais par leur surnom. 📸 (étape 1)
+n'allume jamais billets, covoiturage ou annonce au groupe, et ne choisit jamais le mode de paiement. L'IA reçoit
+ton surnom, les noms de tes groupes, catégories et étiquettes, les personnes déjà choisies sous un alias (P1, P2…),
+jamais la liste des membres. 📸 (étape 1)
 
 ### 3.5 Inviter
 Carte **Invités** › **+ Inviter** › **Une personne** ou **Plusieurs** (sans limite par défaut, − / + pour les places),
@@ -104,8 +105,11 @@ Carte **Covoiturage** (option de l'organisateur) : **🚗 Je conduis** / **🙋 
 facultative, **Monter** / **Prendre**. Aucun argent.
 
 ### 3.10 Billet QR et Cartes Apple
-Option « Billets QR » : carte **Ton billet** › **Afficher ›** › QR + badge **Ajouter à Cartes Apple** (feuille PassKit
-native). L'organisateur : **Remettre le billet**, ou billet remis tout seul quand il confirme un paiement ;
+Option « Billets QR » (allumée sur la Soirée démo, AUCUN billet remis d'avance : répondre **Présent**, puis carte
+**Billets QR** de la fiche, côté organisateur › **Remettre à tous les présents** ; Apple-test est co-organisateur) :
+carte **Ton billet** › **Afficher ›** › QR + badge **Ajouter à l'app Cartes Apple** (feuille PassKit native).
+L'organisateur : **Remettre le billet** (une personne) ou **Remettre à tous les présents**, ou billet remis tout seul
+quand il confirme un paiement ;
 **📷 Scanner les billets** dans la ZONE ORGANISATEUR. 📸 (billet + badge Cartes)
 
 ### 3.11 Paiement d'un événement (hors de l'app)
@@ -138,7 +142,9 @@ Confidentialité › **Personnes bloquées**. 📸
 ## 5. Groupes
 Réglages › **Groupes** : mes groupes, **Nouveau groupe**, membres, **Inviter avec un lien**, « Montrer mon numéro dans ce
 groupe » (caché par défaut). Page d'un groupe : **Signaler le groupe** (son nom) et
-**Signaler la photo du groupe**.
+**Signaler la photo du groupe**. Réglages du groupe (23.11) : l'admin du groupe donne des rôles (co-admin,
+organisateur) et choisit qui peut inviter, créer des événements, écrire ou épingler ; accord facultatif de chaque
+nouveau membre.
 
 ## 6. Jeux
 Onglet **Jeux** › **Salle de jeux** › **Créer une salle** (ou **Code** › **Rejoindre** : 4 chiffres = un jeu) ; dans la
@@ -163,7 +169,7 @@ pour ne rien cacher (2.3.1).
 
 ## 8. Réglages
 - **Notifications** : un interrupteur par type (Général, Jeux, Ton avis, Événements, Discussions des groupes,
-  Amis, Comptes et modération, Quand j'organise ; Musique seulement après avoir rejoint une soirée Musique) ; la lune en haut à droite met tout en pause.
+  Amis, Comptes et modération, Quand j'organise ; Musique seulement chez l'hôte d'une soirée Musique, l'invité a ses interrupteurs sur l'écran Musique) ; la lune en haut à droite met tout en pause.
 - **Pot commun** : dépenses partagées (rien n'est payé dans l'app), scan de ticket (IA facultative, avec accord). On y
   entre par son lien, ou d'office en répondant **Présent** (ou noté Présent par l'organisateur) à un événement dont l'organisateur a choisi le
   pot (on le quitte

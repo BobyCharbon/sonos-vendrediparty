@@ -701,7 +701,7 @@ def test_apple_check_round_one_texts_promise_only_what_the_reviewer_can_try():
     guide = (_root() / "docs/app-store/notes-for-review.md").read_text(encoding="utf-8")
     part_b = guide.split("## PART B", 1)[1]
     assert len(notes) <= 4000 and notes in guide
-    assert '"+ Proposer" > "Sur invitation" (or "Avec l\'IA" > "Des groupes")' in notes
+    assert '"+ Proposer" > "Sur invitation" > tick group "Démo Apple" > Publish' in notes
     assert 'tap **Sur invitation**, then tick **Démo Apple · 2**, then **Publier**' in part_b
     assert "J'ai 18 ans ou plus et j'accepte les conditions" in notes and "server-checked" in notes
     assert "first names and answers filtered" in notes and "a first name changed during a game" in part_b
@@ -844,3 +844,37 @@ def test_round_two_pot_payment_toggle_and_group_report():
     assert "ProfileRules.missingText" in profile and "les autres à te reconnaître" in profile
     for f in ("Contacts/ContactsViews.swift", "Contacts/FriendsView.swift"):
         assert "empreinte chiffrée" not in (ios / f).read_text(encoding="utf-8"), f
+
+
+def test_apple_check_round_three_demo_ticket_groups_music_camera_and_ai():
+    """Contrôle Apple du 26.11, tour 3 (2.1, 2.3.1(a), 5.1.2) : le nettoyage de la démo allume les billets QR sans en
+    remettre ; Apple se remet son billet (« Remettre à tous les présents », libellé de TicketsManager.tsx)."""
+    notes = (_root() / "ios/appstore/review-notes.txt").read_text(encoding="utf-8").strip()
+    guide = (_root() / "docs/app-store/notes-for-review.md").read_text(encoding="utf-8")
+    part_b = guide.split("## PART B", 1)[1]
+    flat = " ".join(part_b.split())
+    assert len(notes) <= 4000 and notes in guide
+    label = "Remettre à tous les présents"
+    assert "Remettre à tous les présents (${waiting.length})" in (_root() / "web/events/src/components/TicketsManager.tsx").read_text(encoding="utf-8")
+    assert "Ajouter à l’app Cartes Apple" in (_root() / "web/events/src/components/WalletButton.tsx").read_text(encoding="utf-8")
+    assert f'event chat, then "{label}": your QR ticket.' in notes
+    assert "account's ticket is handed" not in guide and "already handed" not in guide
+    assert f"tap **{label}** (you are co-organiser)" in flat.split("### B2.", 1)[1].split("### B3.", 1)[0]
+    b410 = flat.split("#### B4.10", 1)[1].split("#### B4.11", 1)[0]
+    assert label in b410 and "Ajouter à l'app Cartes Apple" in b410
+    b413 = flat.split("#### B4.13", 1)[1].split("#### B4.14", 1)[0]
+    assert "Group admins can set roles (co-admin, organiser) and who may invite, create events, write or pin; optional approval of new members." in b413
+    music = "Music notification settings appear only for the host of a music party"
+    assert music in flat.split("#### B4.18", 1)[1].split("#### B4.19", 1)[0] and music in flat.split("### B7.", 1)[1]
+    assert ('| Camera | Scanning a QR code (party, game, ticket) or a "Pot commun" receipt, or taking a profile, event, '
+            'group or chat photo |') in part_b
+    assert "AI screen, event chat, announcement" in flat
+    for text in (flat.split("#### B4.4", 1)[1].split("#### B4.5", 1)[0], flat.split("### B7.", 1)[1]):
+        assert "never the list of members" in text and "categories and tags" in text
+    assert "never by their nicknames" not in guide
+    checklist = (_root() / "docs/app-store/checklist-envoi.md").read_text(encoding="utf-8")
+    assert "PARTY_SWIFT_CONDITIONS= PARTY_BUNDLE_SUFFIX=" in checklist and "carte du bar" not in checklist
+    assert "same fixed code as the first demo account" in checklist
+    asc = (_root() / "ios/appstore/app-store-connect.md").read_text(encoding="utf-8")
+    gameplay = next(l for l in asc.splitlines() if "**Gameplay Content**" in l)
+    assert "Purify" not in gameplay and "Pronos" not in gameplay

@@ -13,9 +13,11 @@
 > 1. Événement **« Soirée démo »** (organisé par un admin), **sur invitation** (un bar payant n'existe que sur un événement
 >    non public), date fixée dans 2 à 3 semaines, lieu fictif, Apple-test **invité** (et de préférence déjà noté **Présent**,
 >    billet remis). Contrôle Apple, tour 2 (26.11) : **prix et covoiturage restent ÉTEINTS** sur la démo (B2 et B4.9 le
->    disent) ; les **Billets QR sont ALLUMÉS** sur la Soirée démo par le nettoyage de la démo (tour 2), avec le billet
->    d'Apple-test remis : B2 et B4.10 le disent. Contrôle après le nettoyage : `tickets_enabled = true` sur la Soirée démo
->    et un billet remis à Apple-test ; sinon remettre « off » dans B2 et B4.10 et régénérer le PDF. « Forum de
+>    disent) ; les **Billets QR sont ALLUMÉS** sur la Soirée démo par le nettoyage de la démo (tour 2), SANS billet
+>    remis (le nettoyage n'en remet aucun) : B2, B4.10 et la partie A disent à Apple de répondre **Présent** puis de se
+>    remettre son billet par « Remettre à tous les présents » (carte **Billets QR**, côté organisateur de la fiche).
+>    Contrôle après le nettoyage : `tickets_enabled = true` sur la Soirée démo ; sinon remettre « off » dans B2, B4.10 et
+>    la partie A et régénérer le PDF. « Forum de
 >    l'événement » allumé.
 > 2. Refus Apple 1.4.3 (25.11) : le bar est **caché dans l'app App Store** ; la démo n'a plus aucun article alcoolisé ni
 >    texte « commander au bar » (`supabase/prod/2026-11-25-demo-sans-alcool-apply.sql`, à appliquer avant l'envoi).
@@ -32,28 +34,28 @@
 >    « Bloquer » masque aussitôt les messages et prévient les modérateurs ; aucun jeu à boire, aucune gorgée, aucun mode Hot / Mix
 >    ni bar dans l'app App Store (refus 1.4.3, 25.11, `app/store_app.py`) ; CGU « 18 ans et plus ». Si l'une manque en prod : corriger ce
 >    texte avant l'envoi (Apple compare les notes et l'app).
-> 8. Copier la **partie A** dans App Store Connect › App Review Information › **Notes** (3996 caractères, limite 4 000 ; 26.11 : contrôle Apple, tour 2) ET
+> 8. Copier la **partie A** dans App Store Connect › App Review Information › **Notes** (3994 caractères, limite 4 000 ; 26.11 : contrôle Apple, tour 3) ET
 >    dans `ios/appstore/review-notes.txt` (même texte) (c'est ce fichier que `tools/appstore_submit.py` envoie ; la partie A garde tous
 >    les mots exigés par `tests/test_ios_app.py::test_review_notes_describe_every_big_feature_delivered_by_the_web`).
 > 9. Exporter la **partie B** en PDF (sans cet encadré) et la joindre dans App Review Information › **Attachment**.
 
 ---
 
-## PART A — Text for the "Notes" field (3,996 characters, limit 4,000)
+## PART A — Text for the "Notes" field (3,994 characters, limit 4,000)
 
 ```text
 ABOUT
 "Vendredi Party": free app by Ludovic Trombert, an individual developer based in France, to organise real-world events with friends, chats and party games. French, 18+. No ads, tracking or in-app purchase. Guide attached (PDF).
 
 CHANGES SINCE THE 1.4.3 REJECTION (new build + server, permanent for this version)
-Removed from this app: every drinking-related game (Pyramide, Je n'ai jamais, Qui de nous ?, Roulette, Beer pong, Biskit, Purify Test), every drink option, Hot/Mix questions, the party bar, Casino, Blackjack and the Music tab. Not renamed or re-skinned: our server refuses them to this app, even by code or QR. Demo: no drink words.
+Removed from this app: every drinking-related game (Pyramide, Je n'ai jamais, Qui de nous ?, Roulette, Beer pong, Biskit, Purify Test), every drink option, Hot/Mix questions, the party bar, Casino, Blackjack and the Music tab. Not renamed or re-skinned: our server refuses them to this app, even by code or QR.
 
 SIGN-IN
 Phone + 6-digit SMS code. Demo "Apple-test": number and code in the sign-in fields (fixed, no SMS).
 
 TRY IT
-1. Events > "Soirée démo Vendredi Party" (co-organiser): answer "Présent", see who comes, event chat.
-2. Events > "+ Proposer" > "Sur invitation" (or "Avec l'IA" > "Des groupes") > tick group "Démo Apple" > Publish: live at once. Public events: moderated first (1.2).
+1. Events > "Soirée démo Vendredi Party" (co-organiser): answer "Présent", see who comes, event chat, then "Remettre à tous les présents": your QR ticket.
+2. Events > "+ Proposer" > "Sur invitation" > tick group "Démo Apple" > Publish: live at once. Public events: moderated first (1.2).
 3. Discussions > "Démo Apple": long-press > "Signaler"; "Nouveau message"; "Demandes".
 4. Games > "Créer une salle" > Quiz, or Méninges.
 
@@ -118,10 +120,10 @@ has a **fixed code** (also in "Sign-in information", Password field): no SMS is 
 | Item | What it is |
 |---|---|
 | Demo account | Nickname "Apple-test" (Apple Review), complete profile. Ordinary member role: an event reserved to the group "Démo Apple" is published at once (**Publier**); a public event, or an invitation-only event with no group, is sent to our moderators first (**Envoyer pour validation**, see B4.3). |
-| Event **"Soirée démo Vendredi Party"** (12 Dec.) | Organised by us, invitation only; the demo account is invited AND co-organiser: answer (**Présent**), see who comes, event discussion; organiser side: ZONE ORGANISATEUR (guests and their answers). QR tickets are on and the demo account's ticket is handed (card **Ton billet**, Apple Wallet, B4.10); payment and carpool are off on this event (options of the organiser, described below for completeness). |
+| Event **"Soirée démo Vendredi Party"** (12 Dec.) | Organised by us, invitation only; the demo account is invited AND co-organiser: answer (**Présent**), see who comes, event discussion; organiser side: guests and their answers, ZONE ORGANISATEUR. QR tickets are on: answer **Présent**, then in the organiser card **Billets QR** of the event page tap **Remettre à tous les présents** (you are co-organiser) to get your own ticket (card **Ton billet**, Apple Wallet, B4.10); payment and carpool are off on this event (options of the organiser, described below for completeness). |
 | Group **"Démo Apple"** | The demo account + one of our admins, with a few messages. |
 | Direct message | One message from our admin to the demo account. |
-| Second demo account **"Apple-test 2"** | Number **+41 79 000 00 01**, same fixed code as the first demo account (no SMS). Shares no group or private event with "Apple-test" and has sent it a **message request** (Discussions › **Demandes**). Sign in with it to see the sender side ("Demande envoyée", input closed until accepted). |
+| Second demo account **"Apple-test 2"** | Number **+41 79 000 00 01**, same fixed code as the first demo account (no SMS; checked by signing in on the day of submission). Shares no group or private event with "Apple-test" and has sent it a **message request** (Discussions › **Demandes**). Sign in with it to see the sender side ("Demande envoyée", input closed until accepted). |
 
 If you test account deletion: please do it last. Signing in again with the same number then creates a new, empty
 account (the prepared data stays linked to the deleted one).
@@ -200,8 +202,8 @@ Tab **Événements**:
    **✉️ Sur invitation seulement**. Tap **👥 Des groupes**, tick "Démo Apple", then "Publier pour …": the event is
    published at once. For the demo account, a public event or an invitation-only event with no group is sent for
    approval (moderators check it first). The AI never chooses who is invited or who sees the event, never turns on
-   tickets, carpool or group announcements, and never chooses a payment method. The members you can invite are sent to
-   the AI as aliases (P1, P2…), never by their nicknames.
+   tickets, carpool or group announcements, and never chooses a payment method. The AI receives your nickname, the names of
+   your groups, categories and tags, and people already chosen under an alias (P1, P2…), never the list of members.
 7. Step 3: the event page opens. To change it later, use **Modifier** (the form).
 
 #### B4.5 Invite people
@@ -246,9 +248,11 @@ part. No money, no cost sharing.
 
 #### B4.10 QR ticket and Apple Wallet
 
-On an event with the option "Billets QR" (on for the demo event, where the demo account's ticket is already handed), once your ticket is handed to you, card **Ton billet** › **Afficher ›**: the QR
-code to show at the door, and the badge **Ajouter à Cartes Apple** (native PassKit sheet). Organisers hand a ticket with
-**Remettre le billet**, or it arrives automatically when they confirm a payment; they check tickets at the door with
+On an event with the option "Billets QR" (on for the demo event: answer **Présent**, then hand yourself the ticket with
+**Remettre à tous les présents** in the organiser card **Billets QR** of the event page), once your ticket is handed to
+you, card **Ton billet** › **Afficher ›**: the QR code to show at the door, and Apple's badge **Ajouter à l'app Cartes
+Apple** (native PassKit sheet). Organisers hand a ticket with **Remettre le billet** (one guest) or **Remettre à tous les
+présents** (card **Billets QR**, also on the entry screen), or it arrives automatically when they confirm a payment; they check tickets at the door with
 **📷 Scanner les billets** (ZONE ORGANISATEUR, Apple's native QR reader). A ticket never exists unless the organiser
 turned tickets on.
 
@@ -302,7 +306,8 @@ Each event can also have its own **Discussion** (organiser's option "Forum de l'
 
 Réglages › **Groupes**: your groups, **Nouveau groupe**, members, **Inviter avec un lien** (QR, copy, share),
 "Montrer mon numéro dans ce groupe" (hidden by default), leave a group. On a group's page, **Signaler le groupe**
-reports its name (and **Signaler la photo du groupe** its photo) to our moderators.
+reports its name (and **Signaler la photo du groupe** its photo) to our moderators. Group admins can set roles
+(co-admin, organiser) and who may invite, create events, write or pin; optional approval of new members.
 
 **Event guests in a group (organiser option, off by default).** In step 2 "Qui est invité" or in the event's guest card
 ("Régler"), the organiser can pick one group they manage and belong to, or "Nouveau groupe" (name filtered, terms
@@ -382,7 +387,8 @@ a bug report to the Party team (the publisher); optional AI writing help (consen
 #### B4.18 Notifications
 
 Réglages › **Notifications**: one switch per type, grouped as Général, Jeux, Ton avis, Événements (new event,
-reminders, event discussions…), Discussions des groupes, Amis, Comptes et modération, Quand j'organise (Musique only once a music party is joined). The moon icon
+reminders, event discussions…), Discussions des groupes, Amis, Comptes et modération, Quand j'organise. Music notification settings appear only for the host of a music party; a
+guest's switches are on the Music screen. The moon icon
 (top right of Réglages) pauses notifications for a while. Each event page has **🔔 Sourdine** (mute). The app works
 without notifications. iOS permission is asked only when you turn them on (e.g. the banner "Ne rate rien de cet
 événement" on an event page).
@@ -413,7 +419,7 @@ platforms are separate; the app never opens their games.
   "Ton avis", the AI event assistant, "Pot commun", offline screen, announcement banner, QR scanner, Wallet, Calendar,
   Contacts, share extension, push notifications.
 - The page can only call a fixed set of native features exposed by the app (`window.PartyNative`: tabs, push, Wallet,
-  calendar, contacts names, QR scan, AI screen, announcement, haptics). Server content never adds or
+  calendar, contacts names, QR scan, AI screen, event chat, announcement, haptics). Server content never adds or
   changes native features, and no executable code is downloaded into the binary (2.5.2).
 - Only our domain, our authentication provider and the host's music sign-in open inside the app; **every other link
   opens in Safari** (no unrestricted web browsing).
@@ -458,8 +464,8 @@ New build, and our server, permanent for this version of the App Store app:
 - Party is for adults (18+) and is rated 18+. Our App Store texts show no alcohol.
 - In this build, the in-app terms and privacy policy show no bar, no drink and no Pronos; "Mes stats de jeu" shows
   Méninges only; the camera prompt names party, game and ticket codes only; no drink emoji in the group or "Pot commun"
-  pickers; no "Ajouter un titre" shortcut on the icon; Music notification settings only appear once a music party is
-  joined; the Music screen credits Spotify ("Résultats Spotify", "Open in Spotify").
+  pickers; no "Ajouter un titre" shortcut on the icon; Music notification settings appear only for the host of a music
+  party (a guest's switches are on the Music screen); the Music screen credits Spotify ("Résultats Spotify", "Open in Spotify").
 - Pronos, Agenda, the companion and Souvenirs are not available in this app (only a future version, submitted for
   review, could add them); the
   "bar" tag is not listed in Settings › Notifications; song suggestions at a music party never require an account.
@@ -496,7 +502,8 @@ New build, and our server, permanent for this version of the App Store app:
   that pot until they choose "Montrer mes moyens de paiement dans ce pot" (B4.16). Expenses and receipt photos have
   **Signaler**.
 - The privacy policy now names Supabase (a US company; the data is hosted in Zurich) among the transfers, says what
-  the AI event assistant receives (the members you can invite, sent as aliases P1, P2…, never by their nicknames), and gives how long the sign-in log
+  the AI event assistant receives (your nickname, the names of your groups, categories and tags, and people already
+  chosen, sent as aliases P1, P2…; never the list of members), and gives how long the sign-in log
   (12 months) and people searches (1 hour) are kept.
 
 ### B8. Permissions (asked only when needed)
@@ -504,7 +511,7 @@ New build, and our server, permanent for this version of the App Store app:
 | Permission | When it is asked |
 |---|---|
 | Notifications | When you turn notifications on (Settings or the event banner) |
-| Camera | Scanning a QR code (party, game, ticket) or taking a profile / event photo |
+| Camera | Scanning a QR code (party, game, ticket) or a "Pot commun" receipt, or taking a profile, event, group or chat photo |
 | Photos | Choosing a photo; "Add to Photos" on a long-press of an image |
 | Microphone + Speech recognition | Only while you dictate (AI assistant, feedback) or record a voice message |
 | Calendars | "Add the poll dates to my calendar" in a date poll |
