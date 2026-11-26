@@ -66,7 +66,7 @@ struct NewMessageView: View {
                 NewChatGroupView(members: selected, event: event) { group in finish(group) }
             }
             .sheet(isPresented: $askTerms) {
-                if let people { TermsAcceptSheet(store: people.moderation) { accepted in if accepted { go() } } }
+                if let people { TermsAcceptSheet(store: people.moderation, title: "Avant d'écrire") { accepted in if accepted { go() } } }
             }
             .task { await load() }
             .task(id: query) { await search() }

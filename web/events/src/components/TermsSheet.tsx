@@ -1,10 +1,10 @@
-import { router } from 'expo-router';
 import { useRef, useState } from 'react';
-import { Modal, StyleSheet, View } from 'react-native';
+import { Modal, ScrollView, StyleSheet, View } from 'react-native';
 
 import { SheetBackdrop, SheetTop, useSheetDrag, useSheetTop } from './SheetGesture';
-import { Button, ErrorText, T } from './ui';
-import { TERMS_PATH, useTerms } from '@/lib/moderation';
+import { Button, ErrorText, T, Title } from './ui';
+import { useTerms } from '@/lib/moderation';
+import { TERMS_SECTIONS, TERMS_UPDATED } from '@/lib/terms';
 import { colors, radius } from '@/lib/theme';
 
 /** Conditions d'utilisation à accepter avant le PREMIER contenu (message, surnom, nom de groupe ; Google UGC) :
@@ -16,6 +16,7 @@ export function useTermsGate(title = 'Avant de publier') {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [readAll, setReadAll] = useState(false);
   const answer = useRef<((ok: boolean) => void) | null>(null);
   const card = useRef<View>(null);
   const overlay = useRef<View>(null);
@@ -34,6 +35,7 @@ export function useTermsGate(title = 'Avant de publier') {
   function finish(ok: boolean) {
     setOpen(false);
     setError(null);
+    setReadAll(false);
     answer.current?.(ok);
     answer.current = null;
   }
@@ -51,32 +53,62 @@ export function useTermsGate(title = 'Avant de publier') {
     }
   }
 
+  // Conditions en grand (demande de l'admin du 26.11 : « que ce soit clair », sans chercher où elles se trouvent) :
+  // l'essentiel en points, le texte complet se déplie ICI (on ne quitte jamais l'écran : le message attend).
   const sheet = (
     <Modal visible={open} transparent animationType="fade" onRequestClose={() => finish(false)}>
       <View ref={overlay} style={[st.overlay, { paddingTop: sheetTop }]}>
         <SheetBackdrop onPress={() => finish(false)} />
         <View ref={card} style={st.sheet} accessibilityViewIsModal accessibilityLabel="Conditions d’utilisation">
           <SheetTop onClose={() => finish(false)} />
-          <T weight="bold" size={18}>{title}</T>
-          <T size={14}>Sur Party, on se respecte : pas de harcèlement, pas de propos haineux ni de contenu sexuel, pas
-            d’arnaque ni de vente. Les objets du jeu n’ont aucune valeur en argent. Tout contenu peut être signalé ; un
-            modérateur peut le masquer, avertir, suspendre ou bannir un compte. Party ne vend rien et ne touche jamais d’argent.</T>
-          <T size={14} weight="bold">Party est réservée aux 18 ans et plus : en touchant « J’accepte », tu confirmes avoir 18 ans ou plus.</T>
-          <Button small variant="ghost" label="Lire les conditions d’utilisation" onPress={() => { finish(false); router.push(TERMS_PATH); }} />
+          <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: 16, paddingBottom: 4 }}>
+            <Title size={28} level={2}>{title}</Title>
+            <T size={17} muted>Accepte une seule fois les conditions d’utilisation de Party, puis tu continues tout de suite.</T>
+            {POINTS.map(([icon, line]) => (
+              <View key={line} style={st.point}>
+                <T size={22}>{icon}</T>
+                <T size={16} style={{ flex: 1 }}>{line}</T>
+              </View>
+            ))}
+            <View style={st.adult}>
+              <T size={16} weight="bold">Party est réservée aux 18 ans et plus : en touchant « J’accepte », tu confirmes avoir 18 ans ou plus.</T>
+            </View>
+            <Button small variant="ghost" label={readAll ? 'Masquer les conditions complètes' : 'Lire les conditions complètes'}
+              onPress={() => setReadAll(!readAll)} />
+            {readAll ? (
+              <View style={{ gap: 12 }} testID="terms-full">
+                <T size={13} muted>Version du {TERMS_UPDATED}</T>
+                {TERMS_SECTIONS.map((section) => (
+                  <View key={section.title} style={{ gap: 6 }}>
+                    <T weight="bold" size={15}>{section.title}</T>
+                    {section.paragraphs.map((p) => <T key={p} size={14} muted>{p}</T>)}
+                  </View>
+                ))}
+              </View>
+            ) : null}
+          </ScrollView>
           <ErrorText error={error} />
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <Button variant="secondary" label="Plus tard" style={{ flex: 1 }} onPress={() => finish(false)} />
-            <Button label="J’accepte" style={{ flex: 1 }} loading={busy} onPress={() => void accept()} />
-          </View>
+          <Button label="J’accepte les conditions" loading={busy} onPress={() => void accept()} />
+          <Button variant="secondary" label="Plus tard" onPress={() => finish(false)} />
         </View>
       </View>
     </Modal>
   );
 
-  return { ensure, sheet, accepted: terms.accepted };
+  // needed : la base a répondu et les conditions ne sont pas acceptées (bouton à rendre actif pour les ouvrir).
+  return { ensure, sheet, accepted: terms.accepted, needed: Boolean(terms.status && !terms.status.accepted) };
 }
+
+const POINTS: [string, string][] = [
+  ['🤝', 'On se respecte : ni harcèlement, ni propos haineux, ni contenu sexuel.'],
+  ['🚫', 'Pas d’arnaque ni de vente. Les objets du jeu n’ont aucune valeur en argent.'],
+  ['🚩', 'Tout contenu peut être signalé ; un modérateur peut le masquer, avertir, suspendre ou bannir un compte.'],
+  ['💸', 'Party ne vend rien et ne touche jamais d’argent.'],
+];
 
 const st = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(10,6,22,0.94)', alignItems: 'center', padding: 16, overflowY: 'auto' } as object,
-  sheet: { width: '100%', maxWidth: 420, marginVertical: 'auto', gap: 12, padding: 18, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.lineStrong },
+  point: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  adult: { padding: 14, borderRadius: radius.md, backgroundColor: 'rgba(255,79,154,0.14)' },
+  sheet: { width: '100%', maxWidth: 520, maxHeight: '100%', marginVertical: 'auto', gap: 12, padding: 22, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.lineStrong },
 });

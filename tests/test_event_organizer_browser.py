@@ -618,7 +618,7 @@ def test_terms_are_asked_before_a_new_event_then_it_is_created(browser, events_o
         frame.get_by_role('button', name='Publier', exact=True).click()
         pw.expect(frame.get_by_text('Avant de publier', exact=True)).to_be_visible(timeout=10000)
         assert not base.wrote('POST', 'events')  # rien d'écrit avant l'acceptation
-        frame.get_by_role('button', name='J’accepte', exact=True).click()
+        frame.get_by_role('button', name='J’accepte les conditions', exact=True).click()
         pw.expect(frame.get_by_role('button', name='Modifier', exact=True)).to_be_visible(timeout=10000)
         assert 'accept_terms' in terms['calls']
         (_, row), = base.wrote('POST', 'events')

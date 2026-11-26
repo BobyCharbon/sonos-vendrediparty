@@ -107,7 +107,13 @@ struct ConversationView: View {
             .sheet(item: $reporting) { target in
                 if v2.canRelay { MessageReportSheet(model: v2, target: target) } else { ReportSheet(store: store.moderation, target: target) }
             }
-            .sheet(isPresented: $askTerms) { TermsAcceptSheet(store: store.moderation) }
+            .sheet(isPresented: $askTerms) {
+                TermsAcceptSheet(store: store.moderation, title: "Avant d'écrire") { accepted in
+                    // Acceptées : le message gardé dans le champ part tout seul, sans retoucher ↑.
+                    if accepted, let chat, editing == nil,
+                       !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { send(chat) }
+                }
+            }
             .fullScreenCover(isPresented: $showCamera) {
                 BubbleCamera { image in Task { await sendImage(image) } }.ignoresSafeArea()
             }
@@ -917,51 +923,54 @@ struct ConversationView: View {
             .accessibilityIdentifier("chat-message")
     }
 
-    private func sendButton(_ chat: Conversation) -> some View {
-        Button {
-            // Champ vidé tout de suite, message affiché aussitôt ; en cas d'échec, le texte revient.
-            ChatTiming.mark("send.tap")
-            Haptics.tap()
-            let typed = text, quoted = replyTo, announce = announcing, edited = editing, privateQuoted = privateQuote
-            text = ""
-            replyTo = nil
-            announcing = false
-            editing = nil
-            privateQuote = nil
-            // CGU déjà acceptées (lues à l'ouverture) : la bulle s'affiche dans ce même geste, sans attendre.
-            if edited == nil, privateQuoted == nil || !chat.isDirect, store.moderation.terms?.accepted == true,
-               let sending = store.sendNow(typed, replyTo: quoted?.id, announce: announce) {
-                Task {
-                    guard !(await sending.value) else { return }
-                    // Refusé : le texte revient (sans écraser ce qui a été écrit entre-temps).
-                    if text.isEmpty { text = typed }
-                    if replyTo == nil { replyTo = quoted }
-                    announcing = announce
-                }
+    /// Envoi du champ (bouton ↑, ou de nouveau tout seul après « J'accepte les conditions »).
+    private func send(_ chat: Conversation) {
+        // Champ vidé tout de suite, message affiché aussitôt ; en cas d'échec, le texte revient.
+        ChatTiming.mark("send.tap")
+        Haptics.tap()
+        let typed = text, quoted = replyTo, announce = announcing, edited = editing, privateQuoted = privateQuote
+        text = ""
+        replyTo = nil
+        announcing = false
+        editing = nil
+        privateQuote = nil
+        // CGU déjà acceptées (lues à l'ouverture) : la bulle s'affiche dans ce même geste, sans attendre.
+        if edited == nil, privateQuoted == nil || !chat.isDirect, store.moderation.terms?.accepted == true,
+           let sending = store.sendNow(typed, replyTo: quoted?.id, announce: announce) {
+            Task {
+                guard !(await sending.value) else { return }
+                // Refusé : le texte revient (sans écraser ce qui a été écrit entre-temps).
+                if text.isEmpty { text = typed }
+                if replyTo == nil { replyTo = quoted }
+                announcing = announce
+            }
+            return
+        }
+        Task {
+            if let edited {
+                if !(await v2.edit(edited, to: typed, in: chat)) { text = typed; editing = edited }
                 return
             }
-            Task {
-                if let edited {
-                    if !(await v2.edit(edited, to: typed, in: chat)) { text = typed; editing = edited }
-                    return
-                }
-                if !(await termsAccepted()) {
-                    text = typed
-                    replyTo = quoted
-                    announcing = announce
-                    privateQuote = privateQuoted
-                    return
-                }
-                if let privateQuoted, chat.isDirect {
-                    if !(await v2.send(typed, quote: privateQuoted, in: chat)) { text = typed; privateQuote = privateQuoted }
-                } else if !(await store.send(typed, replyTo: quoted?.id, announce: announce)) {
-                    // Refusé : le texte revient (sans écraser ce qui a été écrit entre-temps).
-                    if text.isEmpty { text = typed }
-                    if replyTo == nil { replyTo = quoted }
-                    announcing = announce
-                }
+            if !(await termsAccepted()) {
+                text = typed
+                replyTo = quoted
+                announcing = announce
+                privateQuote = privateQuoted
+                return
             }
-        } label: {
+            if let privateQuoted, chat.isDirect {
+                if !(await v2.send(typed, quote: privateQuoted, in: chat)) { text = typed; privateQuote = privateQuoted }
+            } else if !(await store.send(typed, replyTo: quoted?.id, announce: announce)) {
+                // Refusé : le texte revient (sans écraser ce qui a été écrit entre-temps).
+                if text.isEmpty { text = typed }
+                if replyTo == nil { replyTo = quoted }
+                announcing = announce
+            }
+        }
+    }
+
+    private func sendButton(_ chat: Conversation) -> some View {
+        Button { send(chat) } label: {
             if store.sending { ProgressView().tint(ConvNeon.lav).frame(width: 44, height: 44) } else {
                 // Même flèche en annonce (le champ et la ligne 📣 au-dessus disent déjà que c'est une annonce).
                 Image(systemName: editing != nil ? "checkmark" : "arrow.up").font(.body.weight(.heavy))

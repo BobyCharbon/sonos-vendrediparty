@@ -17,6 +17,7 @@ struct MiniProfileSheet: View {
     @State private var error: String?
     @State private var writing = false
     @State private var problem: String?
+    @State private var needsTerms = false
     @State private var askTerms = false
     @State private var showCard = false
     @State private var confirmBlock = false
@@ -39,7 +40,7 @@ struct MiniProfileSheet: View {
         .preferredColorScheme(.dark)
         .task { await load() }
         .sheet(isPresented: $askTerms) {
-            if let people { TermsAcceptSheet(store: people.moderation) { accepted in if accepted { write() } } }
+            if let people { TermsAcceptSheet(store: people.moderation, title: "Avant d'écrire") { accepted in if accepted { afterTerms() } } }
         }
         .sheet(isPresented: $showCard) {
             if let people { MemberCardView(store: people.privacy, memberID: userID).environment(\.writeDirect, nil) }
@@ -166,8 +167,11 @@ struct MiniProfileSheet: View {
         VStack(spacing: 8) {
             HStack(spacing: 10) {
                 if writeDirect != nil && !m.restricted {
-                    PeoplePinkButton(title: "Envoyer un message", systemImage: "bubble.left", busy: writing) { write() }
-                        .disabled(!m.canWrite || m.blocked)
+                    PeoplePinkButton(title: "Envoyer un message", systemImage: "bubble.left", busy: writing) {
+                        // CGU pas encore acceptées : la base répond « none » ; le bouton ouvre les conditions en grand.
+                        if needsTerms { Haptics.tap(); askTerms = true } else { write() }
+                    }
+                        .disabled((!m.canWrite && !needsTerms) || m.blocked)
                         .accessibilityIdentifier("mini-profile-write")
                 }
                 PeopleGhostButton(title: "Fiche", systemImage: "person") { showCard = true }
@@ -187,6 +191,7 @@ struct MiniProfileSheet: View {
     private func disabledReason(_ m: MemberMini) -> String? {
         guard writeDirect != nil, !m.restricted else { return nil }
         if m.blocked { return "Tu as bloqué cette personne : débloque-la pour lui écrire." }
+        if needsTerms { return "Pour écrire, accepte d'abord les conditions d'utilisation de Party : touche « Envoyer un message »." }
         if !m.canWrite { return "Tu ne peux pas lui écrire pour l'instant." }
         return nil
     }
@@ -282,9 +287,22 @@ struct MiniProfileSheet: View {
         guard let people else { error = "Les profils ne sont pas disponibles pour l'instant."; return }
         do {
             let m = try await people.mini(userID)
+            if m.link == "none" && !m.restricted {
+                needsTerms = !(await people.moderation.termsAccepted())
+            } else {
+                needsTerms = false
+            }
             Motion.animate(Motion.smooth) { mini = m }
         } catch {
             self.error = PeopleStore.message(error)
+        }
+    }
+
+    /// Conditions acceptées : on relit le lien (la base ne disait « none » qu'à cause d'elles), puis on écrit.
+    private func afterTerms() {
+        Task {
+            await load()
+            if let m = mini, m.canWrite, !m.blocked { write() }
         }
     }
 

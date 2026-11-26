@@ -365,7 +365,7 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
   const [prefs, setPrefs] = useState<{ level: NotifyLevel; mutedUntil: string | null } | null>(null);
   // Modération commune : « Signaler » un message, CGU acceptées avant le premier message.
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
-  const terms = useTermsGate();
+  const terms = useTermsGate('Avant d’écrire');
   const [photos, setPhotos] = useState<Map<string, string>>(new Map());
   const list = useRef<FlatList<TimelineRow<GroupMessage>>>(null);
   // Bas du fil : on y reste quand un message arrive ; plus haut, le bouton ↓ compte les nouveaux.
@@ -793,7 +793,9 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
     const who = shownName(m.user_id);
     setError(null);
     if (openNativeDirect(m.user_id)) return;
-    const res = await openDirectChat(m.user_id);
+    let res = await openDirectChat(m.user_id);
+    // CGU pas encore acceptées : les conditions en grand, puis on réessaie (jamais un simple message d'erreur).
+    if (res.reason === 'terms_required' && (await terms.ensure())) res = await openDirectChat(m.user_id);
     if (!res.chat || res.status === 'none') return setError(cannotWrite(who, res.reason));
     putDraft(res.chat, { quote: { from: event ? 'event' : 'group', title: data ? (event ? data.group.name : groupName(data.group)) : '',
       author: who, excerpt: excerpt(withoutAnnounceTag(m.body) || (m.audio_seconds != null ? 'Message vocal' : 'Photo')) } });

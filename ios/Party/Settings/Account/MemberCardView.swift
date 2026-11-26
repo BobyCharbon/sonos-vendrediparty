@@ -255,7 +255,7 @@ struct MemberCardView: View {
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fermer") { dismiss() } } }
             .overlay { if card == nil && error == nil { ProgressView().transition(.opacity) } }
             .sheet(isPresented: $askTerms) {
-                TermsAcceptSheet(store: store.moderation) { accepted in if accepted, let id = card?.id { write(id) } }
+                TermsAcceptSheet(store: store.moderation, title: "Avant d'écrire") { accepted in if accepted, let id = card?.id { write(id) } }
             }
             .sheet(item: $contactSheet) { item in
                 ContactCardSheet(mode: item.mode) { contactSheet = nil }.ignoresSafeArea()

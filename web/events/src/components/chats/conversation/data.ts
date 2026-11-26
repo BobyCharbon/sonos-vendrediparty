@@ -39,6 +39,8 @@ export type OpenDirect = { chat: string | null; status: 'active' | 'request' | '
 /** Ouvre (ou crée) LA conversation avec cette personne ; la base dit directe, demande ou impossible. */
 export async function openDirectChat(target: string): Promise<OpenDirect> {
   const { data, error } = await supabase.rpc('open_direct_chat', { target });
+  // La base lève « terms_required » (exception) : même réponse que openDirect (people.ts), pour ouvrir les conditions.
+  if (error && (error.message ?? '').startsWith('terms_required')) return { chat: null, status: 'none', reason: 'terms_required' };
   if (error || !data) return { chat: null, status: 'none', reason: null };
   return data as OpenDirect;
 }
