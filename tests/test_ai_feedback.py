@@ -245,3 +245,16 @@ def test_the_app_store_app_never_gets_the_zicou_area():
     assert aif.clean_draft(raw, {}, store=True)["area"] == "general"
     assert "pet" not in aif.schema({}, store=True)["properties"]["area"]["enum"]
     assert "pet" in aif.schema({})["properties"]["area"]["enum"]
+
+
+def test_the_ai_call_log_keeps_twelve_months_at_most(tmp_path):
+    """Politique de confidentialité : chaque appel à l'IA est noté 12 mois au plus (contrôle Apple du 26.11, tour 3)."""
+    import time
+    log = ai.UsageLog(tmp_path / "ai.json")
+    now = time.time()
+    log.add({"uid": "u1", "at": now - 400 * 86400, "cost_usd": 0.1})
+    log.add({"uid": "u1", "at": now - 10 * 86400, "cost_usd": 0.1})
+    assert len(log.items) == 1                   # un nouvel appel retire aussi les trop vieux
+    log.items.insert(0, {"uid": "u2", "at": now - 500 * 86400, "cost_usd": 0.1})
+    assert log.purge(now) == 1 and len(log.items) == 1
+    assert len(ai.UsageLog(tmp_path / "ai.json").items) == 1

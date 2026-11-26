@@ -10,7 +10,7 @@ import { friendlyError } from '@/lib/errors';
 import { waitlistQueue, waitlistRank } from '@/lib/eventChecks';
 import { useAuth } from '@/lib/auth';
 import { openMiniProfile } from '@/lib/miniProfile';
-import { dbMessage, type ReportTarget } from '@/lib/moderation';
+import { dbMessage, useBlockedIds, type ReportTarget } from '@/lib/moderation';
 import { fetchRsvpNotes, guestsLine, inEventPot, onWaitlist, potNotice, rsvpChoices, rsvpClosed, rsvpOptions, saveRsvp, totalPlusOnes, waitingPlusOnes } from '@/lib/rsvp';
 import { noteToSend, othersNotes } from '@/lib/rsvpNote';
 import { supabase } from '@/lib/supabase';
@@ -370,7 +370,9 @@ export function ParticipantsSection({
   const left = event.max_participants ? event.max_participants - heads : null;
   // Mots des autres : la base ne les rend qu'à l'organisation et aux admins (un invité ne lit que le sien).
   const { data: readable } = useRsvpNotes(event.id, rsvps);
-  const notes = othersNotes(readable ?? [], me, rsvps.map((r) => r.user_id));
+  // Petit mot d'une personne que j'ai bloquée : masqué, comme ses messages dans la discussion.
+  const blocked = useBlockedIds();
+  const notes = othersNotes(readable ?? [], me, rsvps.map((r) => r.user_id)).filter((n) => !blocked.has(n.user_id));
   const [report, setReport] = useState<ReportTarget | null>(null);
   // Une pastille qui arrive ou change de groupe « se pose » ; à l’ouverture, la liste s’affiche telle quelle.
   const moved = useChangedSinceMount(rsvps.map((r) => `${r.user_id}:${r.status}:${r.waitlisted}:${waitingPlusOnes(r)}`).sort().join(','));
@@ -637,6 +639,9 @@ export function PollSection({
 }) {
   const [error, setError] = useState<string | null>(null);
   const [newOption, setNewOption] = useState('');
+  // Choix proposé par une personne que j'ai bloquée : masqué (comme ses messages dans la discussion).
+  const blocked = useBlockedIds();
+  options = options.filter((o) => !o.created_by || !blocked.has(o.created_by));
   // CGU avant le premier choix proposé (contenu lu par les autres invités) ; « Signaler » un choix ou la question.
   const terms = useTermsGate();
   const [report, setReport] = useState<ReportTarget | null>(null);
@@ -760,6 +765,9 @@ export function BringSection({
   const [label, setLabel] = useState('');
   const grew = useChangedSinceMount(items.length);
   const claimsChanged = useChangedSinceMount(items.map((it) => it.claimed_by ?? '').join());
+  // Objet ajouté par une personne que j'ai bloquée : masqué (comme ses messages dans la discussion).
+  const blocked = useBlockedIds();
+  items = items.filter((it) => !it.added_by || !blocked.has(it.added_by));
   // CGU avant le premier objet ajouté (lu par tous les invités) ; « Signaler » l'objet d'un autre.
   const terms = useTermsGate();
   const [report, setReport] = useState<ReportTarget | null>(null);

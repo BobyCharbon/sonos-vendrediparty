@@ -41,7 +41,7 @@ import { openNativeDirect } from '@/lib/nativeChat';
 import { saveRsvp } from '@/lib/rsvp';
 import { must, supabase } from '@/lib/supabase';
 import { enter, pressTransition } from '@/lib/motion';
-import { dbMessage, onBlocksChanged, type ReportTarget } from '@/lib/moderation';
+import { blocksChanged, dbMessage, onBlocksChanged, type ReportTarget } from '@/lib/moderation';
 
 const PAGE = 150;
 /** Annonces et messages épinglés lus à part : le bandeau du haut les garde même au-delà des derniers messages. */
@@ -1012,6 +1012,7 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
               onBlock={async () => {
                 const { error } = await supabase.rpc('set_direct_block', { target: other, blocked: true });
                 if (error) throw new Error('Le blocage n’a pas pu être enregistré.');
+                blocksChanged(other, true);
                 router.replace('/chats');
               }}
               onReport={() => (requestMessage ? report(requestMessage) : setReportTarget({ kind: 'profile', id: other, label: otherName }))} />
