@@ -129,11 +129,95 @@ def test_the_store_app_asks_for_the_terms_before_any_text_the_table_reads():
     assert act(STORE_UA, code, "web-terms-cleo", "leave").status_code == 200
 
 
-def test_the_web_the_beta_and_party_accounts_need_no_box():
+def test_the_web_and_the_beta_need_no_box_but_a_party_account_in_the_app_does():
     for i, ua in enumerate((WEB_UA, BETA_UA)):
         code = create(ua, f"web-noterms-{i}").json()["code"]
         assert act(ua, code, f"web-noterms-b{i}", "join").status_code == 200
-    assert create(STORE_UA, "acct-0123456789abcdef").status_code == 200
+    # Contrôle du 26.11 (tour 1) : plus de dispense « acct- » dans l'app App Store, la case une fois par appareil.
+    r = create(STORE_UA, "acct-0123456789abcdef")
+    assert r.status_code == 403 and r.json()["code"] == "games_terms"
+    assert create(STORE_UA, "acct-0123456789abcdef", terms=True).status_code == 200
+
+
+def test_the_store_page_has_no_account_dispensation_for_the_box():
+    files = served(STORE_UA)
+    games_js = files[next(p for p in files if p.endswith("/games.js"))]
+    assert "acct-" not in games_js.split("function gamesTermsOk")[1].split("}")[0]
+
+
+def test_hidden_game_words_never_reach_the_store_app():
+    """Code dormant des jeux cachés (Roulette, Casino, Blackjack, Je n'ai jamais…) et mots de jeu d'argent : coupés."""
+    words = re.compile(r"jetons?|jackpot|je n['’]ai jamais|roulette|casino|blackjack|trou du cul|\bpari", re.I)
+    found = {p: sorted({m.group(0).lower() for m in words.finditer(t)}) for p, t in served(STORE_UA).items()}
+    assert {p: w for p, w in found.items() if w} == {}
+
+
+def test_no_comment_in_the_inline_scripts_of_the_store_page():
+    page = served(STORE_UA)["/"]
+    for script in re.findall(r"<script(?![^>]*\bsrc=)[^>]*>(.*?)</script>", page, re.S):
+        assert not re.search(r"^\s*//", script, re.M), script[:200]
+    assert "Android plus tard" not in page
+
+
+@pytest.mark.parametrize("path", ["pet/zicou-home.js", "purity.js", "beerpong.js", "purity.css", "beerpong.css",
+                                  "brain/../purity.js"])
+def test_hidden_game_files_are_404_for_the_store_app(path):
+    c = client(STORE_UA)
+    assert c.get(f"/static-store/{path}").status_code == 404
+    assert c.get(f"/static/{path}").status_code == 404
+    if "pet/" not in path and ".." not in path:  # Zicou : son propre drapeau (compagnon_enabled) côté site
+        assert client(WEB_UA).get(f"/static/{path}").status_code == 200
+
+
+# ── Prénoms (contrôle du 26.11, tour 1) ──
+def test_a_renamed_player_goes_through_the_same_filter_and_box_as_the_entry():
+    code = create(STORE_UA, "store-name-host", terms=True).json()["code"]
+    g = main.store.session.games[code]
+    c = client(STORE_UA)
+    for bad in ("connard", "Vodka Max", "Léa shot"):
+        c.get(f"/api/games/{code}", params={"guest_id": "store-name-host", "name": bad})
+        assert games.player(g, "store-name-host")["name"] == "Léa"
+        c.post(f"/api/games/{code}", json={"guest_id": "store-name-host", "name": bad, "action": "pause"})
+        assert games.player(g, "store-name-host")["name"] == "Léa"
+        assert c.post("/api/presence", json={"guest_id": "store-name-host", "name": bad}).status_code == 400
+    c.get(f"/api/games/{code}", params={"guest_id": "store-name-host", "name": "Lucie"})
+    assert games.player(g, "store-name-host")["name"] == "Lucie" and g["host_name"] == "Lucie"
+    # Place prise sans la case (le web) : l'app ne la renomme pas avant la case.
+    assert act(WEB_UA, code, "web-name-cleo1", "join").status_code == 200
+    c.get(f"/api/games/{code}", params={"guest_id": "web-name-cleo1", "name": "Cléo"})
+    assert games.player(g, "web-name-cleo1")["name"] == "web-name-c"
+    # Le web garde le filtre commun (insultes), sans le filtre de boisson de l'app.
+    web = client(WEB_UA)
+    assert web.post("/api/presence", json={"guest_id": "web-name-cleo1", "name": "connard"}).status_code == 400
+    assert web.post("/api/presence", json={"guest_id": "web-name-cleo1", "name": "Vodka"}).status_code == 200
+
+
+def test_the_store_view_shows_joueur_for_a_drink_or_insult_name_and_no_sips():
+    code = create(WEB_UA, "web-view-host1").json()["code"]
+    g = main.store.session.games[code]
+    games.player(g, "web-view-host1")["name"] = g["host_name"] = "Vodka Max"  # prénom d'avant le filtre, ou du web
+    g["players"].append({**games.player(g, "web-view-host1"), "id": "web-view-bob01", "pid": "bobpid", "name": "connard"})
+    g["host"] = "nobody"
+    view = client(STORE_UA).get(f"/api/games/{code}", params={"guest_id": "web-view-bob01"}).json()
+    assert [p["name"] for p in view["players"]] == ["Joueur", "Joueur"] and view["host_name"] == "Joueur"
+    text = str(view)
+    assert "Vodka" not in text and "connard" not in text
+    assert "'drink'" not in text and "'give'" not in text and "sips_log" not in view
+    web = client(WEB_UA).get(f"/api/games/{code}", params={"guest_id": "web-view-bob01"}).json()
+    assert web["players"][0]["name"] == "Vodka Max" and "drink" in web["players"][0]
+
+
+def test_the_quiz_leaderboard_hides_drink_and_insult_names_in_the_store_app(monkeypatch):
+    from app import quiz
+    stats = {"players": {"a": {"name": "Bière Bob", "pts": 9, "games": 1, "wins": 1, "ok": 1, "n": 1, "best_streak": 1,
+                               "records": {"classic": 9}},
+                         "b": {"name": "Zoé", "pts": 5, "games": 1, "wins": 0, "ok": 1, "n": 1, "best_streak": 1},
+                         "c": {"name": "connard", "pts": 1, "games": 1, "wins": 0, "ok": 1, "n": 1, "best_streak": 1}}}
+    monkeypatch.setattr(quiz, "_load_stats", lambda: stats)
+    store = quiz.leaderboard(store=True)
+    assert [x["name"] for x in store["top"]] == ["Joueur", "Zoé", "Joueur"]
+    assert all(r["name"] == "Joueur" for r in store["records"].values())
+    assert quiz.leaderboard()["top"][0]["name"] == "Bière Bob"
 
 
 def test_the_ghost_word_is_never_sent_to_the_table():

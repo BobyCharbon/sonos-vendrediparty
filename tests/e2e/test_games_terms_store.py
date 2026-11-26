@@ -135,3 +135,20 @@ def test_reopening_the_app_never_reopens_full_screen_a_game_she_stopped_playing(
     assert page.evaluate("pyrFull") is False
     assert page.errors == [], page.errors
     ctx.close()
+
+
+def test_a_refused_new_name_keeps_the_old_one_and_says_why(browser, server):
+    """Contrôle du 26.11 (tour 1) : le prénom changé en haut à droite attend la réponse du serveur ; refusé (insulte,
+    boisson dans l'app), l'ancien reste et la raison s'affiche."""
+    ctx, page = phone(browser, server, init='localStorage.setItem("vp_name", "Tom"); localStorage.setItem("vp_games_terms", "1");')
+    page.wait_for_selector("#gHome:not(.hidden)")
+    for bad in ("Vodka", "connard"):
+        page.evaluate(f"window.prompt = () => {bad!r}; changeName()")
+        page.wait_for_function("document.getElementById('toast').textContent.includes(\"n'a pas changé\")")
+        assert page.evaluate("guestName") == "Tom" and "Tom" in page.text_content("#nameChip")
+        assert page.evaluate("localStorage.getItem('vp_name')") == "Tom"
+    page.evaluate("window.prompt = () => 'Lucas'; changeName()")
+    page.wait_for_function("guestName === 'Lucas'")
+    assert "Lucas" in page.text_content("#nameChip")
+    assert page.errors == []
+    ctx.close()

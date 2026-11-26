@@ -133,7 +133,7 @@ def test_a_room_joined_by_the_store_app_never_shows_a_hidden_game():
     seen = client(STORE_UA).get(f"/api/games/{room['code']}?guest_id=store-p").json()["room_info"]
     assert seen["current"] is None and not seen["history"] and "biskit" not in seen["votes"] and not seen["top"]
     assert not {c["type"] for c in seen["catalog"]} & set(store_app.HIDDEN_GAMES)
-    assert all(not r["drink"] and not r["give"] for r in seen["board"])
+    assert all("drink" not in r and "give" not in r for r in seen["board"])  # app : aucun compte de gorgées (26.11)
     assert client(STORE_UA).get(f"/api/games/{room['current']}?guest_id=store-p").status_code == 403
     main.end_game(room["current"], "host")
     r = client(WEB_UA).post(f"/api/games/{room['code']}", json={"guest_id": "web-room", "action": "launch",

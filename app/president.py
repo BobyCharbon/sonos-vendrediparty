@@ -46,11 +46,11 @@ def role(pos, total):
     if pos == 0:
         return "Président"
     if pos == total - 1:
-        return "Trou du cul"
+        return "Dernier"
     if total >= 4 and pos == 1:
         return "Vice-président"
     if total >= 4 and pos == total - 2:
-        return "Vice-trou du cul"
+        return "Vice-dernier"
     return "Neutre"
 
 
@@ -113,7 +113,7 @@ def _finish_if_needed(g):
     if len(active) > 1:
         return False
     # Classement : ceux qui ont fini normalement, le dernier en jeu, ceux qui ont fini sur un 2 (le plus récent
-    # tout en bas : il pousse l'ancien Trou du cul d'un rang vers le haut), puis les abandons.
+    # tout en bas : il pousse l'ancien Dernier d'un rang vers le haut), puis les abandons.
     bottom = s.get("dunce", []) + list(reversed(s["departed"]))
     s["finished"] += [i for i in active + bottom if i not in s["finished"]]
     for pos, gid in enumerate(s["finished"]):
@@ -231,9 +231,9 @@ def play(g, gid, cards, token):
     s["trail"] = (s.get("trail", []) + [{"cards": list(cards), "rank": value, "by": gid}])[-TRAIL:]
     label = RANKS[value]
     s["notice"] = f"{_name(g, gid)} pose {len(cards)} carte(s) de valeur {label}" + (f" : {label} ou rien." if same else ".")
-    if not hand and value == TWO:  # interdit de finir sur un 2 : Trou du cul
+    if not hand and value == TWO:  # interdit de finir sur un 2 : Dernier
         s["dunce"] = s.get("dunce", []) + [gid]
-        s["notice"] = f"{_name(g, gid)} finit sur un 2 : interdit, il sera Trou du cul !"
+        s["notice"] = f"{_name(g, gid)} finit sur un 2 : interdit, il sera Dernier !"
     elif not hand:
         s["finished"].append(gid)
         s["notice"] = f"{_name(g, gid)} termine à la place {len(s['finished'])}."

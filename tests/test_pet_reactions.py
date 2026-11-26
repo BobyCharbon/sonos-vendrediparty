@@ -164,7 +164,7 @@ def test_a_finished_drinking_game_is_never_noted_and_a_sober_one_shows_a_banner(
              "QBOI": {"id": "q2", "code": "QBOI", "type": "quiz", "phase": "end", "options": {"sips": 2}, "players": [{"id": gid}]}}
     monkeypatch.setattr(main, "get_game", lambda code: games[code])
     monkeypatch.setattr(main, "check_store_game", lambda *a: None)
-    monkeypatch.setattr(main, "full_view", lambda game, guest: {"ok": True})
+    monkeypatch.setattr(main, "full_view", lambda game, guest, request=None: {"ok": True})
     for code in ("NEVR", "QBOI"):
         r = c.get(f"/api/games/{code}?guest_id={gid}")
         assert r.status_code == 200 and "x-zicou" not in r.headers

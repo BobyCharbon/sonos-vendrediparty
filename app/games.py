@@ -2609,6 +2609,32 @@ def view(g: dict, gid: str) -> dict:
     return out
 
 
+# Vue d'une partie pour l'app App Store (contrôle du 26.11) : aucun compte de gorgées (drink / give, sips_log) et tout
+# prénom à boisson, drogue ou insulte (venu du web, d'avant le filtre) montré « Joueur ». Catalogues : titres fixes.
+STORE_DROP = ("drink", "give", "sips_log")
+STORE_NAMES = ("name", "host_name")
+
+
+def store_view(v):
+    if isinstance(v, dict):
+        out = {}
+        for k, x in v.items():
+            if k in STORE_DROP:
+                continue
+            if k in STORE_NAMES and isinstance(x, str):
+                out[k] = quiz.store_name(x)
+            elif k == "order" and isinstance(x, list):
+                out[k] = [quiz.store_name(n) if isinstance(n, str) else n for n in x]
+            elif k in ("catalog", "options", "settings"):
+                out[k] = x
+            else:
+                out[k] = store_view(x)
+        return out
+    if isinstance(v, list):
+        return [store_view(x) for x in v]
+    return v
+
+
 def _summary_facts(g: dict) -> list[str]:
     """Infos utiles pour l'hôte de la soirée (réglages, avancement), sans aucun secret (mots, cartes…)."""
     o, t, facts = g["options"], g["type"], []

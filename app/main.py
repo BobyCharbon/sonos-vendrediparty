@@ -16,6 +16,7 @@ import time
 import unicodedata
 from datetime import datetime, timedelta, timezone
 from email.utils import format_datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal
 from urllib.parse import quote, unquote, urlparse
@@ -1463,8 +1464,8 @@ def check_store_access(request: Request, g: dict):
 # Contrôle du 26.11 (Apple 1.2) : dans l'app App Store, un joueur n'écrit rien que la table lira (son prénom, une réponse,
 # un mot, un prénom ajouté, un dilemme) avant d'avoir accepté les conditions d'utilisation : case « J'ai 18 ans ou plus et
 # j'accepte les conditions » sous « Comment tu t'appelles ? » (games.js), envoyée avec chaque requête des jeux (`terms`)
-# et notée sur le joueur. Un compte Party (identifiant « acct- ») les a acceptées en créant son profil. Le site et la
-# BETA : inchangés.
+# et notée sur le joueur, compte Party compris (pas de dispense « acct- » : tour 1 du contrôle du 26.11). Le site et
+# la BETA : inchangés.
 GAME_TEXT_ACTIONS = {"join", "guess", "tanswer", "addguest", "names", "dbpropose", "mswrite", "bpick"}
 GAME_TERMS_MESSAGE = ("Pour écrire dans les jeux (prénom, réponses, mots), accepte d'abord les conditions d'utilisation : "
                       "coche la case sous « Comment tu t'appelles ? ».")
@@ -1485,7 +1486,8 @@ def game_terms_ok(request: Request, players: list[dict], accepted: bool) -> bool
 
 
 def check_game_terms(request: Request, gid: str, players: list[dict], accepted: bool):
-    if not (gid.startswith("acct-") or game_terms_ok(request, players, accepted)):
+    # Plus de dispense « acct- » (contrôle Apple du 26.11) : dans l'app, chacun coche la case une fois par appareil.
+    if not game_terms_ok(request, players, accepted):
         raise GameTermsRequired(GAME_TERMS_MESSAGE)
 
 
@@ -1521,7 +1523,7 @@ def create_game(body: GameCreate, request: Request):
     if g["type"] != "room" and not games_free(body.guest_id, request):
         guest_gate.record(body.guest_id, g["code"])  # sa nouvelle partie compte (une salle, non)
     save_games(g["code"])
-    return with_gate(full_view(g, body.guest_id), body.guest_id, request, g["code"])
+    return with_gate(full_view(g, body.guest_id, request), body.guest_id, request, g["code"])
 
 
 def build_game(body: GameCreate) -> dict:
@@ -1688,7 +1690,12 @@ def with_gate(v: dict, gid: str, request: Request | None, code: str = "") -> dic
     return {**v, "gate": st}
 
 
-def full_view(g: dict, gid: str) -> dict:
+def full_view(g: dict, gid: str, request: Request | None = None) -> dict:
+    v = full_view_raw(g, gid)
+    return games.store_view(v) if store_app.is_store(request) else v
+
+
+def full_view_raw(g: dict, gid: str) -> dict:
     v = games.view(g, gid)
     if g["type"] == "room":
         v["room_info"] = games.room_view(g, gid, room_child(g))
@@ -1717,7 +1724,7 @@ def game_presence(request: Request, guest_id: str, name: str):
     if not GUEST_ID_RE.match(guest_id or ""):
         return
     clean = " ".join((name or "").split())[:30]
-    if clean:
+    if clean and not name_refusal(clean, store_app.is_store(request)):  # prénom refusé : jamais dans la liste de l'hôte
         store.register_guest(guest_id, clean, client_ip(request), via="games")
     store.seen(guest_id)  # signe de vie : sert à savoir qui est encore là (présence dans les parties)
 
@@ -1729,8 +1736,12 @@ class Presence(BaseModel):
 
 @app.post("/api/presence")
 def presence(body: Presence, request: Request):
-    """Prénom saisi dans l'onglet Jeux : l'hôte voit la personne dans ses Réglages."""
+    """Prénom saisi dans l'onglet Jeux (ou changé en haut à droite) : l'hôte voit la personne dans ses Réglages.
+    Prénom refusé (filtre commun ; app App Store : boisson, drogue) : 400 avec la raison, la page garde l'ancien."""
     check_guest_id(body.guest_id)
+    clean = " ".join((body.name or "").split())[:30]
+    if clean and (msg := name_refusal(clean, store_app.is_store(request))):
+        raise HTTPException(400, msg)
     game_presence(request, body.guest_id, body.name)
     return {"ok": True}
 
@@ -3569,11 +3580,27 @@ def admin_lead(g: dict, request: Request, guest_id: str):
         store.save(notify=False)
 
 
-def sync_player_name(g: dict, guest_id: str, name: str):
-    """Le joueur a changé de prénom (en haut à droite) : la partie en cours le reprend."""
+@lru_cache(maxsize=4096)
+def name_refusal(name: str, store: bool) -> str:
+    """'' si le prénom peut s'afficher à la table ; sinon la phrase du refus (filtre commun, et pour l'app App Store
+    aucun mot de boisson ni de drogue : store_app.check_text)."""
+    try:
+        store_app.check_text(name, store)
+        require_clean(name, "name")
+    except (ContentRefused, ValueError) as e:
+        return str(e)
+    return ""
+
+
+def sync_player_name(g: dict, guest_id: str, name: str, request: Request | None = None):
+    """Le joueur a changé de prénom (en haut à droite) : la partie en cours le reprend, s'il passe le même filtre qu'à
+    l'entrée (contrôle Apple du 26.11) et, dans l'app App Store, case des conditions cochée ; sinon l'ancien reste."""
     p = games.player(g, guest_id) if guest_id else None
     clean = " ".join((name or "").split())[:30]
     if p and clean and p["name"] != clean and not p.get("manual"):
+        store = store_app.is_store(request)
+        if (store and not p.get("terms")) or name_refusal(clean, store or bool(g.get("store"))):
+            return
         p["name"] = clean
         if g.get("host") == guest_id:
             g["host_name"] = clean
@@ -3592,7 +3619,7 @@ def read_game(code: str, request: Request, guest_id: str, name: str):
     check_store_access(request, g)
     game_presence(request, guest_id, name)
     guest_id = canonical_gid(g, guest_id)
-    sync_player_name(g, guest_id, name)
+    sync_player_name(g, guest_id, name, request)
     admin_lead(g, request, guest_id)
     if g.get("phase") == "end" and guest_id.startswith("acct-") and pet_reactions.rewardable_game(g) \
             and any(p.get("id") == guest_id for p in g.get("players", [])):
@@ -3609,7 +3636,7 @@ def read_game(code: str, request: Request, guest_id: str, name: str):
         save_games(g["code"])
     if not g.get("paused") and neon.tick(g):
         save_games(g["code"])
-    return with_gate(full_view(g, guest_id), guest_id, request, g["code"])
+    return with_gate(full_view(g, guest_id, request), guest_id, request, g["code"])
 
 
 class GameAction(BaseModel):
@@ -3717,7 +3744,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
             require_account(body.token, body.guest_id, client_ip(request))
         reclaim_seat(g, body.guest_id, clean_name(body.name), client_ip(request))
     body.guest_id = canonical_gid(g, body.guest_id)
-    sync_player_name(g, body.guest_id, body.name)
+    sync_player_name(g, body.guest_id, body.name, request)
     admin_lead(g, request, body.guest_id)
     a, me = body.action, body.guest_id
     if g["type"] == "president" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "up", "down", "handover", "end", "prplay", "prpass", "prexchange", "pause", "resume"}:
@@ -3789,7 +3816,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         room_launch(g, me, body.settings)
         g["updated_at"] = time.time()
         save_games(g["code"], g.get("current") or "")
-        return full_view(g, me)
+        return full_view(g, me, request)
     actions = {
         "join": (games.join, me, clean_name(body.name) if a == "join" else ""),
         "leave": (games.leave, me), "vote": (games.vote, me, target), "guess": (games.white_guess, me, body.guess),
@@ -3900,7 +3927,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     if not g["players"] and not g["host"]:
         store.session.games.pop(g["code"], None)
     save_games(g["code"], g.get("room") or "", g.get("current") or "")
-    return with_gate(full_view(g, me), me, request, g["code"])
+    return with_gate(full_view(g, me, request), me, request, g["code"])
 
 
 def no_purity_in_store(request: Request):
@@ -5417,6 +5444,11 @@ NO_CACHE = {"Cache-Control": "no-cache"}
 
 @app.middleware("http")
 async def no_cache_static(request: Request, call_next):
+    path = request.url.path
+    # (Zicou, /static/pet/ : déjà 404 « Zicou arrive bientôt. » pour l'app, compagnon_off.)
+    if path.startswith("/static/") and not path.startswith("/static/pet/") and store_static.blocked(path[8:]) \
+            and store_app.is_store(request):
+        return JSONResponse({"detail": "Introuvable"}, status_code=404, headers=NO_CACHE)  # app App Store (26.11)
     response = await call_next(request)
     if request.url.path.startswith("/static/"):
         # Adresse versionnée (?v=…, change à chaque déploiement) : le téléphone la garde, pas d'aller-retour.
@@ -5511,7 +5543,7 @@ def static_store(path: str, request: Request):
     """Scripts et styles de l'app App Store, sans code des jeux cachés ni mot de boisson (app/store_static.py) ; tout
     autre fichier : le même que /static/."""
     file = (STATIC / path).resolve()
-    if not file.is_relative_to(STATIC.resolve()) or not file.is_file():
+    if store_static.blocked(path) or not file.is_relative_to(STATIC.resolve()) or not file.is_file():
         raise HTTPException(404, "Introuvable")
     versioned = request.query_params.get("v") == BUILD_ID
     headers = {"Cache-Control": "public, max-age=31536000, immutable" if versioned else "no-cache"}

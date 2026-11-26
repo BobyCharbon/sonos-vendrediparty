@@ -384,7 +384,7 @@ def test_a_finished_party_game_is_noted_for_account_players_only(setup, monkeypa
     g = {"id": "abc", "code": "ABCD", "type": "quiz", "phase": "end", "players": [{"id": gid}, {"id": "guest-x"}]}
     monkeypatch.setattr(main, "get_game", lambda code: g)
     monkeypatch.setattr(main, "check_store_game", lambda *a: None)
-    monkeypatch.setattr(main, "full_view", lambda game, guest: {"ok": True})
+    monkeypatch.setattr(main, "full_view", lambda game, guest, request=None: {"ok": True})
     c.get(f"/api/games/ABCD?guest_id={gid}")
     c.get(f"/api/games/ABCD?guest_id={gid}")
     c.get("/api/games/ABCD?guest_id=guest-x")

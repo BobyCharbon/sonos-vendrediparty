@@ -104,19 +104,18 @@ const PET_ON = document.documentElement.dataset.compagnon !== "off";
 // BETA et Android gardent tout.
 const STORE = document.documentElement.classList.contains("party-store");
 const STORE_HIDDEN = STORE ? ["casino", "blackjack", "beerpong", "biskit", "purity", "pyramid", "never", "whoof", "roulette"] : []; // <store-cut/>
-// <store> const STORE_HIDDEN = ["beerpong", "biskit", "purity", "pyramid", "never", "whoof", "roulette"];  // et deux jeux de cartes, retirés par le serveur
+// <store> const STORE_HIDDEN = ["beerpong", "biskit", "purity", "pyramid", "never", "whoof"];  // et les autres jeux cachés, retirés par le serveur
 // « ⭐ Mode points » (gorgées converties en points, Pyramide en points) : ÉTEINT pour la 1.0.0 (décision du 25.11). Il ne
 // reviendra que dans une mise à jour décrite à Apple : le code reste en place, inactif tant que STORE_POINTS est faux.
 const STORE_POINTS = false;
-// Toujours dans l'app : jamais une phrase sur la boisson (on la retire, sans la convertir) ni un rang grossier (Président).
+// Toujours dans l'app : jamais une phrase sur la boisson (on la retire, sans la convertir) (le Président n'a plus de rang grossier : « Dernier », président.py).
 // <store-cut> jeu caché dans l'app App Store
 const STORE_SWAPS = [
   [/\s*Personne n['’]est obligé de boire[^<]*?(?=<\/p>|$)/g, ""],
   [/\s*Buvez avec modération !/g, ""],
-  [/Vice-trou du cul/g, "Vice-dernier"], [/Trou du cul/g, "Dernier"], [/trou du cul/g, "dernier"],
 ];
 // </store-cut>
-// <store> const STORE_SWAPS = [[/Vice-trou du cul/g, "Vice-dernier"], [/Trou du cul/g, "Dernier"], [/trou du cul/g, "dernier"]];
+// <store> const STORE_SWAPS = [];
 const POINTS_RULE = "On joue aux points : celui qui en reçoit le moins gagne.";
 const pts = (n) => `${n} point${+n > 1 ? "s" : ""}`;
 // <store-cut> jeu caché dans l'app App Store
@@ -552,7 +551,7 @@ document.getElementById("gamesRoot").innerHTML = `
       <div class="gcard g-pr">
         <div class="g-head">
           <div class="g-icon">${GAME_ICONS.president}</div>
-          <div class="g-meta"><div class="g-title">Président</div><div class="g-tag">… ou Trou du cul. À toi de jouer.</div></div>
+          <div class="g-meta"><div class="g-title">Président</div><div class="g-tag">… ou Dernier. À toi de jouer.</div></div>
           ${helpBtn("president")}
         </div>
         <p class="g-desc">Vide ta main avant les autres. Gagne ta place, échange tes cartes et défends la présidence à la manche suivante.</p>
@@ -919,11 +918,11 @@ document.getElementById("gamesRoot").innerHTML = `
         <div id="cwResult" class="cw-result" aria-live="polite"></div>
         <div id="cwHistory" class="cw-history"></div>
       </div>
-      <!-- </store-cut> -->
       <div id="roulette" class="roulette hidden">
         <div class="wheel-wrap"><div class="wheel-pointer" aria-hidden="true"></div><svg id="wheel" viewBox="-100 -100 200 200" role="img" aria-label="Roue"></svg></div>
         <div id="rouletteResult" class="roulette-result" aria-live="polite"></div>
       </div>
+      <!-- </store-cut> -->
       <div id="gRoomSwitch"></div>
       <div id="gameHost"></div>
     </div>
@@ -971,6 +970,7 @@ document.addEventListener("click", (ev) => {
   document.head.append(css, js);
 });
 
+// <store-cut> Zicou (jamais dans l'app App Store)
 // Compagnon : même principe que Méninges pour une page qui ne charge pas pet/pet.js (/admin, gardé en secours).
 document.addEventListener("click", (ev) => {
   const btn = ev.target.closest("[data-pet-open]");
@@ -988,6 +988,7 @@ document.addEventListener("click", (ev) => {
   skinJs.onload = () => document.head.append(js);
   document.head.append(css, skinJs);
 });
+// </store-cut>
 
 // Range les cartes de l'accueil par catégorie, sous la carte de la salle de jeux (maquette approuvée le 15.11.2026) :
 // l'accueil ne montre que « Jeux solo » ; les jeux à plusieurs se lancent dans la salle, qui recopie leur carte
@@ -1030,8 +1031,8 @@ function storeScrubCards(home) {
   home.querySelectorAll(".g-chips span").forEach((c) => { if (/alcool|gorgée|Hot/i.test(c.textContent)) c.remove(); }); // <store-cut/>
   // <store>   home.querySelectorAll(".g-chips span").forEach((c) => { if (/Hot/i.test(c.textContent)) c.remove(); });
   const text = {
-    ".g-nv .g-tag": "Avoue… ou garde ton secret.",
-    ".g-nv .g-desc": "Une phrase tombe (« Je n'ai jamais dansé sur une table »). Chacun répond en secret « déjà fait » ou « jamais », puis tout est révélé : à ceux qui l'ont fait de raconter !",
+    ".g-nv .g-tag": "Avoue… ou garde ton secret.", // <store-cut/>
+    ".g-nv .g-desc": "Une phrase tombe (« Je n'ai jamais dansé sur une table »). Chacun répond en secret « déjà fait » ou « jamais », puis tout est révélé : à ceux qui l'ont fait de raconter !", // <store-cut/>
     ".g-wh .g-desc": "Une question tombe (« Qui de nous finira la soirée en pyjama ? »), chacun vote pour quelqu'un, puis on découvre qui a été désigné… et il raconte l'anecdote.",
     ".g-lk .g-desc": "« Qui est le plus mauvais perdant ? » Tout le monde désigne quelqu'un en secret, en même temps, puis on découvre le plus désigné : il prend un point. Sans téléphone ? On vote sur celui de l'animateur.",
     ".g-rl .g-desc": "Note les participants, lance la roue : celui qu'elle désigne a perdu. Pour savoir qui fait la vaisselle, qui choisit la musique, qui relève un défi… La roue tourne sur tous les téléphones.",
@@ -1153,13 +1154,13 @@ function minimizeGame() {
 document.addEventListener("click", (ev) => { if (ev.target.closest("button[data-tab]")) setTimeout(syncGameChrome, 0); });
 
 // Conditions d'utilisation des jeux (contrôle du 26.11, Apple 1.2) : dans l'app App Store, la case sous « Comment tu
-// t'appelles ? » (18 ans ou plus, conditions acceptées) se coche une fois par appareil ; un compte Party les a déjà
-// acceptées. Sans elle, le serveur refuse tout texte lu par la table (prénom, réponse, mot : main.py check_game_terms)
+// t'appelles ? » (18 ans ou plus, conditions acceptées) se coche une fois par appareil, compte Party compris
+// (contrôle du 26.11, tour 1). Sans elle, le serveur refuse tout texte lu par la table (prénom, réponse, mot : main.py check_game_terms)
 // et la page rouvre la case. « Plus tard » : on revient à l'accueil des jeux (Méninges reste ouvert).
 const G_TERMS_KEY = "vp_games_terms";
 let gTermsMem = false, gTermsLater = false;  // gTermsMem : repli quand le stockage du navigateur est indisponible
 function gamesTermsOk() {
-  return !STORE || gTermsMem || store(G_TERMS_KEY) === "1" || String(guestId || "").startsWith("acct-");
+  return !STORE || gTermsMem || store(G_TERMS_KEY) === "1";
 }
 function setGamesTerms(on) {
   gTermsMem = on;
@@ -1404,11 +1405,13 @@ function renderGame(g) {
     body = casinoStatusHtml(g); // <store-cut/>
   } else if (isBJ(g)) { // <store-cut/>
     body = bjTableHtml(g); // <store-cut/>
+  // <store-cut> jeu caché dans l'app App Store
   } else if (g.type === "roulette") {
     body = g.is_host
       ? `<div class="artist">${g.names.length < 2 ? "Note au moins 2 noms ci-dessous, puis lance la roue." : "Prêt ? Lance la roue !"}</div>`
       : `<div class="artist">${g.phase === "spun" ? "La roue a parlé…" : `${esc(g.host_name)} prépare la roue…`}</div>
          ${!me ? `<button class="secondary" data-gact="join" style="width:100%;margin-top:10px">Je participe (l'animateur pourra m'ajouter à la roue)</button>` : ""}`;
+  // </store-cut>
   } else if (!me && !g.master) {
     // Visiteur : pas encore dans la partie (Undercover en cours : il attendra la prochaine).
     const running = g.type === "undercover" && g.phase !== "lobby" && g.phase !== "end";
@@ -1514,7 +1517,7 @@ function renderGame(g) {
   turnSignal(g);
   const input = $("guessInput");
   if (input && !input._vp) { input._vp = 1; input.value = guessDraft; input.addEventListener("input", () => { guessDraft = input.value; }); }
-  renderRoulette(g);
+  renderRoulette(g); // <store-cut/>
   renderHud(g);
   bjOutcomeFx(g); // <store-cut/>
   renderGameHost(g);
@@ -1623,7 +1626,6 @@ function bjOutcomeFx(g) {
   const wait = Math.max(0, FX_AFTER_DEAL - (g.bj.finished_age ?? 0) * 1000);
   setTimeout(() => { if (game?.id === g.id && game.round === g.round) playFx(kind, sub); }, wait);
 }
-// </store-cut>
 const FX_AFTER_DEAL = 700;  // ms
 function playFx(kind, sub) {
   GameAudio.play(["win", "blackjack", "jackpot"].includes(kind) ? "win" : ["lose", "bust"].includes(kind) ? "lose" : "reveal"); // <store-cut/>
@@ -1665,9 +1667,9 @@ function playFx(kind, sub) {
   haptic({ win: [80, 60, 80], blackjack: [100, 50, 100, 50, 220], jackpot: [100, 50, 100, 50, 100, 50, 300], // <store-cut/>
   // <store>   haptic({ win: [80, 60, 80], jackpot: [100, 50, 100, 50, 100, 50, 300],
     push: [60], mixed: [60, 60, 60], lose: [320], bust: [120, 60, 320] }[kind]);
-  setTimeout(close, kind === "blackjack" || kind === "jackpot" ? 3800 : 3000); // <store-cut/>
-  // <store>   setTimeout(close, kind === "jackpot" ? 3800 : 3000);
+  setTimeout(close, kind === "blackjack" || kind === "jackpot" ? 3800 : 3000);
 }
+// </store-cut>
 
 // Compteur fixe en haut à droite : mes jetons (blackjack) et mes gorgées (bues / distribuées).
 function renderHud(g) {
@@ -1676,7 +1678,7 @@ function renderHud(g) {
     : g.type === "casino" ? g.casino.me?.chips : null; // <store-cut/>
     // <store>   const chips = null;
   const items = [];
-  if (chips != null) items.push(`<div class="hud-item"><span>💰</span><b data-bump="hud-chips">${chips}</b><small>jetons</small></div>`);
+  if (chips != null) items.push(`<div class="hud-item"><span>💰</span><b data-bump="hud-chips">${chips}</b><small>jetons</small></div>`); // <store-cut/>
   // <store-cut> gorgées (jamais dans l'app)
   if (sips && me) {
     items.push(`<div class="hud-item"><span>🍻</span><b data-bump="hud-drink">${me.drink || 0}</b><small>bue${me.drink > 1 ? "s" : ""}</small></div>`);
@@ -2791,7 +2793,6 @@ document.addEventListener("click", (ev) => {
   }
 });
 
-// </store-cut>
 // 🎡 Roulette : roue dessinée en SVG, tournée en CSS ; même tirage (index + décalage) sur tous les téléphones.
 const WHEEL_COLORS = ["#ff4f9a", "#ffb347", "#4fd1c5", "#8b7bff", "#ffe14d", "#3ddc97", "#ff7a59", "#5ab0ff"];
 let wheelSig = null, wheelSpinId = "", wheelRot = 0, wheelShown = "", spinningUntil = 0;
@@ -2895,7 +2896,6 @@ function renderRouletteHost(g, btn) {
   patch.rlSpect = g.players.length ? `<h2>Spectateurs (${g.players.length})</h2><div class="chips">${g.players.map((p) => `<span class="pill">${esc(p.name)}</span>`).join("")}</div>` : "";
 }
 
-// <store-cut> jeu caché dans l'app App Store
 // « Je n'ai jamais » : ceux qui l'ont déjà fait boivent.
 function neverResultsHtml(g) {
   const did = g.results.filter((r) => r.answer === "yes"), never = g.results.filter((r) => r.answer === "no");
@@ -2913,7 +2913,8 @@ function neverResultsHtml(g) {
 // Commandes de l'animateur (créateur de la partie) et liste des joueurs.
 function renderGameHost(g) {
   const btn = (action, label, cls = "", extra = "") => `<button class="${cls}" data-gact="${action}" ${extra}>${label}</button>`;
-  if (g.type !== "roulette") delete $("gameHost").dataset.kind;  // un autre jeu redessine tout
+  if (g.type !== "roulette") delete $("gameHost").dataset.kind; // <store-cut/>
+  // <store> delete $("gameHost").dataset.kind;
   const alive = g.players.filter((p) => p.alive);
   const controls = !g.is_host ? "" : {
     lobby: btn("start", g.type === "undercover" ? "▶︎ Distribuer les mots" : "▶︎ Première question", "grow", g.players.length < (g.type === "undercover" ? 3 : 2) ? "disabled" : ""),
@@ -2925,7 +2926,7 @@ function renderGameHost(g) {
     results: btn("next", "▶︎ Question suivante", "grow"),
     end: btn("restart", "🔁 Rejouer avec les mêmes joueurs", "grow"),
   }[g.phase] || "";
-  if (g.type === "roulette") return renderRouletteHost(g, btn);
+  if (g.type === "roulette") return renderRouletteHost(g, btn); // <store-cut/>
   if (isBJ(g)) return renderBJHost(g, btn); // <store-cut/>
   if (g.type === "casino") return renderCasinoHost(g, btn); // <store-cut/>
   if (g.type === "divan") return renderDivanHost(g, btn);
@@ -3347,6 +3348,7 @@ document.addEventListener("submit", (ev) => {
     requestAnimationFrame(restore);
   });
 });
+// <store-cut> jeu caché dans l'app App Store (Roulette)
 let nameQueue = Promise.resolve();
 document.addEventListener("submit", (ev) => {
   if (!ev.target.closest("[data-gform=addname]")) return;
@@ -3358,6 +3360,7 @@ document.addEventListener("submit", (ev) => {
   // Envois en file : chaque prénom part avec la liste à jour, aucun ne se perd si on tape vite.
   nameQueue = nameQueue.then(() => gameAction("names", { names: game.names.concat([name]) }));
 });
+// </store-cut>
 $("game").addEventListener("submit", (ev) => {
   if (!ev.target.closest("[data-gform]")) return;
   ev.preventDefault();
