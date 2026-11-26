@@ -22,7 +22,7 @@ export const groupLabel = (g: Pick<GuestGroupCard, 'name' | 'emoji'>) => `${g.em
 
 /** Texte de la case (avis de conformité du 17.11) : clair, rien de caché, aucune récompense. */
 export const joinTitle = (g: GuestGroupCard) => `Rejoindre aussi le groupe « ${groupLabel(g)} »${g.owner ? ` de ${g.owner}` : ''}`;
-export const JOIN_DETAIL = 'Les membres verront ton surnom, ton nom et ta photo, pourront t’écrire dans la discussion du groupe, '
+export const JOIN_DETAIL = 'Les membres verront ton surnom et ta photo (ton nom seulement si tu as choisi de l’afficher), pourront t’écrire dans la discussion du groupe, '
   + 'et tu seras invité à ses prochains événements. Ton numéro reste caché. Tu quittes le groupe quand tu veux.';
 export const membersLine = (n: number) => (n > 1 ? `${n} membres` : n === 1 ? '1 membre' : 'Aucun membre pour l’instant');
 
