@@ -11,6 +11,9 @@ os.environ.setdefault("COMPAGNON_ENABLED", "1")
 # Agenda et Pronos testés allumés, comme sur le site de test (gardés en test le 19.11 : tests/test_apps_flag.py).
 os.environ.setdefault("AGENDA_ENABLED", "1")
 os.environ.setdefault("PRONOS_ENABLED", "1")
+# Souvenirs et couverture testés allumés, comme sur le site de test (26.11 : tests/test_apps_flag.py).
+os.environ.setdefault("SOUVENIRS_ENABLED", "1")
+os.environ.setdefault("COVERS_ENABLED", "1")
 # Compte progressivement obligatoire (app/guest_gate.py) : sans limite dans les tests qui ne le testent pas (les
 # tests du palier posent leurs réglages eux-mêmes ; en production : 3 parties et 3 titres par défaut).
 os.environ.setdefault("GUEST_GAMES_BEFORE_ACCOUNT", "1000")

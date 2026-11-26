@@ -78,3 +78,22 @@ def pronos_enabled() -> bool:
     """Pronos entre amis (17-18.11) : PRONOS_ENABLED ("1" / "0") si elle est définie ; sinon allumés sur le site de test
     seulement (décision du 19.11 : gardés en test). Éteints, les confettis le sont aussi (patates_enabled)."""
     return _flag("PRONOS_ENABLED")
+
+
+def _off_in_store(request) -> bool:
+    if request is None:
+        return False
+    from . import store_app  # store_app importe ce module
+    return store_app.is_store(request)
+
+
+def souvenirs_enabled(request=None) -> bool:
+    """Souvenirs (photos de la soirée ; 24.11) : SOUVENIRS_ENABLED ("1" / "0") si elle est définie ; sinon allumés sur le
+    site de test seulement. request de l'app App Store : toujours éteints (contrôle Apple du 26.11)."""
+    return not _off_in_store(request) and _flag("SOUVENIRS_ENABLED")
+
+
+def covers_enabled(request=None) -> bool:
+    """Couverture d'événement changée après coup (25.11) : COVERS_ENABLED ("1" / "0") si elle est définie ; sinon allumée
+    sur le site de test seulement. request de l'app App Store : toujours éteinte (contrôle Apple du 26.11)."""
+    return not _off_in_store(request) and _flag("COVERS_ENABLED")
