@@ -72,6 +72,18 @@
          gestapo, kkk, ku klux klan, daech, swastika, croix gammée refusés. Lot 15b : « dehors », « au four », « je déteste
          les », « tuer les » et l'incitation au suicide refusaient des phrases ordinaires (« Va te tuer à la tâche ») : ils
          ne valent que pour les joueurs de l'app (STORE_ONLY, serveur). Serveur (`app/moderation_terms.py`) déployé avec.
+      16. `2026-11-27-audit-compte-supprime` (20261127170000) : **PRÊT** (apply + rollback, testés sur TEST le 27.11 :
+         `tests/supabase_live/test_audit_compte_supprime_live.py`, `test_suppression_compte_cascade_live.py`,
+         `test_member_admin_live.py` ; retour arrière essayé (définitions d'origine retrouvées, md5) puis réappliqué).
+         N'importe quel ordre après 1 à 15 : aucun autre fichier ne touche `member_audit`, `private.audit` ni
+         `private.audit_account_deleted`. Apple 5.1.1(v) : à la suppression d'un compte, ses lignes du journal des membres
+         perdent identifiant, surnom (« Compte supprimé »), `phone_end` et appareil (déclencheur AFTER
+         `zz_audit_account_forget` + `private.audit` pour les lignes écrites par les cascades) ; ses notifications
+         `data.member` chez les autres partent ; rattrapage des comptes déjà supprimés (IRRÉVERSIBLE, voulu) ; purge à
+         12 mois (pg_cron `member-audit-tick`, 4 h 41). Ancre vérifiée le 27.11 en lecture seule : `private.audit` et
+         `private.audit_account_deleted` identiques sur prod et TEST (md5 contrôlé par le fichier, refus sinon). Politique
+         (web et iPhone, nouveau build) : notifications déjà reçues par d'autres gardées 90 jours. Prod : rattrapage = 14 lignes
+         (3 account.deleted, 3 account.created, 2 account.login, 2 group.add, 2 group.remove, 1 rsvp, 1 role ; compté le 27.11).
 - [ ] **Revérifier les ancres contre la prod avant d'appliquer** (150000 a réécrit event_changed, event_guest_list,
       apply_waitlist, event_attendance, public_event, chat_event_cards, invite_preview).
       **Fait le 27.11 en LECTURE SEULE** (`sbq.py prod`, `pg_get_functiondef` de la prod ; photo du 27.11, à refaire si

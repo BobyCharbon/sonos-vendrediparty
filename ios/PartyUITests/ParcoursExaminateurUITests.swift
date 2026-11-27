@@ -86,13 +86,22 @@ final class ParcoursExaminateurUITests: XCTestCase {
         record(name)
     }
 
+    /// Réglages › « Se connecter ». La ligne est un NavigationLink de la liste, au libellé combiné « Se connecter, Avec ton
+    /// numéro… » : `staticTexts["Se connecter"]` trouvait le texte de l'onglet du même nom, « non hittable », et le test ne
+    /// touchait jamais la ligne (elle marche au doigt). Même élément que VitesseDiscussionsUITests, touché par son centre.
+    private func openSignInRow() {
+        guard !app.textFields["login-phone"].exists else { return }
+        let entry = app.descendants(matching: .any).matching(NSPredicate(format: "label BEGINSWITH 'Se connecter, '")).firstMatch
+        let row = entry.waitForExistence(timeout: 15) ? entry : app.cells.staticTexts["Se connecter"].firstMatch
+        if row.exists { row.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap() }
+    }
+
     private func signIn(_ phone: String) {
         let settings = app.buttons.matching(NSPredicate(format: "label IN {'Réglages', 'Se connecter'}")).firstMatch
         XCTAssertTrue(settings.waitForExistence(timeout: 30), "onglet Réglages / Se connecter")
         settings.tap()
         sleep(2)
-        let row = app.staticTexts["Se connecter"].firstMatch
-        if row.exists, row.isHittable, !app.textFields["login-phone"].exists { row.tap() }
+        openSignInRow()
         let field = app.textFields["login-phone"]
         XCTAssertTrue(field.waitForExistence(timeout: 15), "champ du numéro")
         field.tap()
@@ -212,8 +221,7 @@ final class ParcoursExaminateurUITests: XCTestCase {
         XCTAssertTrue(settings.waitForExistence(timeout: 30), "onglet Se connecter")
         settings.tap()
         sleep(2)
-        let row = app.staticTexts["Se connecter"].firstMatch
-        if row.exists, row.isHittable, !app.textFields["login-phone"].exists { row.tap() }
+        openSignInRow()
         let field = app.textFields["login-phone"]
         guard field.waitForExistence(timeout: 15) else { return XCTFail("champ du numéro (déjà connecté ?)") }
         field.tap()
