@@ -10,7 +10,9 @@ boisson alcoolisée ni drogue, aucun vote sexuel sur les présents (modes Hot / 
   questions déjà tirées sans ce filtre. Le site, l'app BETA et Android gardent tout. Voir CLAUDE.md « Refus Apple 1.4.3 (25.11) ».
 """
 import re
+import unicodedata
 from functools import lru_cache
+from pathlib import Path
 
 from .features import is_test_site
 from .moderation import check as moderation_check, clean as moderation_clean, merged, nfkc, normalize, store_hit
@@ -113,38 +115,187 @@ PAIR_WORDS = {"vodka", "whisky", "whiskey", "biere", "bieres", "alcool", "tequil
               "nazi", "nazis", "shots", "rhum", "picole", "picoler", "pompette", "saoul", "parier", "miser"}
 
 
-def _player_forms(text: str) -> tuple[str, list[str]]:
+def _player_forms(text: str) -> tuple[str, list[tuple[str, tuple]]]:
     """Le texte normalisé (chiffres dans un mot ramenés aux lettres, lettres séparées recollées), et chaque paire de
     mots voisins recollée (« hit ler » → « hitler »)."""
     norm = merged(normalize(moderation_clean(NUMBER.sub(" ", text))))
-    words = norm.split()
-    return norm, ["".join(p) for p in zip(words, words[1:])]
+    words = merged(normalize(moderation_clean(NUMBER.sub(" ", INITIAL.sub(" ", ELISION.sub(" ", text)))))).split()
+    return norm, [("".join(p), p) for p in zip(words, words[1:])]  # « Martin I » ≠ « martini »
 
 
 # Mots en chiffres ou de deux lettres, lus sur le texte BRUT (NFKC, minuscules) en mot entier : la normalisation ferait
 # de « 88 » « bb » et de « 55 ans » « ss ». Contrôle Apple, tour 5.
-RAW_TOKENS = re.compile(r"(?<![^\W_])(88|14 ?88|ss|s\.s\.?|get ?27|get ?31|1664|label ?5)(?![^\W_])", re.IGNORECASE)
+RAW_TOKENS = re.compile(r"(?<![^\W_])(88|14 ?[-/]? ?88|ss|s\.s\.?|get ?27|get ?31|1664|label ?5|bet ?365)(?![^\W_])", re.IGNORECASE)
+# Texte entier seulement (tour 6) : « S S », « H H ».
+WHOLE_RAW = re.compile(r"\s*(s\W*s|h\W*h)\s*", re.IGNORECASE)
+# « rape » (viol, anglais) lu sur le texte TEL QUEL, sans pli : « râpe », « fromage râpé », « une rape » passent.
+RAPE = re.compile(r"(?<![^\W\d_])(?<!une )(?<!la )(?<!ma )(?<!ta )(?<!sa )(?<!les )(?<!des )(?<!fromage )"
+                  r"rap(e|es|ed|ing|ist|ists)(?![^\W\d_])", re.IGNORECASE)
+
+
+def _plain_hit(text: str) -> bool:
+    """Une forme du texte (NFKC) : liste commune de l'app, argot, chiffres, lettres séparées, deux morceaux recollés."""
+    # Nombres retirés avant la liste de l'app (« 55 ans » ≠ « ss ») : « 88 » et consorts sont lus par RAW_TOKENS.
+    if drinky(text) or store_hit(NUMBER.sub(" ", text)) or PLAYER_RAW.search(text) or PARIS.search(text) \
+            or RAW_TOKENS.search(text) or WHOLE_RAW.fullmatch(text):
+        return True
+    norm, pairs = _player_forms(text)
+    if DRINK_RE.search(norm) or STORE_EXCLUDE.search(norm) or PLAYER_NORM.search(norm):
+        return True
+    # Paires recollées : les mots de PAIR_WORDS, ou un mot de STORE_ONLY d'au moins 6 lettres (« su ce » ≠ « suce ») dont
+    # un morceau est un bout de mot (tour 6 : « le chat te regarde » ≠ « chatte »).
+    return any(w in PAIR_WORDS or (len(w) >= 6 and any(len(x) <= 3 and x not in COMMON for x in p) and store_hit(w))
+               for w, p in pairs)
+
+
+# ── Contrôle Apple, tour 6 (27.11) : familles fermées PAR CONSTRUCTION, plus mot par mot ──
+# 1. Pli : décomposition NFKD, accents (Mn) retirés, puis les lettres latines sans décomposition ; l'alphabet admis
+#    (prénoms, réponses) n'a QUE des lettres que ce pli ramène à a-z (test : chaque caractère admis).
+FOLD = {"ı": "i", "ĸ": "k", "đ": "d", "Đ": "D", "ð": "d", "Ð": "D", "ħ": "h", "Ħ": "H", "ŀ": "l", "Ŀ": "L", "ŋ": "n",
+        "Ŋ": "N", "þ": "th", "Þ": "Th", "ŧ": "t", "Ŧ": "T", "ł": "l", "Ł": "L", "ø": "o", "Ø": "O", "æ": "ae", "Æ": "Ae",
+        "œ": "oe", "Œ": "Oe", "ß": "ss", "ẞ": "Ss", "ŉ": "n"}
+_FOLD = str.maketrans(FOLD)
+
+
+def fold(text: str) -> str:
+    """« Vŏdka », « Hıtler », « Vođka », « Thị » → « Vodka », « Hitler », « Vodka », « Thi » (casse gardée)."""
+    text = unicodedata.normalize("NFKD", str(text or "").translate(_FOLD))
+    return "".join(c for c in text if unicodedata.category(c) != "Mn")
+
+
+# 2. Formes DÉRIVÉES, examinées EN PLUS de la forme normale (jamais à sa place) : lettres répétées (3 fois ou plus
+#    ramenées à une, puis à deux : « Vooodka », « Pompettte » ; « Shoot » reste « Shoot »), « ! » et « + » lus comme
+#    lettres ENTRE deux lettres (« H!tler », « Pu+ain » ; « par ! » ne devient pas « pari »).
+TRIPLE = re.compile(r"([^\W\d_])\1{2,}", re.IGNORECASE)
+SIGNS = (re.compile(r"(?<=[^\W\d_])!(?=[^\W\d_])"), "i"), (re.compile(r"(?<=[^\W\d_])\+(?=[^\W\d_])"), "t")
+
+
+def _signs(text: str) -> str:
+    for rx, letter in SIGNS:
+        text = rx.sub(letter, text)
+    return text
+
+
+def _derived(text: str) -> set[str]:
+    f = fold(text)
+    out = {f, _signs(f)}
+    for x in list(out):
+        out |= {TRIPLE.sub(r"\1", x), TRIPLE.sub(r"\1\1", x)}
+    out.discard(text)
+    return out
+
+
+# 3. Morceaux voisins recollés (2 ou 3 : « Vo dk a », « Hi tl er », « Pas-tis ») et mot collé à un article (« Lamerde »,
+#    « Unshot », « VivaHitler ») : le mot recollé doit ÊTRE un mot de la liste (égalité, jamais une sous-chaîne). Tout le
+#    texte recollé (« Mer de », « Vi n ») ; au milieu d'une phrase, seulement si un morceau est un BOUT de mot (3 lettres
+#    au plus, pas un petit mot courant) : « la mer de glace », « le chat te regarde », « il a pu te voir » passent.
+COMMON = set("""a ai as au aux de des du d l le la les un une et en est es ou on il ils elle je j tu te t me m se s ce c
+sa ta ma mon ton son ses tes mes ne n y pas pu mer ni si qui que qu sur par pour mais an go vu lu eu dit ca fin vie art
+mot jeu feu eau air or mal peu va vas ont mis nez roi loi toi moi lui eux nos vos car ici lit fil mur sol bal bas dos pot
+top tir rue riz sel sec net nul dur bel tel mi do re fa oh ah eh ok yo hey lol and for you my we us he she his her at up so
+if be by am are was the of to in is it no oui non der die das ein und ist lo gli di da che el los las o con por jus bon
+ans toi via ras bus bis duo zen ces gaz vin bar gin su nu ne ri dis fis cru tot ete fut sut put mit vit lit dut ose une"""
+             .split())
+ARTICLES = ("une", "un", "les", "le", "la", "du", "des", "de", "mon", "ma", "ton", "ta", "son", "sa", "cette", "cet", "ce",
+            "grosse", "gros", "sale", "viva", "vive", "adolf")
+
+
+def is_bad_word(w: str) -> bool:
+    """Un mot seul (normalisé, a-z) de la liste de l'app : boisson, drogue, argot, STORE_ONLY ou filtre commun."""
+    return bool(w in PAIR_WORDS or DRINK_RE.fullmatch(w) or store_hit(w) or PLAYER_NORM.search(w)
+                or not moderation_check(w, "name").ok)
+
+
+DIGITS = re.compile(r"(?<![^\W_])\d+(?![^\W_])")  # nombre seul (« par 1 et ») : jamais une lettre à recoller
+MOTS = Path(__file__).resolve().parent / "static" / "brain" / "mots"  # dictionnaire de Méninges (755 000 formes, a-z)
+
+
+@lru_cache(maxsize=4096)
+def _mots(abc: str) -> frozenset:
+    try:
+        return frozenset((MOTS / f"{abc}.txt").read_text(encoding="utf-8").split())
+    except (OSError, ValueError):
+        return frozenset()
+
+
+def french_word(w: str) -> bool:
+    """Un mot du dictionnaire français (« députés », « Tamise », « décider », « épinard » : jamais un mot collé)."""
+    return len(w) >= 4 and w.isalpha() and w.isascii() and w in _mots(w[:3])
+
+
+# Avant de recoller : une élision (« Ana l'a dit », « Vi n'a ») et une initiale en majuscule après un prénom (« Ana L »,
+# « Vi N. ») ne sont jamais un bout de mot ; « Vi n » (minuscule) se recolle toujours.
+ELISION = re.compile(r"(?<![^\W\d_])([^\W\d_]|qu)['’]", re.IGNORECASE)
+INITIAL = re.compile(r"(?<=[^\W\d_]{2}) +[A-Z]\.?(?= |$)")
+
+
+def _words(text: str) -> list[str]:
+    return merged(normalize(nfkc(DIGITS.sub(" ", INITIAL.sub(" ", ELISION.sub(" ", text)))))).split()
+
+
+def _joined_hit(text: str) -> bool:
+    words = _words(text)
+    if 2 <= len(words) <= 4 and len("".join(words)) >= 3 and is_bad_word("".join(words)):
+        return True  # tout le texte recollé (« Mer de », « Co ke », « Hit-l-er »)
+    for n in (2, 3):
+        for i in range(len(words) - n + 1):
+            part = words[i:i + n]
+            w = "".join(part)
+            if len(w) >= 4 and any(len(x) <= 3 and x not in COMMON for x in part) and is_bad_word(w):
+                return True
+    return False
+
+
+# Mots de DRINK_RE qui sont aussi des mots ordinaires : jamais lus collés à un article (« Desbois », « Leverre »).
+HOMONYMS = {"bois", "boit", "verre", "verres", "tournee", "tournees", "cuite", "cuites", "bars", "vins", "arrose", "cuvee",
+            "porto", "malt"}
+
+
+def _article_hit(text: str) -> bool:
+    for word in re.split("[^a-z]+", normalize(nfkc(text))):
+        for a in ARTICLES:
+            rest = word[len(a):]
+            if word.startswith(a) and len(rest) >= 4 and rest not in HOMONYMS and not french_word(word) and is_bad_word(rest):
+                return True
+    return False
+
+
+# Phrases ordinaires qui contiennent un mot de DRINK_RE (textes des joueurs seulement : DRINK_RE reste celui des banques
+# et des événements) : « un verre d'eau », « un crack en maths », « j'habite à Bordeaux ».
+PLAYER_SAFE = re.compile(r"verres? d['’ ]?eau(?![\s-]*de[\s-]*vie)|\b(un|le|ce|quel|vrai|petit) crack (en|de|du|au|aux)\b"
+                         r"|\b(à|a|en|vers|depuis|pr[èe]s de|(viens|vient|venu|venue|originaire|n[ée]e?) de) bordeaux\b",
+                         re.IGNORECASE)
 
 
 @lru_cache(maxsize=8192)
 def player_offensive(text) -> bool:
     """Texte d'un joueur refusé dans une partie de l'app : liste commune de l'app (offensive) et argot, contournements
-    compris (formes NFKC, sosies cyrilliques / grecs, chiffres, lettres séparées, mot coupé en deux)."""
-    text = nfkc(moderation_clean(str(text or "")))
-    # Nombres retirés avant la liste de l'app (« 55 ans » ≠ « ss ») : « 88 » et consorts sont lus par RAW_TOKENS.
-    if drinky(text) or store_hit(NUMBER.sub(" ", text)) or PLAYER_RAW.search(text) or PARIS.search(text) or RAW_TOKENS.search(text):
+    compris (formes NFKC, sosies cyrillique / grec, accents hors table, chiffres, signes, lettres séparées ou répétées,
+    morceaux recollés, mot collé à un article)."""
+    text = PLAYER_SAFE.sub(" ", nfkc(moderation_clean(str(text or ""))))
+    if RAPE.search(text) or _plain_hit(text):
         return True
-    norm, pairs = _player_forms(text)
-    if DRINK_RE.search(norm) or STORE_EXCLUDE.search(norm) or PLAYER_NORM.search(norm):
+    base_ok = moderation_check(text, "name").ok  # insulte d'une réponse masquée ailleurs : seulement si une forme la révèle
+    for form in _derived(text):
+        if _plain_hit(form) or (base_ok and not moderation_check(form, "name").ok):
+            return True
+    # Lettre doublée en fin de mot (« Shotss », « Cannabiss ») : le mot sans elle, s'il fait 4 lettres ou plus (« Barr »,
+    # « Ginn » passent) ; jamais au milieu (« Shoot », « Cooke » restent).
+    forms = {fold(text), _signs(fold(text))}
+    if any(len(w) >= 5 and w[-1] == w[-2] and not french_word(w) and is_bad_word(w[:-1]) for x in forms for w in _words(x)):
         return True
-    # Paires recollées : les mots de PAIR_WORDS, ou un mot de STORE_ONLY d'au moins 6 lettres (« su ce » ≠ « suce »).
-    return any(w in PAIR_WORDS or (len(w) >= 6 and store_hit(w)) for w in pairs)
+    return any(_joined_hit(x) or _article_hit(x) for x in forms)
 
 
 # Alphabet des textes de joueurs de l'app (contrôle Apple, tour 5 : CHANGER DE MÉTHODE, liste blanche plutôt que liste
 # noire) : après NFKC, lettres latines (accents français et européens compris), chiffres, espace, trait d'union,
 # apostrophe (' et ’). Tout le reste (cyrillique, grec, symboles, emoji) est refusé. Réponses : plus la ponctuation courante.
-LATIN = "A-Za-zÀ-ÖØ-öø-ſȘ-ț"
+# Tour 6 : seulement les lettres que le pli (fold, puis normalize) ramène au latin simple a-z, prises dans le latin de
+# base, Latin-1, Latin étendu A, Ș-ț et le Latin étendu additionnel (U+1E00–1EFF : Thị, Đức, Ngọc) ; une lettre que le pli
+# ne ramène pas à a-z (ẜ, ỻ…) n'est pas admise. Test : chaque caractère admis.
+LETTERS = "".join(c for c in map(chr, [*range(0x41, 0x7B), *range(0xC0, 0x180), *range(0x218, 0x21C), *range(0x1E00, 0x1F00)])
+                  if c.isalpha() and re.fullmatch("[a-z]+", normalize(fold(c).lower())))
+LATIN = "A-Za-z" + "".join(c for c in LETTERS if not c.isascii())
 NAME_MAX = 30
 NAME_CHARS = re.compile(rf"[{LATIN}0-9 '’-]{{1,{NAME_MAX}}}")
 ANSWER_CHARS = re.compile(rf"[{LATIN}0-9 '’\-.,;:!?\"«»()…–—%/&+°\n]*")
@@ -171,9 +322,17 @@ GLUED = ("picol", "trinqu", "pompette", "biture", "pinard", "defonc", "saoul", "
          "pompett", "beuverie", "suicid", "terroris", "daech", "daesh", "staline", "bougnoul", "pedo", "porno")
 
 
-def glued_hit(name) -> bool:
-    words = re.split("[^a-z]+", normalize(nfkc(moderation_clean(str(name or "")))))  # mot par mot (« mal à la gorge » passe)
-    return any(w in word for word in words for w in GLUED)
+# Réponses (tour 6 : « VivaHitler ») : les mêmes, sauf ceux qu'un mot ordinaire contient (« la tierce personne »,
+# « torpédo », « pédologue »).
+GLUED_ANSWER = tuple(w for w in GLUED if w not in ("tierce", "pedo"))
+
+
+def glued_hit(name, glued=GLUED) -> bool:
+    """Prénom (GLUED) ou réponse (GLUED_ANSWER : un mot du dictionnaire n'est jamais un mot collé, « épinard »,
+    « terrorisait » passent ; le mot lui-même est lu par player_offensive)."""
+    text = nfkc(moderation_clean(str(name or "")))
+    return any(w in word and (glued is GLUED or not french_word(word)) for t in {text, fold(text), _signs(fold(text))}
+               for word in re.split("[^a-z]+", normalize(t)) for w in glued)  # mot par mot (« mal à la gorge » passe)
 
 
 def answer_chars_ok(text) -> bool:
@@ -191,7 +350,7 @@ def check_text(text, store: bool, kind: str = "answer"):
         raise ValueError(NAME_REFUSED)
     if kind != "name" and not answer_chars_ok(text):
         raise ValueError(ANSWER_CHARS_REFUSED)
-    if player_offensive(text):
+    if player_offensive(text) or (kind != "name" and glued_hit(text, GLUED_ANSWER)):
         raise ValueError(TEXT_REFUSED)
 
 

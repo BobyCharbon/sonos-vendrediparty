@@ -3944,7 +3944,10 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     if other:
         other["updated_at"] = time.time()
         try:
-            if a == "join" and me not in other.get("kicked", []):
+            # App App Store : jamais inscrite dans un jeu qu'elle ne voit pas (jeu caché, gorgées, mode Hot lancé du
+            # web) ; elle reste dans la salle seulement (contrôle Apple, tour 6).
+            if a == "join" and me not in other.get("kicked", []) \
+                    and not (store_app.is_store(request) and store_app.refused(other)):
                 # Purify Test en cours dans la salle : seuls les comptes connectés y entrent. Jeu en cours de la
                 # salle : un invité au bout de ses parties en invité reste dans la salle, sans y être inscrit.
                 if (other["type"] not in ACCOUNT_GAMES or seat_linked(g, me)) \
