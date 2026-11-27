@@ -147,6 +147,9 @@ const ALL_REMINDERS: Reminder[] = ['7d', '1d', '2h', '0h'];
 
 /** Simple : l’essentiel pour lancer l’événement ; avancé : toutes les options. Le dernier choix est retenu. */
 type FormMode = 'simple' | 'advanced';
+// Au-delà, « Publier » rend la main (la base peut encore finir : le même brouillon est repris, jamais un second).
+const PUBLISH_LIMIT_MS = 20000;
+const SLOW_PUBLISH = 'La publication prend du temps : ta proposition est peut-être déjà enregistrée, regarde dans tes événements avant de réessayer.';
 const modeKey = 'party-event-form-mode';
 function readMode(): FormMode {
   try { return localStorage.getItem(modeKey) === 'advanced' ? 'advanced' : 'simple'; } catch { return 'simple'; }
@@ -310,6 +313,8 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
   const savedEventId = useRef(eventId);
   const groupPreset = useRef(!eventId && !!group);
   const saving = useRef(false);
+  // Publication en route (base lente) : un nouveau toucher l'attend, jamais une seconde publication.
+  const inflight = useRef<Promise<void> | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [newTag, setNewTag] = useState('');
@@ -325,7 +330,8 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
   const leaveSheet = useLeaveGuard(
     (dirty || !!orphan) && !doneAt,
     orphan ? 'Le brouillon commencé est supprimé.' : null,
-    orphan ? async () => { check(await supabase.from('events').delete().eq('id', orphan)); } : undefined,
+    // Seulement s'il est resté brouillon : une publication lente arrivée entre-temps n'est jamais effacée.
+    orphan ? async () => { check(await supabase.from('events').delete().eq('id', orphan).eq('status', 'draft')); } : undefined,
   );
   const cancel = () => (router.canGoBack() ? router.back() : router.replace((eventId ? `/event/${eventId}` : '/') as never));
 
@@ -616,11 +622,26 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
     saving.current = true;
     setError(null);
     try {
-      const v = validate();
-      if (typeof v === 'string') return setError(v);
-      if (!savedEventId.current && !terms.accepted && !(await terms.ensure())) return setError(termsLater('publier ton événement'));
+      let run = inflight.current;
+      if (!run) {
+        const v = validate();
+        if (typeof v === 'string') return setError(v);
+        if (!savedEventId.current && !terms.accepted && !(await terms.ensure())) return setError(termsLater('publier ton événement'));
+        run = save(v, asDraft).finally(() => { inflight.current = null; });
+        inflight.current = run;
+      }
       setBusy(true);
-      await save(v, asDraft);
+      // Base lente (recette iPhone du 28.11 : « Publier » tournait sans fin) : au bout de 20 s, on rend la main et on le dit.
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const late = await Promise.race([
+        run.then(() => false),
+        new Promise<boolean>((done) => { timer = setTimeout(() => done(true), PUBLISH_LIMIT_MS); }),
+      ]);
+      clearTimeout(timer);
+      if (late) {
+        setOrphan(orphanDraft.current);
+        setError(SLOW_PUBLISH);
+      }
     } finally {
       saving.current = false;
       setBusy(false);

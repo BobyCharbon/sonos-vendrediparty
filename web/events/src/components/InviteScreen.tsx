@@ -10,7 +10,7 @@ import { useQuery } from '@/lib/data';
 import { formatShort } from '@/lib/format';
 import { hasCompleteIdentity } from '@/lib/profile';
 import { supabase } from '@/lib/supabase';
-import { openInParty } from '@/lib/partyShell';
+import { leaveIfAlone, openInParty } from '@/lib/partyShell';
 
 const TOKEN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -113,7 +113,8 @@ function JoinInvite({ kind, token }: { kind: 'event' | 'group'; token: string })
 
   const event = kind === 'event' ? (data as EventPreview | null) : null;
   const cancelled = event?.status === 'cancelled';
-  const target = (kind === 'event' && data ? `/event/${data.id}` : data ? `/group/${data.id}` : '/groups') as Href;
+  // Groupe : sa page, avec « Tu as rejoint le groupe » (promis par « Faisons connaissance », recette iPhone du 28.11).
+  const target = (kind === 'event' && data ? `/event/${data.id}` : data ? `/group/${data.id}?joined=1` : '/groups') as Href;
 
   useEffect(() => {
     if (!data || cancelled || started.current) return;
@@ -133,7 +134,8 @@ function JoinInvite({ kind, token }: { kind: 'event' | 'group'; token: string })
         }
       }
       await refreshProfile();  // l'accès aux événements suit l'invitation
-      router.replace(target);
+      // Module ouvert seul (lien) : Party s'ouvre directement sur la page, sans passer par une route protégée.
+      if (!leaveIfAlone(String(target))) router.replace(target);
     })();
   }, [data, cancelled, kind, token, target, refreshProfile]);
 
