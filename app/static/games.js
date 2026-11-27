@@ -3243,6 +3243,12 @@ function gameTopBar(g) {
     ${helpBtn(g.type, true)}
     ${["island","neon","heist"].includes(g.type) ? '<button type="button" class="g-quit" data-gdrawer="exit" aria-label="Quitter la partie">✕ Quitter</button>' : ""}`;
 }
+// Animateur qui ne joue pas (tour 7, Apple 1.2) : son prénom est dans la liste et se signale comme celui d'un joueur.
+function hostRow(g) {
+  if (!g.host_name || g.is_owner || g.players.some((p) => p.host)) return "";
+  return `<div class="track"><div class="meta"><div class="title">${esc(g.host_name)} 🎲 <span class="artist">animateur</span></div></div>
+      <div class="icon-btns">${g.me && !g.host_name_reported ? `<button class="secondary g-name-report" data-gact="nreport" data-target="host" data-name="${esc(g.host_name)}" title="Signaler ce prénom" aria-label="Signaler le prénom ${esc(g.host_name)}">🚩</button>` : ""}</div></div>`;
+}
 // Menu latéral : code, QR, participants (et outils de l'animateur ou de l'admin), réduire, quitter.
 function renderDrawer(g) {
   const lead = g.is_host, movable = lead && g.phase === "lobby";
@@ -3251,10 +3257,10 @@ function renderDrawer(g) {
       <div class="icon-btns">
         ${movable && i > 0 ? `<button class="secondary" data-gact="up" data-target="${esc(p.pid)}" title="Monter" aria-label="Monter">⬆</button>` : ""}
         ${movable && i < g.players.length - 1 ? `<button class="secondary" data-gact="down" data-target="${esc(p.pid)}" title="Descendre" aria-label="Descendre">⬇</button>` : ""}
-        ${g.me && p.pid !== g.me.pid && !p.name_reported ? `<button class="secondary g-name-report" data-gact="nreport" data-target="${esc(p.pid)}" data-name="${esc(p.name)}" title="Signaler ce prénom" aria-label="Signaler le prénom ${esc(p.name)}">🚩</button>` : ""}
+        ${(g.me || g.is_owner) && p.pid !== g.me?.pid && !p.name_reported ? `<button class="secondary g-name-report" data-gact="nreport" data-target="${esc(p.pid)}" data-name="${esc(p.name)}" title="Signaler ce prénom" aria-label="Signaler le prénom ${esc(p.name)}">🚩</button>` : ""}
         ${lead && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la partie" aria-label="Exclure de la partie">✕</button>` : ""}
-      </div></div>`).join("") || `<p class="empty" style="padding:12px">Personne pour l'instant : fais scanner le QR.</p>`}</div>
-    ${g.me && g.players.some((p) => p.pid !== g.me.pid && !p.name_reported) ? `<p class="artist" style="margin-top:6px">🚩 Un prénom déplacé ? Signale-le : il devient « Joueur N » pour toute la table.</p>` : ""}
+      </div></div>`).join("") || `<p class="empty" style="padding:12px">Personne pour l'instant : fais scanner le QR.</p>`}${hostRow(g)}</div>
+    ${(g.me || g.is_owner) && (g.players.some((p) => p.pid !== g.me?.pid && !p.name_reported) || hostRow(g).includes("nreport")) ? `<p class="artist" style="margin-top:6px">🚩 Un prénom déplacé ? Signale-le : il devient « Joueur N » pour toute la table.</p>` : ""}
     ${movable && ["biskit", "pyramid"].includes(g.type) ? `<p class="artist" style="margin-top:6px">Range les joueurs dans l'ordre où ils sont assis (vers la gauche).</p>` : ""} <!-- store-cut -->
     ${(g.type !== "pyramid" || g.phase === "lobby") ? manualForm(g) : ""} <!-- store-cut -->
     <!-- <store> ${manualForm(g)} -->
@@ -3372,6 +3378,7 @@ document.addEventListener("click", (ev) => {
     if (!confirm(`🚩 Signaler ce prénom : « ${b.dataset.name} » ?\nIl s'affiche aussitôt « Joueur N » pour toute la table, et la modération est prévenue.\nTraité sous 24 h · support@vendrediparty.ch`)) return;
     return pressed(b, gameAction("nreport", { target: b.dataset.target }).then((ok) => ok && toast("🚩 Prénom signalé, merci.")));
   }
+  if (a === "treport" && !confirm("Signaler cette réponse ? Elle disparaît pour toute la table et la modération est prévenue.\nTraité sous 24 h · support@vendrediparty.ch")) return;
   pressed(b, gameAction(a, { target: b.dataset.target || "", amount: +(b.dataset.amount || 0), guess: b.dataset.guess || "", who: b.dataset.who || "" }));
 });
 // Toucher « + Ajouter » ne retire pas le focus du champ : le clavier reste ouvert et l'iPhone ne fait pas défiler la page.

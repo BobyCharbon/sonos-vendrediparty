@@ -131,4 +131,14 @@ STORE_ONLY = (
     "rapist*",  # « rape » : store_app.RAPE, sur le texte tel quel (« râpe » se normalise en « rape »)
     "kill yourself", "kill urself", "=kys", "va crever", "vais te tuer", "va te tuer", "vais te buter", "va te pendre",
     "ta gueule", "=ftg", "va te faire foutre", "fils de chien",
+    # Contrôle Apple, tour 7 (27.11), par familles. Incitation au suicide : impératifs pronominaux (« Tue-toi », « Pends
+    # toi »…), « va mourir » (jamais « va mourir de rire »).
+    "re:(tue|tues|pends|suicide|flingue|bute|immole|noie|egorge|empoisonne)[^a-z]+toi",
+    "re:(jette|balance|lance)[^a-z]+toi[^a-z]+(d|du|depuis|par|sous|dans)[^a-z]+(un|une|le|la|les|l)[^a-z]+"
+    "(pont|fenetre|train|metro|falaise|balcon|toit|immeuble|vide|voiture|camion)",
+    "ouvre toi les veines", "taille toi les veines", "coupe toi les veines",
+    "re:va[^a-z]+mourir(?![^a-z]+de)", "allez mourir",  # « crève » : store_app.CREVE (texte tel quel, avec son « è »)
+    # haine : vocabulaire nazi (« reich » en mot exact : Reichenbach passe)
+    "gestapo", "swastika", "svastika", "croix gammee", "hakenkreuz", "wehrmacht", "=waffen", "=reich", "=kapos?",
+    "mengele", "eva braun", "sieg heil", "hitlerjugend",
 )

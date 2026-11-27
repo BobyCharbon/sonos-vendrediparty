@@ -48,7 +48,7 @@ DRINK_RE = re.compile(
     r"|\braki\b|mezcal|chartreuse|fernet|pimm|\bkvas\b|barolo|gamay|syrah|cornalin|humagne|d[ée]zaley|\bperlan\b"
     r"|johannisberg|arvine|perdrix|amaretto|poire williams|ros[ée] de provence|gin-tonic"
     r"|trafiquant|narcos|escobar|\bweeds\b|breaking bad|trainspotting|\bcoke\b|h[ée]ro[iï]ne\b|\bcrack\b|opium|dealer"
-    r"|happy hour|after-?work|\bpintes?\b|oktoberfest|ti-?punch|binouze|pub crawl|margarita|\bshooters?\b|ricard"
+    r"|happy hour|after-?work|\bpintes?\b|oktoberfest|ti-?punch|binouze|pub crawl|margarita|\bshooters?\b|\bricard\b"
     r"|heineken|chicha|narguil[ée]|\bvapot|\bvape\b|\bpuffs?\b|\bj[äa]ger\b|\bpils\b|\bipa\b|verknipt|asbak"
     r"|🍻|🍺|🥃|🍸|🍹|🍷|🍾|🥂",
     re.IGNORECASE)
@@ -131,6 +131,10 @@ WHOLE_RAW = re.compile(r"\s*(s\W*s|h\W*h)\s*", re.IGNORECASE)
 # « rape » (viol, anglais) lu sur le texte TEL QUEL, sans pli : « râpe », « fromage râpé », « une rape » passent.
 RAPE = re.compile(r"(?<![^\W\d_])(?<!une )(?<!la )(?<!ma )(?<!ta )(?<!sa )(?<!les )(?<!des )(?<!fromage )"
                   r"rap(e|es|ed|ing|ist|ists)(?![^\W\d_])", re.IGNORECASE)
+# « Crève » (tour 7, incitation au suicide) : lu sur le texte tel quel, avec son « è » (« crevé », « un pneu crevé »,
+# « crevée » passent : sans accents, les deux se confondent) ; « crève de faim / de chaud… », « crève-cœur » passent.
+CREVE = re.compile(r"(?<![^\W\d_])(cr[eè]vez|cr[eè]vent|crèves?)(?![^\W\d_])(?![\s-]+(de|d['’]|du|des|c(œ|oe)ur)\b)",
+                   re.IGNORECASE)
 
 
 def _plain_hit(text: str) -> bool:
@@ -262,9 +266,15 @@ def _article_hit(text: str) -> bool:
 
 # Phrases ordinaires qui contiennent un mot de DRINK_RE (textes des joueurs seulement : DRINK_RE reste celui des banques
 # et des événements) : « un verre d'eau », « un crack en maths », « j'habite à Bordeaux ».
-PLAYER_SAFE = re.compile(r"verres? d['’ ]?eau(?![\s-]*de[\s-]*vie)|\b(un|le|ce|quel|vrai|petit) crack (en|de|du|au|aux)\b"
-                         r"|\b(à|a|en|vers|depuis|pr[èe]s de|(viens|vient|venu|venue|originaire|n[ée]e?) de) bordeaux\b",
+# Tour 7 : verre / bouteille de lait, de jus, d'eau… ; « en Bourgogne » ; « le Casino de Montreux » (salle de concert).
+PLAYER_SAFE = re.compile(r"\b(verres?|bouteilles?) (d['’ ]?eau(?![\s-]*de[\s-]*vie)|de (lait|jus|sirop|soda|limonade|grenadine"
+                         r"|th[ée]|caf[ée]|coca(?![iï]ne)|chocolat)\b)|\b(un|le|ce|quel|vrai|petit) crack (en|de|du|au|aux)\b"
+                         r"|\b(à|a|en|vers|depuis|pr[èe]s de|(viens|vient|venu|venue|originaire|n[ée]e?) de) (bordeaux|bourgogne)\b"
+                         r"|\bcasino de montreux\b",
                          re.IGNORECASE)
+# Noms de famille qui contiennent un mot de DRINK_RE (prénoms et noms des joueurs seulement, tour 7) : Brasseur, Escobar
+# (jamais « Pablo Escobar »), Kirschner, Perdrix, Tchindjang.
+NAME_SAFE = re.compile(r"\b(brasseurs?|(?<!pablo )escobar|kirschner|perdrix|tchindjang)\b", re.IGNORECASE)
 
 
 @lru_cache(maxsize=8192)
@@ -273,7 +283,7 @@ def player_offensive(text) -> bool:
     compris (formes NFKC, sosies cyrillique / grec, accents hors table, chiffres, signes, lettres séparées ou répétées,
     morceaux recollés, mot collé à un article)."""
     text = PLAYER_SAFE.sub(" ", nfkc(moderation_clean(str(text or ""))))
-    if RAPE.search(text) or _plain_hit(text):
+    if RAPE.search(text) or CREVE.search(text) or _plain_hit(text):
         return True
     base_ok = moderation_check(text, "name").ok  # insulte d'une réponse masquée ailleurs : seulement si une forme la révèle
     for form in _derived(text):
@@ -346,11 +356,11 @@ def check_text(text, store: bool, kind: str = "answer"):
         return
     if kind == "name" and not name_chars_ok(text):
         raise ValueError(NAME_CHARS_REFUSED)
-    if kind == "name" and (glued_hit(text) or player_offensive(text)):
+    if kind == "name" and (glued_hit(NAME_SAFE.sub(" ", text)) or player_offensive(NAME_SAFE.sub(" ", text))):
         raise ValueError(NAME_REFUSED)
     if kind != "name" and not answer_chars_ok(text):
         raise ValueError(ANSWER_CHARS_REFUSED)
-    if player_offensive(text) or (kind != "name" and glued_hit(text, GLUED_ANSWER)):
+    if kind != "name" and (player_offensive(text) or glued_hit(text, GLUED_ANSWER)):
         raise ValueError(TEXT_REFUSED)
 
 
@@ -359,7 +369,8 @@ def name_refused(name) -> bool:
     """Prénom jamais montré dans une partie de l'app : hors de l'alphabet des prénoms, refusé par l'app
     (player_offensive) ou par le filtre commun (un prénom du web hors de l'alphabet devient « Joueur N »)."""
     return isinstance(name, str) and bool(name) and (
-        not name_chars_ok(name) or glued_hit(name) or player_offensive(name) or not moderation_check(name, "name").ok)
+        not name_chars_ok(name) or glued_hit(NAME_SAFE.sub(" ", name)) or player_offensive(NAME_SAFE.sub(" ", name))
+        or not moderation_check(name, "name").ok)
 
 
 ALIAS = "Joueur"
@@ -434,7 +445,7 @@ def clean(pool: list, text=lambda x: x) -> list:
 
 
 # Autres plateformes mobiles (Apple 2.3.10) : jamais dans une question tirée dans l'app (Quiz › Informatique & IA).
-OTHER_PLATFORM_RE = re.compile(r"android|\.apk\b|google play|play store|windows phone|harmonyos", re.IGNORECASE)
+OTHER_PLATFORM_RE = re.compile(r"android|\.apk\b|google play|play store|windows phone|harmonyos|blackberry|samsung|huawei|xiaomi|nokia", re.IGNORECASE)
 
 
 def clean_platforms(pool: list, text=lambda x: x) -> list:

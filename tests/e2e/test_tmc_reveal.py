@@ -44,7 +44,10 @@ def test_the_subject_reveals_her_own_answer_when_the_guesser_has_spoken(phones):
         expect(p.page.locator('.tm-answer b')).to_have_text('Une 2CV')
     # « 🚩 Signaler » (Apple 1.2 / 4.7.1) : jamais pour qui a écrit ; la réponse disparaît aussitôt pour toute la table.
     expect(subject.page.locator('[data-gact="treport"]')).to_have_count(0)
+    asked = []
+    guesser.page.once('dialog', lambda d: (asked.append(d.message), d.accept()))
     guesser.tap('[data-gact="treport"]')
     for p in (host, ana, bob):
         expect(p.page.locator('.tm-answer')).to_contain_text('Réponse retirée après un signalement.')
         expect(p.page.locator('.tm-answer b')).to_have_count(0)
+    assert "Traité sous 24 h · support@vendrediparty.ch" in asked[0]

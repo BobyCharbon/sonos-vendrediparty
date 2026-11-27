@@ -161,7 +161,7 @@ const QZ_MODE_DESC = {
   speed: "Le premier qui trouve gagne, une erreur bloque",
   survival: "Des vies, des questions de plus en plus dures",
   chrono: "Chacun à son rythme, le plus possible en un temps",
-  ladder: "15 paliers, jokers, comme à la télé",
+  ladder: "15 paliers et des jokers, jusqu’à 1 000 000 pts",
 };
 // Drapeaux (emoji) : affichés en grand, dans la question comme dans les réponses.
 const QZ_FLAG = /([\u{1F1E6}-\u{1F1FF}]{2})/gu;
@@ -327,38 +327,38 @@ function qzLadderHtml(g) {
   const v = g.quiz, m = v.me;
   const steps = v.ladder.map((val, i) => {
     const cls = [m && i === m.i && !m.done ? "cur" : "", m && i < m.level ? "won" : "", v.safe.includes(i) ? "safe" : ""].join(" ");
-    return `<li class="${cls}"><span>${i + 1}</span><b>${fmtPts(val)}</b></li>`;
+    return `<li class="${cls}"><span>${i + 1}</span><b>${fmtPts(val)} pts</b></li>`;
   }).reverse().join("");
   const ladder = `<ol class="qz-ladder">${steps}</ol>`;
   if (!m) return `<div class="py-wait">👀 Tu regardes la partie</div>` + qzMiniBoard(v.board, "ladder", 10);
   if (m.done) {
     const gain = m.level ? v.ladder[m.level - 1] : 0;
-    const title = m.level >= 15 ? "🏆 1 000 000 ! Tu as tout gagné !" : m.stopped ? `🛑 Tu t'arrêtes avec ${fmtPts(gain)}` : `💥 Raté… tu repars avec ${fmtPts(gain)}`;
+    const title = m.level >= 15 ? "🏆 1 000 000 pts ! Tous les paliers !" : m.stopped ? `🛑 Tu t'arrêtes avec ${fmtPts(gain)} pts` : `💥 Raté… tu repars avec ${fmtPts(gain)} pts`;
     return `<div class="qz-done"><div class="qz-done-t">${title}</div>
       ${m.last && !m.last.ok ? `<div class="artist">${esc(m.last.text)}<br>Il fallait répondre : <b>${esc(m.last.answer)}</b></div>` : ""}
       <div class="py-wait">En attente des autres joueurs…</div></div>` + qzMiniBoard(v.board, "ladder", 10);
   }
   if (m.between_in !== undefined && m.q) {
     const won = v.ladder[m.level - 1];
-    return `<div class="qz-verdict ok">✓ Bonne réponse ! <b>${fmtPts(won)}</b></div>`
+    return `<div class="qz-verdict ok">✓ Bonne réponse ! <b>${fmtPts(won)} pts</b></div>`
       + `<div class="qz-ladwrap"><div class="qz-ladmain">${qzQuestionHtml(m.q, { mine: m.last?.c, correct: m.last?.ans })}
         <div class="qz-next">${m.paused ? `<span class="qz-paused">⏸ En pause</span>` : `<span>Palier suivant dans <b id="qzBetweenS">${Math.ceil(m.between_in)}</b> s</span>`}
           <span class="qz-next-btns">${qzPauseBtn(m.paused)}</span></div>
-        <div class="qz-jokers"><button type="button" class="qz-joker stop" data-qz-stop>🛑 Garder ${fmtPts(won)}</button></div></div>${ladder}</div>`;
+        <div class="qz-jokers"><button type="button" class="qz-joker stop" data-qz-stop>🛑 Garder ${fmtPts(won)} pts</button></div></div>${ladder}</div>`;
   }
   const cur = v.ladder[m.i], safe = m.level ? v.ladder[Math.max(...v.safe.filter((x) => x < m.level), -1)] || 0 : 0;
   const jok = `<div class="qz-jokers">
       <button type="button" class="qz-joker" data-qz-joker="5050" ${m.jokers.includes("5050") ? "" : "disabled"}>50 / 50</button>
       <button type="button" class="qz-joker" data-qz-joker="swap" ${m.jokers.includes("swap") ? "" : "disabled"}>🔄 Changer</button>
-      ${m.level ? `<button type="button" class="qz-joker stop" data-qz-stop>🛑 Garder ${fmtPts(v.ladder[m.level - 1])}</button>` : ""}</div>`;
-  return `<div class="qz-top"><span class="qz-num">Palier <b>${m.i + 1}/15</b></span><span class="qz-mypts">pour <b>${fmtPts(cur)}</b></span>
-      <span class="qz-mypts">assuré : ${fmtPts(safe)}</span></div>`
+      ${m.level ? `<button type="button" class="qz-joker stop" data-qz-stop>🛑 Garder ${fmtPts(v.ladder[m.level - 1])} pts</button>` : ""}</div>`;
+  return `<div class="qz-top"><span class="qz-num">Palier <b>${m.i + 1}/15</b></span><span class="qz-mypts">pour <b>${fmtPts(cur)} pts</b></span>
+      <span class="qz-mypts">assuré : ${fmtPts(safe)} pts</span></div>`
     + qzTimerHtml(m.q.left, m.q.dur) + `<div class="qz-ladwrap"><div class="qz-ladmain">${qzQuestionHtml(m.q, { cut: m.q.cut })}${jok}</div>${ladder}</div>`;
 }
 
 function qzEndHtml(g) {
   const v = g.quiz, s = v.settings, b = v.board;
-  const val = (r) => s.mode === "ladder" ? fmtPts(v.ladder?.[(r.level || 0) - 1] || 0) : `${fmtPts(r.pts)} pts`;
+  const val = (r) => s.mode === "ladder" ? `${fmtPts(v.ladder?.[(r.level || 0) - 1] || 0)} pts` : `${fmtPts(r.pts)} pts`;
   // Fin : les points du podium et le score solo défilent depuis zéro (une fois, après l'annonce du gagnant).
   const valFx = (r, part, delay) => s.mode === "ladder" ? val(r)
     : `<span${GameFx.num(`qz:${g.id}:end:${part}`, r.pts, 0, "pts")} data-fx-d="${delay}">${fmtPts(r.pts)}</span> pts`;

@@ -285,7 +285,7 @@ document.addEventListener("click", (ev) => {
   }
   const report = ev.target.closest("[data-ms-report]");
   if (report) {
-    if (!confirm("Signaler cette réponse ? Elle disparaît pour toute la table et l'organisateur de Party est prévenu.")) return;
+    if (!confirm("Signaler cette réponse ? Elle disparaît pour toute la table et l'organisateur de Party est prévenu.\nTraité sous 24 h · support@vendrediparty.ch")) return;
     return pressed(report, gameAction("msreport", { amount: +report.dataset.msReport })).then((ok) => ok && toast("🚩 Merci, la réponse est retirée", "ok"));
   }
   const cat = ev.target.closest("[data-ms-cat]");
