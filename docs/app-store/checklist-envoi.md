@@ -124,11 +124,11 @@
       - [ ] captures 6,9" et Duo REFAITES sur le nouveau build App Store (barre à 4 onglets, 09 = Méninges ou la Salle
             de jeux, données fictives, aucune boisson) ; ancienne vidéo d'aperçu SUPPRIMÉE dans App Store Connect
             (aucune nouvelle vidéo) ; vérifier qu'aucune ancienne image ne reste en ligne ;
-      - [ ] guide PDF joint = celui du 26.11 (régénéré depuis la partie B) ; notes recopiées (3994 caractères) ;
+      - [ ] guide PDF joint = celui du 27.11 (régénéré depuis la partie B, tour 5) ; notes recopiées (3977 caractères) ;
       - [ ] clé `storage_secret_key` AJOUTÉE par l'admin dans le coffre de prod (contrôle : `private.chat_files_gc_runs`) ;
       - [ ] dépôt GitHub `BobyCharbon/sonos-vendrediparty` passé en PRIVÉ (ou `GITHUB_REPO` sur un dépôt privé à part) ;
       - [ ] nouveau build iPhone : la politique native (`SignInView.swift`) est celle du 26.11, mot pour mot la page web.
-- [ ] Contrôle Apple, tour 1 (26.11, textes de soumission) : notes (3994 caractères), guide PDF (B4.3 : « Sur invitation »
+- [ ] Contrôle Apple, tour 1 (26.11, textes de soumission) : notes (3994 caractères à l'époque), guide PDF (B4.3 : « Sur invitation »
       puis « Démo Apple · 2 » ; B4.14 : case « J'ai 18 ans ou plus… » vérifiée par le serveur, prénoms filtrés même changés
       en cours de partie ; B4.16 : Pot commun aussi pour qui est noté Présent par l'organisateur, dépenses et photos de
       tickets avec CGU et « Signaler » ; numérotation B4.12 corrigée) ; plus aucune Activité en direct promise (musique
@@ -184,7 +184,7 @@
       - [ ] fonctions **send-push** ET **send-web-push** redéployées (dernière version de develop / main) ;
       - [ ] avant toute archive locale : `xcodegen` dans `ios/` (sinon le projet Xcode garde l'ancien manifeste et les
             anciens fichiers) ;
-      - [ ] notes (3994 caractères) recopiées dans App Store Connect = `ios/appstore/review-notes.txt` ; guide PDF du
+      - [ ] notes (3977 caractères) recopiées dans App Store Connect = `ios/appstore/review-notes.txt` ; guide PDF du
             tour 2 joint (B4.4 sans sous-liste, « Mes amis dans Party », Activité en direct facultative, Pot commun aux
             moyens de paiement cachés par défaut, « Signaler le groupe », Souvenirs dans « Not in this version »).
 - [ ] **Contrôle Apple, tour 3 (26.11, textes de soumission)** :
@@ -267,9 +267,8 @@
 
 - [ ] **Sign-in required** : coché.
 - [ ] **User name** : `+41 79 000 09 99` (compte « Apple-test »).
-- [ ] **Password** : le code fixe à 6 chiffres (Supabase prod › Authentication › Phone › Test OTP ; le fichier
-      `~/sb-work/apple/demo.txt` n'existe pas sur ce Mac : le reprendre là où il est). **Jamais dans le dépôt.**
-- [ ] **Notes** : la partie A de `notes-for-review.md` (3994 caractères, contrôle Apple tour 2, limite 4 000 ; = `ios/appstore/review-notes.txt`). La recopier aussi dans
+- [ ] **Password** : le code fixe à 6 chiffres (Supabase prod › Authentication › Phone › Test OTP). **Jamais dans le dépôt.**
+- [ ] **Notes** : la partie A de `notes-for-review.md` (3977 caractères, contrôle Apple tour 5, limite 4 000 ; = `ios/appstore/review-notes.txt`). La recopier aussi dans
       `ios/appstore/review-notes.txt` avant d'utiliser `tools/appstore_submit.py` (il envoie ce fichier), puis lancer
       `.venv/bin/python -m pytest -q tests/test_ios_app.py -p no:cacheprovider` (la partie A contient les mots exigés).
 - [ ] **Pronos, Agenda, compagnon : PAS dans cette version** (jamais ouverts par ce build, quoi que dise le serveur) : les notes le disent (« Not in this version »),
@@ -344,7 +343,7 @@ Pour chaque type : **lié à l'identité : oui · suivi : non · finalité : App
 - [ ] Textes d'autorisation (project.yml, annoncés par le coordinateur) : Caméra (`PARTY_USAGE_CAMERA_STORE`) « Pour scanner un QR
       code (code de la soirée ou d'un jeu, billet) ou un ticket du Pot commun, et prendre une photo de profil,
       d'événement, de groupe ou à envoyer dans une discussion. » (B8 du guide dit la même chose) ; Micro
-      « Seulement quand tu touches le micro : pour enregistrer un message vocal dans une discussion, ou dicter un texte. »
+      « Seulement quand tu touches le micro : pour dicter un texte (la description d'un événement à l'assistant IA, ton avis) ou enregistrer un message vocal dans une discussion. »
       — À VÉRIFIER dans le build choisi.
 
 ## 7. Prix, disponibilité, statut
@@ -373,13 +372,13 @@ Pour chaque type : **lié à l'identité : oui · suivi : non · finalité : App
 - [ ] Pendant la revue : surveiller l'e-mail et le Resolution Center ; valider vite les propositions d'Apple-test ;
       répondre en anglais, poliment, avec des captures si besoin.
 - [ ] Après la revue : vérifier que le compte de démo et la « Soirée démo » existent encore ;
-      mettre à jour `ios/appstore/app-store-connect.md` et `metadata-fr.json` (drapeaux discussions / bar allumés, Audio
+      mettre à jour `ios/appstore/app-store-connect.md` et `metadata-fr.json` (drapeau discussions allumé, bar éteint pour l'app App Store, Audio
       Data, Purchase History, Customer Support, Contests, URL marketing) — fichiers hors de ce dossier, non modifiés ici.
 
 ## 20.11.2026 : contrôle complet avant le nouvel envoi
 - [x] En-tête (3840 × 1646) et Résultats de recherche (3840 × 2560) : `visuels/app-store-connect/` (zones sûres d'Apple).
 - [ ] Captures iPhone Duo (10) : à REFAIRE sur le nouveau build (barre sans Musique, 25.11) ; vidéo d'aperçu (grand écran) : à SUPPRIMER (26.11).
 - [x] Classification par âge : nouvelles questions « Position partagée » = Non, « Rencontres et relations » = Non (18+).
-- [x] Confidentialité (15 types, sans suivi), conformité (DSA déclaré ; Chine hors distribution), prix et 26 pays,
+- [x] Confidentialité (sans suivi ; 17 types depuis le 27.11, Search History compris : § 6), conformité (DSA déclaré ; Chine hors distribution), prix et 26 pays,
       pas de Mac ni de Vision Pro, comptes de démo et codes fixes valables jusqu'à fin 2027.
 - [ ] Accessibilité de l'app : facultatif, laissé vide (ne rien déclarer sans l'avoir vérifié).

@@ -2,8 +2,8 @@
 
 Même parcours que la partie B de `notes-for-review.md` (en anglais, jointe en PDF pour Apple). À relire avant l'envoi ;
 chaque **📸** marque une capture utile (pour les captures App Store ou pour vérifier l'écran avant la revue).
-Vérifié dans le code le 16.11.2026 (develop) et sur la prod en lecture seule (`/api/features` : discussions, invites_v2
-et bar allumés, Zicou éteint). Ce qui ne l'est pas porte la marque **À VÉRIFIER**.
+Vérifié dans le code le 16.11.2026 (develop) et sur la prod en lecture seule (`/api/features` : discussions et invites_v2
+allumés ; Zicou éteint ; `bar: false` pour l'app App Store, 25.11). Ce qui ne l'est pas porte la marque **À VÉRIFIER**.
 
 ## 0. Avant la revue
 
@@ -164,6 +164,9 @@ option de gorgées (aucun « mode points » à la place), modes Hot / Mix, thèm
 de Qui est le plus… ; ni mise, ni argent, ni lot. Chaque joueur coche d'abord « J'ai 18 ans ou plus et j'accepte les
 conditions d'utilisation » (lien vers les conditions) : sans elle, le serveur refuse tout texte montré à la table ;
 prénoms (même changés en cours de partie) et réponses écrites passent le filtre ; « Signaler » sur les réponses écrites.
+**Plus tard · jouer seul à Méninges** : le joueur ne voit que Méninges (rien de ce qu'il écrit n'est montré à personne) ;
+**👥 Jouer avec les autres** rouvre « Comment tu t'appelles ? ». Pour ou contre, dans l'app App Store : seulement les
+dilemmes de Party, aucun dilemme écrit ou proposé par un joueur.
 Sans compte : parties illimitées dans l'app. 📸 (salle ou Quiz, **sans**
 catégorie « 🍻 Alcool »)
 
@@ -177,14 +180,14 @@ quand mon titre passe » est une notification (interrupteur sur l'écran Musique
 pour ne rien cacher (2.3.1).
 
 ## 8. Réglages
-- **Notifications** : un interrupteur par type (Général, Jeux, Ton avis, Événements, Discussions des groupes,
+- **Notifications** : un interrupteur par type (Général, Jeux (hôte de la soirée seulement), Ton avis, Événements, Discussions des groupes,
   Amis, Comptes et modération, Quand j'organise ; Musique seulement chez l'hôte d'une soirée Musique, l'invité a ses interrupteurs sur l'écran Musique) ; la lune en haut à droite met tout en pause.
 - **Pot commun** : dépenses partagées (rien n'est payé dans l'app), scan de ticket (IA facultative, avec accord). On y
   entre par son lien, ou d'office en répondant **Présent** (ou noté Présent par l'organisateur) à un événement dont l'organisateur a choisi le
   pot (on le quitte
   à tout moment : Réglages › Pot commun › **Quitter ce pot commun**) ; les membres voient le nom de chacun ; les moyens de paiement de qui a créé le pot ou l'a rejoint par son lien sont montrés ; ajouté d'office (événement ou
   autre membre), ils restent cachés tant qu'il ne choisit pas **Montrer mes moyens de paiement dans ce pot**. Aucun pot
-  préparé : Réglages › Pot commun › **Nouveau pot commun** ; « Rembourser » apparaît dès qu'un autre membre doit ou reçoit. Ajouter une dépense ou
+  préparé : Réglages › Pot commun › **Nouveau pot commun** ; « Rembourser » apparaît quand tu dois de l'argent à un autre membre (ajouter un membre, puis une dépense qu'il a payée). Ajouter une dépense ou
   une photo de ticket demande les CGU ; chaque dépense et photo de ticket a **Signaler**.
 - **Mes amis dans Party**, **Mes stats de jeu**, **Ton avis** (selon le rôle ; écrit à l'équipe de Party, l'éditeur).
 - **Confidentialité** : Noms de mes contacts, **Personnes bloquées**, **Conditions d'utilisation** (contact

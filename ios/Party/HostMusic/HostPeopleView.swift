@@ -220,10 +220,13 @@ struct PartyAdminView: View {
                             .disabled(store.busy.contains("stop"))
                     }
                 }
-                Section {
-                    Button("Ouvrir l'admin du site (secours)", action: openWebAdmin)
-                } footer: {
-                    Text("Tout se fait ici et dans Musique ; la page d'admin du site reste disponible au besoin.")
+                // App App Store : le serveur refuse /admin (404), pas de bouton qui mènerait à une page vide.
+                if !AppConfig.isStoreApp {
+                    Section {
+                        Button("Ouvrir l'admin du site (secours)", action: openWebAdmin)
+                    } footer: {
+                        Text("Tout se fait ici et dans Musique ; la page d'admin du site reste disponible au besoin.")
+                    }
                 }
             }
         }

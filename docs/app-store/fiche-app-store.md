@@ -2,7 +2,7 @@
 
 Textes à saisir dans App Store Connect › l'app › version 1.0.0 › Localisation **Français**. Longueurs comptées par
 script le 16.11.2026. Vérifié dans le code (develop) et sur la prod en lecture seule : `/api/features` =
-`compagnon: false, discussions: true, invites_v2: true, bar: true`. Rien sur Zicou, Casino, Blackjack.
+`compagnon: false, discussions: true, invites_v2: true` ; `bar: false` pour l'app App Store (« PartyStore », 25.11). Rien sur Zicou, Casino, Blackjack.
 
 ## Identité
 
