@@ -104,3 +104,30 @@ sort du guide (checklist).
 - [ ] Relire le classement du Quiz dans l'app App Store (points seulement, aucun mot de boisson ni gorgée) ; au passage,
       relire à l'écran le classement par âge 18+ (§ 5 de la checklist).
 - [ ] Mise en prod du lot dans l'ordre de la checklist (§ « Plan de mise en prod du 27.11 ») : ancres revérifiées le 27.11, toutes bonnes.
+
+## Suite du 27.11 (après-midi) : tours 6 à 9 et contrôle final
+
+Ce qui a encore été **retiré ou fermé** dans l'app App Store (le web, la BETA et Android gardent tout) :
+- **Musique** : les prénoms des autres invités ne s'affichent plus (« par … », « demandé par … »), même Musique injoignable.
+- **Jeux** :
+  - prénoms limités aux lettres latines (avec accents ; Thị, Đức passent), lettres sosies et formes « déguisées » ramenées à la lettre ;
+  - mots de boisson, de drogue, de jeux d'argent, de sexe, de haine en FR / EN / DE / IT / ES refusés dans les textes des joueurs ;
+  - phrases de haine (« Mort aux juifs », « Les noirs dehors »…) et d'incitation au suicide (« Va te jeter d'un pont »…) refusées ;
+  - « 🚩 Signaler ce prénom » (☰ › Participants) pour les joueurs et l'animateur, prénom remplacé par « Joueur N » pour toute la table ;
+  - « Traité sous 24 h · support@… » sur chaque signalement ; Quiz « Paliers » en points ;
+  - un joueur de l'app n'entre jamais dans un jeu caché lancé du web dans la même salle ;
+  - « Kro » et quelques débuts ne sont plus proposés comme lettres de départ de Méninges.
+- **Événements** : les événements d'une personne bloquée disparaissent de la liste ; lien « Partager » et page de groupe sans
+  événement « à boisson » ; « saké » / « bourré » attrapés à l'écran et dans les notifications.
+- **Pot commun** : blocage = « Personne bloquée » ; signaler le nom du pot et un prénom ; « Rembourser avec Revolut » (plus « Payer »).
+- **Confirmations** : toute suppression / tout retrait demande « … ? » Retirer / Annuler (présences, file Musique, messages,
+  annonces, liens, covoiturage, billets, sondages…).
+- **Filtre commun de Party** (tous les textes) : « Sale juif », « Mort aux arabes », « Hitler », « Daech », « KKK » refusés partout ;
+  les tournures qui refusaient des phrases normales (« Va te tuer à la tâche ») ont été retirées du filtre commun (jeux seulement).
+- **Confidentialité** : accord IA version 4 (cite « Modifier avec l'IA » ; à réaccepter une fois), avis anonymisés à la
+  suppression du compte, photo de profil vraiment effacée, couverture créée par l'IA effacée avec l'événement, coquilles.
+- **Notes de revue** : libellés exacts (« Inviter › Le lien du groupe », « … attend ton accord », « Envoyer un message »),
+  « pour tous », Musique montrée à Apple sur demande, B5 = tout ce qui reste dans le binaire sans s'ouvrir (lié au code par un test).
+
+Fichiers de prod : **15** (13 blocage Pot commun, 14 notifications / signaler un pot, 15 phrases de haine), ordre et ancres
+vérifiés dans `checklist-envoi.md`. Questions ouvertes : `questions-admin-27-11.md`.

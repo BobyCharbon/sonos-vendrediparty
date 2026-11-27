@@ -451,11 +451,17 @@ the app never opens its games.
   feature** delivered this way is described in these notes before it is turned on in production (2.3.1(a)). Pronos,
   Agenda, the companion and Souvenirs (event photos) are not available in this app, and the removed games stay removed for version 1.0.0. They
   would only come in a future app version submitted for review and approved, never for this version.
-- Documented here, not hidden (2.5.19): Pronos, Agenda and Souvenirs are not compiled into this build. Five pieces of
-  code are in the binary but never opened by it: the companion, the private card panel of the removed Pyramide
-  game, the bar's notification switches in Settings › Notifications (hidden because the bar is off in this build),
-  the Share extension's "add a song to the Music queue" path, and the "Ajouter un titre" icon shortcut.
-  The App Store build switches them off by itself; no screen, setting, link or server answer can open them.
+- Documented here, not hidden (2.5.19): Pronos, Agenda and Souvenirs are not compiled into this build. Code that stays in
+  the binary but is never opened by it (each switched off by the app itself, `AppConfig.isStoreApp` /
+  `storeLocked` / `zicouBuild`, never by the server):
+  - the companion (screens, widget bridge, member-card section);
+  - the private card panel of the removed Pyramide game;
+  - the bar: its notification switches in Settings › Notifications;
+  - Music for guests: the Share extension's "add a song to the queue" path, the "Ajouter un titre" icon shortcut,
+    and the Music notification switches (shown only to a party host);
+  - the Purify Test tab of "Mes stats de jeu" (removed game);
+  - the host's "Ouvrir l'admin du site (secours)" button (web admin, not part of this app).
+  No screen, setting, link or server answer can open them.
 
 ### B6. User-generated content and safety (1.2)
 

@@ -1078,3 +1078,38 @@ def test_apple_check_round_six_group_link_and_texts_match_the_app_store_build():
     checklist = (root / "docs/app-store/checklist-envoi.md").read_text(encoding="utf-8")
     assert ('Captures 6,9" et Duo refaites avec le binaire App Store (4 onglets, sans Musique ; la 09 remplacée par '
             "Méninges ou la Salle de jeux), envoyées par `tools/appstore_submit.py screens`, vidéo d'aperçu supprimée") in checklist
+
+
+def test_b5_names_every_feature_the_app_store_build_switches_off_by_itself():
+    """Contrôle final (2.5.19) : chaque porte de l'app App Store dans le code iPhone a sa ligne dans B5 ; une porte ajoutée
+    sans la dire dans les notes fait échouer ce test."""
+    b5 = (_root() / "docs/app-store/notes-for-review.md").read_text(encoding="utf-8").split("Documented here, not hidden", 1)[1]
+    b5 = b5.split("### B6", 1)[0]
+    gates = {  # fichier → ce que B5 doit en dire
+        "ios/Party/NativeBridge.swift": "Pyramide",
+        "ios/Party/Settings/NotificationSettingsView.swift": "Music notification switches",
+        "ios/Party/QuickActions.swift": "Ajouter un titre",
+        "ios/PartyShare/ShareModel.swift": "Share extension",
+        "ios/Party/Settings/Account/AnnouncementsView.swift": "Purify Test",
+        "ios/Party/HostMusic/HostPeopleView.swift": "Ouvrir l'admin du site (secours)",
+        "ios/Party/Settings/Account/MemberCardView.swift": "companion",
+    }
+    for path, said in gates.items():
+        assert said in b5, (path, said)
+    assert "bar: its notification switches" in b5
+    import re
+    seen = set()
+    for f in (_root() / "ios").rglob("*.swift"):
+        if "Tests" in str(f):
+            continue
+        text = f.read_text(encoding="utf-8")
+        if re.search(r"if !?AppConfig\.(isStoreApp|storeLocked|zicouBuild)\b|if store\.bar\b|isStoreApp \?|Self\.isStoreApp", text):
+            seen.add(str(f.relative_to(_root())))
+    # Portes qui ne cachent rien (textes, adresses, réglages internes) : listées ici exprès.
+    harmless = {"ios/Party/AppConfig.swift", "ios/Party/Settings/SettingsView.swift", "ios/Party/Settings/SettingsStore.swift",
+                "ios/Party/Tricount/TricountListView.swift", "ios/Party/Settings/Account/AccountStore.swift",
+                "ios/Party/Settings/Moderation/TermsView.swift", "ios/Party/Settings/Account/SignInView.swift",
+                "ios/Party/WebModel.swift", "ios/Party/PartyApp.swift", "ios/Party/Chats/ConversationView.swift",
+                "ios/Party/Chats/People/NewChatGroupView.swift",  # liste d'emojis sans 🍻 🍷
+                "ios/PartyTV/CardGames.swift"}  # app Apple TV : pas dans cette version (aucun tvOS joint)
+    assert seen - harmless <= set(gates), sorted(seen - harmless - set(gates))

@@ -198,7 +198,7 @@ pour ne rien cacher (2.3.1).
 ## 9. Ce qui vient du serveur (à assumer devant Apple)
 Événements et Jeux = le site `party.bobycharbon.ch` dans une WKWebView ; l'app App Store y reçoit toujours sa version à elle
 (sans jeux à boire, bar, Casino / Blackjack ni onglet Musique), pour tous ses utilisateurs ; Pronos, Agenda, Zicou et
-Souvenirs ne s'ouvrent jamais dans ce build (« Not in this version » ; 2.5.19 : Pronos, Agenda et Souvenirs ne sont pas compilés ; le code de Zicou, le panneau des cartes secrètes de la Pyramide, les interrupteurs de notification du bar, l'ajout d'un titre par l'extension Partager et le raccourci « Ajouter un titre » y sont, jamais ouverts, quoi que dise le serveur) ; natif : barre d'onglets,
+Souvenirs ne s'ouvrent jamais dans ce build (« Not in this version » ; 2.5.19 : Pronos, Agenda et Souvenirs ne sont pas compilés ; ce qui reste dans le binaire sans jamais s'ouvrir est listé en B5 des notes : Zicou, le panneau des cartes de la Pyramide, les interrupteurs du bar, la Musique des invités (extension Partager, raccourci « Ajouter un titre », interrupteurs Musique), l'onglet Purify Test des stats, le bouton « Ouvrir l'admin du site (secours) » de l'hôte ; quoi que dise le serveur) ; natif : barre d'onglets,
 écran Musique (ouvert par Jeux › Code), Réglages, Discussions, Groupes, Ton avis, assistant IA, Pot commun, écran hors ligne, bandeau d'annonce, QR,
 Cartes, Calendrier, Contacts, extension Partager (« Party ! » dans le menu Partager), notifications. La page n'appelle que les fonctions
 natives prévues (`window.PartyNative`) ; tout autre site s'ouvre dans Safari. Toute grosse fonction livrée par le site
