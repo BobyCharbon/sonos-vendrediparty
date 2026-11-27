@@ -73,6 +73,9 @@ def root():
 def guests():
     sessions = [Session(p) for p in GUESTS]
     for i, s in enumerate(sessions):
+        terms = s.rpc('my_terms').json()  # compte recréé (Testeur 3 est supprimé à chaque passage) : CGU d'abord
+        if not terms.get('accepted'):
+            assert s.rpc('accept_terms', p_version=terms['version']).status_code in (200, 204)
         s.set_nickname(f'Testeur {i + 1}')
     return sessions
 
@@ -109,9 +112,11 @@ def test_root_deletes_a_guest_only_with_the_right_nickname_and_it_is_logged(root
     ok = root.rpc('admin_delete_member', member=victim.uid, confirm_name='  testeur 3 ')
     assert ok.status_code in (200, 204), ok.text
     assert victim.uid not in {p['id'] for p in root.rpc('admin_member_list').json()}
-    gone = [e for e in root.rpc('admin_member_audit', member=victim.uid).json() if e['action'] == 'account.deleted']
-    assert gone and gone[0]['actor'] == root.uid and gone[0]['target_name'] == 'Testeur 3'
-    assert gone[0]['details']['by'] == 'admin' and gone[0]['details']['phone_end'] == GUESTS[2][-2:]
+    # Compte supprimé (20261127170000, Apple 5.1.1(v)) : plus rien de la personne dans le journal, la trace reste.
+    assert root.rpc('admin_member_audit', member=victim.uid).json() == []
+    gone = [e for e in root.rpc('admin_member_audit', lim=20).json() if e['action'] == 'account.deleted']
+    assert gone and gone[0]['actor'] == root.uid and gone[0]['target'] is None
+    assert gone[0]['target_name'] == 'Compte supprimé' and gone[0]['details'] == {'by': 'admin'}
 
 
 def test_nobody_deletes_root_and_an_admin_cannot_delete_itself(root, guests):

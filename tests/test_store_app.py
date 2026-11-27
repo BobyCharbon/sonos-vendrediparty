@@ -550,6 +550,9 @@ def test_round_four_privacy_names_processor_guarantees_shared_expenses_and_what_
         assert "Pot commun : les dépenses, les membres du pot" in text and "Party ne touche jamais l'argent" in text
         assert "Pot commun (dépenses, membres, photos de tickets) : jusqu'à la suppression de la dépense ou du pot" in text
         assert "Restent pour les autres, sans lien avec toi" in text and "les groupes que tu as créés" in text
+        # Recette du 27.11 (Apple 5.1.1(v)) : notifications déjà reçues par d'autres.
+        assert "Les notifications déjà reçues par d'autres (par exemple « … vient ») restent chez eux, avec ton surnom, " \
+               "jusqu'à leur effacement au bout de 90 jours." in text
 
 
 def test_round_four_review_notes_present_an_app_for_everyone_and_nothing_dormant():
