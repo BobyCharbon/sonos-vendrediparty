@@ -20,3 +20,6 @@
 14. **Présences, personne avec un compte** : réessaie le ✕ dans l'app (la question « Retirer X des présences ? » doit s'afficher) et dis-moi si ça marche.
 15. **Musique pendant la revue** : les notes disent maintenant à Apple « we run one on request » (on lance une soirée Sonos à l'heure qu'Apple choisit et on envoie le code dans la réponse). Tu peux le faire pendant la revue ? Sinon je retire la phrase.
 16. **Politique, présences sans compte** : « Elle peut demander à Party de retirer son nom (contact ci-dessous). » D'accord avec cet engagement ?
+17. **TestFlight** : j'envoie la nouvelle BETA (copie exacte de la version Apple, onglet Musique par le code) ? Elle part directement sur le lien public « Invités ».
+18. **Musique, deux choix** : (a) soirée arrêtée = les invités doivent retaper le code s'ils reviennent ; (b) une pause temporaire d'un invité lui laisse l'onglet (seul un retrait sans limite l'enlève). OK ?
+19. **Apple TV BETA** : elle est encore compilée « BETA » (jeux à boire visibles). Elle n'est pas dans la version 1.0.0. On la laisse telle quelle pour l'instant ?
