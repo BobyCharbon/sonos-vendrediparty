@@ -644,8 +644,16 @@ def test_store_app_never_opens_the_test_site_nor_any_supabase_project_and_has_no
     exacte est interne ; ponts Agenda, Pronos et cartes secrètes à null, sans gestionnaire, dans l'app App Store."""
     config = (_root() / "ios/Party/AppConfig.swift").read_text(encoding="utf-8")
     assert '[".supabase.co"]' not in config and "hasSuffix($0)" not in config
-    assert 'isStoreApp ? ["party.bobycharbon.ch", "accounts.spotify.com"]' in config  # pas de site de test
-    assert 'isStoreApp ? ["gsuetixzobooggeaubvb.supabase.co"]' in config
+    assert '!isBetaBundle ? ["party.bobycharbon.ch", "accounts.spotify.com"]' in config  # pas de site de test
+    assert '!isBetaBundle ? ["gsuetixzobooggeaubvb.supabase.co"]' in config
+    # Décision du 27.11 : la BETA se comporte EXACTEMENT comme l'app App Store (seules les adresses changent) ; sa
+    # version TestFlight est compilée sans « BETA ».
+    assert "static var isStoreApp: Bool { true }" in config
+    share = (_root() / "ios/PartyShare/ShareModel.swift").read_text(encoding="utf-8")
+    assert "static var isStoreApp: Bool { true }" in share
+    flight = (_root() / ".github/workflows/ios-testflight.yml").read_text(encoding="utf-8")
+    iphone = flight.split("Publier la BETA sur le lien public")[0]
+    assert '"PARTY_SWIFT_CONDITIONS="' in iphone and "PARTY_SWIFT_CONDITIONS=BETA" not in iphone
     bridge = (_root() / "ios/Party/NativeBridge.swift").read_text(encoding="utf-8")
     for name in ("pronosScript", "agendaScript", "secretScript"):
         assert f'private static let {name} = AppConfig.storeLocked ? "null"' in bridge, name

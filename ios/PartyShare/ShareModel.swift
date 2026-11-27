@@ -18,7 +18,8 @@ final class ShareModel: ObservableObject {
     }
 
     /// App App Store (identifiant sans « .beta ») : l'extension ne sert qu'à créer un événement à partir d'un lien.
-    static var isStoreApp: Bool { !(Bundle.main.bundleIdentifier ?? "").contains(".beta") }
+    /// VendrediParty ET Party BETA (copie exacte de l'app envoyée à Apple, décision du 27.11).
+    static var isStoreApp: Bool { true }
 
     @Published private(set) var phase: Phase = .loading
     @Published private(set) var adding: String?

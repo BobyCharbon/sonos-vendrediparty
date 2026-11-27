@@ -101,10 +101,11 @@ jobs:
           if [ "$PRODUCTION" = 1 ]; then
             VARIANT=(); BUNDLE_ID=ch.bobycharbon.party; HOST=party.bobycharbon.ch
           else
-            # PARTY_SWIFT_CONDITIONS=BETA : Zicou (widget, éclosion, actions rapides) compilé dans la BETA seulement.
+            # Décision de l'admin du 27.11 : la BETA iPhone est la copie EXACTE de l'app envoyée à Apple (compilée sans
+            # « BETA » : ni Zicou, ni Pronos, ni Agenda, ni Souvenirs), seuls le nom, l'icône et le site de test changent.
             VARIANT=(PARTY_BUNDLE_SUFFIX=.beta PARTY_HOST=partytest.bobycharbon.ch
                      "PARTY_DISPLAY_NAME=Party BETA" ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon-Beta
-                     PARTY_SWIFT_CONDITIONS=BETA)
+                     "PARTY_SWIFT_CONDITIONS=")
             BUNDLE_ID=ch.bobycharbon.party.beta; HOST=partytest.bobycharbon.ch
           fi
           echo "Variante : ${VARIANT[*]:-VendrediParty (production)}"

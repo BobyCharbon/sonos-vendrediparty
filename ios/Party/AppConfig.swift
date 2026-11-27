@@ -12,12 +12,12 @@ enum AppConfig {
     /// Le site de test (partytest…) ne s'ouvre DANS l'app que dans la BETA, jamais dans l'app de l'App Store
     /// (contrôle du 26.11 : Zicou et fonctions en essai y sont allumés).
     static var internalHosts: [String] {
-        isStoreApp ? ["party.bobycharbon.ch", "accounts.spotify.com"]
+        !isBetaBundle ? ["party.bobycharbon.ch", "accounts.spotify.com"]
                    : ["party.bobycharbon.ch", "partytest.bobycharbon.ch", "accounts.spotify.com"]
     }
     /// Base Supabase EXACTE (jamais n'importe quel `*.supabase.co`) : celle de la prod ; la BETA y ajoute la base de TEST.
     static var supabaseHosts: [String] {
-        isStoreApp ? ["gsuetixzobooggeaubvb.supabase.co"]
+        !isBetaBundle ? ["gsuetixzobooggeaubvb.supabase.co"]
                    : ["gsuetixzobooggeaubvb.supabase.co", "ewromqfsmcqsthftyhzm.supabase.co"]
     }
 
@@ -38,8 +38,12 @@ enum AppConfig {
         #endif
     }()
 
-    /// VendrediParty (ch.bobycharbon.party) et non Party BETA (….beta).
-    static var isStoreApp: Bool { !(Bundle.main.bundleIdentifier ?? "").hasSuffix(".beta") }
+    /// Party BETA (….beta, TestFlight) : branchée sur le site et la base de TEST. Ne change QUE les adresses.
+    static var isBetaBundle: Bool { (Bundle.main.bundleIdentifier ?? "").hasSuffix(".beta") }
+    /// Comportement de l'app App Store (« PartyStore », jeux et fonctions coupés) : VendrediParty ET Party BETA.
+    /// Décision de l'admin du 27.11 : « il faut que la bêta soit une version 100 % correcte pour Apple » — la BETA
+    /// est la copie exacte de l'app envoyée à Apple, seuls son nom, son icône et le site de test diffèrent.
+    static var isStoreApp: Bool { true }
 
     /// Fonctions en essai (Zicou, bar, Agenda, Pronos, cartes secrètes de la Pyramide) coupées dans le binaire de
     /// l'App Store, quoi que dise le serveur (refus 1.4.3, 2.5.19). Les recettes Release (E2E_HOOKS, jamais dans le
@@ -63,7 +67,7 @@ enum AppConfig {
     /// Apple du 26.11).
     static var bridgeHosts: [String] {
         let base = baseURL.host?.lowercased() ?? ""
-        return isStoreApp ? [base] : Array(Set([base, "partytest.bobycharbon.ch"])).sorted()
+        return !isBetaBundle ? [base] : Array(Set([base, "partytest.bobycharbon.ch"])).sorted()
     }
 
     static func mayUseBridge(_ url: URL) -> Bool {

@@ -539,7 +539,12 @@ l'admin. Toujours :
   GitHub, où tout le monde peut le lire » ; tout changement de ce qui est envoyé ou de qui le lit = version +1. Fiche :
   « ET AUSSI » cite l'extension Partager › Party et l'Activité en direct de la Musique (4.4).
 - Tout nouveau jeu, option ou texte : se demander s'il passe dans PartyStore. Tests : `tests/test_store_app.py`,
-  `tests/e2e/test_store_app_no_drinks.py`. Le web, la BETA et Android gardent tout.
+  `tests/e2e/test_store_app_no_drinks.py`. Le web et Android gardent tout.
+- **La BETA iPhone (TestFlight) = copie EXACTE de l'app envoyée à Apple** (décision de l'admin du 27.11 : « il faut que la bêta
+  soit une version 100 % correcte pour Apple ») : `AppConfig.isStoreApp` vaut vrai pour les deux apps (« PartyStore », mêmes
+  coupures), seuls `isBetaBundle` (site et base de TEST), le nom et l'icône diffèrent ; ios-testflight.yml la compile SANS
+  « BETA » (`PARTY_SWIFT_CONDITIONS=` vide). Zicou, Agenda, Pronos, Souvenirs ne s'essaient plus dans la BETA : site de test
+  (navigateur) ou recettes E2E_HOOKS seulement. Test : `test_store_app_never_opens_the_test_site_nor_any_supabase_project…`.
 
 ## Zicou : bêta seulement (décision de l'admin, 04.11.2026)
 - Zicou est ÉTEINT hors site de test par `compagnon_enabled()` (`app/features.py` : `COMPAGNON_ENABLED`
