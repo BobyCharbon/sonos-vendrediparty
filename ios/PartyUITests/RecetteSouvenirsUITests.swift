@@ -168,9 +168,6 @@ final class RecetteSouvenirsUITests: XCTestCase {
 
         // Bulles en haut des Discussions : la story (néon) et la soirée au labo (grise, cadenas, compte à rebours).
         app.tabBars.buttons["Discussions"].tap()
-        // Première ouverture des Discussions : « Reconnais tes amis » (contacts) → Plus tard.
-        let later = app.buttons["Plus tard"]
-        if later.waitForExistence(timeout: 8) { later.tap(); sleep(1) }
         let story = app.buttons["souvenir-bubble-\(event)"]
         let waiting = app.buttons["souvenir-bubble-\(event2)"]
         XCTAssertTrue(story.waitForExistence(timeout: 40), "bulle de la story")

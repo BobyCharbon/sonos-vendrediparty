@@ -78,8 +78,8 @@ final class AccountStore: ObservableObject {
         busy = true
         defer { busy = false }
         do {
-            await settings?.accountWillSignOut()
             try await api.deleteAccount(token: token)
+            await settings?.accountWillSignOut()  // notifications coupées seulement une fois le compte supprimé
             await web?.clearSession()
             await settings?.accountSwitched()
             error = nil

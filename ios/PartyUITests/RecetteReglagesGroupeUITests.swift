@@ -178,8 +178,6 @@ final class RecetteReglagesGroupeUITests: XCTestCase {
         launchAndSignIn("0790000006", "QA Six")
         openGroup()
         app.buttons["group-chat"].tap()
-        let later = app.buttons["Plus tard"]  // « Reconnais tes amis » (contacts) : plus tard
-        if later.waitForExistence(timeout: 6) { later.tap() }
         let readOnly = any("identifier == 'chat-read-only'")
         XCTAssertTrue(readOnly.waitForExistence(timeout: 30), "« Dans ce groupe, l'admin a réservé l'écriture »")
         shot("20-discussion-lecture-seule")

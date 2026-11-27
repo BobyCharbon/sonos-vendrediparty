@@ -29,38 +29,10 @@ struct PersonName: View {
     }
 }
 
-// MARK: Demande d'accès au bon moment
-
-extension View {
-    /// Première ouverture des Discussions : explication puis fenêtre d'iOS, une seule fois.
-    func contactsPrompt() -> some View { modifier(ContactsPromptModifier()) }
-}
-
-private struct ContactsPromptModifier: ViewModifier {
-    @ObservedObject private var contacts = ContactNames.shared
-    @State private var shown = false
-
-    func body(content: Content) -> some View {
-        content
-            .task {
-                guard contacts.shouldPrompt else { return }
-                try? await Task.sleep(nanoseconds: 700_000_000)
-                if contacts.shouldPrompt { shown = true }
-            }
-            .sheet(isPresented: $shown, onDismiss: { contacts.promptShown() }) {
-                ContactsExplainer { allow in
-                    shown = false
-                    if allow { Task { await contacts.requestAccess() } } else { contacts.promptShown() }
-                }
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-            }
-    }
-}
-
 /// Écran d'explication, avant la fenêtre d'iOS : à quoi sert l'accès, ce qui part (des empreintes) et ce qui reste.
+/// Un seul bouton (5.1.1(iv)) : ouvert seulement au toucher de la personne ; elle ferme d'un geste vers le bas.
 struct ContactsExplainer: View {
-    let answer: (Bool) -> Void
+    let onContinue: () -> Void
 
     var body: some View {
         VStack(spacing: 18) {
@@ -77,15 +49,12 @@ struct ContactsExplainer: View {
             }
             .padding(.horizontal, 4)
             Spacer(minLength: 0)
-            Button { Haptics.tap(); answer(true) } label: {
+            Button { Haptics.tap(); onContinue() } label: {
                 Text("Continuer").font(.headline).frame(maxWidth: .infinity).padding(.vertical, 4)
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)
             .accessibilityIdentifier("contacts-allow")
-            Button("Plus tard") { answer(false) }
-                .foregroundStyle(.secondary)
-                .accessibilityIdentifier("contacts-later")
         }
         .padding(.horizontal, 24)
         .padding(.bottom, 20)

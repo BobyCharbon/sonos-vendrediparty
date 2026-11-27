@@ -219,7 +219,7 @@ struct NewMessageView: View {
             case .notDetermined:
                 Button { Task { await askContacts() } } label: {
                     actionRow(icon: "person.crop.circle.badge.questionmark", title: "Trouver mes contacts sur Party",
-                              sub: "Les numéros sont comparés sur ton iPhone, sous forme d'empreintes : rien n'est gardé.")
+                              sub: "Seule une empreinte des numéros est envoyée et comparée : rien n'est gardé.")
                 }
                 .buttonStyle(.plain)
                 .disabled(loadingContacts)

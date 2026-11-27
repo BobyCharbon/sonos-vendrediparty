@@ -59,7 +59,6 @@ final class ContactNames: ObservableObject {
     /// Au-delà, on redemande même si le répertoire n'a pas changé (nouveaux membres Party).
     static let staleAfter: TimeInterval = 12 * 3600
     private static let changeDelay: UInt64 = 2_000_000_000
-    private static let promptKey = "party.contacts.prompted"
 
     @Published private(set) var access: ContactsAccess
     @Published private(set) var snapshot: ContactNamesSnapshot
@@ -126,14 +125,8 @@ final class ContactNames: ObservableObject {
 
     // MARK: Accès
 
-    /// Écran d'explication proposé une seule fois (Discussions), tant que l'iPhone n'a pas encore répondu.
-    var shouldPrompt: Bool { access == .notDetermined && !defaults.bool(forKey: Self.promptKey) }
-
-    func promptShown() { defaults.set(true, forKey: Self.promptKey) }
-
     /// Demande d'accès (fenêtre d'iOS), puis première reconnaissance.
     func requestAccess() async {
-        promptShown()
         _ = await source.requestAccess()
         access = source.access()
         await refresh(force: true)

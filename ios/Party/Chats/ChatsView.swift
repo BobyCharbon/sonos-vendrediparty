@@ -111,8 +111,6 @@ struct ChatsView: View {
                 } message: { _ in
                     Text("Elle ne pourra plus t'écrire. Tu pourras la débloquer dans les infos de la discussion.")
                 }
-                // Première ouverture des Discussions : proposer de reconnaître ses contacts (« Nom · pseudo »).
-                .contactsPrompt()
         }
         .tint(Color(uiColor: AppConfig.uiAccent))
         .padding(.top, topInset)

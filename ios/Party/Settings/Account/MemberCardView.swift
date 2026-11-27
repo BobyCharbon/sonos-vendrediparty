@@ -198,7 +198,7 @@ struct MemberCardView: View {
                         }
                     }
                     .listRowBackground(Color.clear)
-                    if let zicou, !card.blocked, !card.restricted {
+                    if AppConfig.zicouBuild, let zicou, !card.blocked, !card.restricted {
                         Section {
                             MemberZicouView(data: zicou) { visit in
                                 dismiss()

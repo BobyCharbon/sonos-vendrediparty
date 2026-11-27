@@ -86,12 +86,12 @@ struct FriendsView: View {
             .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: $explaining) {
-            ContactsExplainer { allow in
+            ContactsExplainer {
                 explaining = false
-                contacts.promptShown()
-                if allow { Task { await contacts.requestAccess(); await store.load() } }
+                Task { await contacts.requestAccess(); await store.load() }
             }
             .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
         }
         .overlay(alignment: .bottom) {
             NoticeBanner(notice: store.notice.map { NoticeBanner.Notice(text: $0, isError: false) }) { store.notice = nil }
