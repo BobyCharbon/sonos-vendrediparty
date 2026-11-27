@@ -148,7 +148,9 @@ def shown_text(text: str, kind: str, store: bool = False) -> str:
     masque une insulte d'un mot et refuse liens, numéros et le reste. Partie de l'app App Store (`store`) : aucun mot
     de boisson ni de drogue (store_app.check_text)."""
     try:
-        store_app.check_text(text, store)
+        if store and kind == "name":
+            text = store_app.nfkc(text)  # Ｌéａ → Léa : le prénom gardé est celui qu'on a contrôlé
+        store_app.check_text(text, store, "name" if kind == "name" else "answer")
         return require_clean(text, kind)
     except (ContentRefused, ValueError) as e:
         raise GameError(str(e)) from None

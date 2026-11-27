@@ -3618,7 +3618,7 @@ def name_refusal(name: str, store: bool) -> str:
     """'' si le prénom peut s'afficher à la table ; sinon la phrase du refus (filtre commun, et pour l'app App Store
     aucun mot de boisson ni de drogue : store_app.check_text)."""
     try:
-        store_app.check_text(name, store)
+        store_app.check_text(name, store, "name")
         require_clean(name, "name")
     except (ContentRefused, ValueError) as e:
         return str(e)
@@ -3629,7 +3629,7 @@ def sync_player_name(g: dict, guest_id: str, name: str, request: Request | None 
     """Le joueur a changé de prénom (en haut à droite) : la partie en cours le reprend, s'il passe le même filtre qu'à
     l'entrée (contrôle Apple du 26.11) et, dans l'app App Store, case des conditions cochée ; sinon l'ancien reste."""
     p = games.player(g, guest_id) if guest_id else None
-    clean = " ".join((name or "").split())[:30]
+    clean = " ".join(unicodedata.normalize("NFKC", name or "").split())[:30]
     if p and clean and p["name"] != clean and not p.get("manual"):
         store = store_app.is_store(request)
         if (store and not p.get("terms")) or name_refusal(clean, store or bool(g.get("store"))):
@@ -5100,7 +5100,7 @@ GUEST_ID_RE = re.compile(r"^[A-Za-z0-9-]{8,64}$")
 
 
 def clean_name(raw: str) -> str:
-    name = " ".join(raw.split())[:30]
+    name = " ".join(unicodedata.normalize("NFKC", raw).split())[:30]  # Ｌéａ → Léa (contrôle Apple, tour 5)
     if not name:
         raise HTTPException(400, "Indique ton prénom")
     try:  # affiché aux autres joueurs et sur la TV : même filtre que les surnoms (app/moderation.py)
@@ -6023,11 +6023,12 @@ class NeonInput(BaseModel):
 
 
 @app.post("/api/games/{code}/neon")
-def neon_frame(code: str, body: NeonInput):
+def neon_frame(code: str, body: NeonInput, request: Request):
     """Small snapshots, no presence/disk write/event broadcast on each input frame."""
     check_guest_id(body.guest_id)
     with neon.LOCK:
         g = get_game(code)
+        check_store_access(request, g)  # app App Store : partie refusée ou passée « store », prénoms réécrits (contrôle Apple, tour 5)
         body.guest_id = canonical_gid(g, body.guest_id)
         if g["type"] != "neon":
             raise HTTPException(400, "Ce jeu n'est pas Néon Knockout")
@@ -6054,11 +6055,12 @@ class IslandInput(BaseModel):
 
 
 @app.post("/api/games/{code}/island")
-def island_frame(code: str, body: IslandInput):
+def island_frame(code: str, body: IslandInput, request: Request):
     """Authoritative small snapshots; disk writes only on phase transitions."""
     check_guest_id(body.guest_id)
     with island.LOCK:
         g = get_game(code)
+        check_store_access(request, g)  # app App Store : partie refusée ou passée « store », prénoms réécrits (contrôle Apple, tour 5)
         body.guest_id = canonical_gid(g, body.guest_id)
         if g["type"] != "island":
             raise HTTPException(400, "Ce jeu n’est pas L’île qui s’effondre")
@@ -6085,10 +6087,11 @@ class HeistInput(BaseModel):
 
 
 @app.post("/api/games/{code}/heist")
-def heist_frame(code: str, body: HeistInput):
+def heist_frame(code: str, body: HeistInput, request: Request):
     check_guest_id(body.guest_id)
     with heist.LOCK:
         g = get_game(code)
+        check_store_access(request, g)  # app App Store : partie refusée ou passée « store », prénoms réécrits (contrôle Apple, tour 5)
         body.guest_id = canonical_gid(g, body.guest_id)
         if g["type"] != "heist":
             raise HTTPException(400, "Ce jeu n’est pas un braquage")

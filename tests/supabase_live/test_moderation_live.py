@@ -94,6 +94,17 @@ def test_nicknames_and_group_names_refuse_bad_words_links_and_numbers(people):
     r = httpx.patch(f'{TEST_URL}/rest/v1/member_groups?id=eq.{group}', headers=a.headers, json={'name': 'Les connards'}, timeout=30)
     assert r.status_code == 400
     assert a.rpc('moderation_check', p_text='Zicou', p_kind='name').json()['ok'] is True
+
+
+def test_lookalike_letters_and_wide_forms_are_refused_in_nicknames(people):
+    """Contrôle Apple, tour 5 (migration 20261127130000) : sosies cyrilliques / grecs et formes NFKC, comme app/moderation.py."""
+    admin, a, b, c, group = people
+    for bad in ('Cоnnard', 'CОNNARD', 'Ｃｏｎｎａｒｄ', '𝐒𝐚𝐥𝐨𝐩𝐞', 'Sаlope'):
+        r = httpx.patch(f'{TEST_URL}/rest/v1/profiles?id=eq.{a.uid}', headers=a.headers, json={'display_name': bad}, timeout=30)
+        assert r.status_code == 400 and 'content_refused' in r.json()['message'], (bad, r.text)
+    for ok in ('Léa', 'Anaïs', 'Paris', 'Νίκος'):
+        assert a.rpc('moderation_check', p_text=ok, p_kind='name').json()['ok'] is True, ok
+    a.set_nickname('Testeur 1')
     assert a.rpc('moderation_check', p_text='Fotze', p_kind='name').json()['category'] == 'sexuel'
 
 

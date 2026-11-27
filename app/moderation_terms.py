@@ -71,4 +71,33 @@ STORE_ONLY = (
     # sexuel / insulte
     "chatte", "zizi", "trou du cul", "trouduc", "merde", "merdeux", "merdique", "emmerdeu*", "putain", "=ptn",
     "couille", "nichon",
+    # Contrôle Apple, tour 5 (27.11) : par familles, une fois (textes des JOUEURS de l'app seulement, jamais les banques ni
+    # le filtre des événements). « kkk », « ss » : forme « = » (sinon les lettres répétées donnent « k+ », « s+ ») ;
+    # « 88 », « get 27 », « 1664 », « label 5 » : chiffres, lus sur le texte brut (store_app.RAW_TOKENS).
+    # drogue
+    "ketamine", "=keta", "=ketas", "meth", "methamphetamine*", "codeine", "poppers", "=xtc", "=hero", "heroinoman*",
+    "champi", "champignons hallucinog*", "opiac*", "fentanyl", "=ghb",
+    # ivresse
+    "pochtron", "poivrot", "ivrogne", "murge", "gnole", "gniole", "schnaps", "ti punch", "cuba libre", "bloody mary",
+    "beuverie", "alcoolo", "alcolo", "saoulard", "soulard", "vinasse", "piquette", "picrate", "williamine",
+    # marques d'alcool
+    "smirnoff", "jack daniel*", "jackdaniel*", "baileys", "desperados", "kronenbourg", "hennessy", "bacardi",
+    "johnnie walker", "johnny walker", "jim beam", "ballantine*", "chivas", "jameson", "glenfiddich", "captain morgan",
+    "budweiser", "carlsberg", "leffe", "stella artois", "hoegaarden", "grimbergen", "duvel", "chimay", "pelforth",
+    "=moet", "dom perignon", "veuve clicquot", "ruinart", "tanqueray", "bombay sapphire", "havana club", "cointreau",
+    "grand marnier", "jose cuervo", "william lawson*", "clan campbell", "four roses", "southern comfort", "kahlua",
+    "passoa", "pernod", "=picon", "lillet", "amstel", "tuborg", "affligem", "goudale", "delirium tremens", "chouffe",
+    "karmeliet", "westmalle", "feldschl*", "calanda", "quollfrisch", "absolut vodka", "grey goose", "jagerbomb*",
+    # paris
+    "jackpot", "betclic", "winamax", "=pmu", "tierce", "unibet", "parions sport", "pokerstars", "=bwin", "zebet", "=fdj",
+    "euromillion*", "bookmaker*", "bookie", "machine a sous", "machines a sous", "loterie", "=loto", "=lotos", "grattage",
+    # haine
+    "=kkk", "ku klux klan", "kuklux*", "daech", "daesh", "ben laden", "al qaida", "al qaeda", "=ratons?(?! laveur)",
+    "tapette", "feuj", "mongol", "trisomique", "=gogol", "=ss", "staline", "terroriste", "terrorisme", "djihad*",
+    "jihad*", "aryen", "supremaciste*", "mussolini", "goebbels", "himmler", "pol pot", "suicid*",
+    # violence sexuelle
+    "viol", "violer", "violeur*", "violez", "=pedo", "=pedos", "pedocriminel*", "inceste", "incestueu*",
+    # sexuel
+    "=(?<!pique )niqu(e|es|er|ez|ent|ee|ees)", "=suc(e|es|er|ent)", "penis", "vagin", "clito*", "orgie", "sexe",
+    "sperme", "branl*", "=sodo",
 )
