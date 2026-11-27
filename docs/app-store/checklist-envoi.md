@@ -141,7 +141,7 @@
       - [ ] captures 6,9" et Duo REFAITES sur le nouveau build App Store (barre à 4 onglets, 09 = Méninges ou la Salle
             de jeux, données fictives, aucune boisson) ; ancienne vidéo d'aperçu SUPPRIMÉE dans App Store Connect
             (aucune nouvelle vidéo) ; vérifier qu'aucune ancienne image ne reste en ligne ;
-      - [ ] guide PDF joint = celui du 27.11 (régénéré depuis la partie B, tour 5) ; notes recopiées (3977 caractères) ;
+      - [ ] guide PDF joint = celui du 27.11 (régénéré depuis la partie B, tour 5) ; notes recopiées (3977 caractères ; 3991 depuis le tour 7 du 27.11) ;
       - [ ] clé `storage_secret_key` AJOUTÉE par l'admin dans le coffre de prod (contrôle : `private.chat_files_gc_runs`) ;
       - [ ] dépôt GitHub `BobyCharbon/sonos-vendrediparty` passé en PRIVÉ (ou `GITHUB_REPO` sur un dépôt privé à part) ;
       - [ ] nouveau build iPhone : la politique native (`SignInView.swift`) est celle du 26.11, mot pour mot la page web.
@@ -166,7 +166,7 @@
       - [ ] sur la base de TEST, avec un compte jetable : faire TRY IT 1 à 3 de la partie A (Présent à un événement +
             billet remis, événement « Sur invitation » d'un groupe publié, message + « Signaler » dans un groupe) ET créer
             un pot (Réglages › Pot commun › Nouveau pot commun, une dépense), puis **supprimer ce compte pour de vrai**
-            (Réglages › Gérer mon compte › Supprimer mon compte) : la suppression doit passer, sans message de connexion ;
+            (Réglages › Gérer mon compte › SUPPRIMER › Supprimer définitivement mon compte) : la suppression doit passer, sans message de connexion ;
       - [ ] code fixe d'« Apple-test 2 » vérifié en s'y connectant (B2 dit « same fixed code as the first demo account ») ;
       - [ ] manifeste du build choisi : **17 types**, `NSPrivacyCollectedDataTypeSearchHistory` compris (§ 6) ; sinon
             l'ajouter avant l'archive, ou retirer Search History d'App Store Connect et de `app-store-connect.md` § 5 ;
@@ -177,6 +177,21 @@
             iPhone : « Traité sous 24 h · support@ », lot 6 iPhone d7d4fddf) ; sinon corriger B7 et régénérer le PDF ;
       - [ ] politique de confidentialité du **27 novembre 2026** (web et nouveau build, mot pour mot) ; guide PDF du 27.11 joint ;
       - [ ] `docs/app-store/topo-version-apple-27-11.md` relu (commits depuis 03357b5c).
+- [ ] **Contrôle Apple, tour 7 (27.11, textes, lot 13C)** :
+      - [ ] Musique : la partie A et B4.15 PROPOSENT à Apple de lancer une soirée sur demande (« we run one on request »,
+            code envoyé seulement dans la réponse App Review, jamais dans les notes) : pendant toute la revue, l'admin doit
+            pouvoir lancer une soirée Musique (Sonos) et répondre dans l'heure ; sinon retirer cette phrase et régénérer le PDF ;
+      - [ ] 2.5.19 : la partie A et B5 disent que le code de Zicou (companion) et le panneau des cartes secrètes de la
+            Pyramide sont dans le binaire, jamais ouverts (`zicouBuild`, `storeLocked`) ; Pronos, Agenda, Souvenirs non
+            compilés (`#if BETA`). Si le build choisi change cela (ex. Zicou passé sous `#if BETA`), corriger ce texte ;
+      - [ ] 4.7.4 : un seul lien universel (`?tab=games`) gardé, aucun `?tab=games&open=<jeu>` dans le code ; le jour où il
+            existe, mettre un lien par jeu dans B4.14 ;
+      - [ ] notes : l'extension s'appelle « Party ! » dans le menu Partager (`PARTY_DISPLAY_NAME`), « Partager dans Party »
+            en titre ; la fiche garde « Partager › Party » (test du tour 5) ;
+      - [ ] garder 0 groupe 🍻 / 🍷 auquel Apple-test appartient et Apple-test / Apple-test 2 hors des Membres Vendredi
+            Party (emoji brut des groupes natifs et filtre « à boisson » limité aux événements publics, angle argent) ;
+      - [ ] politique (web = iPhone) : durée des avis et copie GitHub (« Combien de temps »), prénom ou surnom conseillé pour
+            les présences notées à la main ; recopiée dans le nouveau build.
 - [ ] **Contrôle Apple, tour 2 (26.11) — LE JOUR DE L'ENVOI**, dans cet ordre :
       - [ ] se connecter avec **Apple-test** ET **Apple-test 2** (app TestFlight du build choisi) ; « Demandes (1) » visible
             chez Apple-test ;

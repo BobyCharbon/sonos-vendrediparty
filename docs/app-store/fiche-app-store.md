@@ -79,7 +79,7 @@ modération = « signalements lus et traités par l'éditeur sous 24 heures » ;
 fête,soirée,événement,invitation,sondage,quiz,anniversaire,covoiturage,billet,groupe
 ```
 
-(96 caractères ; 25.11 : « apéro » retiré, refus 1.4.3 ; sans espaces ; ni « party » ni « vendredi », déjà dans le nom ; aucune marque : ni Spotify, Sonos, YouTube, Twint, Revolut,
+(84 caractères ; 25.11 : « apéro » retiré, refus 1.4.3 ; sans espaces ; ni « party » ni « vendredi », déjà dans le nom ; aucune marque : ni Spotify, Sonos, YouTube, Twint, Revolut,
 Claude, Apple — règle 2.3.7 ; aucun mot d'alcool.)
 
 ## Nouveautés de cette version

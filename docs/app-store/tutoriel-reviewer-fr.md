@@ -172,7 +172,7 @@ catégorie « 🍻 Alcool »)
 
 ## 7. Musique
 **Pas d'onglet Musique dans l'app App Store** (25.11). Pendant une soirée chez l'hôte : Jeux › **Code** › le code de la
-soirée à **6 chiffres** (ou le QR de l'hôte) ouvre l'écran natif Musique › « Titre, artiste ou lien » › ajouter. Il faut une soirée en cours (enceintes et compte de musique de l'hôte) : aucune vidéo n'est jointe (26.11). Activité en direct : elle EST dans le build App Store
+soirée à **6 chiffres** (ou le QR de l'hôte) ouvre l'écran natif Musique › « Titre, artiste ou lien » › ajouter. Il faut une soirée en cours (enceintes et compte de musique de l'hôte) : aucune vidéo n'est jointe (26.11) ; les notes proposent à Apple de lancer une soirée sur demande (code donné seulement dans la réponse App Review). Activité en direct : elle EST dans le build App Store
 (PartyWidgets, `TrackLiveActivity`) ; contrôle Apple, tour 2 : on la DÉCRIT comme facultative (« optional Live Activity
 for your song; it ends by itself ») plutôt que de la taire : décompte « Ton titre arrive » tant qu'un de mes titres est
 dans la file, qui se termine seul une fois le titre passé, à couper dans Réglages de l'iPhone › Party. « Me prévenir
@@ -198,8 +198,8 @@ pour ne rien cacher (2.3.1).
 ## 9. Ce qui vient du serveur (à assumer devant Apple)
 Événements et Jeux = le site `party.bobycharbon.ch` dans une WKWebView ; l'app App Store y reçoit toujours sa version à elle
 (sans jeux à boire, bar, Casino / Blackjack ni onglet Musique), pour tous ses utilisateurs ; Pronos, Agenda, Zicou et
-Souvenirs ne s'ouvrent jamais dans ce build (« Not in this version ») ; natif : barre d'onglets,
+Souvenirs ne s'ouvrent jamais dans ce build (« Not in this version » ; 2.5.19 : Pronos, Agenda et Souvenirs ne sont pas compilés ; le code de Zicou et le panneau des cartes secrètes de la Pyramide y sont, jamais ouverts, quoi que dise le serveur) ; natif : barre d'onglets,
 écran Musique (ouvert par Jeux › Code), Réglages, Discussions, Groupes, Ton avis, assistant IA, Pot commun, écran hors ligne, bandeau d'annonce, QR,
-Cartes, Calendrier, Contacts, extension Partager, notifications. La page n'appelle que les fonctions
+Cartes, Calendrier, Contacts, extension Partager (« Party ! » dans le menu Partager), notifications. La page n'appelle que les fonctions
 natives prévues (`window.PartyNative`) ; tout autre site s'ouvre dans Safari. Toute grosse fonction livrée par le site
 doit figurer dans les notes AVANT son ouverture en prod (règle CLAUDE.md, Apple 2.3.1(a)).
