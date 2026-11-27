@@ -28,8 +28,8 @@ export function NotifyBanner() {
     return () => document.removeEventListener('visibilitychange', back);
   }, [refresh]);
 
-  if (!shouldShow(state, hidden)) return null;
   const native = isNativeApp();
+  if (!shouldShow(state, hidden, native)) return null;
   const blocked = state === 'denied';
 
   async function enable() {
@@ -65,7 +65,9 @@ export function NotifyBanner() {
           <Button label={blocked ? 'Ouvrir les réglages' : native ? 'Continuer' : 'Activer les notifications'} small loading={busy} disabled={busy}
             onPress={() => void enable()} style={{ flex: 1 }} />
         ) : null}
-        <Button label="Plus tard" variant="ghost" small disabled={busy} onPress={() => { laterUntil(); setHidden(true); }} />
+        {native ? null : (
+          <Button label="Plus tard" variant="ghost" small disabled={busy} onPress={() => { laterUntil(); setHidden(true); }} />
+        )}
       </View>
       {error ? <T size={12} color={colors.redSoft}>{error}</T> : null}
     </View>

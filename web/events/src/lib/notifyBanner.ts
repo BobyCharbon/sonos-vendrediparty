@@ -51,6 +51,9 @@ export function hiddenForNow(now: number = Date.now()): boolean {
 }
 
 /** Le bandeau se montre-t-il ? Seulement quand c'est éteint (ou bloqué) et qu'on peut y faire quelque chose. */
-export function shouldShow(state: NotifyState | null, hidden: boolean): boolean {
+export function shouldShow(state: NotifyState | null, hidden: boolean, native = false): boolean {
+  // App iPhone (Apple 5.1.1(iv)) : seulement AVANT la fenêtre d'iOS, avec un seul bouton « Continuer ». Une fois la
+  // personne a répondu (autorisé ou refusé), plus jamais de bandeau : on ne relance pas un refus (Réglages › Notifications).
+  if (native) return state === 'off';
   return !hidden && (state === 'off' || state === 'denied');
 }

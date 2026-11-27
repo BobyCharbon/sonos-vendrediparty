@@ -61,15 +61,21 @@ def test_iphone_app_enable_asks_ios_and_the_banner_goes_away(browser, events_ori
         context.close()
 
 
-def test_iphone_app_blocked_opens_the_settings(browser, events_origin):  # noqa: F811
+def test_iphone_app_after_a_refusal_never_asks_again(browser, events_origin):  # noqa: F811
+    """Apple 5.1.1(iv) (contrôle du 27.11) : dans l'app iPhone, une fois la personne a refusé dans la fenêtre d'iOS,
+    plus aucun bandeau ne la relance (ni « bloquées » ni « Ouvrir les réglages ») ; et avant, pas de « Plus tard »."""
     context, page = open_event(browser, events_origin, event_row(rsvps=[rsvp(USER, 'yes')]))
     try:
         page.add_init_script(native('denied'))
         page.reload(wait_until='domcontentloaded')
-        pw.expect(page.get_by_text('Tes notifications sont bloquées', exact=True)).to_be_visible(timeout=15000)
-        page.get_by_role('button', name='Ouvrir les réglages').click()
-        page.wait_for_timeout(300)
-        assert page.evaluate('window.__asked') is True
+        pw.expect(page.get_by_role('heading', level=1)).to_be_visible(timeout=15000)
+        page.wait_for_timeout(800)
+        pw.expect(page.get_by_text('Tes notifications sont bloquées', exact=True)).to_have_count(0)
+        pw.expect(page.get_by_role('button', name='Ouvrir les réglages')).to_have_count(0)
+        page.add_init_script(native('notDetermined'))
+        page.reload(wait_until='domcontentloaded')
+        pw.expect(page.get_by_role('button', name='Continuer')).to_be_visible(timeout=15000)
+        pw.expect(page.get_by_role('button', name='Plus tard')).to_have_count(0)
     finally:
         context.close()
 
