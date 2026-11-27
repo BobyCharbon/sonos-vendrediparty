@@ -37,6 +37,16 @@
       12. `2026-11-27-filtre-sosies` (20261127130000) : **PRÊT** (apply + rollback, testés sur TEST le 27.11 ; redéfinit
          seulement `private.mod_normalize` et `private.mod_hit`, aucune fonction commune avec 1 à 11 : n'importe quel ordre).
          Filtre commun : lettres cyrilliques / grecques sosies et formes NFKC (« Cоnnard », pleine chasse) refusées.
+      13. `2026-11-27-blocage-pot-commun` (20261127140000) : **PRÊT** (apply + rollback, testés sur TEST le 27.11 :
+         `tests/supabase_live/test_blocage_pot_commun_live.py`, retour arrière essayé puis réapplication). À appliquer
+         APRÈS les fichiers 4 à 7 (ancres prises sur leur état : sans `show_payment`, il refuse et rien n'est modifié) et
+         après 11 ; son retour arrière passe AVANT celui de 6. Redéfinit par ancre `tc_group_json`, `tc_join_info`,
+         `tc_save_expense`, `tc_event_sync`, `flush_rsvp_digests` et la règle de lecture de `tc_payment`. Pot commun en
+         blocage : « Personne bloquée », titre / note / ticket des dépenses de l'autre cachés, pas de moyens de paiement,
+         montants gardés, dépense de l'autre non modifiable, pas d'ajout d'office d'un « Présent » en blocage avec le
+         créateur du pot ; résumé des réponses sans la personne en blocage avec l'organisateur. Ancres vérifiées le 27.11
+         en lecture seule contre la prod (état prod + fichier 6 = état de TEST, à l'octet ; `tc_join_info`,
+         `flush_rsvp_digests` identiques ; `tc_save_expense` ne diffère que par `require_terms` du fichier 5).
 - [ ] **Revérifier les ancres contre la prod avant d'appliquer** (150000 a réécrit event_changed, event_guest_list,
       apply_waitlist, event_attendance, public_event, chat_event_cards, invite_preview).
       **Fait le 27.11 en LECTURE SEULE** (`sbq.py prod`, `pg_get_functiondef` de la prod ; photo du 27.11, à refaire si
