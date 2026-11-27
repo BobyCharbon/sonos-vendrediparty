@@ -73,6 +73,11 @@ final class PartyAPI {
         try await post("/api/join", body: ["pin": code])
     }
 
+    /// « Quitter la soirée » : jeton révoqué par le serveur (app/main.py guest_leave).
+    func leave(guestID: String) async throws {
+        try await post("/api/leave", body: ["guest_id": guestID])
+    }
+
     func hello(guestID: String, name: String) async throws {
         try await post("/api/hello", body: ["guest_id": guestID, "guest_name": name])
     }

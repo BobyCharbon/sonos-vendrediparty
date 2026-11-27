@@ -2,7 +2,7 @@ ABOUT
 "Vendredi Party": free app by Ludovic Trombert, individual developer in France, for anyone organising real-world events, chats and party games. French, 18+. No ads, tracking or IAP. PDF guide attached.
 
 CHANGES SINCE THE 1.4.3 REJECTION (new build + server)
-Removed: every drinking-related game (Pyramide, Je n'ai jamais, Qui de nous ?, Roulette, Beer pong, Biskit, Purify Test), every drink option, Hot/Mix questions, the party bar, Casino, Blackjack and the Music tab. Not renamed; our server refuses them, even by code or QR.
+Removed: every drinking-related game (Pyramide, Je n'ai jamais, Qui de nous ?, Roulette, Beer pong, Biskit, Purify Test), every drink option, Hot/Mix questions, the party bar, Casino and Blackjack. Not renamed; our server refuses them, even by code or QR.
 
 SIGN-IN
 Phone + 6-digit SMS code. Demo "Apple-test": number and code in the sign-in fields (no SMS).
@@ -17,7 +17,7 @@ NATIVE (4.2)
 Tab bar, SwiftUI Settings, Discussions, Groups, event chat, "Ton avis", AI assistant, "Pot commun", "Mes amis dans Party". Push (switch per type), Wallet, QR scanner, Calendar, Contacts (optional, hashed), dictation. Share sheet > "Party !": event from a link.
 
 WEB CONTENT (2.5.2)
-Events and Games tabs: our site in a WKWebView. Other sites: Safari. Games > Code: 4 digits = a game; 6 digits = a host's music party (native screen, no tab; needs the host's Sonos; we run one on request; optional Live Activity for your song). Not in this version (would need a new review): Pronos, Agenda, companion, Souvenirs. Other code stays in the binary, never opened by this build (2.5.19): see B5.
+Events and Games tabs: our site in a WKWebView. Other sites: Safari. Games > Code: 4 digits = a game; 6 digits = a host's music party: a Music tab appears until you leave (Leave, party ended, new code); needs the host's Sonos; we run one on request; optional Live Activity for your song. Not in this version (would need a new review): Pronos, Agenda, companion, Souvenirs. Other code stays in the binary, never opened by this build (2.5.19): see B5.
 
 EVENTS
 Links for one person or "Plusieurs"; guests make and stop own links. Not public: a guest's guest waits ("… attend ton accord"). Date poll. Calendar feed. Carpool (no money), QR ticket + Wallet: organiser options. Groups: "Inviter" > "Le lien du groupe" (WhatsApp, Copier, Autre, QR). Events need sign-in (nickname ≤ 12 characters); games need none. Updates live; tap a name to open the profile; each answer shows its time. Admins: "Nouveau compte", announcement or maintenance.

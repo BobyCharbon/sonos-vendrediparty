@@ -48,7 +48,7 @@ Les deux pages sont dessinées en JavaScript : `curl` reçoit une page sans text
   propositions d'« Apple-test » pendant la revue.
 - Vérifier que le code fixe marche encore en production (connexion sur un iPhone avec l'app App Store/TestFlight) et
   que le plafond mensuel de l'IA n'est pas atteint.
-- Facultatif mais utile : la Musique (sans onglet dans l'app App Store depuis le 25.11) ne s'essaie qu'avec une soirée en
+- Facultatif mais utile : la Musique (onglet affiché seulement pendant une soirée rejointe, 27.11) ne s'essaie qu'avec une soirée en
   cours, par Jeux › Code (6 chiffres). Si une soirée tourne pendant la revue, on peut ajouter son code dans les notes (une ligne).
 
 ## 4. Classification par âge (questionnaire d'Apple, version 2025)

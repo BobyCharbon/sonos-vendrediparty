@@ -527,7 +527,7 @@ document.getElementById("gamesRoot").innerHTML = `
           <input id="gCode" type="text" spellcheck="false" inputmode="numeric" pattern="[0-9]*" maxlength="${STORE ? 6 : 4}" placeholder="${STORE ? "4 ou 6 chiffres" : "• • • •"}" autocomplete="off">
           ${STORE ? `<button type="submit" class="g-code-go">Rejoindre</button>` : ""}
         </form>
-        ${STORE ? `<p class="g-code-note">4 chiffres : un jeu · 6 chiffres : le code de la soirée, donné par l'hôte pour proposer des titres.</p>
+        ${STORE ? `<p class="g-code-note">4 chiffres : un jeu · 6 chiffres : la soirée Musique d'un hôte (l'onglet Musique s'affiche jusqu'à ce que tu la quittes).</p>
           <button type="button" class="secondary g-music-back hidden" id="gMusicBack">🎵 Revenir à la soirée Musique</button>` : ""}
       </div>
 
@@ -3530,7 +3530,7 @@ document.addEventListener("click", async (ev) => {
 });
 async function joinByCode() {
   const code = $("gCode").value.trim();
-  // App App Store (onglet Musique caché, décision du 25.11) : 6 chiffres = la soirée Musique de l'hôte (index.html).
+  // App App Store : 6 chiffres = la soirée Musique de l'hôte (index.html) ; son onglet apparaît le temps de la soirée (27.11).
   if (STORE && /^\d{6}$/.test(code)) { $("gCode").value = ""; $("gCode").blur(); return window.joinMusicByCode?.(code); }
   if (!/^\d{4}$/.test(code)) return toast(STORE ? "Le code a 4 chiffres (un jeu) ou 6 chiffres (le code de la soirée, donné par l'hôte)." : "Le code de la salle a 4 chiffres.", "err");
   $("gCode").value = ""; $("gCode").blur();

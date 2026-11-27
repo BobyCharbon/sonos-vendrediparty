@@ -141,7 +141,7 @@ final class ParcoursExaminateurUITests: XCTestCase {
         launch(fresh: true)
         sleep(8)
         record("premier-lancement")
-        // App App Store : pas d'onglet Musique (refus 1.4.3, on la rejoint par Jeux › Code).
+        // App App Store : pas d'onglet Musique hors d'une soirée (il apparaît après Jeux › Code à 6 chiffres, 27.11).
         for (label, name) in [("Jeux", "visiteur-jeux"), ("Événements", "visiteur-evenements")] {
             visitTab(label, name)
         }

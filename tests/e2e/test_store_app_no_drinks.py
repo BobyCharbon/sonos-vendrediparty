@@ -1,7 +1,8 @@
 """Refus Apple 1.4.3 (25.11) : l'app App Store (« PartyStore ») ne montre AUCUN mot ni emoji de boisson, de drogue, ni
 mode Hot — écran Jeux, cartes, règles « ? », salle de jeux, feuilles de réglages. Décision de l'admin du 25.11 : les jeux à
 boire (Pyramide, Je n'ai jamais, Qui de nous ?, Roulette, Beer pong, Biskit, Purify Test) et toute option de gorgées (aucun
-« ⭐ Mode points » à la place) sont absents ; l'onglet Musique est caché et rejoint par Jeux › Code (6 chiffres). Le
+« ⭐ Mode points » à la place) sont absents ; l'onglet Musique n'apparaît qu'après Jeux › Code (6 chiffres), le temps
+de la soirée. Le
 navigateur garde tout."""
 import re
 
@@ -100,27 +101,131 @@ def test_store_app_refuses_pyramid_even_by_code(browser, server):
     ctx.close()
 
 
-def test_store_app_hides_the_music_tab_and_joins_a_music_party_by_a_six_digit_code(browser, server):
-    """Onglet Musique caché (barre web, donc barre native) ; Musique ne s'ouvre qu'après le code à 6 chiffres de Jeux."""
+NATIVE_TABS = ('window.__tabStates = []; window.PartyNative = { platform: "ios", tabs: { update: (s) => '
+               'window.__tabStates.push(JSON.parse(JSON.stringify(s))) } };')
+
+
+def music_pin(server) -> str:
     import json
     from pathlib import Path
-    pin = json.loads((Path(server.data) / "session.json").read_text())["guest_pin"]  # code de la soirée (6 chiffres)
-    ctx, page = open_games(browser, server, store=True)
-    assert page.locator('#tabs [data-tab="music"]').is_hidden()
+    return json.loads((Path(server.data) / "session.json").read_text())["guest_pin"]  # code de la soirée (6 chiffres)
+
+
+def native_tabs(page) -> list[str]:
+    page.wait_for_timeout(200)  # la barre native reçoit les changements à l'image suivante
+    return [t["id"] for t in page.evaluate("window.__tabStates[window.__tabStates.length - 1]")["tabs"]]
+
+
+def music_tab(page):
+    return page.locator('#tabs [data-tab="music"]')
+
+
+def music_tab_shown(page) -> bool:
+    """Bouton de la barre web présent (la barre web elle-même est invisible quand la barre native la remplace)."""
+    return not page.evaluate("""document.querySelector('#tabs [data-tab="music"]').classList.contains('hidden')""")
+
+
+@pytest.fixture(scope="module")
+def music_server():
+    """Serveur dont la soirée Musique est « en cours » (sans Sonos : la file répond « injoignable ») ; l'état de session
+    est celui du vrai serveur : 401 code changé ou invité déconnecté, « removed », soirée arrêtée."""
+    import json
+    from pathlib import Path
+    s = Server()
+    s.halt()
+    path = Path(s.data) / "session.json"
+    session = json.loads(path.read_text())
+    path.write_text(json.dumps({**session, "active": True, "room_name": "Salon", "room_uid": "RINCON_TEST"}))
+    s.start_again()
+    yield s
+    s.stop()
+
+
+def open_store_app(browser, server):
+    """App App Store, pont natif de la barre d'onglets simulé (NativeBridge.swift)."""
+    ctx = browser.new_context(base_url=server.url, user_agent=UA + " PartyStore", **IPHONE)
+    ctx.add_init_script(INIT + NATIVE_TABS)
+    page = ctx.new_page()
+    page.goto("/")
+    page.evaluate("showTab('games')")
+    page.wait_for_selector("#gHome .g-room-card", state="attached")
+    return ctx, page
+
+
+def test_store_app_music_tab_appears_with_the_six_digit_code_and_leaves_with_the_party(browser, music_server):
+    """Décision de l'admin du 27.11 : pas d'onglet Musique → code à 6 chiffres dans Jeux → l'onglet apparaît (barre web ET
+    barre native) → « Quitter la soirée » → plus d'onglet, retour sur Jeux. Relancer l'app ne le ramène pas."""
+    server = music_server
+    pin = music_pin(server)
+    ctx, page = open_store_app(browser, server)
+    assert not music_tab_shown(page) and "music" not in native_tabs(page)
     page.evaluate("showTab('music')")  # action rapide « Ajouter un titre », notification…
     assert page.evaluate("document.body.dataset.tab") == "games"
+    assert "6 chiffres : la soirée Musique" in page.inner_text(".g-code-note")  # 2.5.19 : dit à l'écran
     assert page.get_attribute("#gCode", "maxlength") == "6"
     assert len(pin) == 6
     page.fill("#gCode", pin)
     page.wait_for_function("document.body.dataset.tab === 'music'", timeout=5000)
-    assert page.locator('#tabs [data-tab="music"]').is_hidden()
+    assert music_tab_shown(page) and "music" in native_tabs(page)
     page.evaluate("showTab('games')")
     assert page.locator("#gMusicBack").is_visible()
+    page.locator("#gMusicBack").click()
+    page.wait_for_selector("#musicLeave", state="visible")
+    page.locator("#musicLeave").click()
+    page.wait_for_function("document.body.dataset.tab === 'games'", timeout=5000)
+    assert not music_tab_shown(page) and "music" not in native_tabs(page)
+    assert page.locator("#gMusicBack").is_hidden()
+    # Le serveur a révoqué l'accès : relancer l'app ne ramène pas l'onglet.
+    page.reload()
+    page.wait_for_function("window.__tabStates.length > 0")
+    page.wait_for_timeout(800)
+    assert not music_tab_shown(page) and "music" not in native_tabs(page)
     ctx.close()
     # Le navigateur garde son onglet Musique.
-    ctx, page = open_games(browser, server, store=False)
-    assert page.locator('#tabs [data-tab="music"]').is_visible()
+    ctx, page = open_games(browser, music_server, store=False)
+    assert music_tab(page).is_visible()
     assert page.get_attribute("#gCode", "maxlength") == "4"
+    ctx.close()
+
+
+def test_store_app_music_tab_leaves_when_the_host_removes_the_guest_changes_the_code_or_stops(browser, music_server):
+    import httpx
+    from tests.e2e.helpers import ADMIN_PIN
+    server = music_server
+    admin = httpx.Client(base_url=server.url)
+    assert admin.post("/api/admin/login", json={"pin": ADMIN_PIN}).status_code == 200
+    for how in ("ban", "kick", "pin", "stop"):
+        ctx, page = open_store_app(browser, server)
+        page.fill("#gCode", music_pin(server))
+        page.wait_for_function("document.body.dataset.tab === 'music'", timeout=5000)
+        assert "music" in native_tabs(page)
+        gid = page.evaluate("guestId")
+        if how == "ban":  # retiré de la file sans limite par l'hôte
+            assert admin.post("/api/admin/ban", json={"guest_id": gid}).status_code == 200
+        elif how == "kick":  # « Déconnecter » de l'hôte
+            assert admin.post("/api/admin/kick", json={"guest_id": gid}).status_code == 200
+        elif how == "pin":  # nouveau code : tout le monde sort de la soirée
+            assert admin.post("/api/admin/pin", json={}).status_code == 200
+        else:  # l'hôte arrête la soirée
+            assert admin.post("/api/admin/stop").status_code == 200
+        page.evaluate("refresh()")  # le flux en direct le fait aussi ; ici on n'attend pas
+        page.wait_for_function("document.body.dataset.tab === 'games'", timeout=5000)
+        assert not music_tab_shown(page) and "music" not in native_tabs(page), how
+        if how == "ban":
+            assert admin.post("/api/admin/unban", json={"guest_id": gid}).status_code == 200
+        ctx.close()
+    # Soirée arrêtée = soirée quittée : à la suivante, l'onglet ne revient pas sans le code.
+    session = __import__("json").loads((__import__("pathlib").Path(server.data) / "session.json").read_text())
+    assert not session["active"] and len(session["revoked"]) >= 1
+
+
+def test_store_app_code_without_a_running_party_says_so_and_shows_no_tab(browser, server):
+    """Bon code, mais aucune soirée en cours (serveur de test sans Sonos) : on reste sur Jeux, sans onglet, et on le dit."""
+    ctx, page = open_store_app(browser, server)
+    page.fill("#gCode", music_pin(server))
+    page.wait_for_selector("text=Pas de soirée Musique en cours pour le moment.", timeout=5000)
+    assert page.evaluate("document.body.dataset.tab") == "games"
+    assert not music_tab_shown(page) and "music" not in native_tabs(page)
     ctx.close()
 
 

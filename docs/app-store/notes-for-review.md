@@ -47,7 +47,7 @@ ABOUT
 "Vendredi Party": free app by Ludovic Trombert, individual developer in France, for anyone organising real-world events, chats and party games. French, 18+. No ads, tracking or IAP. PDF guide attached.
 
 CHANGES SINCE THE 1.4.3 REJECTION (new build + server)
-Removed: every drinking-related game (Pyramide, Je n'ai jamais, Qui de nous ?, Roulette, Beer pong, Biskit, Purify Test), every drink option, Hot/Mix questions, the party bar, Casino, Blackjack and the Music tab. Not renamed; our server refuses them, even by code or QR.
+Removed: every drinking-related game (Pyramide, Je n'ai jamais, Qui de nous ?, Roulette, Beer pong, Biskit, Purify Test), every drink option, Hot/Mix questions, the party bar, Casino and Blackjack. Not renamed; our server refuses them, even by code or QR.
 
 SIGN-IN
 Phone + 6-digit SMS code. Demo "Apple-test": number and code in the sign-in fields (no SMS).
@@ -62,7 +62,7 @@ NATIVE (4.2)
 Tab bar, SwiftUI Settings, Discussions, Groups, event chat, "Ton avis", AI assistant, "Pot commun", "Mes amis dans Party". Push (switch per type), Wallet, QR scanner, Calendar, Contacts (optional, hashed), dictation. Share sheet > "Party !": event from a link.
 
 WEB CONTENT (2.5.2)
-Events and Games tabs: our site in a WKWebView. Other sites: Safari. Games > Code: 4 digits = a game; 6 digits = a host's music party (native screen, no tab; needs the host's Sonos; we run one on request; optional Live Activity for your song). Not in this version (would need a new review): Pronos, Agenda, companion, Souvenirs. Other code stays in the binary, never opened by this build (2.5.19): see B5.
+Events and Games tabs: our site in a WKWebView. Other sites: Safari. Games > Code: 4 digits = a game; 6 digits = a host's music party: a Music tab appears until you leave (Leave, party ended, new code); needs the host's Sonos; we run one on request; optional Live Activity for your song. Not in this version (would need a new review): Pronos, Agenda, companion, Souvenirs. Other code stays in the binary, never opened by this build (2.5.19): see B5.
 
 EVENTS
 Links for one person or "Plusieurs"; guests make and stop own links. Not public: a guest's guest waits ("… attend ton accord"). Date poll. Calendar feed. Carpool (no money), QR ticket + Wallet: organiser options. Groups: "Inviter" > "Le lien du groupe" (WhatsApp, Copier, Autre, QR). Events need sign-in (nickname ≤ 12 characters); games need none. Updates live; tap a name to open the profile; each answer shows its time. Admins: "Nouveau compte", announcement or maintenance.
@@ -140,8 +140,8 @@ When the app opens, it shows the **Événements** (Events) tab. The bottom bar i
 | Se connecter (Sign in) | Réglages (Settings) | Native SwiftUI |
 
 Native screens opened from the web tabs: "Créer avec l'IA" (AI event assistant), Apple QR scanner, "Add to Apple Wallet"
-sheet, Calendar, Contacts card, share sheet, and the Music screen (opened from Jeux › Code with a 6-digit party code:
-there is no Music tab in the App Store app).
+sheet, Calendar, Contacts card, share sheet, and the Music screen (a Music tab appears only after a guest joins a
+host's party with its 6-digit code in Jeux › Code, and goes away once they leave the party).
 
 ### B4. Step-by-step tutorials
 
@@ -377,9 +377,12 @@ Tab **Jeux**:
 
 #### B4.15 Music
 
-There is **no Music tab** in the App Store app. At a party at the host's place (the host's speakers and music account),
-a guest opens **Jeux**, types the host's **6-digit** party code in **Code** (4 digits = a game) or scans the host's QR:
-the native Music screen opens. Search a song ("Titre, artiste ou lien") and add it to the shared queue. Optional
+The App Store app shows **no Music tab by default**. At a party at the host's place (the host's speakers and music
+account), a guest opens **Jeux**, types the host's **6-digit** party code in **Code** (4 digits = a game; the screen says
+so under the field) or scans the host's QR: a **Music** tab appears in the tab bar and the native Music screen opens. The
+tab goes away (back to Jeux) as soon as the guest is no longer in the party: "Quitter la soirée" at the bottom of the
+Music screen, the host ends the party or changes its code, the host removes the guest, or the app is relaunched after
+the party ended. Music is only meant for the people at the host's place, so it stays out of everyone else's way. Search a song ("Titre, artiste ou lien") and add it to the shared queue. Optional
 Live Activity for your song: while one of your songs is queued, a countdown "Ton titre arrive" can show on the Lock
 Screen and in the Dynamic Island; it ends by itself once the song has played, and it can be turned off in the
 iPhone's Settings › Party (Live Activities). Without a running party there is nothing to join: Music needs a host
@@ -434,7 +437,7 @@ photos, answers, votes, messages, the events the person created, game stats, AI 
 Honestly stated: the **Events** and **Games** tabs (and a few settings pages for admins) are our own website,
 `https://party.bobycharbon.ch`, displayed in a `WKWebView`, maintained by us. Our server recognises the App Store app
 (its User-Agent) and always gives **every user of this app** the same dedicated version: no drinking game or drink
-option, no party bar, no Casino / Blackjack, no Hot / Mix questions, no Music tab. Our public website is separate;
+option, no party bar, no Casino / Blackjack, no Hot / Mix questions; a Music tab only while in a host's party (B4.15). Our public website is separate;
 the app never opens its games.
 
 - What comes from the server: the whole Events module (lists, event pages, invitations, date polls, tickets, payments,
@@ -492,7 +495,8 @@ New build, and our server, permanent for this version of the App Store app:
 - Removed from the App Store app: every game linked to drinking — **Pyramide, Je n'ai jamais, Qui de nous ?, Roulette,
   Beer pong, Biskit, Purify Test** — and the former "Alcohol" games category; every drink option of the other games;
   the "Hot" and "Mix" question modes and the "WTF" theme of Pour ou contre; the party bar (menu, orders, notifications,
-  settings); Casino and Blackjack; the Music tab (a music party is joined from Jeux › Code, 6 digits).
+  settings); Casino and Blackjack. The Music tab is not shown by default: it appears only after joining a host's music
+  party from Jeux › Code (6 digits) and goes away once the guest leaves it (B4.15).
 - Nothing was renamed or converted: the removed games and options are simply absent from the app.
 - Remaining games use points only; their questions and words never mention alcohol, drunkenness or drugs, and texts
   typed by players in a game of the app are refused if they do.
@@ -578,7 +582,7 @@ No location, no tracking, no App Tracking Transparency prompt (nothing to track)
 
 No in-app purchase, no subscription, no ads, no tracking or analytics SDK, no gambling or simulated gambling, no loot
 box, no prize, sweepstake or lottery, no cryptocurrency, no virtual currency for sale, no rewards for ratings or reviews, no drinking game, no
-party bar, no Music tab, no Pronos, Agenda, companion or Souvenirs. Paying an organiser never unlocks anything in the app; the QR
+party bar, no Music tab outside a host's party, no Pronos, Agenda, companion or Souvenirs. Paying an organiser never unlocks anything in the app; the QR
 ticket is for door entry only. No
 third-party sign-in (phone + SMS code only, so Sign in with Apple is not required by 4.8). The Apple TV app shares this
 record but is not part of this submission.

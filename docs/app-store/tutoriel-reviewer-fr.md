@@ -171,8 +171,11 @@ Sans compte : parties illimitées dans l'app. 📸 (salle ou Quiz, **sans**
 catégorie « 🍻 Alcool »)
 
 ## 7. Musique
-**Pas d'onglet Musique dans l'app App Store** (25.11). Pendant une soirée chez l'hôte : Jeux › **Code** › le code de la
-soirée à **6 chiffres** (ou le QR de l'hôte) ouvre l'écran natif Musique › « Titre, artiste ou lien » › ajouter. Il faut une soirée en cours (enceintes et compte de musique de l'hôte) : aucune vidéo n'est jointe (26.11) ; les notes proposent à Apple de lancer une soirée sur demande (code donné seulement dans la réponse App Review). Activité en direct : elle EST dans le build App Store
+**Pas d'onglet Musique par défaut dans l'app App Store** (27.11). Pendant une soirée chez l'hôte : Jeux › **Code** › le code
+de la soirée à **6 chiffres** (ou le QR de l'hôte) : l'onglet **Musique** apparaît dans la barre et l'écran natif Musique
+s'ouvre › « Titre, artiste ou lien » › ajouter. L'onglet part (retour sur Jeux) dès qu'on n'est plus dans la soirée :
+« Quitter la soirée » en bas de l'écran Musique, soirée arrêtée ou code changé par l'hôte, invité retiré, app relancée
+après la soirée. Il faut une soirée en cours (enceintes et compte de musique de l'hôte) : aucune vidéo n'est jointe (26.11) ; les notes proposent à Apple de lancer une soirée sur demande (code donné seulement dans la réponse App Review). Activité en direct : elle EST dans le build App Store
 (PartyWidgets, `TrackLiveActivity`) ; contrôle Apple, tour 2 : on la DÉCRIT comme facultative (« optional Live Activity
 for your song; it ends by itself ») plutôt que de la taire : décompte « Ton titre arrive » tant qu'un de mes titres est
 dans la file, qui se termine seul une fois le titre passé, à couper dans Réglages de l'iPhone › Party. « Me prévenir
@@ -197,9 +200,9 @@ pour ne rien cacher (2.3.1).
 
 ## 9. Ce qui vient du serveur (à assumer devant Apple)
 Événements et Jeux = le site `party.bobycharbon.ch` dans une WKWebView ; l'app App Store y reçoit toujours sa version à elle
-(sans jeux à boire, bar, Casino / Blackjack ni onglet Musique), pour tous ses utilisateurs ; Pronos, Agenda, Zicou et
+(sans jeux à boire, bar ni Casino / Blackjack ; onglet Musique seulement pendant une soirée rejointe), pour tous ses utilisateurs ; Pronos, Agenda, Zicou et
 Souvenirs ne s'ouvrent jamais dans ce build (« Not in this version » ; 2.5.19 : Pronos, Agenda et Souvenirs ne sont pas compilés ; ce qui reste dans le binaire sans jamais s'ouvrir est listé en B5 des notes : Zicou, le panneau des cartes de la Pyramide, les interrupteurs de notification du bar, de l'Agenda et des Pronos, la Musique des invités (extension Partager, raccourci « Ajouter un titre », interrupteurs Musique), l'onglet Purify Test des stats, le bouton « Ouvrir l'admin du site (secours) » de l'hôte ; quoi que dise le serveur) ; natif : barre d'onglets,
-écran Musique (ouvert par Jeux › Code), Réglages, Discussions, Groupes, Ton avis, assistant IA, Pot commun, écran hors ligne, bandeau d'annonce, QR,
+écran Musique (onglet affiché après Jeux › Code, le temps de la soirée), Réglages, Discussions, Groupes, Ton avis, assistant IA, Pot commun, écran hors ligne, bandeau d'annonce, QR,
 Cartes, Calendrier, Contacts, extension Partager (« Party ! » dans le menu Partager), notifications. La page n'appelle que les fonctions
 natives prévues (`window.PartyNative`) ; tout autre site s'ouvre dans Safari. Toute grosse fonction livrée par le site
 doit figurer dans les notes AVANT son ouverture en prod (règle CLAUDE.md, Apple 2.3.1(a)).

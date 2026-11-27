@@ -28,6 +28,13 @@ protocol WebStorage: AnyObject {
     func storeSession(key: String, json: String) async
     /// Déconnexion native : la page oublie la session (module Événements compris) et reprend l'identité d'invité.
     func clearSession() async
+    /// La soirée Musique a changé pour ce téléphone (rejointe, quittée, fermée) : la page relit /api/state et
+    /// montre ou retire l'onglet Musique de l'app App Store (index.html setMusicIn, décision du 27.11).
+    func musicChanged()
+}
+
+extension WebStorage {
+    func musicChanged() {}
 }
 
 /// Onglet Musique natif : état de la soirée en direct, recherche, ajout, messages à l'hôte.
@@ -155,7 +162,7 @@ final class MusicStore: ObservableObject {
     }
     #endif
 
-    func reload() async {
+    func reload(retryCode: Bool = true) async {
         #if DEBUG
         if demo { return }
         #endif
@@ -164,7 +171,7 @@ final class MusicStore: ObservableObject {
         do {
             let state = try await api.state(guestID: me.id)
             receivedAt = Date()
-            phase = state.active ? .ready(state) : .closed
+            settle(state.active ? .ready(state) : .closed)
             if state.active { TrackActivities.sync(state, receivedAt: receivedAt) }  // « Ton titre arrive »
             if let serverName = state.name, !serverName.isEmpty, serverName != me.name { remember(name: serverName) }
             if trackWanted == nil { trackWanted = (try? await api.notifyPrefs(guestID: me.id))?.prefs["track"] }
@@ -172,14 +179,40 @@ final class MusicStore: ObservableObject {
             notifyWhenPlaying = subscribed && trackWanted == true
             await web?.shareSession()
         } catch PartyAPIError.needsCode {
-            phase = .needsCode
+            // Code saisi dans la page juste avant (Jeux › Code) : le cookie de la vue web arrive parfois une fraction de
+            // seconde après l'ouverture de l'écran (simulateur, 27.11) ; un seul nouvel essai avant de redemander le code.
+            if retryCode, phase.kind != "ready" {
+                try? await Task.sleep(for: .seconds(1))
+                return await reload(retryCode: false)
+            }
+            settle(.needsCode)
         } catch {
             if case .ready = phase { return }  // une coupure brève ne fait pas disparaître la soirée affichée
             phase = .offline(error.localizedDescription)
         }
     }
 
+    /// Nouvel état ; entrer dans la soirée ou en sortir (code, fermeture, retrait) prévient la page, qui décide de
+    /// l'onglet Musique (la barre native suit sa description).
+    private func settle(_ next: Phase) {
+        let was = phase.kind, now = next.kind
+        phase = next
+        if was != now, was == "ready" || now == "ready" { web?.musicChanged() }
+    }
+
     // MARK: Actions
+
+    /// « Quitter la soirée » (app App Store) : le serveur révoque l'accès de ce téléphone ; l'onglet Musique part.
+    func leave() async {
+        do {
+            let me = await currentIdentity()
+            try await api.leave(guestID: me?.id ?? "")
+            settle(.needsCode)
+            web?.musicChanged()
+        } catch {
+            show(error)
+        }
+    }
 
     func join(code: String) async {
         let code = code.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -344,7 +377,7 @@ final class MusicStore: ObservableObject {
     }
 
     private func show(_ error: Error) {
-        if case PartyAPIError.needsCode = error { phase = .needsCode; return }
+        if case PartyAPIError.needsCode = error { settle(.needsCode); return }
         notice = Notice(text: error.localizedDescription, isError: true)
     }
 }
