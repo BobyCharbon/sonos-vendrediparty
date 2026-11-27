@@ -175,7 +175,8 @@ def absorb_local_feedback():
 def retention_chores() -> None:
     """Durées de conservation (politique de confidentialité) : journal d'administration 12 mois, journal des appels à
     l'IA 12 mois, prénoms d'invités du classement général du Quiz 6 mois."""
-    for name, chore in (("audit", journal.purge), ("ia", assistant.usage.purge), ("quiz", quiz.purge_guests)):
+    for name, chore in (("audit", journal.purge), ("ia", assistant.usage.purge), ("quiz", quiz.purge_guests),
+                        ("couvertures", lambda: covers.purge())):
         try:
             if removed := chore():
                 log.info("Conservation : %s, %s entrées retirées", name, removed)
@@ -1968,17 +1969,19 @@ def account_delete(body: AccountDelete):
     uid = ""
     with contextlib.suppress(AccountError):
         uid = accounts._uid(body.token)
+    owner = feedback_owner(body.token) if uid else ""  # lu AVANT la suppression : le profil (numéro) part avec le compte
     result = account_call(lambda: account_auth.delete_account(body.token, body.confirm) or {"ok": True})
     if uid:  # « Tout part avec la suppression du compte » : fichiers locaux du serveur compris (app/account_data.py)
-        forget_local(local_stores(), uid, accounts.gid(uid), (assistant_consent_key(uid),))
+        forget_local(local_stores(owner), uid, accounts.gid(uid), (assistant_consent_key(uid),))
     return result
 
 
-def local_stores() -> LocalStores:
+def local_stores(owner: str = "") -> LocalStores:
+    """owner : empreinte du numéro du compte supprimé (feedback_owner) ; ses avis d'un autre appareil partent aussi."""
     return LocalStores(purity_forget=purity.forget, quiz_forget=quiz.forget_player, usage_forget=assistant.usage.forget,
                        consent_forget=ai_consents.forget, gate_forget=guest_gate.forget,
-                       feedback_forget=local_feedback.forget, activity_forget=activity_forgetter(pet_party_log),
-                       audit_forget=journal.forget)
+                       feedback_forget=lambda gid: local_feedback.forget(gid, owner), activity_forget=activity_forgetter(pet_party_log),
+                       audit_forget=journal.forget, covers_forget=covers.forget_owner)
 
 
 QUIET_TIME = r"^([01]\d|2[0-3]):[0-5]\d(:00)?$"
@@ -2793,6 +2796,19 @@ def account_event_cover_poster(body: CoverRef):
 @app.post("/api/account/event-cover/remove")
 def account_event_cover_remove(body: CoverRef):
     return account_call(lambda: event_covers.remove(body.token, body.event_id))
+
+
+@app.post("/api/account/event-cover/deleted")
+def account_event_cover_deleted(body: CoverRef):
+    """Événement supprimé par son créateur (fiche) : sa couverture, plus utilisée, est effacée du serveur. Seulement si
+    la base ne le montre plus à son créateur (supprimé pour de vrai) ; jamais le fichier d'un autre événement."""
+    def run():
+        uid = accounts._uid(body.token)
+        r = accounts._get("GET", f"/rest/v1/events?id=eq.{body.event_id}&select=id", body.token)
+        if r.status_code != 200 or r.json():
+            return {"removed": 0}
+        return {"removed": covers.release(body.event_id, uid)}
+    return account_call(run)
 
 
 @app.post("/api/account/ai/event/draft")

@@ -18,7 +18,11 @@ export const DRINK_RE = new RegExp(
     'ap[ée]ritif','arros[ée]','pot de d[ée]part','buvette','\\bboirai','cuv[ée]e','vigneron','vendange','viticole','vignoble','c[ée]page','absinthe','tabac','casino','poker','blackjack','cidre','\\bkir\\b','kirsch','cognac','calvados','armagnac','grappa','\\bsak[ée]\\b','prosecco','\\bcava\\b','guinness','eau-de-vie','eaux-de-vie','damassine','fendant','chasselas','merlot','pinot','chouchen','soju','baijiu','limoncello','ouzo','campari','aperol','cacha[çc]a','bourbon','cervoise','[ée]thanol','porto\\b','bordeaux','bourgogne','beaujolais','chardonnay','sauvignon','riesling','lambrusco','chianti','rioja','brasserie','brasseur','houblon','malt\\b','distill','spiritueux','digestif','\\braki\\b','mezcal','chartreuse','fernet','pimm','\\bkvas\\b','barolo','gamay','syrah','cornalin','humagne','d[ée]zaley','\\bperlan\\b','johannisberg','arvine','perdrix','amaretto','poire williams','ros[ée] de provence','gin-tonic','trafiquant','narcos','escobar','\\bweeds\\b','breaking bad','trainspotting','\\bcoke\\b','h[ée]ro[iï]ne\\b','\\bcrack\\b','opium','dealer',
     // Ajoutés au tour 6 (25.11) : mots courants d'un titre de soirée, tabac et vapotage (1.4.3).
     'happy hour','after-?work','\\bpintes?\\b','oktoberfest','ti-?punch','binouze','pub crawl','margarita','\\bshooters?\\b','ricard','heineken','chicha','narguil[ée]','\\bvapot','\\bvape\\b','\\bpuffs?\\b','\\bj[äa]ger\\b','\\bpils\\b','\\bipa\\b','verknipt','asbak',
-  ].join('|'),
+  ]
+    // `\b` de JS ne connaît que l'ASCII : « saké », « bourré » passaient, « buée » ou « barème » étaient pris. Bornes
+    // Unicode comme le \b de Python (contrôle Apple tour 6). Jamais de lookbehind : iOS 16.0–16.3 le refuse (écran blanc).
+    .map((w) => w.replace(/^\\b/, '(?:^|[^\\p{L}\\p{N}_])').replace(/\\b$/, '(?![\\p{L}\\p{N}_])'))
+    .join('|'),
   'iu',
 );
 

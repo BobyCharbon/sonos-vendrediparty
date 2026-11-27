@@ -363,7 +363,7 @@ struct PaySheet: View {
                     }
                     let links = pay.links.sorted { $0.key < $1.key }
                     if !links.isEmpty {
-                        Section("Paiement rapide") {
+                        Section("Rembourser rapidement") {
                             ForEach(links, id: \.key) { kind, value in
                                 if kind == "twint" {
                                     Button { UIPasteboard.general.string = value } label: { Label("Twint : \(value) (copier)", systemImage: "iphone") }
@@ -395,7 +395,7 @@ struct PaySheet: View {
     }
 
     static func label(_ kind: String) -> String {
-        ["revolut": "Payer avec Revolut", "paypal": "Payer avec PayPal", "lydia": "Payer avec Lydia", "other": "Ouvrir le lien de paiement"][kind] ?? kind
+        ["revolut": "Rembourser avec Revolut", "paypal": "Rembourser avec PayPal", "lydia": "Rembourser avec Lydia", "other": "Ouvrir le lien de paiement"][kind] ?? kind
     }
 }
 

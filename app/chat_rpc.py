@@ -12,13 +12,14 @@ import threading
 import time
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .accounts import SUPABASE_ANON_KEY, SUPABASE_URL, AccountError
 from .agenda import ERROR_STATUS, Db, refusal
 from .group_chats import GroupChats
+from . import store_app
 from .group_pages import LOCAL, GroupPages, Refused
 
 log = logging.getLogger("party.chats")
@@ -147,7 +148,7 @@ def chat_rpc_router(chats: GroupChats, invite_url=None) -> APIRouter:
         return local("group_photo", body.token, lambda: pages.set_photo(body.token, body.group_id, data))
 
     @router.post("/api/account/chats/rpc")
-    def relay(body: RelayBody):
+    def relay(body: RelayBody, request: Request):
         if body.fn not in RELAY:
             raise HTTPException(404, "Fonction inconnue")
         args = dict(body.args)
@@ -157,7 +158,7 @@ def chat_rpc_router(chats: GroupChats, invite_url=None) -> APIRouter:
             if "context" in args:  # « Joindre les 10 messages précédents » (contrat : context ; base : p_context)
                 args["p_context"] = bool(args.pop("context"))
         if body.fn in LOCAL:
-            return local(body.fn, body.token, lambda: pages.call(body.fn, args, body.token))
+            return local(body.fn, body.token, lambda: pages.call(body.fn, args, body.token, store_app.is_store(request)))
         status, data = db.call(body.fn, args, body.token)
         return answer(body.fn, status, data, body.token)
 

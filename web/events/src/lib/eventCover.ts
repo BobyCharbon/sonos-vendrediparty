@@ -57,6 +57,8 @@ export async function uploadCover(eventId: string, uri: string): Promise<Saved> 
 
 export const suggestCovers = (eventId: string) => call<Suggestions>('suggest', { event_id: eventId });
 export const officialCover = (eventId: string) => call<Official>('official', { event_id: eventId });
+/** Événement supprimé : le serveur efface sa couverture (s'il ne le voit plus) ; un échec ne gêne jamais la suppression. */
+export const coverDeleted = (eventId: string) => call<{ removed: number }>('deleted', { event_id: eventId }).catch(() => undefined);
 export const chooseCover = (eventId: string, pick: string) => call<Saved>('choose', { event_id: eventId, pick });
 export const posterCover = (eventId: string) => call<Saved>('poster', { event_id: eventId });
 export const removeCover = (eventId: string) => call<Saved>('remove', { event_id: eventId });

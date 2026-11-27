@@ -24,6 +24,7 @@ class LocalStores:
     feedback_forget: Callable[[str], int]
     activity_forget: Callable[[str], None]
     audit_forget: Callable[[str], int] = lambda gid: 0
+    covers_forget: Callable[[str], int] = lambda uid: 0  # couvertures de ses événements (app/covers.py)
 
 
 def subjects(uid: str) -> set[str]:
@@ -44,6 +45,7 @@ def forget_local(stores: LocalStores, uid: str, gid: str, consent_keys: tuple[st
         "feedback": lambda: stores.feedback_forget(gid),
         "pet_party": lambda: stores.activity_forget(gid),
         "audit": lambda: stores.audit_forget(gid),
+        "covers": lambda: stores.covers_forget(uid),
     }
     done: dict = {}
     for name, step in steps.items():

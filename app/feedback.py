@@ -120,7 +120,7 @@ def clean_tags(tags) -> list[str]:
 
 DELETED_ID = "compte-supprime"
 DELETED_NAME = "Compte supprimé"
-ANONYMIZED = ("device", "ip", "photo")  # ce qui désignerait encore la personne dans un avis gardé
+ANONYMIZED = ("device", "ip", "photo", "owner", "context")  # ce qui désignerait encore la personne dans un avis gardé
 
 
 class FeedbackClosed(ValueError):
@@ -172,15 +172,16 @@ class FeedbackBox:
             self._save()
         return item
 
-    def forget(self, guest_id: str) -> int:
+    def forget(self, guest_id: str, owner: str = "") -> int:
         """Compte supprimé : ses avis restent (retours sur l'app) mais ne le désignent plus (ni prénom, ni identifiant,
-        ni appareil). Renvoie le nombre d'avis anonymisés."""
+        ni appareil, ni empreinte du numéro, ni contexte de l'app) ; owner : ceux d'un autre appareil du même compte
+        aussi. Renvoie le nombre d'avis anonymisés."""
         with self.lock:
-            mine = [i for i in self.items if i.get("guest_id") == guest_id]
+            mine = [i for i in self.items if self._is_mine(i, guest_id, owner)]
             if not mine:
                 return 0
             self.items = [{**{k: v for k, v in i.items() if k not in ANONYMIZED}, "guest_id": DELETED_ID,
-                           "name": DELETED_NAME} if i.get("guest_id") == guest_id else i for i in self.items]
+                           "name": DELETED_NAME, "context": {}} if self._is_mine(i, guest_id, owner) else i for i in self.items]
             self._save()
         return len(mine)
 

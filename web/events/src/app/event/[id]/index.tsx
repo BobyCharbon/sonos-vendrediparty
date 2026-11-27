@@ -15,6 +15,7 @@ import { CalendarButton } from '@/components/CalendarButton';
 import { EventGiftsLink } from '@/components/EventGifts';
 import { barOn, compagnonOn, coversOn, discussionsOn, invitesV2On, pronosOn, souvenirsOn, storeApp } from '@/lib/features';
 import { DRINK_RE, drinkyEvent } from '@/lib/storeEvents';
+import { coverDeleted } from '@/lib/eventCover';
 import { GuestListCard } from '@/components/GuestListCard';
 import { AnnounceStatusCard } from '@/components/AnnounceStatusCard';
 import { InviteLinkCard } from '@/components/InviteLinkCard';
@@ -636,6 +637,7 @@ export default function EventScreen() {
             onConfirm={async () => {
               const { error: failed } = await supabase.from('events').delete().eq('id', ev.id);
               if (failed) return setError(failed.message);
+              void coverDeleted(ev.id);
               if (router.canGoBack()) router.back();
               else router.replace('/');
             }} />
@@ -647,6 +649,7 @@ export default function EventScreen() {
           confirmLabel="Oui, supprimer"
           onConfirm={async () => {
             await run(supabase.from('events').delete().eq('id', ev.id));
+            void coverDeleted(ev.id);
             if (router.canGoBack()) router.back();
             else router.replace('/');
           }}

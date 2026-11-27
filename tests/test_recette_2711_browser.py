@@ -118,6 +118,37 @@ def test_the_terms_sheet_shows_the_age_line_without_scrolling_then_scrolls_to_th
         ctx.close()
 
 
+def test_on_a_small_phone_the_read_link_sits_in_the_fixed_bottom_next_to_later(browser, events_origin):  # noqa: F811
+    """Contrôle Apple tour 6 : en 375×667, « Lire les conditions complètes » défile hors de vue ; un lien « Lire les
+    conditions » reste dans le bas fixe, à côté de « Plus tard » (comme terms-read-all-bottom de la feuille iPhone)."""
+    errors, calls = [], []
+    ctx, page = new_page(browser, errors)
+    try:
+        page.set_viewport_size({'width': 375, 'height': 667})
+        mock_services(page)
+        mock_terms(page, calls, accepted=False)
+        page.goto(f'{events_origin}/events/', wait_until='domcontentloaded')
+        login(page)
+        page.get_by_role('button', name='Proposer un événement').click(timeout=15000)
+        page.get_by_label('Titre', exact=True).fill('Soirée de recette')
+        page.get_by_label('Début : jour', exact=True).fill('2030-12-12')
+        page.get_by_role('button', name='Publier', exact=True).click()
+        sheet = page.get_by_label('Conditions d’utilisation')
+        read = sheet.get_by_role('button', name='Lire les conditions', exact=True)
+        pw.expect(read).to_be_visible(timeout=15000)
+        box, later = read.bounding_box(), sheet.get_by_role('button', name='Plus tard', exact=True).bounding_box()
+        assert box['y'] >= 0 and box['y'] + box['height'] <= 667, box  # dans l'écran, sans défiler
+        assert abs((box['y'] + box['height'] / 2) - (later['y'] + later['height'] / 2)) < 12, (box, later)  # même ligne
+        read.click()
+        full = sheet.get_by_test_id('terms-full')
+        pw.expect(full).to_be_visible()
+        page.wait_for_timeout(800)  # défilement animé
+        assert 0 <= full.bounding_box()['y'] < 667
+        assert not errors, errors
+    finally:
+        ctx.close()
+
+
 # 3 --------------------------------------------------------------------------------------------------------------------
 def test_a_poll_invitation_names_the_organizer_who_picks_the_date(browser, v2_origin):  # noqa: F811
     errors = []

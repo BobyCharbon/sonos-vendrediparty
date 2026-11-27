@@ -5,18 +5,27 @@
 3. sinon une affiche générée : titre, date et lieu sur un dégradé aux couleurs de Party.
 
 Toute image est réouverte et réenregistrée en JPEG (1600 px au plus) : rien d'autre qu'une image propre n'est servi.
-Fichiers dans DATA_DIR/covers, nommés par leur empreinte, servis sur /covers/<empreinte>.jpg."""
+Fichiers dans DATA_DIR/covers, nommés par leur empreinte, servis sur /covers/<empreinte>.jpg.
+
+Effacés avec leur événement (contrôle Apple tour 6) : un registre (covers/index.json) note chaque fichier créé ici et
+les événements qui l'utilisent. Fichier jamais posé sur un événement (brouillon abandonné) : effacé au bout de 24 h ;
+couverture remplacée, événement supprimé par son créateur, compte supprimé : effacé dès que plus aucun événement noté
+ne l'utilise. Les fichiers d'avant le registre ne sont jamais touchés."""
 import datetime
 import hashlib
 import io
+import json
 import random
 import re
+import threading
+import time
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
 
 FONT = Path(__file__).parent / "fonts" / "BricolageGrotesque.ttf"
 MAX_SIDE = 1600
+UNUSED_AFTER = 24 * 3600  # un fichier jamais rattaché à un événement (brouillon abandonné) part au bout de 24 h
 MAX_PIXELS = 25_000_000  # au-delà, le décodage coûte trop de mémoire et de temps (5000 × 5000)
 POSTER = (1600, 900)
 NAME = re.compile(r"^[0-9a-f]{24}p?\.jpg$")  # « p » : affiche générée (refaite si le titre ou la date change)
@@ -37,6 +46,77 @@ class Covers:
     def __init__(self, data_dir: Path, public_url: str):
         self.dir = Path(data_dir) / "covers"
         self.public_url = public_url.rstrip("/")
+        self.lock = threading.Lock()
+
+    # ── Registre : quels événements utilisent quel fichier (nom → {"at", "events": {événement: créateur}}) ──
+    def _index(self) -> dict:
+        try:
+            return json.loads((self.dir / "index.json").read_text())
+        except (OSError, ValueError):
+            return {}
+
+    def _write_index(self, index: dict) -> None:
+        self.dir.mkdir(parents=True, exist_ok=True)
+        tmp = self.dir / "index.json.tmp"
+        tmp.write_text(json.dumps(index))
+        tmp.replace(self.dir / "index.json")
+
+    def _drop(self, index: dict, name: str) -> None:
+        index.pop(name, None)
+        if NAME.match(name):
+            (self.dir / name).unlink(missing_ok=True)
+
+    def _name(self, url: str) -> str:
+        return url[len(f"{self.public_url}/covers/"):] if self.owns(url) else ""
+
+    def attach(self, url: str | None, eid: str, owner: str = "") -> None:
+        """L'événement `eid` (créé par `owner`) a maintenant cette couverture (ou aucune) : son ancienne couverture, si
+        plus aucun événement ne l'utilise, est effacée."""
+        name = self._name(url or "")
+        with self.lock:
+            index = self._index()
+            for other, entry in list(index.items()):
+                if other != name and eid in entry.get("events", {}):
+                    entry["events"].pop(eid)
+                    if not entry["events"]:
+                        self._drop(index, other)
+            if name in index:  # seulement un fichier créé ici depuis le registre
+                index[name].setdefault("events", {})[eid] = owner
+            self._write_index(index)
+
+    def release(self, eid: str, owner: str) -> int:
+        """Événement supprimé par son créateur : ses fichiers que plus rien n'utilise sont effacés ; leur nombre."""
+        return self._release(lambda e, o: e == eid and o == owner)
+
+    def forget_owner(self, owner: str) -> int:
+        """Compte supprimé (ses événements partent avec lui dans la base) : leurs couvertures aussi."""
+        return self._release(lambda e, o: bool(owner) and o == owner)
+
+    def _release(self, match) -> int:
+        removed = 0
+        with self.lock:
+            index = self._index()
+            for name, entry in list(index.items()):
+                events = entry.get("events", {})
+                if any(match(e, o) for e, o in events.items()):
+                    entry["events"] = {e: o for e, o in events.items() if not match(e, o)}
+                    if not entry["events"]:
+                        self._drop(index, name)
+                        removed += 1
+            self._write_index(index)
+        return removed
+
+    def purge(self, now: float | None = None) -> int:
+        """Ménage régulier : fichiers créés ici et jamais posés sur un événement depuis 24 h."""
+        now = time.time() if now is None else now
+        with self.lock:
+            index = self._index()
+            stale = [n for n, e in index.items() if not e.get("events") and now - e.get("at", now) > UNUSED_AFTER]
+            for name in stale:
+                self._drop(index, name)
+            if stale:
+                self._write_index(index)
+        return len(stale)
 
     def path(self, name: str) -> Path | None:
         return self.dir / name if NAME.match(name) and (self.dir / name).is_file() else None
@@ -57,8 +137,14 @@ class Covers:
         name = hashlib.sha256(data).hexdigest()[:24] + ("p" if poster else "") + ".jpg"
         self.dir.mkdir(parents=True, exist_ok=True)
         target = self.dir / name
-        if not target.exists():
-            target.write_bytes(data)
+        with self.lock:
+            index = self._index()
+            if not target.exists():
+                target.write_bytes(data)
+                index[name] = {"at": time.time(), "events": {}}
+            elif name in index:
+                index[name]["at"] = time.time()  # reproduite (brouillon relu) : 24 h de plus pour la poser
+            self._write_index(index)
         return f"{self.public_url}/covers/{name}"
 
     def keep(self, data: bytes) -> str:
