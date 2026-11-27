@@ -73,13 +73,26 @@ ci-dessous et le serveur ; « nouveau build » = seulement dans la nouvelle app 
 Les « non décrit » ci-dessus sont de petites choses visibles sans explication ; la partie A est pleine (3 994 caractères
 sur 4 000), donc rien n'y a été ajouté.
 
+## C. Depuis 03357b5c (27.11)
+
+| Commit | Quoi | Dans le guide ? |
+|---|---|---|
+| `f8f8f897` | Co-organisateurs proposés seulement parmi les personnes liées (admin du site : tout) ; feuille des CGU avec « 18 ans et plus » toujours visible au-dessus de « J'accepte » ; « Installe Party ! » jamais par-dessus Événements avant la fin de l'inscription ; lien de groupe sans compte (nom, emoji, couleur, qui invite) ; fiche publiée plus vite ; « + Proposer » dans l'en-tête en haut de la liste ; petits textes. Migration 20261127100000 (fichiers prod prêts, pas en prod) | Oui : B4.2, B4.5, B7 ; tutoriel 3.1, 3.5 |
+| `112ef30b` | Suppression du compte : un refus du serveur est dit tel quel (plus « vérifie ta connexion »), contact support | B4.20 inchangé ; recette du jour de l'envoi (checklist) |
+| `3592adf8` | iPhone : la feuille « J'accepte les conditions » montre les conditions de l'app App Store (sans bar ni Pronos) | Rien à dire à Apple (B7 dit déjà que les CGU de l'app n'ont ni bar ni Pronos) |
+| lot 6 (textes) | Politique du 27 novembre 2026 (web = iPhone) : présences notées à la main, aperçu d'un lien de groupe, moyens de paiement du Pot commun (montrés si on a créé le pot ou l'a rejoint par son lien, sinon par « Montrer mes moyens de paiement dans ce pot »), IA en mode Modifier ; guide : B2 (Pot commun à créer), B4.2, B4.5 (Relancer, liste d'attente), B4.12 (discussion réservée, @toutlemonde, Ma note privée), B4.16, B7 ; App Privacy à 17 types ; plan de prod (9e fichier) | — |
+
+`20261127090000` (présences, suppression du compte) est **déjà en prod** ; `20261127110000` (suppression-blocage) est en
+préparation : sans lui, la phrase « une personne bloquée ne peut être ni notée présente ni ajoutée en co-organisatrice »
+sort du guide (checklist).
+
 ## Reste à faire par l'admin
 
 - [ ] Clé `storage_secret_key` à ajouter dans le coffre Supabase de prod (contrôle : une ligne dans `private.chat_files_gc_runs`).
 - [ ] Dépôt GitHub `BobyCharbon/sonos-vendrediparty` à passer en PRIVÉ (ou `GITHUB_REPO` sur un dépôt privé à part).
-- [ ] App Store Connect : AUCUNE version tvOS jointe ; App Privacy = les **16 types** du manifeste, ni plus ni moins ;
+- [ ] App Store Connect : AUCUNE version tvOS jointe ; App Privacy = les **17 types** (Search History ajouté le 27.11 ; manifeste : lot 6 iPhone, d7d4fddf), ni plus ni moins ;
       anciennes captures et ancienne vidéo d'aperçu SUPPRIMÉES (6,9" et Duo), nouvelles captures faites avec l'app App Store.
-- [ ] Guide PDF : rejoindre `docs/app-store/guide-revue-apple.pdf` régénéré le 27.11 (présences sans compte, B4.5).
+- [ ] Guide PDF : rejoindre `docs/app-store/guide-revue-apple.pdf` régénéré le 27.11 (lot 6 : B2, B4.2, B4.5, B4.12, B4.16, B7).
 - [ ] Couverture de l'événement « Verknipt » : la vérifier / remplacer (aucune boisson visible).
 - [ ] Lien Shotgun de « Hard Boat » : le nettoyer (sans `uhandle` ni `utm_*`).
 - [ ] Relire le classement du Quiz dans l'app App Store (points seulement, aucun mot de boisson ni gorgée) ; au passage,

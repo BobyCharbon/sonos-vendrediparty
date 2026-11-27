@@ -155,7 +155,7 @@ def test_privacy_policy_tells_what_the_pronos_keep_on_web_and_iphone():
         for words in ("Pronos : tes pronos, tes réponses, les confettis que tu lances et ceux que tu ramasses",
                       "l'historique de ton sac (toi seul le vois)", "tes contestations", "tes réactions",
                       "Rien de tout cela n'est envoyé à un tiers.", "Ton sac de confettis et son historique",
-                      "pronos et confettis", "26 novembre 2026"):  # date de la politique (éditeur en France, 25.11)
+                      "pronos et confettis", "27 novembre 2026"):  # date de la politique (éditeur en France, 25.11)
             assert words in text, words
 
 

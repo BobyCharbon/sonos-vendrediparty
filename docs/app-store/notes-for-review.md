@@ -123,6 +123,7 @@ has a **fixed code** (also in "Sign-in information", Password field): no SMS is 
 | Event **"Soirée démo Vendredi Party"** (12 Dec.) | Organised by us, invitation only; the demo account is invited AND co-organiser: answer (**Présent**), see who comes, event discussion; organiser side: guests and their answers, ZONE ORGANISATEUR. QR tickets are on: answer **Présent**, then in the organiser card **Billets QR** of the event page tap **Remettre à tous les présents** (you are co-organiser) to get your own ticket (card **Ton billet**, Apple Wallet, B4.10); payment and carpool are off on this event (options of the organiser, described below for completeness). |
 | Group **"Démo Apple"** | The demo account + one of our admins, with a few messages. |
 | Direct message | One message from our admin to the demo account. |
+| "Pot commun" | No pot is prepared: create one in Réglages › Pot commun › Nouveau pot commun; "Rembourser" appears once another member owes or is owed. |
 | Second demo account **"Apple-test 2"** | Number **+41 79 000 00 01**, same fixed code as the first demo account (no SMS; checked by signing in on the day of submission). Shares no group or private event with "Apple-test" and has sent it a **message request** (Discussions › **Demandes**). Sign in with it to see the sender side ("Demande envoyée", input closed until accepted). |
 
 If you test account deletion: please do it last. Signing in again with the same number then creates a new, empty
@@ -166,8 +167,8 @@ first and last name are private: the form says "🔒 Ton prénom et ton nom ne s
 Tab **Événements**:
 - Pills: **À venir** (upcoming), **Sondages** (date polls), **Brouillons** (drafts and proposals waiting for approval),
   **Passés** (past), **Filtres** (categories, tags).
-- Top right: magnifier (search) and bell (activity).
-- Bottom right: **✨ Avec l'IA** (AI assistant) and **+ Proposer** (create with a form).
+- Top right: **+ Proposer** (just "+" on small iPhones; it moves to the bottom right once you scroll), magnifier and bell.
+  Bottom right: **✨ Avec l'IA**.
 - Tap a card to open the event page. Its sections, top to bottom: title, date, place (tap: directions in Maps), "À propos",
   **Ajouter à mon agenda**, your answer, the event's polls (right under the answer), your ticket, the "Invités" card,
   carpool, details, participants, "Qui amène quoi" (who brings what), discussion, **Signaler cet événement**, and for organisers the
@@ -215,7 +216,12 @@ On an online event you organise (e.g. one you create), card **Invités** › **+
 - Each guest has the same "Invités" card with **counts only** (never names) and can create, copy and stop **their own**
   links. On a non-public event, someone who comes through a *guest's* link waits for the organiser: section
   **À accepter** in the organiser's "Invités" card.
-- Groups: Réglages › Groupes › a group › **Inviter avec un lien** (reusable group link).
+- **↻ Relancer** (organisers, in the folded "Invités" card): reminds the guests who have not answered, at most one
+  notification a day; guests without the app or notifications get a link the organiser shares himself.
+- Places: when an event with a seat limit is full and the organiser keeps a waiting list, new answers go to the
+  **liste d'attente** ("Complet · liste d'attente ouverte"); when a seat frees up, the next person is in and is notified.
+- Groups: Réglages › Groupes › a group › **Inviter avec un lien** (reusable group link). Someone without an account who
+  opens a group link only sees the group's name, emoji and colour and the nickname of who invites, never its members.
 - Friends: Réglages › **Mes amis dans Party** (optional; Contacts access is asked only after an explanation, and limited
   access is respected). It lists your phone contacts already on Party (matched with a hash of each number made on the
   iPhone; names never leave it), and contacts not yet on Party: each has its own button that opens Apple's Messages
@@ -223,7 +229,8 @@ On an online event you organise (e.g. one you create), card **Invités** › **+
   nothing.
 - Attendance by hand: organisers can add people to the attendance by hand, members or people without an account
   (e.g. "Théo, Léa's cousin"), to count them; people without an account are never notified and their names are never
-  shown to guests, who only see numbers; names pass the same filter.
+  shown to guests, who only see numbers; names pass the same filter. A blocked person can be neither noted present
+  nor added as a co-organiser.
 
 #### B4.6 Answer an event
 
@@ -303,7 +310,12 @@ Tab **Discussions** (signed-in accounts):
 9. Read receipts ("Vu") in direct chats only if both people keep **Confirmations de lecture** on; "écrit…" is a live
    signal, never stored. Neither appears in a request or with a blocked person.
 
-Each event can also have its own **Discussion** (organiser's option "Forum de l'événement"), with the same rules.
+Each event can also have its own **Discussion** (organiser's option "Forum de l'événement"), with the same rules. Only
+the organisers and guests who answered **Présent** or **Peut-être** are in it; on a date poll, it opens once the date
+is fixed (the page says so). **@toutlemonde** and announcements (📣, pinned) are for the organisers only.
+
+**Ma note privée** (mini-profile or profile of a member): a private note of up to 500 characters, seen only by its
+author, never by the person, never shown to our admins, never shared.
 
 #### B4.13 Groups
 
@@ -374,9 +386,10 @@ l'événement" from a shared link (the AI assistant drafts the event, you review
 Réglages › **Pot commun**: shared expense lists between friends (who paid, who owes what);
 names, titles and notes pass the app's word filter. A pot is joined with its link, or automatically through an event: when the organiser of
 an event chose a pot for it, everyone who answers **Présent** is added to that pot, and so is anyone the organiser marks **Présent**; anyone can leave it at any time in Réglages › Pot commun ›
-**Quitter ce pot commun**. Members of a pot see each member's name; a member's payment details (IBAN, Revolut, PayPal,
-Twint) stay hidden in that pot until the member chooses **Montrer mes moyens de paiement dans ce pot**; this is stated
-in the privacy policy. Adding an expense or a receipt photo
+**Quitter ce pot commun**. Members of a pot see each member's name. A member's payment details (IBAN, Revolut, PayPal,
+Twint) are shown to the other members if they created the pot or joined it themselves with its link; someone added
+automatically (by an event or by another member) keeps them hidden in that pot until choosing
+**Montrer mes moyens de paiement dans ce pot**; either can switch it at any time. This is stated in the privacy policy. Adding an expense or a receipt photo
 requires accepting the **Terms of use**, and each expense and receipt photo has **Signaler** (report). Receipts can be scanned
 (VisionKit; optional AI reading with consent). It only records amounts; repayments happen outside the app: "Rembourser"
 only shows the friend's own IBAN, Revolut, PayPal or Twint (opens Safari or copies it). No money goes through Party and
@@ -506,12 +519,24 @@ New build, and our server, permanent for this version of the App Store app:
   nothing digital is sold or unlocked.
 - "Pot commun": answering **Présent** to an event whose organiser chose a pot (or being marked Présent by the organiser) adds you to it (you can leave it at any time in Réglages › Pot commun);
   the privacy policy says so, and says that members see each name, while a member's payment details stay hidden in
-  that pot until they choose "Montrer mes moyens de paiement dans ce pot" (B4.16). Expenses and receipt photos have
+  that pot until they choose "Montrer mes moyens de paiement dans ce pot" (B4.16); the creator of a pot and those who
+  join it with its link show theirs. Expenses and receipt photos have
   **Signaler**.
 - The privacy policy now names Supabase (a US company; the data is hosted in Zurich) among the transfers, says what
   the AI event assistant receives (your nickname, the names of your groups, categories and tags, and people already
   chosen, sent as aliases P1, P2…; never the list of members), and gives how long the sign-in log
   (12 months) and people searches (1 hour) are kept.
+- Co-organisers are suggested only among people the organiser is linked to (shared groups other than "Membres Vendredi
+  Party", shared events), never a blocked person nor the whole member list.
+- A group link opened without an account shows the group's name, emoji and colour and who invites, never its members.
+- The terms sheet always shows "Party est réservée aux 18 ans et plus" right above "J'accepte", without scrolling.
+- The discussion of a date poll opens to guests once the date is fixed and they answer Présent or Peut-être (B4.12).
+- After a report ("Signaler"), the sheet gives our contact (support@vendrediparty.ch) for urgent cases; reports are
+  handled within 24 hours.
+- Blocking someone also prevents being added by them as a co-organiser or noted present by them.
+- The privacy policy (27 November 2026) adds attendance noted by hand (people without an account: name seen only by the
+  organisers, others see numbers), the group link preview, when "Pot commun" payment details are shown, and what the AI
+  receives when it edits an event.
 
 ### B8. Permissions (asked only when needed)
 

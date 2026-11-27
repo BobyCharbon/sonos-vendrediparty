@@ -239,7 +239,19 @@ def test_privacy_policy_tells_the_data_added_since_november_9_and_the_eu_rules()
                   "RGPD", "Bases légales", "portabilité", "CNIL", "Autorité de protection des données", "CNPD",
                   "DSA", "point de contact unique", "Combien de temps", "support@vendrediparty.ch"):
         assert words in text, words
-    assert "26 novembre 2026" in read("web/events/src/app/privacy.tsx")  # éditeur établi en France (25.11)
+    assert "27 novembre 2026" in read("web/events/src/app/privacy.tsx")  # éditeur établi en France (25.11)
+
+
+def test_privacy_policy_tells_the_data_added_on_november_27():
+    """Présences à la main (20261126150000), aperçu d'un lien de groupe (20261127100000), moyens de paiement du Pot commun
+    par geste (20261126140000), IA en mode Modifier (draft_of d'ai_event_edit.py)."""
+    text = " ".join(web_paragraphs())
+    for words in ("Présences notées à la main", "60 caractères au plus", "les autres ne voient que des nombres",
+                  "effacé avec l'événement", "Lien d'un groupe : sans compte", "jamais ses membres",
+                  "si tu as créé le pot ou si tu l'as rejoint toi-même par son lien",
+                  "« Montrer mes moyens de paiement dans ce pot »", "pour modifier un événement",
+                  "sondages, qui amène quoi, prix et infos de paiement", "le texte tapé"):
+        assert words in text, words
 
 
 # ── 4.8 et 3.1 ──
