@@ -977,7 +977,9 @@ def test_round_three_the_web_keeps_its_rules_for_these_words_and_the_app_sees_jo
     assert r.status_code == 200
     code = r.json()["code"]
     assert client(WEB_UA).get(f"/api/games/{code}?guest_id=web-host-nm").json()["host_name"] == "Merde"
-    assert client(STORE_UA).get(f"/api/games/{code}?guest_id=store-p9").json()["host_name"] == "Joueur"
+    # Contrôle Apple, tour 4 : l'app arrive, le prénom est réécrit DANS la partie (« Joueur 1 », pour tous).
+    assert client(STORE_UA).get(f"/api/games/{code}?guest_id=store-p9").json()["host_name"] == "Joueur 1"
+    assert client(WEB_UA).get(f"/api/games/{code}?guest_id=web-host-nm&name=Merde").json()["host_name"] == "Joueur 1"
 
 
 def test_round_three_a_drinking_dilemma_proposed_on_the_web_never_reaches_the_app():
@@ -992,7 +994,7 @@ def test_round_three_a_drinking_dilemma_proposed_on_the_web_never_reaches_the_ap
     view = client(STORE_UA).get(f"/api/games/{g['code']}?guest_id=store-db").json()
     assert g["store"]
     left = [p["text"] for p in g["debate"]["proposals"]] + [q["text"] for q in g["debate"]["queue"]]
-    assert left == ["Faut-il toujours dire la vérité à ses amis ?"]
+    assert left == []  # contrôle Apple, tour 4 : avec l'app, la banque de Party seule
     assert "vodka" not in str(view) and "beuh" not in str(view)
 
 

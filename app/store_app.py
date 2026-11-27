@@ -13,7 +13,7 @@ import re
 from functools import lru_cache
 
 from .features import is_test_site
-from .moderation import store_hit
+from .moderation import check as moderation_check, clean as moderation_clean, merged, normalize, store_hit
 
 MARK = "PartyStore"
 # Casino et Blackjack (jeux d'argent simulés) depuis le 05.11 ; les autres sont des jeux à boire par leur origine ou leur
@@ -88,11 +88,128 @@ def offensive(text) -> bool:
     return drinky(text) or store_hit(str(text or ""))
 
 
+# Textes de JOUEURS seulement (prénoms, réponses, mots : jamais le filtre des événements ni des banques) : argot de
+# l'ivresse et du pari que la liste commune ne connaît pas, écrit en clair, en chiffres (v0dka), lettres séparées
+# (v.o.d.k.a) ou coupé en deux (hit ler). Contrôle Apple, tour 4 (27.11).
+# « Paris » (la ville, le prénom) passe : seul « paris » sans majuscule (« faire des paris ») est refusé.
+PLAYER_RAW = re.compile(r"so[ûü]l|torché", re.IGNORECASE)
+PARIS = re.compile(r"(?<![^\W\d_])(?!Paris\b)[pP][aA][rR][iI][sS](?![^\W\d_])")
+# Après normalisation (minuscules, sans accents, chiffres ramenés aux lettres, mots séparés par une espace).
+PLAYER_NORM = re.compile(
+    r"(^| )(picol\w*|trinqu\w*|saoul\w*|pompettes?|emeche\w*|bitures?|pinards?|tise[sr]?|tisent|tisez|torcher\w*"
+    r"|torchent|defonc\w*|clopes?|clopers?|clopent|pari|parie[rsz]?|parient|parions|pariai[st]?|parieurs?|paries"
+    r"|mise[rz]|misons|misent|misai[st]?|miseurs?|whiskey|vodka|hitler\w*"
+    r"|(mettre|mets|met|mis|mise|mettent|mettait|mettais|mettons) (une|la|sa|ta|ma) (mine|race)"
+    r"|cul[ ]sec|rouler un pet\w*|de la c)( |$)"
+    # « mise » / « mises » (enjeu) : refusé, sauf « mise à jour », « mise en place », « mise au point »…
+    r"|(^| )mises?( |$)(?!(a|au|aux|en|bas|hors|jour|sur pied)( |$))")
+
+
+NUMBER = re.compile(r"(?<![^\W\d_])\d{2,}(?![^\W\d_])")  # « 30 ans », « 5 à 7 » : un nombre reste un nombre
+# Mots qu'on retrouve en recollant deux morceaux (« vod ka », « hit ler ») ; jamais toute la liste des boissons : deux
+# mots ordinaires recollés en formeraient (« mal t'aime » → « malt »).
+PAIR_WORDS = {"vodka", "whisky", "whiskey", "biere", "bieres", "alcool", "tequila", "cocaine", "cannabis", "hitler",
+              "nazi", "nazis", "shots", "rhum", "picole", "picoler", "pompette", "saoul", "parier", "miser"}
+
+
+def _player_forms(text: str) -> tuple[str, list[str]]:
+    """Le texte normalisé (chiffres dans un mot ramenés aux lettres, lettres séparées recollées), et chaque paire de
+    mots voisins recollée (« hit ler » → « hitler »)."""
+    norm = merged(normalize(moderation_clean(NUMBER.sub(" ", text))))
+    words = norm.split()
+    return norm, ["".join(p) for p in zip(words, words[1:])]
+
+
+@lru_cache(maxsize=8192)
+def player_offensive(text) -> bool:
+    """Texte d'un joueur refusé dans une partie de l'app : liste commune de l'app (offensive) et argot, contournements
+    compris (chiffres, lettres séparées, mot coupé en deux)."""
+    text = str(text or "")
+    if offensive(text) or PLAYER_RAW.search(text) or PARIS.search(text):
+        return True
+    norm, pairs = _player_forms(text)
+    if DRINK_RE.search(norm) or STORE_EXCLUDE.search(norm) or PLAYER_NORM.search(norm):
+        return True
+    return any(w in PAIR_WORDS or store_hit(w) for w in pairs)
+
+
 def check_text(text, store: bool):
     """Texte libre d'un joueur montré à la table d'une partie de l'app : jamais de boisson, de drogue ni de mot de
-    STORE_ONLY (ValueError)."""
-    if store and offensive(text):
+    STORE_ONLY, argot compris (ValueError)."""
+    if store and player_offensive(text):
         raise ValueError(TEXT_REFUSED)
+
+
+@lru_cache(maxsize=8192)
+def name_refused(name) -> bool:
+    """Prénom jamais montré dans une partie de l'app : refusé par l'app (player_offensive) ou par le filtre commun."""
+    return isinstance(name, str) and bool(name) and (player_offensive(name) or not moderation_check(name, "name").ok)
+
+
+ALIAS = "Joueur"
+
+
+ID_KEYS = ("id", "gid", "pid", "host", "code", "room", "current", "store_alias", "aliases", "leads", "kicked", "removed")
+
+
+def _replace(o, old, new: str):
+    """Toutes les copies d'un prénom dans la partie (historiques, auteurs, classements, trames, journaux) : la valeur
+    exacte, ou le mot entier dans une phrase (« Hitler a gagné » ; « Paris » reste si « Pari » est renommé) ; jamais un
+    identifiant. `old` : le prénom, et le motif du mot entier."""
+    name, word = old
+    if isinstance(o, str):
+        return new if o == name else word.sub(new, o) if " " in o and name in o else o
+    if isinstance(o, dict):
+        for k, x in o.items():
+            if k not in ID_KEYS:
+                o[k] = _replace(x, old, new)
+        return o
+    if isinstance(o, list):
+        for i, x in enumerate(o):
+            o[i] = _replace(x, old, new)
+    return o
+
+
+def scrub_names(g: dict, peers=()) -> bool:
+    """Partie touchée par l'app App Store : tout prénom refusé (insulte, haine, drogue, boisson, argot) devient
+    « Joueur 1 », « Joueur 2 »… DANS la partie (stable par joueur, même numéro dans la salle et son jeu), copies
+    comprises : rien ne reste à masquer à l'affichage. True si un prénom a changé."""
+    if not isinstance(g, dict):
+        return False
+    peers = [x for x in peers if isinstance(x, dict)]
+    seats = [(p, p.get("id")) for p in g.get("players", []) if isinstance(p, dict)]
+    if g.get("host_name") and not any(i == g.get("host") for _, i in seats):
+        seats.append((None, g.get("host")))  # animateur qui ne joue pas : seul son host_name porte le prénom
+    bad = [(p, i) for p, i in seats if name_refused(p["name"] if p else g.get("host_name"))]
+    if not bad:
+        return False
+    aliases = g.setdefault("store_alias", {})
+    taken = {p.get("name") for x in [g, *peers] for p in x.get("players", []) if isinstance(p, dict)}
+    taken |= {a for x in [g, *peers] for a in (x.get("store_alias") or {}).values()}
+    copies = {}  # prénom refusé → alias de sa première place (homonymes : chacun son numéro, copies au premier)
+    for p, gid in bad:
+        old = p["name"] if p else g["host_name"]
+        alias = aliases.get(gid) or next((x["store_alias"][gid] for x in peers if gid in (x.get("store_alias") or {})), None)
+        if not alias:
+            n = 1
+            while f"{ALIAS} {n}" in taken:
+                n += 1
+            alias = f"{ALIAS} {n}"
+        aliases[gid] = alias
+        taken.add(alias)
+        copies.setdefault(old, alias)
+        if p:
+            p["name"] = alias
+        if g.get("host") == gid:
+            g["host_name"] = alias
+    for old, alias in copies.items():
+        _replace(g, (old, re.compile(r"(?<![^\W\d_])" + re.escape(old) + r"(?![^\W\d_])")), alias)
+    return True
+
+
+def bank_only(g: dict) -> bool:
+    """Pour ou contre d'une partie de l'app : seulement les dilemmes de la banque, aucun dilemme proposé."""
+    return bool(g.get("store"))
 
 
 def clean(pool: list, text=lambda x: x) -> list:
@@ -120,14 +237,17 @@ def flag(g: dict):
         if isinstance(g.get(key), dict):
             g[key]["store"] = True
     d = g.get("debate")
-    if isinstance(d, dict):  # dilemmes proposés sur le web avant l'arrivée de l'app : jamais lus par l'app
-        for k in ("queue", "proposals", "history"):
+    if isinstance(d, dict):  # dilemmes proposés sur le web avant l'arrivée de l'app : la banque seule (bank_only)
+        for k in ("queue", "proposals"):
             if isinstance(d.get(k), list):
-                d[k] = [x for x in d[k] if not (isinstance(x, dict) and offensive(x.get("text")))]
+                d[k] = [x for x in d[k] if isinstance(x, dict) and x.get("by") is None and not player_offensive(x.get("text"))]
+        if isinstance(d.get("history"), list):
+            d["history"] = [x for x in d["history"] if not (isinstance(x, dict) and player_offensive(x.get("text")))]
     if isinstance(g.get("debate"), dict) and isinstance(g["debate"].get("themes"), list):
         g["debate"]["themes"] = [t for t in g["debate"]["themes"] if t not in HIDDEN_THEMES] or ["light"]
     if isinstance(g.get("likely"), dict) and isinstance(g["likely"].get("packs"), list):
         g["likely"]["packs"] = [p for p in g["likely"]["packs"] if p not in HIDDEN_PACKS] or ["family"]
+    scrub_names(g)
 
 
 def refused_settings(g: dict, settings) -> bool:

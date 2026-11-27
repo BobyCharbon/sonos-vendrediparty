@@ -13,6 +13,7 @@ requête (tick), et la bonne réponse n'est jamais envoyée avant la révélatio
 
 import json
 import random
+import re
 import threading
 import time
 from pathlib import Path
@@ -21,7 +22,6 @@ from functools import lru_cache
 
 from . import quizbank as qb
 from . import store_app
-from .moderation import check as moderation_check
 
 MODES = {
     "classic": ("Classique", "🏆"),
@@ -592,23 +592,38 @@ def store_name(name: str) -> str:
     ou une insulte, ou un mot refusé dans l'app (STORE_ONLY ; prénom venu du web ou d'avant le filtre)."""
     if not isinstance(name, str) or not name:
         return name
-    return "Joueur" if store_app.offensive(name) or not moderation_check(name, "name").ok else name
+    return "Joueur" if store_app.name_refused(name) else name
 
 
 def leaderboard(limit: int = 20, store: bool = False) -> dict:
-    """Classement général et records par mode, pour l'écran d'accueil du quiz (app App Store : prénoms filtrés)."""
-    shown = store_name if store else (lambda n: n)
+    """Classement général et records par mode, pour l'écran d'accueil du quiz (app App Store : prénoms filtrés, chacun
+    son numéro, « Joueur 1 », « Joueur 2 »… : contrôle Apple, tour 4)."""
     data = _load_stats()
-    ps = list(data.get("players", {}).values())
-    top = sorted(ps, key=lambda x: -x["pts"])[:limit]
-    records = {}
+    items = list(data.get("players", {}).items())
+    top = sorted(items, key=lambda kv: -kv[1]["pts"])[:limit]
+    best = {}
     for m in MODES:
-        best = max(ps, key=lambda x: x.get("records", {}).get(m, 0), default=None)
-        if best and best.get("records", {}).get(m):
-            records[m] = {"name": shown(best["name"]), "value": best["records"][m]}
-    return {"top": [{"name": shown(x["name"]), "pts": x["pts"], "games": x["games"], "wins": x["wins"],
-                     "rate": round(100 * x["ok"] / x["n"]) if x["n"] else 0, "streak": x["best_streak"]} for x in top],
-            "records": records}
+        b = max(items, key=lambda kv: kv[1].get("records", {}).get(m, 0), default=None)
+        if b and b[1].get("records", {}).get(m):
+            best[m] = b
+    numbered = re.compile(r"Joueur \d+")  # prénom déjà renommé dans une partie de l'app : renuméroté ici aussi
+    aliases, taken = {}, {x["name"] for _, x in items if not numbered.fullmatch(x["name"])}
+
+    def shown(key, x):
+        if not store or (store_name(x["name"]) == x["name"] and not numbered.fullmatch(x["name"])):
+            return x["name"]
+        if key not in aliases:
+            n = len(aliases) + 1
+            while f"Joueur {n}" in taken:
+                n += 1
+            aliases[key] = f"Joueur {n}"
+            taken.add(aliases[key])
+        return aliases[key]
+
+    rows = [{"name": shown(k, x), "pts": x["pts"], "games": x["games"], "wins": x["wins"],
+             "rate": round(100 * x["ok"] / x["n"]) if x["n"] else 0, "streak": x["best_streak"]} for k, x in top]
+    records = {m: {"name": shown(k, x), "value": x["records"][m]} for m, (k, x) in best.items()}
+    return {"top": rows, "records": records}
 
 
 # --- Vue ---

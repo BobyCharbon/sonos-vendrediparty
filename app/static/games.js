@@ -492,7 +492,7 @@ document.getElementById("gamesRoot").innerHTML = `
         <span>J'ai 18 ans ou plus et j'accepte les <button type="button" class="g-terms-link" data-gterms="open">conditions d'utilisation</button> (tolérance zéro pour les contenus abusifs)</span>
       </label>
       <p class="g-terms-note" id="gTermsNote" role="status">Ton prénom et ce que tu écris dans les jeux sont lus par les autres joueurs : coche la case pour jouer avec eux. Tu peux aussi revenir plus tard.</p>
-      <button type="button" class="secondary g-terms-later hidden" id="gTermsLater" data-gterms="later">Plus tard</button>
+      <button type="button" class="secondary g-terms-later" id="gTermsLater" data-gterms="later">Plus tard · jouer seul à Méninges</button>
       <div id="gTermsSheet" class="g-modal hidden" role="dialog" aria-modal="true" aria-labelledby="gTermsTitle">
         <div class="g-sheet g-terms-sheet">
           <div class="g-head">
@@ -506,6 +506,7 @@ document.getElementById("gamesRoot").innerHTML = `
     </div>
 
     <div id="gHome" class="hidden">
+      ${STORE ? `<button type="button" class="g-go g-solo-back" data-gsolo-back>👥 Jouer avec les autres</button>` : ""}
       <div class="g-hello">Salut <span id="gHello"></span></div>
       <h1 class="g-h1">On joue à quoi&nbsp;?</h1>
       <div id="gamesAdmin" class="admin-games hidden"></div>
@@ -1202,17 +1203,35 @@ document.addEventListener("change", (ev) => {
   if (ev.target.checked && guestName) refreshGame();  // prénom déjà donné : on retrouve les jeux
 });
 
+// App App Store, « Plus tard » (contrôle Apple, tour 4) : Méninges sans la case des conditions ; rien d'écrit n'y est
+// montré aux autres (ni prénom, ni partie). « Jouer avec les autres » rouvre « Comment tu t'appelles ? ».
+function renderSoloHome() {
+  $("gName").classList.add("hidden");
+  $("gamePlay").classList.add("hidden");
+  $("gHome").classList.add("g-solo");
+  $("gHome").classList.remove("hidden");
+  syncGameChrome();
+}
+document.addEventListener("click", (ev) => {
+  if (!ev.target.closest("[data-gsolo-back]")) return;
+  gTermsLater = false;
+  refreshGame();
+});
+
 let gSeq = 0;  // numéro du dernier chargement de la partie demandé
 async function refreshGame() {
+  // « Plus tard » : sans la case (ou sans prénom), l'accueil des jeux ne garde que Méninges (solo, rien n'est lu par
+  // d'autres ; contrôle Apple, tour 4).
+  if (STORE && gTermsLater && (!guestName || !gamesTermsOk())) return renderSoloHome();
   const askTerms = STORE && !gamesTermsOk() && !gTermsLater;
   $("gName").classList.toggle("hidden", !!guestName && !askTerms);
   if (!guestName || askTerms) {
     if (askTerms && guestName && !$("gNameInput").value) $("gNameInput").value = guestName;
-    $("gTermsLater")?.classList.toggle("hidden", !guestName);
     $("gHome").classList.add("hidden"); $("gamePlay").classList.add("hidden");
     if (typeof maybeInstallSheet === "function") maybeInstallSheet();
     return;
   }
+  $("gHome").classList.remove("g-solo");
   $("gHello").textContent = guestName;
   if (!myGame) return renderGame(null);
   const seq = ++gSeq, code = myGame;
@@ -3603,7 +3622,7 @@ $("gCode").addEventListener("input", () => {
   $("gCode").value = $("gCode").value.replace(/\D/g, "");
   if ($("gCode").value.length === (STORE ? 6 : 4)) joinByCode();
 });
-$("gNameForm").addEventListener("submit", (ev) => {
+$("gNameForm").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   const name = $("gNameInput").value.trim().slice(0, 30);
   if (!name) return;
@@ -3614,13 +3633,26 @@ $("gNameForm").addEventListener("submit", (ev) => {
       $("gTermsCheck").focus();
       return;
     }
-    setGamesTerms(true);
   }
+  // Le serveur lit d'abord le prénom (filtre commun ; app App Store : insulte, haine, boisson, drogue, argot) : refusé,
+  // il le dit ici et rien n'est gardé (contrôle Apple, tour 4). L'hôte voit la personne dans ses Réglages.
+  const btn = ev.submitter || $("gNameForm").querySelector("button");
+  if (btn) btn.disabled = true;
+  try {
+    await gapi("/api/presence", { guest_id: guestId, name, game: myGame || "" });
+  } catch (e) {
+    if (e.status === 400 || STORE) {
+      const msg = e.status === 400 ? e.message : "Pas de réseau : réessaie dans un instant.";
+      if ($("gTermsNote")) $("gTermsNote").textContent = msg;
+      if (typeof toast === "function") toast(msg, "err");
+      $("gNameInput").focus();
+      return;
+    }
+  } finally { if (btn) btn.disabled = false; }
+  if (STORE && !gamesTermsOk()) setGamesTerms(true);
   gTermsLater = false;
   guestName = name; store("vp_name", guestName);
   if (typeof renderNameChip === "function") renderNameChip();
-  // L'hôte voit la personne dans ses Réglages dès qu'elle a donné son prénom.
-  gapi("/api/presence", { guest_id: guestId, name: guestName }).catch(() => {});
   refreshGame();
   if (typeof refresh === "function") refresh();
 });

@@ -200,12 +200,13 @@ def test_the_store_view_shows_joueur_for_a_drink_or_insult_name_and_no_sips():
     g["players"].append({**games.player(g, "web-view-host1"), "id": "web-view-bob01", "pid": "bobpid", "name": "connard"})
     g["host"] = "nobody"
     view = client(STORE_UA).get(f"/api/games/{code}", params={"guest_id": "web-view-bob01"}).json()
-    assert [p["name"] for p in view["players"]] == ["Joueur", "Joueur"] and view["host_name"] == "Joueur"
+    # Contrôle Apple, tour 4 : réécrits DANS la partie, chacun son numéro (store_app.scrub_names).
+    assert [p["name"] for p in view["players"]] == ["Joueur 1", "Joueur 2"] and view["host_name"].startswith("Joueur ")
     text = str(view)
     assert "Vodka" not in text and "connard" not in text
     assert "'drink'" not in text and "'give'" not in text and "sips_log" not in view
     web = client(WEB_UA).get(f"/api/games/{code}", params={"guest_id": "web-view-bob01"}).json()
-    assert web["players"][0]["name"] == "Vodka Max" and "drink" in web["players"][0]
+    assert web["players"][0]["name"] == "Joueur 1" and "drink" in web["players"][0]  # partie touchée par l'app
 
 
 def test_the_quiz_leaderboard_hides_drink_and_insult_names_in_the_store_app(monkeypatch):
@@ -216,8 +217,8 @@ def test_the_quiz_leaderboard_hides_drink_and_insult_names_in_the_store_app(monk
                          "c": {"name": "connard", "pts": 1, "games": 1, "wins": 0, "ok": 1, "n": 1, "best_streak": 1}}}
     monkeypatch.setattr(quiz, "_load_stats", lambda: stats)
     store = quiz.leaderboard(store=True)
-    assert [x["name"] for x in store["top"]] == ["Joueur", "Zoé", "Joueur"]
-    assert all(r["name"] == "Joueur" for r in store["records"].values())
+    assert [x["name"] for x in store["top"]] == ["Joueur 1", "Zoé", "Joueur 2"]  # distincts (contrôle Apple, tour 4)
+    assert all(r["name"] == "Joueur 1" for r in store["records"].values())
     assert quiz.leaderboard()["top"][0]["name"] == "Bière Bob"
 
 
