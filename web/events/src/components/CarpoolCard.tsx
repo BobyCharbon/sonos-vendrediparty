@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Fragment, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { termsLater, useTermsGate } from './TermsSheet';
 import { ConfirmButton, Avatar, Button, Card, ErrorText, Field, T } from './ui';
@@ -8,6 +8,7 @@ import {
   type Carpool, type CarpoolDriver, type CarpoolMe, type CarpoolPerson,
 } from '@/lib/carpool';
 import { useQuery } from '@/lib/data';
+import { openMiniProfile } from '@/lib/miniProfile';
 import { pressTransition } from '@/lib/motion';
 import { colors, radius } from '@/lib/theme';
 
@@ -186,10 +187,10 @@ function DriverRow({ d, meId, canBoard, busy, onBoard }: {
     <View style={st.person}>
       <Avatar id={d.id} name={d.name} size={32} photo={d.avatar_url} />
       <View style={st.grow}>
-        <T weight="semibold" size={15}>{d.name}{d.from_city ? <T muted size={13}> · depuis {d.from_city}</T> : null}</T>
+        <T weight="semibold" size={15}><Who id={d.id} name={d.name} meId={meId} />{d.from_city ? <T muted size={13}> · depuis {d.from_city}</T> : null}</T>
         <T size={13} color={free ? colors.mint : colors.muted}>
           {free ? `${plural(free, 'place')} libre${free > 1 ? 's' : ''}` : 'Complet'}
-          {d.passengers.length ? <T muted size={13}> · avec {d.passengers.map((p) => (p.id === meId ? 'toi' : p.name)).join(', ')}</T> : null}
+          {d.passengers.length ? <T muted size={13}> · avec {d.passengers.map((p, i) => <Fragment key={p.id}>{i ? ', ' : ''}{p.id === meId ? 'toi' : <Who id={p.id} name={p.name} meId={meId} />}</Fragment>)}</T> : null}
         </T>
       </View>
       {canBoard ? <Button label="Monter" small disabled={busy} accessibilityLabel={`Monter avec ${d.name}`} onPress={onBoard} /> : null}
@@ -197,11 +198,22 @@ function DriverRow({ d, meId, canBoard, busy, onBoard }: {
   );
 }
 
+/** Nom (et ville de départ, texte libre) d'un autre : son mini-profil se touche, avec « Signaler » (Apple 1.2, 27.11). */
+function Who({ id, name, meId }: { id: string; name: string; meId?: string }) {
+  if (id === meId) return <>{name}</>;
+  return (
+    <Text accessibilityRole="link" accessibilityLabel={`Profil de ${name}`} onPress={() => openMiniProfile(id)}
+      style={{ textDecorationLine: 'underline', textDecorationColor: colors.line }}>
+      {name}
+    </Text>
+  );
+}
+
 function SeekerRow({ p, canPick, busy, onPick }: { p: CarpoolPerson; canPick: boolean; busy: boolean; onPick: () => void }) {
   return (
     <View style={st.person}>
       <Avatar id={p.id} name={p.name} size={28} photo={p.avatar_url} />
-      <T size={14} style={st.grow}>{p.name}{p.from_city ? <T muted size={13}> · depuis {p.from_city}</T> : null}</T>
+      <T size={14} style={st.grow}><Who id={p.id} name={p.name} />{p.from_city ? <T muted size={13}> · depuis {p.from_city}</T> : null}</T>
       {canPick ? <Button label="Prendre" variant="secondary" small disabled={busy} accessibilityLabel={`Prendre ${p.name} dans ta voiture`} onPress={onPick} /> : null}
     </View>
   );

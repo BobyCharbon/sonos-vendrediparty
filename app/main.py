@@ -5952,7 +5952,7 @@ en français. Réponse en principe sous 48 heures.</p>
 <p>Éditeur : Ludovic Trombert, développeur indépendant établi en France.</p>
 <h2>Se connecter</h2><p>Party se connecte avec ton numéro de téléphone et un code reçu par SMS, sans mot de passe. Tu ne reçois pas le code ?
 Vérifie le pays et le numéro, puis demande un nouveau code après une minute.</p>
-<h2>Supprimer mon compte</h2><p>Dans l'app : Réglages › Gérer mon compte › Supprimer mon compte. La suppression efface ton compte et tes contenus.</p>
+<h2>Supprimer mon compte</h2><p>Dans l'app : Réglages › Gérer mon compte › écris SUPPRIMER › Supprimer définitivement mon compte. La suppression efface ton compte et tes contenus.</p>
 <h2>Signaler ou bloquer</h2><p>« Signaler » se trouve sur les messages, les profils, les groupes, les photos et les événements ; une personne se
 bloque depuis sa fiche ou une conversation. Les signalements sont traités sous 24 heures.</p>
 <h2>Notifications</h2><p>Chaque type de notification se règle dans Réglages › Notifications.</p>

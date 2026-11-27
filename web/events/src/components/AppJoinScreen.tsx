@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Linking, View } from 'react-native';
 
 import { IdentityForm } from '@/components/IdentityForm';
+import { InviteReportLine } from '@/components/InviteReportLine';
 import { openPartyTab } from '@/components/Settings';
 import { Avatar, Button, ErrorText, Loading, Screen, T, Title } from '@/components/ui';
 import { appDownload, claimInvite, finalClaimError, forgetInvite, INVITE_TOKEN, pendingInvite, previewInvite, rememberInvite, type InvitePreview } from '@/lib/appInvite';
@@ -73,6 +74,7 @@ function Welcome({ token, preview }: { token: string; preview: InvitePreview }) 
       <T muted size={13} style={{ textAlign: 'center' }}>
         Après avoir installé l’app, rouvre ce lien : il t’emmène directement dans Party.
       </T>
+      <InviteReportLine subject={`invitation sur Party de ${preview.inviter || 'un membre'} (lien ${token})`} />
     </Screen>
   );
 }
@@ -102,6 +104,7 @@ function Claim({ token, preview }: { token: string; preview: InvitePreview }) {
         <T muted style={{ textAlign: 'center' }}>Bienvenue sur Party ! Ton compte est prêt.</T>
       )}
       <Button label="Ouvrir Party" onPress={() => openPartyTab('events', '/')} />
+      <InviteReportLine subject={`invitation sur Party de ${preview.inviter || 'un membre'} (lien ${token})`} />
     </Screen>
   );
 }

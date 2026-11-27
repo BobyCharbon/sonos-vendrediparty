@@ -860,8 +860,12 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
                 <View style={{ flex: 1 }}>
                   <DateTimeField label={`Créneau ${i + 1}`} value={sl.text} onChangeText={(text) => set({ slots: d.slots.map((x, j) => (j === i ? { ...x, text } : x)) })} />
                 </View>
-                <Button small variant="secondary" label="✕" accessibilityLabel={`Retirer le créneau ${i + 1}`}
-                  onPress={() => set({ slots: d.slots.filter((_, j) => j !== i) })} />
+                {/* Créneau enregistré : l'enregistrement efface aussi ses votes, on confirme (comme les sondages, contrôle du 27.11). */}
+                {sl.id
+                  ? <ConfirmButton small label="✕" confirmLabel="Retirer et ses votes" accessibilityLabel={`Retirer le créneau ${i + 1}`}
+                      onConfirm={() => set({ slots: d.slots.filter((_, j) => j !== i) })} />
+                  : <Button small variant="secondary" label="✕" accessibilityLabel={`Retirer le créneau ${i + 1}`}
+                      onPress={() => set({ slots: d.slots.filter((_, j) => j !== i) })} />}
               </Reveal>
             ))}
             <Button small variant="ghost" label="+ Ajouter un créneau" onPress={() => set({ slots: [...d.slots, { text: '' }] })} />

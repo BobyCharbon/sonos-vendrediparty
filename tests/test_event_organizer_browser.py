@@ -463,6 +463,11 @@ def test_editing_a_fixed_date_keeps_the_poll_dates_and_their_votes(browser, even
             frame.get_by_role('tab', name='Avancé', exact=True).click()
         frame.get_by_role('tab', name='Date à définir', exact=True).click()
         pw.expect(frame.get_by_label('Créneau 2 : jour', exact=True)).to_be_visible()
+        # ✕ d'un créneau enregistré (27.11) : confirmation, ses votes partiraient à l'enregistrement ; « Garder » le laisse.
+        frame.get_by_role('button', name='Retirer le créneau 2', exact=True).click()
+        pw.expect(frame.get_by_role('button', name='Retirer et ses votes', exact=True)).to_be_visible()
+        frame.get_by_role('button', name='Garder', exact=True).click()
+        pw.expect(frame.get_by_label('Créneau 2 : jour', exact=True)).to_be_visible()
         frame.get_by_role('button', name='Enregistrer', exact=True).click()
         page.wait_for_timeout(800)
         assert base.wrote('DELETE', 'date_options') == [] and base.wrote('POST', 'date_options') == []

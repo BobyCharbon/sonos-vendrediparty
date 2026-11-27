@@ -5,6 +5,7 @@ import { Image, Linking, Pressable, StyleSheet, View } from 'react-native';
 import { CalendarButton } from './CalendarButton';
 import { GuestGroupCheck } from './GuestGroup';
 import { IdentityForm } from './IdentityForm';
+import { InviteReportLine } from './InviteReportLine';
 import { InviteDateVotes } from './InviteDateVotes';
 import { termsLater, useTermsGate } from './TermsSheet';
 import { Button, ErrorText, Loading, Screen, T, Title } from './ui';
@@ -234,6 +235,7 @@ function Card({ card, onAnswer, join, onJoin }: { card: InviteCard; onAnswer: (a
           {insideInstalledApp() ? null : <T muted size={13} style={{ textAlign: 'center' }}>Pas besoin d’installer l’app.</T>}
         </View>
       )}
+      <InviteReportLine subject={`invitation à « ${card.title} »${card.event_id ? ` (${card.event_id})` : ''}`} />
     </Screen>
   );
 }
@@ -262,6 +264,7 @@ function Waiting({ title, host, group }: { title: string; host: string | null; g
       {group ? <T size={14} color={colors.lavender} style={{ textAlign: 'center' }}>👥 Tu entreras aussi dans le groupe « {group} » à ce moment-là.</T> : null}
       {/* En attendant : Party et ses autres événements (jamais une impasse, retour de l'admin du 19.11). */}
       <Button label="Découvrir Party" variant="secondary" onPress={() => openInParty('/')} />
+      <InviteReportLine subject={`invitation à « ${title} »`} />
     </Screen>
   );
 }

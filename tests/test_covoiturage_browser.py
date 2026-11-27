@@ -91,6 +91,9 @@ def test_a_participant_takes_a_free_seat(browser, events_origin):  # noqa: F811
         pw.expect(page.get_by_text('Tu montes avec Léa (départ de Sion)', exact=True)).to_be_visible(timeout=5000)
         pw.expect(page.get_by_role('button', name='Descendre')).to_be_visible()
         pw.expect(page.get_by_text('· avec Tom, toi', exact=True)).to_be_visible()
+        # Apple 1.2 (27.11) : nom et ville de départ (texte libre) d'un autre → son mini-profil, avec « Signaler ».
+        for name in ('Léa', 'Tom', 'Zoé'):
+            pw.expect(page.get_by_label(f'Profil de {name}', exact=True).first).to_be_visible()
         assert ('carpool_take', {'e': calls[0][1]['e'], 'driver': LEA}) in calls
     finally:
         context.close()

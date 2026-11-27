@@ -4,6 +4,7 @@ import { View } from 'react-native';
 
 import { GroupTile } from '@/components/GroupBits';
 import { IdentityForm } from '@/components/IdentityForm';
+import { InviteReportLine } from '@/components/InviteReportLine';
 import { Button, Card, ErrorText, Loading, Screen, T, Title } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
@@ -41,6 +42,7 @@ export function InviteScreen({ kind, token }: { kind: 'event' | 'group'; token: 
           un code te sera envoyé par SMS. Tu compléteras ensuite ton profil, puis tu y accéderas directement.
         </T>
         <Button label="M’inscrire ou me connecter" onPress={() => router.push('/sign-in')} />
+        {kind === 'group' ? <InviteReportLine subject={`invitation à un groupe (lien ${token})`} /> : null}
       </Screen>
     );
   }
@@ -163,6 +165,7 @@ function JoinInvite({ kind, token }: { kind: 'event' | 'group'; token: string })
           <T muted>Ce groupe accepte chaque nouveau membre : son admin (ou un co-admin) va répondre. Tu seras prévenu dès que tu es dedans.</T>
         </Card>
         <Button label="Retour à mes groupes" variant="secondary" onPress={() => router.replace('/groups')} />
+        <InviteReportLine subject={`invitation au groupe « ${(data as GroupPreview).name} » (${data.id})`} />
       </Screen>
     );
   }

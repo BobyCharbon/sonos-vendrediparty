@@ -1048,7 +1048,9 @@ def test_apple_check_round_five_texts_match_the_app_store_build():
     assert "Plus tard · jouer seul à Méninges" in part_b and "Jouer avec les autres" in part_b
     assert "Pour ou contre only uses Party's own dilemmas" in part_b
     assert "Plus tard · jouer seul à Méninges" in tuto and "dilemmes de Party" in tuto
-    assert "when you owe another member" in part_b and "quand tu dois de l'argent à un autre membre" in tuto
+    # Recette du 27.11 : la manière qui marche (membre ajouté à la main, dépense « Payé par » lui) et ce que dit la feuille.
+    assert '"Rembourser" appears on a transfer you owe' in part_b and "has no payment details" in part_b
+    assert "« Rembourser » apparaît sur un virement que tu dois" in tuto and "n'a aucun moyen de paiement" in tuto
     avance = part_b.split("#### B4.3", 1)[1].split("**Avancé**", 1)[1].split("\n", 1)[0]
     assert "polls" not in avance.replace("date poll", "")
     games_js = (_root() / "app/static/games.js").read_text(encoding="utf-8")

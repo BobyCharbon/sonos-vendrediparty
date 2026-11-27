@@ -239,6 +239,11 @@ def test_guest_without_app_signs_in_by_the_normal_page_then_the_answer_is_sent(b
         pw.expect(page.get_by_text('L’adresse exacte après ta réponse', exact=True)).to_be_visible()
         pw.expect(page.get_by_text('Mariana, Marco, Sofia et 8 autres viennent', exact=True)).to_be_visible()
         assert ('invite_preview', {'token': TOKEN, 'opened': True}) in calls  # « A ouvert » chez l'organisateur
+        # Apple 1.2 (27.11) : signalable sans compte, par e-mail, avec le délai et l'adresse.
+        report = page.get_by_test_id('invite-report')
+        pw.expect(report).to_have_text('🚩 Signaler cette invitation')
+        assert report.get_attribute('href').startswith('mailto:support@vendrediparty.ch?subject=')
+        pw.expect(page.get_by_text('Traité sous 24 h · support@vendrediparty.ch', exact=False)).to_be_visible()
         shot(page, '07-invite-carte-sans-compte', full=True)
 
         page.get_by_role('button', name='Je viens !').click()

@@ -122,7 +122,7 @@ has a **fixed code** (also in "Sign-in information", Password field): no SMS is 
 | Event **"Soirée démo Vendredi Party"** (12 Dec.) | Organised by us, invitation only; the demo account is invited AND co-organiser: answer (**Présent**), see who comes, event discussion; organiser side: guests and their answers, ZONE ORGANISATEUR. QR tickets are on: answer **Présent**, then in the organiser card **Billets QR** of the event page tap **Remettre à tous les présents** (you are co-organiser) to get your own ticket (card **Ton billet**, Apple Wallet, B4.10); payment and carpool are off on this event (options of the organiser, described below for completeness). |
 | Group **"Démo Apple"** | The demo account + one of our admins, with a few messages. |
 | Direct message | One message from our admin to the demo account. |
-| "Pot commun" | No pot is prepared: create one in Réglages › Pot commun › Nouveau pot commun; "Rembourser" appears when you owe another member (add a member, then an expense they paid). |
+| "Pot commun" | No pot is prepared: create one in Réglages › Pot commun › Nouveau pot commun; "Rembourser" appears on a transfer you owe: in the pot, **Membres** › "Ajouter quelqu'un" › type a first name › **Ajouter**, then **Ajouter une dépense** with "Payé par" that member. A member added by hand has no payment details, so the "Rembourser" sheet says they have not filled in their payment profile yet; an IBAN or Revolut/Twint link only shows for a member who joined with their own account (link of the pot) and filled in "Mon profil de paiement". |
 | Second demo account **"Apple-test 2"** | Number **+41 79 000 00 01**, same fixed code as the first demo account (no SMS; checked by signing in on the day of submission). Shares no group or private event with "Apple-test" and has sent it a **message request** (Discussions › **Demandes**). Sign in with it to see the sender side ("Demande envoyée", input closed until accepted). |
 
 If you test account deletion: please do it last. Signing in again with the same number then creates a new, empty
@@ -154,7 +154,8 @@ there is no Music tab in the App Store app).
 5. Type the fixed 6-digit code: the app signs in automatically at the 6th digit (or tap **Se connecter**).
 6. The last tab is now **Réglages** (Settings) with the profile at the top, and the **Discussions** tab appears.
 
-A new account (not the demo one) then fills in "Faisons connaissance": first name, last name, nickname
+A new account (not the demo one) then completes its profile: the top row of Réglages reads "Profil à compléter"; tap it
+to open "Mon profil" (on the web this step is titled "Faisons connaissance"): first name, last name, nickname
 (12 characters max); the photo is optional. Why a last name: Party is for real-world events, often at someone's home;
 a full name lets Party's admins know who an account belongs to when they approve new accounts or handle a report. The
 first and last name are private: the form says "🔒 Ton prénom et ton nom ne sont visibles que par toi et les admins"
@@ -289,7 +290,8 @@ is involved.
 Tab **Discussions** (signed-in accounts):
 1. Open **Démo Apple**: group conversation with a few text messages; text, photos and voice messages can be sent,
    with replies, reactions and mentions.
-2. The first message you send asks you to accept the **Terms of use**.
+2. The first message you send in a group asks you to accept the **Terms of use**; for a direct message they are asked
+   as soon as you tap **Écrire à …** (before writing).
 3. **Long-press a message** › **Répondre**, **Copier**, **Signaler** (report: choose a reason, optional comment, optional
    box "Joindre les 10 messages précédents"; a reported photo or voice message is copied for our moderators).
 4. **Who can write to whom** (decided by the database): people with a real link (a shared group other than "Membres

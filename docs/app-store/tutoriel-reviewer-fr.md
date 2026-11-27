@@ -42,7 +42,7 @@ L'app s'ouvre sur **Événements** (sauf au milieu d'une partie de jeu). Barre d
 3. Taper le code fixe : la connexion part toute seule au 6e chiffre. 📸 (écran du numéro, sans le code)
 4. Le dernier onglet devient **Réglages** (profil en tête) ; l'onglet **Discussions** apparaît.
 
-Un nouveau compte passe ensuite par « Faisons connaissance » (prénom, nom, surnom de 12 caractères au plus, photo facultative).
+Un nouveau compte complète ensuite son profil : en haut des Réglages, la ligne « Profil à compléter » ouvre « Mon profil » (sur le web, l'étape s'appelle « Faisons connaissance ») : prénom, nom, surnom de 12 caractères au plus, photo facultative.
 Pourquoi le nom : Party sert à des soirées réelles, souvent chez quelqu'un ; le nom complet permet aux admins de savoir à
 qui est un compte (validation des nouveaux comptes, signalements). Prénom et nom ne sont visibles que par la personne et
 les admins (« 🔒 Ton prénom et ton nom ne sont visibles que par toi et les admins »), sauf si elle allume **Afficher mon
@@ -135,7 +135,7 @@ Option « Forum de l'événement » : section **Discussion** › **Ouvrir ›** 
 **@toutlemonde** et les annonces (📣, épinglées) : organisation seulement.
 
 ## 4. Discussions
-Onglet **Discussions** › « Démo Apple » : texte, photos, vocaux, réponses, réactions. Premier message : CGU.
+Onglet **Discussions** › « Démo Apple » : texte, photos, vocaux, réponses, réactions. Premier message dans un groupe : CGU ; message direct : CGU dès « Écrire à … ».
 **Appui long** sur un message › **Répondre · Copier · Signaler** (case « Joindre les 10 messages précédents » ; la photo
 ou le vocal signalé est copié pour les modérateurs). Message direct seulement avec un vrai lien (groupe en commun hors
 Membres Vendredi Party, événement non public en commun, organisateur d'un événement auquel on a répondu) ; sinon une
@@ -187,7 +187,7 @@ pour ne rien cacher (2.3.1).
   pot (on le quitte
   à tout moment : Réglages › Pot commun › **Quitter ce pot commun**) ; les membres voient le nom de chacun ; les moyens de paiement de qui a créé le pot ou l'a rejoint par son lien sont montrés ; ajouté d'office (événement ou
   autre membre), ils restent cachés tant qu'il ne choisit pas **Montrer mes moyens de paiement dans ce pot**. Aucun pot
-  préparé : Réglages › Pot commun › **Nouveau pot commun** ; « Rembourser » apparaît quand tu dois de l'argent à un autre membre (ajouter un membre, puis une dépense qu'il a payée). Ajouter une dépense ou
+  préparé : Réglages › Pot commun › **Nouveau pot commun** ; « Rembourser » apparaît sur un virement que tu dois : dans le pot, **Membres** › « Ajouter quelqu'un » › un prénom › **Ajouter**, puis **Ajouter une dépense** « Payé par » ce membre. Un membre ajouté à la main n'a aucun moyen de paiement : la feuille « Rembourser » dit qu'il n'a pas encore rempli son profil de paiement ; IBAN et liens Revolut / Twint n'apparaissent que pour un membre entré avec son propre compte (lien du pot) qui a rempli « Mon profil de paiement ». Ajouter une dépense ou
   une photo de ticket demande les CGU ; chaque dépense et photo de ticket a **Signaler**.
 - **Mes amis dans Party**, **Mes stats de jeu**, **Ton avis** (selon le rôle ; écrit à l'équipe de Party, l'éditeur).
 - **Confidentialité** : Noms de mes contacts, **Personnes bloquées**, **Conditions d'utilisation** (contact

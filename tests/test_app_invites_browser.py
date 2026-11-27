@@ -51,6 +51,8 @@ def test_join_page_shows_who_invites_escaped_then_claims_once_after_sign_in(brow
         assert page.locator('img[src="x"]').count() == 0
         pw.expect(page.get_by_role('button', name='Télécharger sur l’App Store')).to_be_visible()  # site principal
         assert ('app_invite_preview', {'token': TOKEN}) in calls
+        # Apple 1.2 (27.11) : « X t'invite sur Party » se signale par e-mail.
+        assert page.get_by_test_id('invite-report').get_attribute('href').startswith('mailto:support@vendrediparty.ch?subject=')
         # Continuer sur le web : le lien est gardé pendant l'inscription par SMS.
         page.get_by_role('button', name='Continuer sur le web').click()
         login(page)
