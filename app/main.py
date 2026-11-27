@@ -1514,6 +1514,8 @@ def report_name(g: dict, me: str, pid: str, request: Request):
     salle), journal `game.report` et admin prévenu (log_game_report) ; une fois par signaleur et par joueur."""
     target = games.gid_of(g, pid)
     p = games.player(g, target) if target else None
+    if pid == "host" and g.get("host") and g.get("host_name") and not games.player(g, g["host"]):
+        target, p = g["host"], {"name": g["host_name"]}  # animateur qui ne joue pas : son prénom se signale aussi (tour 7)
     if not p or target == me or not (games.player(g, me) or g.get("host") == me):
         raise HTTPException(409, "Pas maintenant")
     if me in (g.get("name_reports") or {}).get(target, []):
@@ -1521,7 +1523,7 @@ def report_name(g: dict, me: str, pid: str, request: Request):
     log_game_report(g, me, {"text": f"Prénom signalé : {p['name']}", "author": target}, request)
     other = room_child(g) if g["type"] == "room" else room_of(g)
     for x in filter(None, (g, other)):
-        if x is g or games.player(x, target):
+        if x is g or games.player(x, target) or x.get("host") == target:
             x.setdefault("name_reports", {}).setdefault(target, []).append(me)
     g["updated_at"] = time.time()
 
@@ -1770,6 +1772,8 @@ def full_view_raw(g: dict, gid: str) -> dict:
     v = games.view(g, gid)
     if g["type"] == "room":
         v["room_info"] = games.room_view(g, gid, room_child(g))
+    if g.get("host") and gid in (g.get("name_reports") or {}).get(g["host"], []):
+        v["host_name_reported"] = True  # prénom de l'animateur déjà signalé par ce joueur : plus de 🚩
     # Présence et homonymes : l'animateur repère d'un coup d'œil un joueur parti ou en double.
     now = time.time()
     for p in v.get("players", []):

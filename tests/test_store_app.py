@@ -269,7 +269,7 @@ def test_the_filter_catches_everyday_party_drink_and_tobacco_words():
     for text in ("Soirée jeux de société", "Pique-nique", "Rendez-vous au parc", "Soirée pyjama", "Publication"):
         assert not store_app.drinky(text), text
     ts = (__import__("pathlib").Path(main.__file__).resolve().parents[1] / "web/events/src/lib/storeEvents.ts").read_text()
-    for word in ("happy hour", "after-?work", "oktoberfest", "binouze", "chicha", "narguil[ée]", "heineken", "ricard",
+    for word in ("happy hour", "after-?work", "oktoberfest", "binouze", "chicha", "narguil[ée]", "heineken", r"\\bricard\\b",
                  "verknipt", "asbak"):
         assert f"'{word}'" in ts, word
 

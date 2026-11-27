@@ -2620,13 +2620,16 @@ STORE_NAMES = ("name", "host_name", "by")
 def store_view(v):
     if isinstance(v, dict):
         out = {}
+        game = v.get("type") in GAMES  # partie, jeu en cours, historique de salle : « name » = titre du jeu, jamais réécrit
         for k, x in v.items():
             if k in STORE_DROP:
                 continue
-            if k in STORE_NAMES and isinstance(x, str):
-                out[k] = quiz.store_name(x)
-            elif k == "order" and isinstance(x, list):
-                out[k] = [quiz.store_name(n) if isinstance(n, str) else n for n in x]
+            if k == "name" and game:
+                out[k] = x
+            elif (k in STORE_NAMES or (k == "winner" and game)) and isinstance(x, str):
+                out[k] = quiz.store_name(x)  # « winner » : gagnant d'une partie de l'historique (jamais un pid de neon / île)
+            elif k in ("order", "winners") and isinstance(x, list):
+                out[k] = [quiz.store_name(n) if isinstance(n, str) else store_view(n) for n in x]
             elif k in ("catalog", "options", "settings"):
                 out[k] = x
             else:

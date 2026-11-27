@@ -257,7 +257,7 @@ document.addEventListener("click", (ev) => {
   if (game?.type !== "debate") return;
   const report = ev.target.closest("[data-db-report]");
   if (report) {
-    if (!confirm("Signaler ce dilemme ? Il disparaît pour toute la table et l'organisateur de Party est prévenu.")) return;
+    if (!confirm("Signaler ce dilemme ? Il disparaît pour toute la table et l'organisateur de Party est prévenu.\nTraité sous 24 h · support@vendrediparty.ch")) return;
     return pressed(report, gameAction("dbreport")).then((ok) => ok && toast("🚩 Merci, le dilemme est retiré", "ok"));
   }
   const pick = ev.target.closest("[data-db-vote]");
