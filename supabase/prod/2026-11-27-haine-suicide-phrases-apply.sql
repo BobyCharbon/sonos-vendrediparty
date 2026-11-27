@@ -1,14 +1,17 @@
 -- PROD, filtre commun : phrases de haine et incitation au suicide (20261127160000, contrôle Apple, tour 8).
--- Testé sur TEST le 27.11 (tests/supabase_live/test_haine_suicide_live.py : verdicts de la base = verdicts Python,
--- surnom et message refusés ; retour arrière essayé puis réappliqué). Rejouable. Ancre : la prod avait au 27.11 les
+-- Testé sur TEST le 27.11, version du lot 15b (tests/supabase_live/test_haine_suicide_live.py : verdicts de la base =
+-- verdicts Python, surnom et message refusés, phrases ordinaires acceptées). Rejouable. Ancre : la prod avait au 27.11 les
 -- 121 motifs de 20261104200000 (même empreinte que TEST et le dépôt d'avant).
 -- Retour arrière : 2026-11-27-haine-suicide-phrases-rollback.sql. NE PAS appliquer sans le « Ok prod » de l'admin.
 begin;
--- Filtre commun : phrases de haine et incitation au suicide fermées PAR CONSTRUCTION (contrôle Apple, tour 8, 27.11).
--- « Mort aux juifs », « Sales arabes », « Les noirs dehors », « Gazer les juifs », « Négresse », « Va te jeter d'un pont »,
--- « Tire-toi une balle », « Meurs », « Personne ne te regrettera »… passaient le filtre des surnoms, noms de groupe,
--- messages et événements. Liste fermée de groupes × tournures hostiles, et tournures d'incitation au suicide (catégorie
--- « haine » : refusées partout, jamais seulement masquées). Liste : app/moderation_terms.py (HATE_PHRASES, SUICIDE),
+-- Filtre commun : phrases de haine sans double sens fermées PAR CONSTRUCTION (contrôle Apple, tour 8 ; lot 15b, 27.11).
+-- « Mort aux juifs », « Sales arabes », « Gazer les juifs », « Négresse », « Hitler », « Vive Daech », « KKK »…
+-- passaient le filtre des surnoms, noms de groupe, messages et événements. Filtre commun : sale(s) / mort(s) aux /
+-- à mort les / gazer, exterminer les + groupe (liste fermée), groupe + « à la chambre à gaz », « négresse », et le
+-- vocabulaire nazi / terroriste sans double sens (hitler*, nazi, gestapo, kkk, ku klux klan, daech, swastika…).
+-- Lot 15b : les tournures qui refusaient des phrases ordinaires (« dehors », « au four », « je déteste les », « tuer les »,
+-- incitation au suicide : « Va te tuer à la tâche », « Lance-toi dans le vide »…) ne valent que pour les joueurs de l'app
+-- App Store (serveur Party, STORE_ONLY) : jamais dans la base. Liste : app/moderation_terms.py (COMMON_HATE_PHRASES),
 -- motifs générés par `python -m app.moderation --sql`, vérifiés par tests/test_moderation.py.
 -- Additif et rejouable : seule la table private.moderation_patterns est réécrite (comme 20261104200000), aucune fonction
 -- redéfinie (mod_hit / mod_regex lisent la table à chaque appel). Les 4 « sale arabe / juif / noir / nègre » écrits mot
@@ -29,6 +32,17 @@ insert into private.moderation_patterns (category, pattern, phrase) values
   ('haine', 'g+o+u+i+n+e+(s|x|e|es|en|n)?', false),
   ('haine', 't+a+r+l+o+u+z+e+(s|x|e|es|en|n)?', false),
   ('haine', 'n+e+g+r+e+s{2,}e+s?(s|x|e|es|en|n)?', false),
+  ('haine', 'h+i+t+l+e+r+[a-z]*', false),
+  ('haine', 'n+a+z+i+(s|x|e|es|en|n)?', false),
+  ('haine', 'n+a+z+i+s+m+e+(s|x|e|es|en|n)?', false),
+  ('haine', 'n+e+o+n+a+z+i+[a-z]*', false),
+  ('haine', 'g+e+s+t+a+p+o+(s|x|e|es|en|n)?', false),
+  ('haine', 'kkk', false),
+  ('haine', 'k+u+[^a-z]+k+l+u+x+[^a-z]+k+l+a+n+(s|x|e|es|en|n)?', true),
+  ('haine', 'd+a+e+c+h+(s|x|e|es|en|n)?', false),
+  ('haine', 'd+a+e+s+h+(s|x|e|es|en|n)?', false),
+  ('haine', 's+w+a+s+t+i+k+a+(s|x|e|es|en|n)?', false),
+  ('haine', 'c+r+o+i+x+[^a-z]+g+a+m+e+(s|x|e|es|en|n)?', true),
   ('haine', 'n+e+g+e+r+(s|x|e|es|en|n)?', false),
   ('haine', 'k+a+n+a+k+e+(s|x|e|es|en|n)?', false),
   ('haine', 'k+a+n+a+c+k+e+(s|x|e|es|en|n)?', false),
@@ -47,25 +61,8 @@ insert into private.moderation_patterns (category, pattern, phrase) values
   ('haine', 'c+h+i+n+k+(s|x|e|es|en|n)?', false),
   ('haine', 't+r+a+n+y+(s|x|e|es|en|n)?', false),
   ('haine', 'w+h+i+t+e+[^a-z]+p+o+w+e+r+(s|x|e|es|en|n)?', true),
-  ('haine', '(s+a+le+s?([^a-z]+(petite?s?|gros|grosses?|vieux|vieilles?))?|morts?[^a-z]+(aux?|a[^a-z]+les)|a[^a-z]+mort[^a-z]+les|a[^a-z]+bas[^a-z]+les|dehors[^a-z]+les|(gazer|gazez|tuer|tuez|exterminer|exterminez|bruler|brulez|cramer|massacrer|massacrez|eliminer|buter|butez|niquer|niquez|nique|crever|deporter|pendre|pendez|lyncher)[^a-z]+(tous[^a-z]+|toutes[^a-z]+)?(les|des|ces)|(je|j)[^a-z]+(hais|deteste|emmerde|vomis|nique|exterminerais|tuerais|gazerais)[^a-z]+(tous[^a-z]+|toutes[^a-z]+)?(les|ces))[^a-z]+(j+u+i+(f+|v+e+)s?|f+e+u+j+s?|a+r+a+b+e+s?|r+e+b+e+u+(s|x)?|n+o+i+r+e*s?|r+e+n+o+i+e*s?|b+l+a+c+k+s?|n+e+g+r+(e+|e+s+e+)s?|m+u+s+u+l+m+a+n+e*s?|c+h+r+e+t+i+e+n+(n+e+)?s?|b+l+a+n+c+(h+e+)?s?|a+f+r+i+c+a+i+n+e*s?|g+a+y+s?|l+e+s+b+i+e+n+e+s?|t+r+a+n+s+|h+o+m+o+s?|h+o+m+o+s+e+x+u+e+l+(l+e+)?s?|p+e+d+e+s?|h+a+n+d+i+c+a+p+e+e*s?|e+t+r+a+n+g+e+r+e*s?|i+m+i+g+r+e+e*s?|m+i+g+r+a+n+t+e*s?|r+e+f+u+g+i+e+e*s?|r+o+m+s?|g+i+t+a+n+e*s?|t+s+i+g+a+n+e+s?|c+h+i+n+o+i+s+e*s?|a+s+i+a+t+i+q+u+e+s?|f+e+m+e+s?)(?![a-z]*[^a-z]+(d|de|du)[^a-z]+(o+e+u+f+s?|poulet|dinde|poireaux?))(s|x|e|es|en|n)?', false),
-  ('haine', '(les|des|ces)[^a-z]+(j+u+i+(f+|v+e+)s?|f+e+u+j+s?|a+r+a+b+e+s?|r+e+b+e+u+(s|x)?|n+o+i+r+e*s?|r+e+n+o+i+e*s?|b+l+a+c+k+s?|n+e+g+r+(e+|e+s+e+)s?|m+u+s+u+l+m+a+n+e*s?|c+h+r+e+t+i+e+n+(n+e+)?s?|a+f+r+i+c+a+i+n+e*s?|g+a+y+s?|l+e+s+b+i+e+n+e+s?|t+r+a+n+s+|h+o+m+o+s?|h+o+m+o+s+e+x+u+e+l+(l+e+)?s?|p+e+d+e+s?|h+a+n+d+i+c+a+p+e+e*s?|e+t+r+a+n+g+e+r+e*s?|i+m+i+g+r+e+e*s?|m+i+g+r+a+n+t+e*s?|r+e+f+u+g+i+e+e*s?|r+o+m+s?|g+i+t+a+n+e*s?|t+s+i+g+a+n+e+s?|c+h+i+n+o+i+s+e*s?|a+s+i+a+t+i+q+u+e+s?|f+e+m+e+s?)[^a-z]+(dehors|go[^a-z]+home|hors[^a-z]+de[^a-z]+(france|suisse|belgique|chez[^a-z]+nous)|a[^a-z]+la[^a-z]+chambre[^a-z]+a[^a-z]+gaz|au[^a-z]+fours?|aux[^a-z]+fours?|au[^a-z]+bucher|a[^a-z]+mort(?![^a-z]+de($|[^a-z])))(s|x|e|es|en|n)?', false),
-  ('haine', '(j+u+i+(f+|v+e+)s|f+e+u+j+s|a+r+a+b+e+s|r+e+b+e+u+(s|x)|n+o+i+r+e*s|r+e+n+o+i+e*s|b+l+a+c+k+s|n+e+g+r+(e+|e+s+e+)s|m+u+s+u+l+m+a+n+e*s|c+h+r+e+t+i+e+n+(n+e+)?s|a+f+r+i+c+a+i+n+e*s|g+a+y+s|l+e+s+b+i+e+n+e+s|t+r+a+n+s+|h+o+m+o+s|h+o+m+o+s+e+x+u+e+l+(l+e+)?s|p+e+d+e+s|h+a+n+d+i+c+a+p+e+e*s|e+t+r+a+n+g+e+r+e*s|i+m+i+g+r+e+e*s|m+i+g+r+a+n+t+e*s|r+e+f+u+g+i+e+e*s|r+o+m+s|g+i+t+a+n+e*s|t+s+i+g+a+n+e+s|a+s+i+a+t+i+q+u+e+s|f+e+m+e+s)[^a-z]+(dehors|go[^a-z]+home|hors[^a-z]+de[^a-z]+(france|suisse|belgique|chez[^a-z]+nous)|a[^a-z]+la[^a-z]+chambre[^a-z]+a[^a-z]+gaz)(s|x|e|es|en|n)?', false),
-  ('haine', '(j+u+i+(f+|v+e+)s|f+e+u+j+s|r+e+b+e+u+(s|x)|r+e+n+o+i+e*s|b+l+a+c+k+s|n+e+g+r+(e+|e+s+e+)s|m+u+s+u+l+m+a+n+e*s|c+h+r+e+t+i+e+n+(n+e+)?s|a+f+r+i+c+a+i+n+e*s|g+a+y+s|l+e+s+b+i+e+n+e+s|t+r+a+n+s+|h+o+m+o+s|h+o+m+o+s+e+x+u+e+l+(l+e+)?s|p+e+d+e+s|h+a+n+d+i+c+a+p+e+e*s|e+t+r+a+n+g+e+r+e*s|i+m+i+g+r+e+e*s|m+i+g+r+a+n+t+e*s|r+e+f+u+g+i+e+e*s|r+o+m+s|g+i+t+a+n+e*s|t+s+i+g+a+n+e+s|f+e+m+e+s)[^a-z]+(au[^a-z]+fours?|aux[^a-z]+fours?|au[^a-z]+bucher|a[^a-z]+mort(?![^a-z]+de($|[^a-z])))(s|x|e|es|en|n)?', false),
-  ('haine', '(?<! tu )(?<!^tu )(?<! il )(?<!^il )(?<! elle )(?<!^elle )(?<! on )(?<!^on )(?<! ca )(?<!^ca )(?<! qui )(?<!^qui )(?<! ils )(?<!^ils )(?<! ne )(?<!^ne )(va|vas)[^a-z]+te[^a-z]+(noyer|pendre|suicider|immoler|flinguer|empoisonner|foutre[^a-z]+en[^a-z]+l[^a-z]+air|tirer[^a-z]+une[^a-z]+balle(?![^a-z]+dans[^a-z]+le[^a-z]+pied)|ouvrir[^a-z]+les[^a-z]+veines)(s|x|e|es|en|n)?', false),
-  ('haine', '^(va|vas)[^a-z]+te[^a-z]+(tuer|jeter$)(s|x|e|es|en|n)?', false),
-  ('haine', '(va[^a-z]+te[^a-z]+jeter|jette[^a-z]+toi|balance[^a-z]+toi|lance[^a-z]+toi)[^a-z]+(du[^a-z]+haut[^a-z]+)?(d|du|de|depuis|par|sous|dans|devant)[^a-z]+((un|une|le|la|les|l|des)[^a-z]+)?(pont|fenetre|train|metro|tram|bus|falaise|balcon|toit|immeuble|vide|voiture|camion|precipice|ravin|seine|rhone|riviere|fleuve|canal|lac|leman)(s|x|e|es|en|n)?', false),
-  ('haine', 'allez[^a-z]+vous[^a-z]+(pendre|noyer|suicider)(s|x|e|es|en|n)?', false),
-  ('haine', '(tire|tires|mets|colle|loge)[^a-z]+toi[^a-z]+une[^a-z]+balle(?![^a-z]+dans[^a-z]+le[^a-z]+pied)(s|x|e|es|en|n)?', false),
-  ('haine', 'fous[^a-z]+toi[^a-z]+en[^a-z]+l[^a-z]+air(s|x|e|es|en|n)?', false),
-  ('haine', '(ouvre|taille|coupe|tranche)[^a-z]+toi[^a-z]+les[^a-z]+veines(s|x|e|es|en|n)?', false),
-  ('haine', '(tue|pends|suicide|flingue|immole|noie|egorge|empoisonne)[^a-z]+toi(?![^a-z]+(ou|aussi|moi)($|[^a-z]))(s|x|e|es|en|n)?', false),
-  ('haine', '^m+e+u+r+s+(?![^a-z]+(de|d|pas)($|[^a-z]))(s|x|e|es|en|n)?', false),
-  ('haine', 'le[^a-z]+monde[^a-z]+(irait|serait|ira|sera)[^a-z]+mieux[^a-z]+sans[^a-z]+toi(s|x|e|es|en|n)?', false),
-  ('haine', 'personne[^a-z]+(ne[^a-z]+)?te[^a-z]+(regrettera|regretterait|pleurera|pleurerait)(s|x|e|es|en|n)?', false),
-  ('haine', 'go[^a-z]+die(?![^a-z]+hard)(s|x|e|es|en|n)?', false),
-  ('haine', 'k+i+l+[^a-z]+y+o+u+r+s+e+l+f+(s|x|e|es|en|n)?', true),
-  ('haine', 'k+i+l+[^a-z]+u+r+s+e+l+f+(s|x|e|es|en|n)?', true),
-  ('haine', 'g+o+[^a-z]+k+i+l+[^a-z]+y+o+u+r+s+e+l+f+(s|x|e|es|en|n)?', true),
+  ('haine', '(s+a+le+s?([^a-z]+(petite?s?|gros|grosses?|vieux|vieilles?))?|morts?[^a-z]+aux|a[^a-z]+mort[^a-z]+les|(gazer|gazez|exterminer|exterminez)[^a-z]+(tous[^a-z]+|toutes[^a-z]+)?(les|des|ces))[^a-z]+(j+u+i+(f+|v+e+)s?|f+e+u+j+s?|a+r+a+b+e+s?|r+e+b+e+u+(s|x)?|n+o+i+r+e*s?|r+e+n+o+i+e*s?|b+l+a+c+k+s?|n+e+g+r+(e+|e+s+e+)s?|m+u+s+u+l+m+a+n+e*s?|c+h+r+e+t+i+e+n+(n+e+)?s?|b+l+a+n+c+(h+e+)?s?|a+f+r+i+c+a+i+n+e*s?|g+a+y+s?|l+e+s+b+i+e+n+e+s?|t+r+a+n+s+|h+o+m+o+s?|h+o+m+o+s+e+x+u+e+l+(l+e+)?s?|p+e+d+e+s?|h+a+n+d+i+c+a+p+e+e*s?|e+t+r+a+n+g+e+r+e*s?|i+m+i+g+r+e+e*s?|m+i+g+r+a+n+t+e*s?|r+e+f+u+g+i+e+e*s?|r+o+m+s?|g+i+t+a+n+e*s?|t+s+i+g+a+n+e+s?|c+h+i+n+o+i+s+e*s?|a+s+i+a+t+i+q+u+e+s?|f+e+m+e+s?)(?![a-z]*[^a-z]+(d|de|du)[^a-z]+(o+e+u+f+s?|poulet|dinde|poireaux?))(s|x|e|es|en|n)?', false),
+  ('haine', '((les|des|ces)[^a-z]+(j+u+i+(f+|v+e+)s?|f+e+u+j+s?|a+r+a+b+e+s?|r+e+b+e+u+(s|x)?|n+o+i+r+e*s?|r+e+n+o+i+e*s?|b+l+a+c+k+s?|n+e+g+r+(e+|e+s+e+)s?|m+u+s+u+l+m+a+n+e*s?|c+h+r+e+t+i+e+n+(n+e+)?s?|b+l+a+n+c+(h+e+)?s?|a+f+r+i+c+a+i+n+e*s?|g+a+y+s?|l+e+s+b+i+e+n+e+s?|t+r+a+n+s+|h+o+m+o+s?|h+o+m+o+s+e+x+u+e+l+(l+e+)?s?|p+e+d+e+s?|h+a+n+d+i+c+a+p+e+e*s?|e+t+r+a+n+g+e+r+e*s?|i+m+i+g+r+e+e*s?|m+i+g+r+a+n+t+e*s?|r+e+f+u+g+i+e+e*s?|r+o+m+s?|g+i+t+a+n+e*s?|t+s+i+g+a+n+e+s?|c+h+i+n+o+i+s+e*s?|a+s+i+a+t+i+q+u+e+s?|f+e+m+e+s?)|(j+u+i+(f+|v+e+)s|f+e+u+j+s|a+r+a+b+e+s|r+e+b+e+u+(s|x)|n+o+i+r+e*s|r+e+n+o+i+e*s|b+l+a+c+k+s|n+e+g+r+(e+|e+s+e+)s|m+u+s+u+l+m+a+n+e*s|c+h+r+e+t+i+e+n+(n+e+)?s|a+f+r+i+c+a+i+n+e*s|g+a+y+s|l+e+s+b+i+e+n+e+s|t+r+a+n+s+|h+o+m+o+s|h+o+m+o+s+e+x+u+e+l+(l+e+)?s|p+e+d+e+s|h+a+n+d+i+c+a+p+e+e*s|e+t+r+a+n+g+e+r+e*s|i+m+i+g+r+e+e*s|m+i+g+r+a+n+t+e*s|r+e+f+u+g+i+e+e*s|r+o+m+s|g+i+t+a+n+e*s|t+s+i+g+a+n+e+s|a+s+i+a+t+i+q+u+e+s|f+e+m+e+s))[^a-z]+a[^a-z]+la[^a-z]+chambre[^a-z]+a[^a-z]+gaz(s|x|e|es|en|n)?', false),
   ('sexuel', 'bite', false),
   ('sexuel', 't+e+u+b+(s|x|e|es|en|n)?', false),
   ('sexuel', 'z+g+e+g+(s|x|e|es|en|n)?', false),

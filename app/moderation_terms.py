@@ -62,7 +62,7 @@ HATE_PHRASES = (
     "re:" + _P_OUT + _W + "(" + "|".join(OUT) + ")",
     "re:" + _P_DEATH + _W + "(" + "|".join(DEATH) + ")",
 )
-# Incitation au suicide (catégorie « haine » : refusée partout, jamais seulement masquée). « Va te jeter à l'eau »
+# Incitation au suicide (joueurs de l'app seulement depuis le lot 15b). « Va te jeter à l'eau »
 # (= lance-toi) et « Tire-toi une balle dans le pied » (= te nuire) passent ; « tu vas te tuer à la tâche », « il va te
 # tuer » (sujet devant « va ») passent ; « Meurs » seulement en tête, jamais « je meurs de faim ».
 # Sujet devant « va » : le mot entier (« bon va te pendre », « non va te noyer » restent refusés).
@@ -86,19 +86,33 @@ SUICIDE = (
     "re:" + _rx("personne", "(ne" + _W + ")?te", "(regrettera|regretterait|pleurera|pleurerait)"),
     "re:go" + _W + "die(?!" + _W + "hard)", "kill yourself", "kill urself", "go kill yourself",
 )
+# Lot 15b (27.11) : HATE_PHRASES et SUICIDE refusaient des phrases ordinaires dans TOUT Party (« Va te tuer à la tâche »,
+# « Lance-toi dans le vide », « Les gays dehors ce soir pour la pride », « Je déteste les noirs et les gris en déco »…) :
+# ils ne valent plus que pour les textes des JOUEURS de l'app (STORE_ONLY, plus bas). Le filtre commun ne garde que les
+# tournures qui ne touchent aucune phrase ordinaire : sale(s) / mort(s) aux / à mort les / gazer, exterminer les + groupe,
+# groupe + « à la chambre à gaz ».
+_GAS = _rx("a", "la", "chambre", "a", "gaz")
+COMMON_HATE_PHRASES = (
+    "re:(s+a+le+s?(" + _W + "(petite?s?|gros|grosses?|vieux|vieilles?))?|" + _rx("morts?", "aux") + "|"
+    + _rx("a", "mort", "les") + "|(gazer|gazez|exterminer|exterminez)" + _W + _ALL + "(les|des|ces))" + _W + _G + _NOT_FOOD,
+    "re:((les|des|ces)" + _W + _G + "|" + _P_OUT + ")" + _W + _GAS,
+)
 
 
 HAINE = (
     # FR
     "negre", "bougnoul*", "bicot", "youpin", "youtre", "bamboula", "chinetoque", "niakoue", "pede", "pd", "gouine",
     "tarlouze", "re:n+e+g+r+e+s{2,}e+s?",  # « négresse » (jamais « Negresco » : deux s exigés)
+    # Vocabulaire nazi et terroriste sans double sens (lot 15b ; « Nazim », « Nazir », « Reichenbach » passent)
+    "hitler*", "nazi", "nazisme", "neonazi*", "gestapo", "=kkk", "ku klux klan", "daech", "daesh", "swastika",
+    "croix gammee",
     # DE
     "neger", "kanake", "kanacke", "schwuchtel", "judensau", "heil hitler", "sieg heil",
     # IT
     "negro", "frocio", "ricchione",
     # EN
     "re:n+i+g{2,}(a|e+r)[a-z]*", "faggot*", "fag", "kike", "=spic", "chink", "tranny", "white power",
-) + HATE_PHRASES + SUICIDE
+) + COMMON_HATE_PHRASES
 
 SEXUEL = (
     # FR
@@ -213,4 +227,5 @@ STORE_ONLY = (
     # haine : vocabulaire nazi (« reich » en mot exact : Reichenbach passe)
     "gestapo", "swastika", "svastika", "croix gammee", "hakenkreuz", "wehrmacht", "=waffen", "=reich", "=kapos?",
     "mengele", "eva braun", "sieg heil", "hitlerjugend",
-)
+    # Lot 15b : phrases de haine et d'incitation au suicide du tour 8, sorties du filtre commun (faux refus)
+) + HATE_PHRASES + SUICIDE

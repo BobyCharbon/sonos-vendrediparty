@@ -117,16 +117,16 @@ def test_the_host_who_does_not_play_is_renamed_too():
 
 
 def test_a_web_game_with_bad_names_is_rewritten_when_the_app_arrives_and_the_web_sees_it_too():
-    code = create(WEB_UA, "likely", "webxx0-h", "Hitler")
+    code = create(WEB_UA, "likely", "webxx0-h", "Putain")  # « Hitler » : refusé partout depuis le lot 15b
     g = main.store.session.games[code]
     games.join(g, "webxx0-v", "Vodka")
     games.join(g, "webxx0-z", "Zoé")
     v = client(STORE_UA).get(f"/api/games/{code}?guest_id=store0-t&name=Tom").json()
     assert sorted(p["name"] for p in v["players"]) == ["Joueur 1", "Joueur 2", "Zoé"]
-    assert not any(store_app.name_refused(s) for s in strings(g) if s in ("Hitler", "Vodka"))
+    assert not any(store_app.name_refused(s) for s in strings(g) if s in ("Putain", "Vodka"))
     # Le joueur du web revient avec son ancien prénom : il garde « Joueur N » (même filtre pour la partie de l'app).
     web = client(WEB_UA).get(f"/api/games/{code}?guest_id=webxx0-v&name=Vodka").json()
-    assert "Vodka" not in json.dumps(web, ensure_ascii=False) and "Hitler" not in json.dumps(web, ensure_ascii=False)
+    assert "Vodka" not in json.dumps(web, ensure_ascii=False) and "Putain" not in json.dumps(web, ensure_ascii=False)
 
 
 @pytest.mark.parametrize("kind", ["neon", "island", "heist"])
