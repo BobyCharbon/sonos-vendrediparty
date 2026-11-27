@@ -211,10 +211,9 @@ def test_derived_forms_are_read_in_addition_to_the_normal_form():
 
 
 def test_the_new_family_is_for_players_only():
-    """Banques et filtre des événements (drinky, DRINK_RE) inchangés ; le web garde ces textes. « Kill yourself » est
-    refusé partout depuis le tour 8 (filtre commun : incitation au suicide, test_store_jeux_tour8.py)."""
+    """Banques et filtre des événements (drinky, DRINK_RE) inchangés ; le web garde ces textes."""
     for word in ("Alcohol", "Drunk", "Wine", "Bier", "Saufen", "Birra", "Cerveza", "Borracho", "Bet", "Gambling", "Sex",
-                 "KYS", "Rape", "Stoned"):
+                 "Kill yourself", "KYS", "Rape", "Stoned"):
         assert store_app.player_offensive(word), word
         assert not store_app.drinky(word), word
         assert main.name_refusal(word, False) == "", word

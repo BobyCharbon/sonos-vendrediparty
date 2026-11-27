@@ -1,4 +1,5 @@
-"""Contrôle Apple, tour 8 (27.11), angle jeux, puis tout Party (filtre COMMUN, app/moderation.py et la base) :
+"""Contrôle Apple, tour 8 (27.11), angle jeux (lot 15b : seules les tournures sans double sens restent dans le filtre
+COMMUN, COMMON ci-dessous ; les autres valent pour les joueurs de l'app, tests/test_moderation_faux_refus.py) :
 - 🔴1 phrases de haine : liste fermée de groupes × tournures hostiles (« Mort aux juifs », « Sales arabes », « Les noirs
   dehors », « Négresse »…), refusées en surnom, nom, message, réponse de jeu, prénom de l'app ;
 - 🔴2 incitation au suicide en phrases (« Va te jeter d'un pont », « Tire-toi une balle », « Meurs »…), même chose ;
@@ -48,9 +49,15 @@ FINE = [
 ]
 
 
-@pytest.mark.parametrize("text", HATE + SUICIDE)
+# Toujours refusées par le filtre commun (sale(s) / mort(s) aux / à mort les / gazer, exterminer les + groupe, négresse).
+COMMON = [t for t in HATE if t.lower().replace("à", "a").startswith(("mort aux", "morts aux", "a mort", "sale", "s@le",
+                                                                      "gazer", "exterminer", "negresse", "négresse"))
+          or "chambre à gaz" in t]
+
+
+@pytest.mark.parametrize("text", COMMON)
 @pytest.mark.parametrize("kind", ["name", "message", "answer"])
-def test_hate_and_suicide_phrases_are_refused_by_the_common_filter(text, kind):
+def test_hate_phrases_without_double_meaning_are_refused_by_the_common_filter(text, kind):
     v = moderation.check(text, kind)
     assert not v.ok and v.category == "haine", (text, kind, v)
 
