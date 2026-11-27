@@ -167,7 +167,7 @@ Tab **Événements**:
 - Pills: **À venir** (upcoming), **Sondages** (date polls), **Brouillons** (drafts and proposals waiting for approval),
   **Passés** (past), **Filtres** (categories, tags).
 - Top right: **+ Proposer** (just "+" on small iPhones; it moves to the bottom right once you scroll), magnifier and bell.
-  Bottom right: **✨ Avec l'IA**.
+  **✨ Avec l'IA**: a button under the header (it floats at the bottom right once you scroll).
 - Tap a card to open the event page. Its sections, top to bottom: title, date, place (tap: directions in Maps), "À propos",
   **Ajouter à mon agenda**, your answer, the event's polls (right under the answer), your ticket, the "Invités" card,
   carpool, details, participants, "Qui amène quoi" (who brings what), discussion, **Signaler cet événement**, and for organisers the

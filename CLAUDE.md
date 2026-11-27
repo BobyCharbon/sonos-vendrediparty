@@ -535,7 +535,7 @@ l'admin. Toujours :
   notification (dépôt GitHub PUBLIC ; historique de fix-143 réécrit pour retirer les 27 notifications) ; le fichier du
   surnom corrige aussi les 3 noms `tc_members` (Pot commun d'Apple-test). Pot commun filtré : nom du pot, noms des membres,
   titres et notes des dépenses (`private.moderate_tc_text`, migration 20261125110000, prod
-  `2026-11-25-pot-commun-filtre-apply.sql`). Accord IA version 3 (`CONSENT_VERSION`, `consentVersion` iOS) : « publié sur
+  `2026-11-25-pot-commun-filtre-apply.sql`). Accord IA version 4 depuis le 27.11 (« Modifier avec l'IA » cité ; `CONSENT_VERSION`, `consentVersion` iOS) : « publié sur
   GitHub, où tout le monde peut le lire » ; tout changement de ce qui est envoyé ou de qui le lit = version +1. Fiche :
   « ET AUSSI » cite l'extension Partager › Party et l'Activité en direct de la Musique (4.4).
 - Tout nouveau jeu, option ou texte : se demander s'il passe dans PartyStore. Tests : `tests/test_store_app.py`,

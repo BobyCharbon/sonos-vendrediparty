@@ -120,7 +120,7 @@
       un dépôt privé à part (la politique dit seulement « copié sur GitHub »). Guide PDF régénéré au tour 6 (B2, B4.3,
       B4.4 : publication directe dans « Démo Apple », validation pour public / sur invitation ; index des jeux 4.7.4).
 - [ ] Tour 7 (25.11) : `supabase/prod/2026-11-25-pot-commun-filtre-apply.sql` appliqué AVEC le déploiement (Pot commun
-      filtré : noms, titres, notes ; testé sur la base de TEST). Accord IA version 3 (« publié sur GitHub, où tout le monde
+      filtré : noms, titres, notes ; testé sur la base de TEST). Accord IA version 4 (« Modifier avec l'IA » cité, contrôle tour 7 ; avant : version 3, « publié sur GitHub, où tout le monde
       peut le lire ») : chacun le redonne avant le prochain envoi à l'IA ; si le dépôt passe en privé, le texte reste vrai
       par excès (on peut le rendre plus court plus tard, version 4). Fiche : section « ET AUSSI » de `metadata-fr.json`
       recopiée dans App Store Connect (extension Partager › Party, 4.4 ; 26.11 : plus de puce Musique / Activité en direct). Historique de
