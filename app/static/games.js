@@ -744,7 +744,7 @@ document.getElementById("gamesRoot").innerHTML = `
         </div>
         <p class="g-desc">« Faut-il dire à un ami que son ou sa partenaire le trompe ? » Chacun se place en secret de « Totalement contre » à « Totalement pour », on découvre la répartition, puis on en parle. Après le débat, on peut revoter pour voir qui a changé d'avis.</p>
         <div class="g-chips"><span>2+ joueurs</span><span>Sans alcool</span><span>Sans téléphone : OK</span><span>540 dilemmes + les vôtres</span></div> <!-- store-cut -->
-        <!-- <store> <div class="g-chips"><span>2+ joueurs</span><span>Sans téléphone : OK</span><span>540 dilemmes + les vôtres</span></div> -->
+        <!-- <store> <div class="g-chips"><span>2+ joueurs</span><span>Sans téléphone : OK</span><span>Plus de 400 dilemmes de Party</span></div> -->
         <div class="g-label">Thèmes</div>
         <div class="g-modes" data-opt-group="cats">
           <button type="button" data-val="moral" class="on">⚖️ Morale</button><button type="button" data-val="society" class="on">🏛️ Société</button>

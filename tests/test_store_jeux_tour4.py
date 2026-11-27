@@ -280,3 +280,23 @@ def test_feedback_ai_never_labels_zicou_in_the_app():
     shown = store_static.render(ROOT / "app/static/feedback-ai.js")
     assert "Zicou" not in shown and 'pet: "🌐 Général"' in shown
     assert "🐾 Zicou" in (ROOT / "app/static/feedback-ai.js").read_text(encoding="utf-8")  # le site garde son étiquette
+
+
+@pytest.mark.parametrize("kind", sorted(set(games.GAMES) - set(store_app.HIDDEN_GAMES)))
+def test_a_refused_web_name_is_absent_from_the_whole_app_view_of_every_game(kind):
+    """Relecture du 27.11 (lot 17A, `_replace` limité aux champs de prénom) : pour CHAQUE jeu ouvert à l'app, un prénom
+    accepté sur le web mais refusé dans l'app n'apparaît nulle part dans ce que l'app reçoit."""
+    try:
+        code = create(WEB_UA, kind, f"webfull-{kind[:6]}", "Putain")
+    except AssertionError:
+        pytest.skip(f"{kind} : pas de création directe depuis le web")
+    g = main.store.session.games[code]
+    try:
+        games.join(g, f"webfull-v-{kind[:4]}", "Vodka")
+    except Exception:
+        pass
+    v = client(STORE_UA).get(f"/api/games/{code}?guest_id=storefull-{kind[:6]}&name=Tom")
+    if v.status_code != 200:
+        pytest.skip(f"{kind} : lecture refusée à l'app ({v.status_code})")
+    dump = json.dumps(v.json(), ensure_ascii=False)
+    assert "Putain" not in dump and "Vodka" not in dump, kind

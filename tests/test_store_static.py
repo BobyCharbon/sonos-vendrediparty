@@ -5,6 +5,7 @@
 - les jeux : aucun texte lu par la table (prénom, réponse, mot, prénom ajouté) sans la case des conditions (Apple 1.2,
   main.py check_game_terms) ; le mot proposé par le Fantôme de L'Intrus n'est jamais envoyé à la table."""
 import re
+from pathlib import Path
 import shutil
 import subprocess
 
@@ -314,3 +315,13 @@ def test_round_three_no_dormant_sips_buttons_friends_pack_or_hidden_game_list_in
     wlk, wjs = web.get("/static/likely.js").text, web.get("/static/games.js").text
     assert "data-lk-sips" in wlk and "Entre amis" in wlk and 'data-opt="lkfriends"' in wjs
     assert 'STORE_HIDDEN = STORE ? ["casino"' in wjs
+
+
+def test_the_store_chip_of_pour_ou_contre_never_promises_players_dilemmas():
+    """Recette du 27.11 : dans l'app, aucun joueur ne propose de dilemme (bank_only) ; l'étiquette le dit, sans chiffre faux."""
+    from app import debate, store_app
+    js = (Path(__file__).resolve().parents[1] / "app/static/games.js").read_text(encoding="utf-8")
+    store_line = next(l for l in js.splitlines() if "<!-- <store>" in l and "dilemmes" in l)
+    assert "les vôtres" not in store_line and "Plus de 400 dilemmes de Party" in store_line
+    n = sum(len(store_app.clean([(t, q) for q in debate.THEMES[t][1]], lambda x: x[1])) for t in debate.DEFAULT_THEMES)
+    assert n > 400
