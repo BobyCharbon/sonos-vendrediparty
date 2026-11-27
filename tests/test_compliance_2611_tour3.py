@@ -39,7 +39,7 @@ def test_privacy_says_what_the_ai_gets_and_how_long_web_and_iphone_alike():
         assert "chaque appel est effacé au bout de 12 mois" in text and "Journal des appels à l'IA : 12 mois." in text, path
         assert "en « On me paie » (jamais en paiement en ligne ni sur place)" in text, path
     consent = read("web/events/src/lib/aiConsent.ts").replace("’", "'")
-    said = "les personnes déjà choisies, sous un alias (P1, P2…), jamais leur nom ; pour un ticket"
+    said = "les personnes déjà choisies, sous un alias (P1, P2…), jamais leur nom ; pour modifier un événement avec l'IA, aussi son contenu actuel"
     assert said in consent and "ainsi que ton surnom, les noms de tes groupes" in consent
     assert said in read("app/static/index.html")
 
