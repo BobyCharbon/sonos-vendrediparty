@@ -1522,9 +1522,8 @@ def report_name(g: dict, me: str, pid: str, request: Request):
         return
     log_game_report(g, me, {"text": f"Prénom signalé : {p['name']}", "author": target}, request)
     other = room_child(g) if g["type"] == "room" else room_of(g)
-    for x in filter(None, (g, other)):
-        if x is g or games.player(x, target) or x.get("host") == target:
-            x.setdefault("name_reports", {}).setdefault(target, []).append(me)
+    for x in filter(None, (g, other)):  # même s'il n'y est pas encore : il entre dans le jeu plus tard, en « Joueur N »
+        x.setdefault("name_reports", {}).setdefault(target, []).append(me)
     g["updated_at"] = time.time()
 
 
@@ -1695,7 +1694,7 @@ def room_launch(room: dict, me: str, settings: dict):
     # sinon ce téléphone y prendrait une deuxième place.
     child["aliases"] = {a: o for a, o in (room.get("aliases") or {}).items() if games.player(child, o)}
     # Prénoms signalés dans la salle : « Joueur N » aussi dans chaque jeu lancé ensuite (même numéro).
-    child["name_reports"] = {k: list(v) for k, v in (room.get("name_reports") or {}).items() if games.player(child, k)}
+    child["name_reports"] = {k: list(v) for k, v in (room.get("name_reports") or {}).items()}  # même ceux qui entrent après
     child["store_alias"] = {**(room.get("store_alias") or {}), **(child.get("store_alias") or {})}
     child["room"] = room["code"]
     room["rvotes"] = {}  # le vote du jeu suivant repart à zéro
@@ -4774,13 +4773,21 @@ class FeedbackAiRewrite(FeedbackAiIn):
     context: dict = {}
 
 
-def feedback_ai_subject(request: Request, body: FeedbackAiIn) -> str:
+def may_use_ai(token: str) -> bool:
+    try:
+        return bool(token) and "ai.use" in accounts._perms(token)
+    except AccountError:
+        return False
+
+
+def feedback_ai_subject(request: Request, body: FeedbackAiIn, consent: bool = False) -> str:
     """Qui écrit l'avis (accord, limite du jour, plafond) : son compte, sinon l'invité. Mêmes conditions que l'envoi
-    d'un avis (droit « Écrire un avis » ou hôte) ; aucun droit « ai.use » n'est demandé."""
+    d'un avis (droit « Écrire un avis » ou hôte). `consent` (état et accord, un seul pour toute l'IA de Party) : aussi
+    tout compte qui a « ai.use » (Guest compris : assistant des événements de l'app iPhone)."""
     check_guest_id(body.guest_id)
     if msg := ban_message(body.guest_id, client_ip(request)):
         raise HTTPException(403, msg)
-    if not may_write_feedback(request, body.token):
+    if not may_write_feedback(request, body.token) and not (consent and may_use_ai(body.token)):
         raise HTTPException(403, "Ton avis est réservé aux comptes Guest+ et plus.")
     if body.token:
         with contextlib.suppress(AccountError):
@@ -4791,13 +4798,13 @@ def feedback_ai_subject(request: Request, body: FeedbackAiIn) -> str:
 @app.post("/api/feedback/ai/status")
 def feedback_ai_status(body: FeedbackAiIn, request: Request):
     """L'IA peut-elle aider (configurée, accord donné ou à demander, reformulations restantes aujourd'hui) ?"""
-    return feedback_writer.status(feedback_ai_subject(request, body), host=is_admin(request))
+    return feedback_writer.status(feedback_ai_subject(request, body, consent=True), host=is_admin(request))
 
 
 @app.post("/api/feedback/ai/consent")
 def feedback_ai_consent(body: FeedbackAiConsent, request: Request):
     """« J'accepte » / « Écrire sans l'IA » (feuille d'accord), ou retrait de l'accord dans Réglages."""
-    subject = feedback_ai_subject(request, body)
+    subject = feedback_ai_subject(request, body, consent=True)
     feedback_writer.consents.set(subject, body.accept)
     return feedback_writer.status(subject, host=is_admin(request))
 

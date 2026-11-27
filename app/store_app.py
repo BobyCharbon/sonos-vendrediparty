@@ -14,7 +14,6 @@ import unicodedata
 from functools import lru_cache
 from pathlib import Path
 
-from .features import is_test_site
 from .moderation import check as moderation_check, clean as moderation_clean, merged, nfkc, normalize, store_hit
 
 MARK = "PartyStore"
@@ -63,15 +62,15 @@ STORE_EXCLUDE = re.compile(
 
 
 def is_store(request) -> bool:
-    """L'app App Store : « PartyStore » dans l'User-Agent (vue web). En production, tout client iOS natif aussi : les
-    écrans natifs n'envoient que « X-Party-Native: ios » (PartyAPI.swift), et la BETA parle au site de test, jamais à
-    la prod (ios/project.yml, workflow TestFlight) ; le site de test garde la BETA telle quelle."""
+    """L'app App Store : « PartyStore » dans l'User-Agent (vue web), et tout client iOS natif : les écrans natifs
+    n'envoient que « X-Party-Native: ios » (PartyAPI.swift). Sur le site de test aussi : la BETA est la copie exacte
+    de l'app App Store (décision de l'admin du 27.11)."""
     if request is None:
         return False
     ua = request.headers.get("user-agent", "")
     if MARK in ua:
         return True
-    return request.headers.get("x-party-native") == "ios" and not is_test_site()
+    return request.headers.get("x-party-native") == "ios"
 
 
 def drinky(text) -> bool:
@@ -416,21 +415,29 @@ ALIAS = "Joueur"
 ID_KEYS = ("id", "gid", "pid", "host", "code", "room", "current", "store_alias", "aliases", "leads", "kicked", "removed")
 
 
-def _replace(o, old, new: str):
-    """Toutes les copies d'un prénom dans la partie (historiques, auteurs, classements, trames, journaux) : la valeur
-    exacte, ou le mot entier dans une phrase (« Hitler a gagné » ; « Paris » reste si « Pari » est renommé) ; jamais un
-    identifiant. `old` : le prénom, et le motif du mot entier."""
+# Champs qui portent un prénom (copies comprises : historiques, auteurs, journaux, annonces) : seuls réécrits, jamais
+# type, phase, mots, options, questions (un joueur « room », « likely » ou « lobby » signalé cassait la partie).
+NAME_KEYS = ("name", "host_name", "by", "author", "winners", "names", "rnames", "history", "log", "notice")
+
+
+def _replace(o, old, new: str, named: bool = False):
+    """Toutes les copies d'un prénom dans les champs qui en portent (NAME_KEYS) : la valeur exacte, ou le mot entier
+    dans une phrase (« Hitler a gagné » ; « Paris » reste si « Pari » est renommé) ; jamais un identifiant. `old` :
+    le prénom, et le motif du mot entier."""
     name, word = old
     if isinstance(o, str):
-        return new if o == name else word.sub(new, o) if " " in o and name in o else o
+        return o if not named else new if o == name else word.sub(new, o) if " " in o and name in o else o
     if isinstance(o, dict):
+        game = "type" in o  # partie, jeu de l'historique de la salle, catalogue : « name » = titre du jeu
         for k, x in o.items():
             if k not in ID_KEYS:
-                o[k] = _replace(x, old, new)
+                hit = (named and isinstance(x, str)) or (k in NAME_KEYS and not (k == "name" and game)) \
+                    or (k == "winner" and game and "phase" not in o)  # gagnant de l'historique, jamais le rôle gagnant
+                o[k] = _replace(x, old, new, hit)
         return o
     if isinstance(o, list):
         for i, x in enumerate(o):
-            o[i] = _replace(x, old, new)
+            o[i] = _replace(x, old, new, named and not isinstance(x, dict))  # entrée d'historique : ses propres clés
     return o
 
 

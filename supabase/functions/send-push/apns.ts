@@ -5,10 +5,12 @@
 
 export const APNS_TOKEN = /^apns:([0-9a-f]{64,200})$/;
 
-/** App VendrediParty de l'App Store (topic sans « .beta ») : aucune notification du bar (refus Apple 1.4.3, 25.11 :
- *  le bar n'existe pas dans cette app). La BETA et le Web Push les gardent. */
+/** App VendrediParty de l'App Store ET Party BETA, sa copie exacte (décision de l'admin du 27.11). */
+const STORE_TOPICS = new Set(['ch.bobycharbon.party', 'ch.bobycharbon.party.beta']);
+
+/** Aucune notification du bar à l'app (refus Apple 1.4.3, 25.11 : le bar n'existe pas dans l'app) ; le Web Push les garde. */
 export function storeAppSkips(topic: string, kind: string): boolean {
-  return topic === 'ch.bobycharbon.party' && kind.startsWith('bar_');
+  return STORE_TOPICS.has(topic) && kind.startsWith('bar_');
 }
 /** Mots de boisson, d'ivresse ou de drogue : EXACTEMENT DRINK_RE d'app/store_app.py (test tests/test_store_app.py). */
 const DRINK_PY = String.raw`gorg[ée]es?|\bboire\b|\bboi[st]\b|\bboivent\b|\bbuvez\b|\bbu\b|\bshots?\b|alcool|bi[èe]res?\b|\bvins?\b|vodka|tequila|whisky|\brhums?\b|\bgin\b|\btourn[ée]es?\b|\bcuites?\b|\bivres?\b|ivresse|bourr[ée]e?s?\b|gueule de bois|ap[ée]ro|cocktail|champagne|mojito|ca[iï]pirinha|sangria|spritz|pastis|j[äa]germeister|liqueur|\bbars?\b|\bverres?\b|drogue|cannabis|coca[iï]ne|\bjoint\b|ecstasy|mdma|\blsd\b|cigarette|nicotine|\bvomi|tchin|\bbeer\b|bouteilles?\b|ap[ée]ritif|arros[ée]|pot de d[ée]part|buvette|\bboirai|cuv[ée]e|vigneron|vendange|viticole|vignoble|c[ée]page|absinthe|tabac|casino|poker|blackjack|cidre|\bkir\b|kirsch|cognac|calvados|armagnac|grappa|\bsak[ée]\b|prosecco|\bcava\b|guinness|eau-de-vie|eaux-de-vie|damassine|fendant|chasselas|merlot|pinot|chouchen|soju|baijiu|limoncello|ouzo|campari|aperol|cacha[çc]a|bourbon|cervoise|[ée]thanol|porto\b|bordeaux|bourgogne|beaujolais|chardonnay|sauvignon|riesling|lambrusco|chianti|rioja|brasserie|brasseur|houblon|malt\b|distill|spiritueux|digestif|\braki\b|mezcal|chartreuse|fernet|pimm|\bkvas\b|barolo|gamay|syrah|cornalin|humagne|d[ée]zaley|\bperlan\b|johannisberg|arvine|perdrix|amaretto|poire williams|ros[ée] de provence|gin-tonic|trafiquant|narcos|escobar|\bweeds\b|breaking bad|trainspotting|\bcoke\b|h[ée]ro[iï]ne\b|\bcrack\b|opium|dealer|happy hour|after-?work|\bpintes?\b|oktoberfest|ti-?punch|binouze|pub crawl|margarita|\bshooters?\b|\bricard\b|heineken|chicha|narguil[ée]|\bvapot|\bvape\b|\bpuffs?\b|\bj[äa]ger\b|\bpils\b|\bipa\b|verknipt|asbak|🍻|🍺|🥃|🍸|🍹|🍷|🍾|🥂`;
@@ -19,9 +21,9 @@ export const STORE_NEUTRAL = { title: 'Party', body: 'Nouvelle activité : ouvre
 
 /** App App Store (contrôle Apple du 26.11, 1.4.3) : une notification dont le titre ou le texte parle de boisson
  *  (lieu « Bar … », message, sondage, annonce) part avec un texte neutre ; le toucher ouvre toujours la même page.
- *  La BETA et le Web Push gardent le texte. */
+ *  Le Web Push garde le texte. */
 export function storeAppText(topic: string, title: string, body: string): { title: string; body: string } {
-  if (topic !== 'ch.bobycharbon.party' || !DRINK_RE.test(`${title ?? ''}\n${body ?? ''}`)) return { title, body };
+  if (!STORE_TOPICS.has(topic) || !DRINK_RE.test(`${title ?? ''}\n${body ?? ''}`)) return { title, body };
   return STORE_NEUTRAL;
 }
 const JWT_LIFETIME_MS = 50 * 60_000;

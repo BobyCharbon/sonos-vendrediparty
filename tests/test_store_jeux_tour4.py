@@ -218,8 +218,7 @@ def test_player_dilemmas_proposed_on_the_web_are_dropped_when_the_app_arrives():
                                   "/static-store/x.html", "/static/%2e%2e/static/admin.html", "/static/pet/verify.html",
                                   "/admin", "/admin/", "/ADMIN", "/admin.html"])
 @pytest.mark.parametrize("headers", [{"User-Agent": STORE_UA}, {"User-Agent": WEB_UA, "x-party-native": "ios"}])
-def test_raw_html_pages_and_admin_are_404_for_the_app(path, headers, monkeypatch):
-    monkeypatch.setattr(store_app, "is_test_site", lambda: False)
+def test_raw_html_pages_and_admin_are_404_for_the_app(path, headers):
     assert TestClient(main.app, headers=headers).get(path).status_code == 404
 
 

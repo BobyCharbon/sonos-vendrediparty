@@ -215,9 +215,18 @@ def test_bar_is_off_for_the_store_app_and_native_calls_in_production(monkeypatch
     assert client("Party/1 CFNetwork", **{"X-Party-Native": "ios"}).get("/api/features").json()["bar"] is False
     assert 'data-bar="off"' in client(STORE_UA).get("/").text
     assert 'data-bar="off"' not in client(WEB_UA).get("/").text
-    # Site de test : la BETA garde tout (elle ne parle jamais à la prod).
+    # Site de test : la BETA est la copie exacte de l'app App Store (27.11), ses écrans natifs aussi.
     monkeypatch.setenv("PARTY_PUBLIC_URL", "https://partytest.bobycharbon.ch")
-    assert client("Party/1 CFNetwork", **{"X-Party-Native": "ios"}).get("/api/features").json()["bar"] is True
+    assert client("Party/1 CFNetwork", **{"X-Party-Native": "ios"}).get("/api/features").json()["bar"] is False
+    assert client(WEB_UA).get("/api/features").json()["bar"] is True
+
+
+def test_push_of_the_beta_is_the_app_store_one():
+    """BETA = copie exacte de l'app App Store : ni notification du bar ni texte « à boisson » pour ses deux topics."""
+    ts = (__import__("pathlib").Path(main.__file__).resolve().parents[1] / "supabase/functions/send-push/apns.ts").read_text()
+    assert "const STORE_TOPICS = new Set(['ch.bobycharbon.party', 'ch.bobycharbon.party.beta']);" in ts
+    assert "return STORE_TOPICS.has(topic) && kind.startsWith('bar_');" in ts
+    assert "if (!STORE_TOPICS.has(topic) || !DRINK_RE" in ts and "topic === 'ch.bobycharbon.party'" not in ts
 
 
 def test_events_module_page_has_no_bar_for_the_store_app(monkeypatch, tmp_path):
