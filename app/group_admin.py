@@ -56,7 +56,7 @@ def readable(r: httpx.Response, fallback: str) -> str:
         if key in message:
             return text
     # Phrases de la base précédées d'une clé (« content_refused: Message non envoyé… ») : la phrase seule.
-    return re.sub(r"^(forbidden|blocked|content_refused|terms_required|terms_version|rate_limited|not_found|self|reason|days): ",
+    return re.sub(r"^(forbidden|blocked|content_refused|terms_required|terms_version|rate_limited|not_found|self|reason|days|request_pending|limit|edit_window|locked|pin_limit): ",
                   "", message) or fallback
 
 

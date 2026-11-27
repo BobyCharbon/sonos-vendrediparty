@@ -224,6 +224,12 @@ class GroupChats:
         notify = (got["settings"] or [{}])[0].get("notify") or "all"
         blocked = any(b.get("blocked_id") == other for b in got["blocks"] or [])
         messages, reactions = self._split_reactions(list(reversed(got["messages"])), "direct_message_reactions", token)
+        if blocked:
+            # Même règle que les groupes (App Store 1.2) : la personne bloquée a ses messages masqués aussitôt
+            # (texte, photo, vocal), ses épinglés retirés ; débloquer les rend.
+            messages = [{**m, "body": BLOCKED_TEXT, "photo_path": None, "audio_path": None} if m.get("user_id") == other else m
+                        for m in messages]
+            got["highlights"] = [m for m in got["highlights"] or [] if m.get("user_id") != other]
         people = {p["id"]: p for p in got["profiles"] or []}
         photos = self._cached_sign("chat-photos", [p for m in messages if not m.get("deleted_at")
                                                    for p in (m.get("photo_path"), m.get("audio_path"))],

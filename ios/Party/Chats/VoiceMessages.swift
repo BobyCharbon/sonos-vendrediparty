@@ -1,6 +1,18 @@
 import AVFoundation
 import SwiftUI
 
+/// Appels à AVAudioSession hors du fil principal (ils peuvent bloquer plusieurs centaines de ms : « Hang Risk »).
+/// File série : activer, puis rendre la session se font toujours dans l'ordre des gestes.
+enum AudioSessionQueue {
+    private static let queue = DispatchQueue(label: "party.audio-session", qos: .userInitiated)
+
+    static func run(_ work: @escaping @Sendable () -> Void) { queue.async(execute: work) }
+
+    static func perform<T: Sendable>(_ work: @escaping @Sendable () -> T) async -> T {
+        await withCheckedContinuation { done in queue.async { done.resume(returning: work()) } }
+    }
+}
+
 /// Messages vocaux des Discussions : appui long sur le micro pour enregistrer, relâcher pour envoyer, glisser vers la
 /// gauche pour annuler. L'enregistrement passe TOUJOURS par le micro du téléphone, jamais par un appareil Bluetooth
 /// (AirPods, voiture) : c'est le plus rapide à démarrer et le son le plus net (demande de l'admin, 30.10).
@@ -20,6 +32,9 @@ final class VoiceRecorder: ObservableObject {
     /// Faux dès qu'on demande l'arrêt : un démarrage encore en cours (micro lent à s'ouvrir) s'annule au lieu de
     /// lancer un enregistrement que plus personne n'attend (avis ea8cc508a706 : un second vocal partait tout seul).
     private var wanted = false
+    /// Change à chaque appui et à chaque arrêt : un démarrage resté en attente (session audio ouverte hors du fil
+    /// principal) qui reprend après un nouvel appui s'efface au lieu de lancer un second enregistrement.
+    private var generation = 0
 
     /// AAC mono 44,1 kHz, qualité moyenne (débit choisi par l'encodeur : imposer un débit fait échouer la préparation
     /// sur certains appareils) : léger, lu partout (iPhone, Android, navigateurs).
@@ -45,10 +60,14 @@ final class VoiceRecorder: ObservableObject {
     func start() async {
         guard !recording else { return }
         wanted = true
+        generation += 1
+        let mine = generation
         problem = nil
-        let session = AVAudioSession.sharedInstance()
-        if session.recordPermission != .granted {
-            let allowed = await withCheckedContinuation { done in session.requestRecordPermission { done.resume(returning: $0) } }
+        let granted = await AudioSessionQueue.perform { AVAudioSession.sharedInstance().recordPermission == .granted }
+        if !granted {
+            let allowed = await withCheckedContinuation { done in
+                AVAudioSession.sharedInstance().requestRecordPermission { done.resume(returning: $0) }
+            }
             guard allowed else {
                 problem = "Autorise le micro pour Party dans Réglages › Party."
                 return
@@ -61,15 +80,18 @@ final class VoiceRecorder: ObservableObject {
             // Deux essais : la session audio peut être encore prise (lecture d'un vocal, autre app) au premier.
             for attempt in 0..<2 where recorder == nil {
                 if attempt > 0 { try? await Task.sleep(for: .milliseconds(150)) }
-                try? Self.useBuiltInMicrophone(session)
+                _ = await AudioSessionQueue.perform { try? VoiceRecorder.useBuiltInMicrophone() }
                 if let r = try? AVAudioRecorder(url: file, settings: Self.settings), r.prepareToRecord(),
                    r.record(forDuration: Self.maximumSeconds) { recorder = r }
             }
             guard let recorder else { throw CocoaError(.fileWriteUnknown) }
-            guard wanted else {  // arrêt demandé pendant l'ouverture du micro
+            guard wanted, generation == mine, !recording else {  // arrêt (ou nouvel appui) pendant l'ouverture du micro
                 recorder.stop()
                 try? FileManager.default.removeItem(at: recorder.url)
-                try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+                // Session rendue seulement si plus personne ne veut le micro (un nouvel appui garde la sienne).
+                if !wanted && !recording {
+                    AudioSessionQueue.run { try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation) }
+                }
                 return
             }
             self.recorder = recorder
@@ -92,6 +114,7 @@ final class VoiceRecorder: ObservableObject {
     /// send : le fichier et sa durée ; sinon (annulé, trop court) rien et le fichier est effacé.
     func stop(send: Bool) -> (URL, TimeInterval)? {
         wanted = false
+        generation += 1
         timer?.cancel()
         timer = nil
         guard recording, let recorder else { return nil }
@@ -99,7 +122,7 @@ final class VoiceRecorder: ObservableObject {
         recorder.stop()
         self.recorder = nil
         recording = false
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        AudioSessionQueue.run { try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation) }
         guard send, seconds >= Self.minimumSeconds else {
             try? FileManager.default.removeItem(at: recorder.url)
             Haptics.warning()  // vocal annulé (glissé à gauche) ou trop court : il n'est pas envoyé
@@ -153,8 +176,6 @@ final class VoicePlayer: ObservableObject {
     func toggle(id: String, url: URL) {
         if playing == id { return stop() }
         stop(release: false)  // d'un vocal au suivant : la session reste prise (la musique ne repart pas entre les deux)
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
-        try? AVAudioSession.sharedInstance().setActive(true)
         let player = AVPlayer(url: url)
         // Voix accélérée sans effet « chipmunk » : la hauteur est gardée.
         player.currentItem?.audioTimePitchAlgorithm = .timeDomain
@@ -168,7 +189,17 @@ final class VoicePlayer: ObservableObject {
         ended = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: player.currentItem, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.stop() }
         }
-        player.playImmediately(atRate: speed)
+        // Session ouverte hors du fil principal, puis la lecture démarre ; arrêté entre-temps : rien ne démarre
+        // (la session est rendue par stop(), dans la même file, après cette ouverture).
+        let started = ObjectIdentifier(player)
+        AudioSessionQueue.run { [weak self] in
+            try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
+            try? AVAudioSession.sharedInstance().setActive(true)
+            Task { @MainActor [weak self] in
+                guard let self, let current = self.player, ObjectIdentifier(current) == started else { return }
+                current.playImmediately(atRate: self.speed)
+            }
+        }
     }
 
     func stop(release: Bool = true) {
@@ -182,7 +213,7 @@ final class VoicePlayer: ObservableObject {
         playing = nil
         progress = 0
         // Vocal fini ou arrêté : la session audio est rendue, la musique coupée (Spotify…) reprend.
-        if wasPlaying && release { try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation) }
+        if wasPlaying && release { AudioSessionQueue.run { try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation) } }
     }
 }
 

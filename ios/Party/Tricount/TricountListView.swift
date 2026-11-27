@@ -62,7 +62,7 @@ struct TricountListView: View {
             }
             Section {
                 NavigationLink { PaymentProfileView(store: store) } label: {
-                    SettingsRow(symbol: "creditcard.fill", tint: .green, title: "Mon profil de paiement",
+                    SettingsRow(symbol: "arrow.uturn.left.circle.fill", tint: .green, title: "Mon profil de paiement",
                                 hint: "IBAN, Revolut, Twint, PayPal : pour qu'on te rembourse facilement")
                 }
             }

@@ -9,7 +9,13 @@ final class ShareViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        // Fond sombre de Party quelle que soit l'apparence de l'iPhone (recette du 27.11 : en apparence claire, le texte
+        // restait noir sur le fond sombre, preferredColorScheme ne descendant pas jusqu'à la feuille de l'extension).
+        overrideUserInterfaceStyle = .dark
+        view.backgroundColor = UIColor(red: 14 / 255, green: 11 / 255, blue: 22 / 255, alpha: 1)
         let host = UIHostingController(rootView: ShareView(model: model, close: { [weak self] in self?.finish() }))
+        host.overrideUserInterfaceStyle = .dark
+        host.view.backgroundColor = .clear
         addChild(host)
         host.view.frame = view.bounds
         host.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -80,6 +86,7 @@ struct ShareView: View {
             }
         }
         .tint(Self.accent)
+        .environment(\.colorScheme, .dark)
         .preferredColorScheme(.dark)
     }
 
