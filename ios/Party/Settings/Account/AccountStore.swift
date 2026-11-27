@@ -75,15 +75,37 @@ final class AccountStore: ObservableObject {
             error = "Connecte-toi d'abord"
             return false
         }
-        var done = false
-        await work {
+        busy = true
+        defer { busy = false }
+        do {
             await settings?.accountWillSignOut()
             try await api.deleteAccount(token: token)
             await web?.clearSession()
             await settings?.accountSwitched()
-            done = true
+            error = nil
+            return true
+        } catch {
+            self.error = Self.deleteRefusal(error)
+            return false
         }
-        return done
+    }
+
+    /// Suppression refusée (e2e du 27.11) : on ne parle de connexion que si la requête n'a pas atteint le serveur ;
+    /// sinon la phrase du serveur, ou, quand elle accuse la connexion à tort (phrase générique), le contact de Party.
+    static func deleteRefusal(_ error: Error) -> String {
+        let refused = "Le serveur a refusé la suppression : écris à \(TermsView.supportEmail)."
+        switch error as? PartyAPIError {
+        case .offline?:
+            return "Ton compte n'a pas pu être supprimé : Party ne répond pas. Vérifie ta connexion, puis réessaie."
+        case .needsCode?:
+            return "Ta session a expiré : reconnecte-toi, puis réessaie."
+        case .server(let message)?, .termsRequired(let message)?, .duplicate(let message)?:
+            let text = message.trimmingCharacters(in: .whitespacesAndNewlines)
+            let generic = text.isEmpty || text == "Erreur, réessaie" || text.localizedCaseInsensitiveContains("connexion")
+            return generic ? refused : text
+        case nil:
+            return refused
+        }
     }
 
     // MARK: Annonces admin

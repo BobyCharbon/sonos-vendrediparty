@@ -120,6 +120,13 @@ struct TermsAcceptSheet: View {
                         Text("Accepte une seule fois les conditions d'utilisation de Party, puis tu continues tout de suite.")
                             .font(.title3).foregroundStyle(PronoTheme.t2)
                     }
+                    // Visible sans défiler, au-dessus des boutons fixés, même sur l'iPhone Air / 18 Pro (e2e du 27.11).
+                    Text("Party est réservée aux 18 ans et plus : en touchant « J'accepte », tu confirmes avoir 18 ans ou plus.")
+                        .font(.body.bold()).foregroundStyle(PronoTheme.t1)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(PronoTheme.pink.opacity(0.14), in: RoundedRectangle(cornerRadius: 16))
+                        .accessibilityIdentifier("terms-adult")
                     VStack(alignment: .leading, spacing: 16) {
                         ForEach(Self.points, id: \.1) { icon, line in
                             HStack(alignment: .top, spacing: 14) {
@@ -129,10 +136,6 @@ struct TermsAcceptSheet: View {
                             }
                         }
                     }
-                    Text("Party est réservée aux 18 ans et plus : en touchant « J'accepte », tu confirmes avoir 18 ans ou plus.")
-                        .font(.body.bold()).foregroundStyle(PronoTheme.t1)
-                        .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-                        .background(PronoTheme.pink.opacity(0.14), in: RoundedRectangle(cornerRadius: 16))
                     DisclosureGroup(isExpanded: $readAll) {
                         VStack(alignment: .leading, spacing: 14) {
                             Text("Version du \(TermsView.updated)").id("terms-start").font(.footnote).foregroundStyle(PronoTheme.t2)

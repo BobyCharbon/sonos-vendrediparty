@@ -147,7 +147,7 @@ struct SettingsView: View {
                             GameStatsView(store: store.session) { open(.tab("games")) }
                         } label: {
                             SettingsRow(symbol: "trophy.fill", tint: .orange, title: "Mes stats de jeu",
-                                        hint: AppConfig.isStoreApp ? "Méninges : scores, profil, records" : "Purify Test et Méninges : scores, profil, records")
+                                        hint: Self.statsHint)
                         }
                     }
                     // « Ton avis » : l'hôte (« Retours »), et les comptes Guest+ et au-dessus (droit « Écrire un avis »).
@@ -266,6 +266,15 @@ struct SettingsView: View {
                 }
             }
         }
+    }
+
+    /// « Mes stats de jeu » : le Purify Test n'est pas compilé dans le binaire de l'App Store (e2e du 27.11).
+    static var statsHint: String {
+        #if BETA || E2E_HOOKS
+        AppConfig.isStoreApp ? "Méninges : scores, profil, records" : "Purify Test et Méninges : scores, profil, records"
+        #else
+        "Méninges : scores, profil, records"
+        #endif
     }
 
     static func showsFeedback(isHost: Bool, account: Bool, entry: TabBarState.FeedbackEntry?) -> Bool {

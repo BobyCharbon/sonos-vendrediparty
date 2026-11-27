@@ -81,6 +81,19 @@ struct AppStoreReadinessTests {
         #expect(TermsView.supportEmail == "support@vendrediparty.ch")
     }
 
+    @Test("Suppression du compte refusée : la connexion seulement hors ligne, sinon la phrase du serveur ou le contact")
+    func deleteRefusalNamesTheServer() {
+        let refused = "Le serveur a refusé la suppression : écris à support@vendrediparty.ch."
+        #expect(AccountStore.deleteRefusal(PartyAPIError.offline).contains("Vérifie ta connexion"))
+        // Phrase générique du serveur (400 / 500) qui accusait la connexion à tort (e2e du 27.11).
+        #expect(AccountStore.deleteRefusal(PartyAPIError.server(
+            "Ton compte n'a pas pu être supprimé. Vérifie ta connexion et réessaie.")) == refused)
+        #expect(AccountStore.deleteRefusal(PartyAPIError.server("Erreur, réessaie")) == refused)
+        let lastAdmin = "Tu es le dernier administrateur : désigne d'abord un autre administrateur actif dans Membres."
+        #expect(AccountStore.deleteRefusal(PartyAPIError.server(lastAdmin)) == lastAdmin)
+        #expect(!AccountStore.deleteRefusal(PartyAPIError.server(lastAdmin)).contains("connexion"))
+    }
+
     @Test("Sans accord connu : la feuille s'ouvre ; « Pas maintenant » ou fermée d'un geste = rien n'est envoyé")
     func consentSheetBlocksTheFirstRequest() async {
         let store = AIEventStore(api: PartyAPI(base: URL(string: "https://party.invalid")!, jar: NoCookies()), web: nil)

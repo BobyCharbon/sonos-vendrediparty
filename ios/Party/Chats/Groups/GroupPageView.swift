@@ -139,6 +139,7 @@ struct GroupPageView: View {
                 }
             }
         }
+        #if BETA || E2E_HOOKS
         if page.showsPronos, hub?.pronos != nil {
             NavigationLink(value: GroupScreen.pronos(groupID)) {
                 GroupActionLabel(title: "Pronos et classement", systemImage: "sparkles")
@@ -146,6 +147,7 @@ struct GroupPageView: View {
             .buttonStyle(PronoKitPressStyle())
             .accessibilityIdentifier("group-pronos")
         }
+        #endif
     }
 
     @ViewBuilder private func events(_ page: GroupPage) -> some View {
