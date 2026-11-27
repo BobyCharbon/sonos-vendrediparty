@@ -60,7 +60,9 @@ RUDE_STARTS = frozenset("con cul bit put nic enc bai sod zob teu sex por pd".spl
                         + "vod alc ivr naz hit whi teq pok rhu cig gin vin sao shi ecs cok neg nig fuc dic cun caz bar fag"
                           " fdp kir"
                           # tour 6 : anglais (ass, bet, rum, kys)
-                          " ass bet rum kys".split())
+                          " ass bet rum kys"
+                          # contrôle final : « une Kro »
+                          " kro".split())
 
 SOURCES = {
     "grammalecte": {
