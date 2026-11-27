@@ -14,3 +14,5 @@
 12. **Envoi à Apple** : je te montre la réponse en anglais avant tout envoi — tu valides le texte ?
 13. **Nouveau compte qui refuse les CGU (« Plus tard »)** : aujourd'hui il garde les Jeux, mais Événements et Discussions restent sur « Faisons connaissance » (le surnom exige les CGU) et ce qu'il avait tapé est perdu en rouvrant l'app. On garde ainsi (simple, accepté par Apple), ou on le laisse REGARDER les événements publics sans CGU (les CGU seulement au premier contenu : répondre, écrire) ? Je garderais le texte tapé dans les deux cas.
 14. **Présences, personne avec un compte** : réessaie le ✕ dans l'app (la question « Retirer X des présences ? » doit s'afficher) et dis-moi si ça marche.
+15. **Musique pendant la revue** : les notes disent maintenant à Apple « we run one on request » (on lance une soirée Sonos à l'heure qu'Apple choisit et on envoie le code dans la réponse). Tu peux le faire pendant la revue ? Sinon je retire la phrase.
+16. **Politique, présences sans compte** : « Elle peut demander à Party de retirer son nom (contact ci-dessous). » D'accord avec cet engagement ?
