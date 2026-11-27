@@ -930,7 +930,7 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
           </>
         ) : null}
         <Rows>
-          <ToggleRow label="Pot commun" hint="Qui répond Présent y entre tout seul (la fiche le lui dit) et voit les noms et moyens de paiement des autres membres ; tout est dans Réglages › Pot commun" value={d.pot_enabled} onChange={(v) => set({ pot_enabled: v })} />
+          <ToggleRow label="Pot commun" hint="Qui répond Présent y entre tout seul (la fiche le lui dit) et voit les noms des autres membres ; les moyens de paiement seulement de qui les montre ; tout est dans Réglages › Pot commun" value={d.pot_enabled} onChange={(v) => set({ pot_enabled: v })} />
           <ToggleRow label="Covoiturage" hint="Les participants proposent leurs places ou en cherchent une, ville de départ en option" value={d.carpool_enabled} onChange={(v) => set({ carpool_enabled: v })} />
         </Rows>
         {souvenirsOn ? <SouvenirsSettings enabled={d.souvenirs_enabled} keep={d.souvenirs_keep} locked={d.souvenirs_locked} onChange={set} /> : null}

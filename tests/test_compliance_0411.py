@@ -164,6 +164,31 @@ def test_delete_route_erases_what_the_account_really_played(monkeypatch):
     assert not main.local_feedback.mine(gid)
 
 
+def test_deleting_the_account_anonymizes_its_reviews_from_every_device(tmp_path, monkeypatch):
+    # Contrôle Apple tour 6 : l'empreinte du numéro (owner) et le contexte de l'app (appareil, version, écran) partent
+    # aussi, et l'avis envoyé depuis un AUTRE appareil du même compte (même owner) est anonymisé comme les autres.
+    box = FeedbackBox(tmp_path / "feedback.json")
+    box.add(GID, "Léa", "idea", "Une idée", {"tab": "games", "os": "iOS 26.1"}, owner="empreinte")
+    box.add("autre-appareil", "Léa", "bug", "Un bug", {"platform": "android"}, owner="empreinte")
+    box.add("acct-autre", "Bob", "bug", "Un bug de Bob", {"tab": "music"}, owner="autre")
+    assert box.forget(GID, "empreinte") == 2
+    gone = [i for i in FeedbackBox(tmp_path / "feedback.json").items if i["name"] == "Compte supprimé"]
+    assert len(gone) == 2 and all("owner" not in i and i["context"] == {} and i["guest_id"] == "compte-supprime" for i in gone)
+    bob = [i for i in box.items if i["name"] == "Bob"][0]
+    assert bob["owner"] == "autre" and bob["context"] == {"tab": "music"}
+
+    class Auth:
+        def delete_account(self, token, confirm):
+            return None
+
+    monkeypatch.setattr(main, "account_auth", Auth())
+    monkeypatch.setattr(main.accounts, "_uid", lambda token: UID)
+    monkeypatch.setattr(main, "feedback_owner", lambda token: "empreinte-route")
+    main.local_feedback.add("appareil-web", "Léa", "idea", "Une idée de Léa sur le web", {}, owner="empreinte-route")
+    assert TestClient(main.app).post("/api/account/delete", json={"token": "t", "confirm": "SUPPRIMER"}).json() == {"ok": True}
+    assert not main.local_feedback.mine("appareil-web", "empreinte-route")
+
+
 def test_web_account_deletion_goes_through_the_server():
     screen = open("web/events/src/app/settings/account.tsx", encoding="utf-8").read()
     assert "/api/account/delete" in screen and "rpc('delete_my_account')" not in screen

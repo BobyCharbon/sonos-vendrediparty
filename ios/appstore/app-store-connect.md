@@ -139,7 +139,7 @@ Other Diagnostic Data, Other Financial Info), tous liés à l'identité, sans su
 Cocher **exactement** les mêmes dans App Store Connect (**Other Diagnostic Data est à cocher en plus**, 14.11).
 **16.11.2026** : + Audio Data (vocaux des Discussions), Purchase History (commandes du bar liées au compte), Customer
 Support (« Ton avis ») : 15 types le 16.11 (historique ; 17 depuis le 27.11, voir plus haut).
-L'écran natif Réglages › Confidentialité est daté du 14 novembre 2026 comme la politique web, et l'accord IA s'y
+L'écran natif Réglages › Confidentialité est daté du 27 novembre 2026 comme la politique web, et l'accord IA s'y
 retire (« IA de Party ») pour tous les comptes.
 
 ## 6. Description, sous-titre, mots-clés

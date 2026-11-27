@@ -19,6 +19,8 @@ import { chf } from '@/lib/tickets';
 import { colors } from '@/lib/theme';
 import type { EventRow, Profile, Rsvp } from '@/lib/types';
 import { openInParty } from '@/lib/partyShell';
+import { storeApp } from '@/lib/features';
+import { drinkyEvent } from '@/lib/storeEvents';
 import { rememberSharedEvent } from '@/lib/signupOrigin';
 
 const EVENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -99,6 +101,19 @@ export default function PublicEventScreen() {
             <T muted>{validId ? 'Cet événement n’existe plus ou n’est plus partagé publiquement.' : 'Ce lien n’est pas complet. Copie-le en entier depuis le message reçu.'}</T>
           </>
         )}
+        <Button label="Découvrir Party" variant="secondary" onPress={() => openInParty('/')} />
+      </Screen>
+    );
+  }
+
+  // App App Store (refus Apple 1.4.3) : un événement public « à boisson » où je ne suis pour rien ne s'affiche pas,
+  // comme sa fiche (event/[id]/index.tsx) et la liste (lib/storeEvents.ts).
+  if (storeApp && !data.mine && drinkyEvent(data as unknown as Parameters<typeof drinkyEvent>[0])) {
+    return (
+      <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center', gap: 12 }}>
+        <Stack.Screen options={{ title: '' }} />
+        <Title>Lien indisponible</Title>
+        <T muted>Cet événement n’est pas disponible dans l’app.</T>
         <Button label="Découvrir Party" variant="secondary" onPress={() => openInParty('/')} />
       </Screen>
     );

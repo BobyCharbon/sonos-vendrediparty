@@ -661,6 +661,8 @@ class EventAssistant:
         if not rows:  # CGU exigées (terms_required → 403), titre refusé (content_refused) : la phrase de la base
             raise db_refusal(r, "L'événement n'a pas pu être créé. Réessaie, ou crée-le à la main.")
         eid = rows[0]["id"]
+        if self.covers is not None:  # la couverture (capture, image de la page) part avec l'événement (app/covers.py)
+            self.covers.attach(d["cover_url"], eid, uid)
         problems: list[str] = []
         if audience not in (None, "public", "people"):
             self._add(token, "/rest/v1/event_groups", {"event_id": eid, "group_id": audience}, "le groupe invité", problems)

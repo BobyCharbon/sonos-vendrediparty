@@ -13,6 +13,7 @@ from urllib.parse import quote
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Callable
 
+from . import store_app
 from .accounts import AccountError
 from .group_admin import OK, GroupAdmin
 
@@ -98,7 +99,9 @@ class GroupPages:
         except (Refused, AccountError):
             return default
 
-    def call(self, fn: str, args: dict, token: str) -> Any:
+    def call(self, fn: str, args: dict, token: str, store: bool = False) -> Any:
+        if fn == "group_page":
+            return self.page(token, args, store)
         return getattr(self, LOCAL[fn])(token, args)
 
     # ── Lectures ──
@@ -123,7 +126,7 @@ class GroupPages:
                   for g in got["all"] if g.get("id") not in mine]
         return {"groups": groups, "invitations": got["invitations"] or [], "others": others}
 
-    def page(self, token: str, args: dict) -> dict:
+    def page(self, token: str, args: dict, store: bool = False) -> dict:
         """Page du groupe et ses réglages : le groupe, mes droits, ses membres, ses événements visibles (group_events puis
         chat_event_cards : seulement ceux que je peux voir), mon numéro montré ou non dans ce groupe."""
         grp = group_id(args)
@@ -166,6 +169,8 @@ class GroupPages:
         listed = [e for e in got["events"] or [] if isinstance(e, dict) and e.get("id")][:EVENT_CARDS_MAX]
         cards = self._quiet(lambda: self._rpc(token, "chat_event_cards", {"ids": [e["id"] for e in listed]}), []) if listed else []
         by_id = {c["id"]: c for c in cards or [] if isinstance(c, dict) and c.get("id")}
+        if store and by_id:
+            by_id = self._store_cards(token, uid, by_id)
         upcoming = [by_id[e["id"]] for e in listed if e.get("upcoming") and e["id"] in by_id]
         past = [by_id[e["id"]] for e in listed if not e.get("upcoming") and e["id"] in by_id]
         creator_name = (people.get(creator) or {}).get("display_name") if creator else None
@@ -185,6 +190,32 @@ class GroupPages:
             "unread": int(overview.get("unread") or 0),
             "members": members, "upcoming": upcoming, "past": past,
         }
+
+    def _store_cards(self, token: str, uid: str, by_id: dict) -> dict:
+        """App App Store (refus Apple 1.4.3) : comme la liste du web (web/events/src/lib/storeEvents.ts), un événement
+        PUBLIC « à boisson » (titre, description, lieu, mini-sondages, « qui amène quoi ») n'est montré qu'à ses invités,
+        participants et organisateurs. Lecture impossible : on ne garde que les cartes sans boisson (jamais de fuite)."""
+        ids = ",".join(by_id)
+        rows = self._quiet(lambda: self._rows(
+            "/rest/v1/events?select=id,visibility,title,description,location_name,created_by,event_organizers(user_id),"
+            f"polls(question,poll_options(label)),bring_items(label)&id=in.({ids})", token), [])
+        info = {r["id"]: r for r in rows if isinstance(r, dict) and r.get("id")}
+
+        def hidden(card: dict) -> bool:
+            e = info.get(card["id"])
+            if card.get("mine") or (e and (e.get("created_by") == uid
+                                           or any(o.get("user_id") == uid for o in e.get("event_organizers") or []))):
+                return False
+            if e and e.get("visibility") != "all":
+                return False
+            texts = [card.get("title"), card.get("place")]
+            if e:
+                texts += [e.get("title"), e.get("description"), e.get("location_name")]
+                texts += [t for p in e.get("polls") or [] for t in [p.get("question")] + [o.get("label") for o in p.get("poll_options") or []]]
+                texts += [b.get("label") for b in e.get("bring_items") or []]
+            return any(store_app.drinky(t) for t in texts if t)
+
+        return {k: c for k, c in by_id.items() if not hidden(c)}
 
     # ── Écritures (mêmes requêtes que le web, session du membre) ──
 

@@ -199,8 +199,9 @@ class EventCovers:
             raise db_refusal(r, NOT_ALLOWED)
         if r.status_code == 200 and not r.json():
             raise AccountError(NOT_ALLOWED)
-        status = r.json()[0].get("status") if r.status_code == 200 else ""
-        return {**row, "status": status}
+        saved = r.json()[0] if r.status_code == 200 else {}
+        self.covers.attach(url, eid, saved.get("created_by") or "")  # l'ancienne couverture, plus utilisée, est effacée
+        return {**row, "status": saved.get("status") or ""}
 
     # ── Ma photo, affiche, retirer ──────────────────────────────────────────────────────────────────────────────
     def upload(self, token: str, eid: str, photo: bytes) -> dict:

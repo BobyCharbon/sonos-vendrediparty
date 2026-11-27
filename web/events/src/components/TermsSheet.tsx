@@ -26,6 +26,7 @@ export function useTermsGate(title = 'Avant de publier') {
   const card = useRef<View>(null);
   const overlay = useRef<View>(null);
   const scroller = useRef<ScrollView>(null);
+  const fullY = useRef(0);
   const sheetTop = useSheetTop();
   useSheetDrag(open, () => finish(false), card, overlay);   // glisser vers le bas = « Plus tard »
 
@@ -44,6 +45,12 @@ export function useTermsGate(title = 'Avant de publier') {
     setReadAll(false);
     answer.current?.(ok);
     answer.current = null;
+  }
+
+  // Déplié par le bas fixe : onLayout le fait défiler à l'écran ; déjà déplié, on y retourne.
+  function readTerms() {
+    if (!readAll) setReadAll(true);
+    else scroller.current?.scrollTo({ y: fullY.current, animated: true });
   }
 
   async function accept() {
@@ -81,7 +88,7 @@ export function useTermsGate(title = 'Avant de publier') {
             {readAll ? (
               // Déplié : la feuille défile jusqu'au texte (recette du 27.11 : il s'ouvrait sous les boutons, hors de vue).
               <View style={{ gap: 12 }} testID="terms-full"
-                onLayout={(e) => scroller.current?.scrollTo({ y: e.nativeEvent.layout.y, animated: true })}>
+                onLayout={(e) => { fullY.current = e.nativeEvent.layout.y; scroller.current?.scrollTo({ y: fullY.current, animated: true }); }}>
                 <T size={13} muted>Version du {TERMS_UPDATED}</T>
                 {TERMS_SECTIONS.map((section) => (
                   <View key={section.title} style={{ gap: 6 }}>
@@ -98,7 +105,12 @@ export function useTermsGate(title = 'Avant de publier') {
           </View>
           <ErrorText error={error} />
           <Button label="J’accepte les conditions" loading={busy} onPress={() => void accept()} />
-          <Button variant="secondary" label="Plus tard" onPress={() => finish(false)} />
+          {/* Le lien des conditions complètes reste dans ce bas fixe (petit écran : celui du texte défile hors de vue,
+              contrôle Apple tour 6 ; comme la feuille iPhone, terms-read-all-bottom). */}
+          <View style={st.bottom}>
+            <View testID="terms-read-all-bottom"><Button small variant="ghost" label="Lire les conditions" onPress={readTerms} /></View>
+            <View style={{ flex: 1 }}><Button variant="secondary" label="Plus tard" onPress={() => finish(false)} /></View>
+          </View>
           <T muted size={12} style={{ textAlign: 'center' }}>Sans elles, tu gardes les jeux. Écrire, publier, choisir ton surnom ou répondre à un événement te les redemanderont.</T>
         </View>
       </View>
@@ -119,6 +131,7 @@ const POINTS: [string, string][] = [
 
 const st = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(10,6,22,0.94)', alignItems: 'center', padding: 16, overflowY: 'auto' } as object,
+  bottom: { flexDirection: 'row', gap: 10, alignItems: 'center' },
   point: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
   adult: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: radius.md, backgroundColor: 'rgba(255,79,154,0.14)' },
   sheet: { width: '100%', maxWidth: 520, maxHeight: '100%', marginVertical: 'auto', gap: 12, padding: 22, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.lineStrong },

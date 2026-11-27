@@ -322,3 +322,26 @@ def test_the_admin_panel_functions_are_relayed():
                      ("transfer_group", {"grp": GRP, "member": LEA})):
         assert call(client, fn, **args).status_code == 200, fn
         assert ("POST", f"/rest/v1/rpc/{fn}", args) in seen
+
+
+def test_in_the_app_store_app_a_public_drinky_event_of_the_group_shows_only_to_those_in_it():
+    """Contrôle Apple tour 6 (1.4.3) : comme la liste du web (lib/storeEvents.ts), la page du groupe de l'app App Store
+    ne montre un événement public « à boisson » qu'à ses invités, participants et organisateurs ; le web garde tout."""
+    ev3, ev4 = "e3e3e3e3-0000-4000-8000-000000000003", "e4e4e4e4-0000-4000-8000-000000000004"
+    events = [{"id": EV1, "visibility": "all", "title": "Grande fête", "description": "Soirée saké au bord du lac", "created_by": LEA},
+              {"id": EV2, "visibility": "all", "title": "Apéro", "created_by": LEA},
+              {"id": ev3, "visibility": "invited", "title": "Apéro du groupe", "created_by": LEA},
+              {"id": ev4, "visibility": "all", "title": "Bowling", "created_by": LEA,
+               "polls": [{"question": "Après ?", "poll_options": [{"label": "Au bar"}]}]}]
+    client, _ = fake(row(), rpc={
+        "group_chat_people": PEOPLE,
+        "group_events": [{"id": i, "upcoming": True} for i in (EV1, EV2, ev3, ev4)],
+        "chat_event_cards": [{"id": EV1, "title": "Grande fête"}, {"id": EV2, "title": "Apéro", "mine": "yes"},
+                             {"id": ev3, "title": "Apéro du groupe"}, {"id": ev4, "title": "Bowling"}],
+    }, writes={("GET", "events"): (200, events)})
+    web = call(client, "group_page", grp=GRP).json()["result"]
+    assert [e["title"] for e in web["upcoming"]] == ["Grande fête", "Apéro", "Apéro du groupe", "Bowling"]
+    app = client.post("/api/account/chats/rpc", json={"token": "t", "fn": "group_page", "args": {"grp": GRP}},
+                      headers={"user-agent": "Mozilla/5.0 PartyStore"}).json()["result"]
+    # Description et mini-sondage comptent ; « mine » (participant) et un événement réservé au groupe restent.
+    assert [e["title"] for e in app["upcoming"]] == ["Apéro", "Apéro du groupe"]
