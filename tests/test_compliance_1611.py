@@ -36,7 +36,7 @@ def test_terms_say_adults_only_and_that_party_never_touches_money_on_web_and_iph
 def test_privacy_policy_and_manifest_cover_the_bar_and_voice_messages():
     for p in ("web/events/src/app/privacy.tsx", "ios/Party/Settings/Account/SignInView.swift"):
         text = (ROOT / p).read_text()
-        assert "Bar de la soirée, seulement si l" in text and "6 mois après sa fermeture" in text and "26 novembre 2026" in text
+        assert "Bar de la soirée, seulement si l" in text and "6 mois après sa fermeture" in text and "27 novembre 2026" in text
         # Éditeur établi en France (décision de l'admin du 25.11) : pas de représentant UE à désigner, autorité CNIL.
         assert "établi en France" in text and "01170 Segny, France" in text and "pas de représentant à désigner" in text
         assert "en Suisse, responsable du traitement" not in text and "Représentant dans l" not in text

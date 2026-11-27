@@ -8,6 +8,8 @@
 
 ### Plan de mise en prod du 27.11 (lot `develop` 03357b5c ; topo : `topo-version-apple-27-11.md`)
 
+- [x] `20261127090000` (présences : suppression du compte d'un organisateur) : **DÉJÀ EN PROD le 27.11**
+      (`2026-11-27-presences-suppression-compte-apply.sql`).
 - [x] `20261126150000` (présences sans compte) : **DÉJÀ EN PROD le 27.11**
       (`2026-11-26-presences-sans-compte-apply.sql`). Il a réécrit `event_changed`, `event_guest_list`, `apply_waitlist`,
       `event_attendance`, `public_event`, `chat_event_cards` et étendu `invite_preview`.
@@ -20,6 +22,14 @@
       6. `2026-11-26-pot-paiement-geste` (20261126140000)
       7. `2026-11-26-pot-filtre-paiement-purge` (20261126160000)
       8. puis `2026-11-26-demo-nettoyage` (20261126110000, données de la démo)
+      9. puis `2026-11-27-coorganisateurs-apercu-groupe` (20261127100000 : `co_organizer_suggestions` et
+         `group_invite_preview` réécrites EN ENTIER, aucune ancre ; d'après le contrôle du 27.11). Ancres de la prod
+         PAS revérifiées pour ce fichier (aucune `position(…)` à vérifier) ; dans le dépôt, aucun des fichiers 1 à 8 ne
+         touche ces deux fonctions (vérifié le 27.11).
+      10. `2026-11-27-suppression-blocage` (20261127110000) : **en préparation par un autre agent** (blocage qui empêche
+         d'être noté présent ou ajouté en co-organisateur, suppression du compte) ; à ajouter ici, dans son ordre, quand ses
+         fichiers `supabase/prod/` existent. Sans lui en prod : retirer de B4.5 / B7 du guide (et du tutoriel 3.5) la phrase
+         sur « noté présent » par une personne bloquée, puis régénérer le PDF.
 - [ ] **Revérifier les ancres contre la prod avant d'appliquer** (150000 a réécrit event_changed, event_guest_list,
       apply_waitlist, event_attendance, public_event, chat_event_cards, invite_preview).
       **Fait le 27.11 en LECTURE SEULE** (`sbq.py prod`, `pg_get_functiondef` de la prod ; photo du 27.11, à refaire si
@@ -133,7 +143,22 @@
       - [ ] couverture de l'événement « Verknipt » vérifiée / remplacée (aucune boisson visible) ;
       - [ ] lien Shotgun de « Hard Boat » nettoyé : sans paramètre `uhandle` ni `utm_*` ;
       - [ ] App Privacy : **Payment Info** cochée (IBAN) ; manifeste : `NSPrivacyCollectedDataTypePaymentInfo` y est
-            (tour 2 : 16 types en tout, voir § 6).
+            (27.11 : 17 types en tout avec Search History, voir § 6).
+- [ ] **Contrôle du 27.11 (textes, lot 6) — LE JOUR DE L'ENVOI** :
+      - [ ] sur la base de TEST, avec un compte jetable : faire TRY IT 1 à 3 de la partie A (Présent à un événement +
+            billet remis, événement « Sur invitation » d'un groupe publié, message + « Signaler » dans un groupe) ET créer
+            un pot (Réglages › Pot commun › Nouveau pot commun, une dépense), puis **supprimer ce compte pour de vrai**
+            (Réglages › Gérer mon compte › Supprimer mon compte) : la suppression doit passer, sans message de connexion ;
+      - [ ] code fixe d'« Apple-test 2 » vérifié en s'y connectant (B2 dit « same fixed code as the first demo account ») ;
+      - [ ] manifeste du build choisi : **17 types**, `NSPrivacyCollectedDataTypeSearchHistory` compris (§ 6) ; sinon
+            l'ajouter avant l'archive, ou retirer Search History d'App Store Connect et de `app-store-connect.md` § 5 ;
+      - [ ] `20261127110000` (suppression-blocage) en prod : sinon retirer du guide (B4.5, B7) et du tutoriel (3.5) la phrase
+            « noté présent / ajouté en co-organisateur » par une personne bloquée, et régénérer le PDF ;
+      - [ ] `20261127100000` en prod (co-organisateurs liés, aperçu d'un lien de groupe : B4.5, B7) ;
+      - [ ] feuille « Signaler » : contact support@vendrediparty.ch et « 24 h » visibles (web : contact après l'envoi ;
+            iPhone : « Traité sous 24 h · support@ », lot 6 iPhone d7d4fddf) ; sinon corriger B7 et régénérer le PDF ;
+      - [ ] politique de confidentialité du **27 novembre 2026** (web et nouveau build, mot pour mot) ; guide PDF du 27.11 joint ;
+      - [ ] `docs/app-store/topo-version-apple-27-11.md` relu (commits depuis 03357b5c).
 - [ ] **Contrôle Apple, tour 2 (26.11) — LE JOUR DE L'ENVOI**, dans cet ordre :
       - [ ] se connecter avec **Apple-test** ET **Apple-test 2** (app TestFlight du build choisi) ; « Demandes (1) » visible
             chez Apple-test ;
@@ -141,7 +166,7 @@
             d'Apple-test 2 purgée vers le **20.12** (30 jours sans réponse) : si l'envoi glisse près de ces dates,
             REFAIRE la soirée (nouvelle date) et la demande avant d'envoyer ;
       - [ ] dépôt GitHub passé en **PRIVÉ** (ou `GITHUB_REPO` sur un dépôt privé à part) ;
-      - [ ] App Privacy : les **16 types** du manifeste cochés, ni plus ni moins (§ 6 et `ios/appstore/app-store-connect.md` § 5) ;
+      - [ ] App Privacy : les **17 types** du manifeste cochés (Search History compris), ni plus ni moins (§ 6 et `ios/appstore/app-store-connect.md` § 5) ;
       - [ ] clé `storage_secret_key` ajoutée dans le coffre Supabase de prod (contrôle : une ligne dans
             `private.chat_files_gc_runs`) ;
       - [ ] captures 6,9" et Duo refaites : les **4 onglets** (Jeux, Événements, Discussions, Réglages), **rien de vrai**
@@ -152,7 +177,8 @@
             B2 et B4.10 disent à Apple de répondre Présent puis « Remettre à tous les présents » (sinon corriger les
             trois et régénérer le PDF) ;
       - [ ] migrations **20261123090000**, **20261123110000**, **20261126100000**, **20261126110000**, **20261126120000**,
-            **20261126130000**, **20261126140000**, **20261126150000** (déjà là le 27.11) et **20261126160000** en prod
+            **20261126130000**, **20261126140000**, **20261126150000** (déjà là le 27.11), **20261126160000**, **20261127090000**
+            (déjà là le 27.11), **20261127100000** et, s'il est prêt, **20261127110000** en prod
             (`select version from supabase_migrations.schema_migrations where version like '2026112%'`) ; ordre : plan du 27.11 en haut ;
       - [ ] fonctions **send-push** ET **send-web-push** redéployées (dernière version de develop / main) ;
       - [ ] avant toute archive locale : `xcodegen` dans `ios/` (sinon le projet Xcode garde l'ancien manifeste et les
@@ -305,12 +331,15 @@ Pour chaque type : **lié à l'identité : oui · suivi : non · finalité : App
 - [ ] Identifiers : **User ID**, **Device ID**
 - [ ] Usage Data : **Product Interaction**
 - [ ] Diagnostics : **Other Diagnostic Data**
-- [ ] Non collecté : e-mail, adresse, localisation, santé, navigation, recherche, données sensibles, crash / performance,
+- [ ] Search History : **Search History** (27.11 : recherches de personnes gardées 1 h ; texte d'une recherche de lieu
+      envoyé à Google Places)
+- [ ] Non collecté : e-mail, adresse, localisation, santé, navigation, données sensibles, crash / performance,
       publicité.
-- [ ] Manifeste `ios/Party/PrivacyInfo.xcprivacy` (26.11, tour 2) : **16 types**, exactement ceux ci-dessus (Name,
+- [ ] Manifeste `ios/Party/PrivacyInfo.xcprivacy` (27.11) : **17 types**, exactement ceux ci-dessus (Name,
       Phone Number, Payment Info, Other Financial Info, Contacts, Photos or Videos, Audio Data, Emails or Text Messages,
       Gameplay Content, Customer Support, Other User Content, Purchase History, User ID, Device ID, Product Interaction,
-      Other Diagnostic Data) : cocher les mêmes 16 dans App Store Connect, vérifier qu'ils sont dans le build choisi.
+      Other Diagnostic Data, **Search History**) : cocher les mêmes 17 dans App Store Connect, vérifier qu'ils sont dans le
+      build choisi (`NSPrivacyCollectedDataTypeSearchHistory` : lot 6 iPhone, commit d7d4fddf, à fusionner avec ces textes).
 - [ ] Textes d'autorisation (project.yml, annoncés par le coordinateur) : Caméra (`PARTY_USAGE_CAMERA_STORE`) « Pour scanner un QR
       code (code de la soirée ou d'un jeu, billet) ou un ticket du Pot commun, et prendre une photo de profil,
       d'événement, de groupe ou à envoyer dans une discussion. » (B8 du guide dit la même chose) ; Micro

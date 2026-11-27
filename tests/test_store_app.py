@@ -691,7 +691,10 @@ def test_round_eight_texts_match_what_the_reviewer_can_try():
         # Tour 3 : seules les personnes déjà choisies partent, sous alias ; la liste des membres n'est jamais envoyée.
         assert "les personnes déjà choisies, sous un alias ; la liste des membres n'est jamais envoyée" in text, path
         assert "les surnoms des membres de Party que tu peux inviter" not in text, path
-        assert "tes moyens de paiement seulement si tu choisis de les montrer dans ce pot" in text, path
+        # 27.11 : comme la base (20261126140000, show_payment) : montrés si on a créé le pot ou l'a rejoint par son lien ;
+        # ajouté d'office : cachés tant qu'on ne choisit pas « Montrer mes moyens de paiement dans ce pot ».
+        assert "si tu as créé le pot ou si tu l'as rejoint toi-même par son lien" in text, path
+        assert "ils restent cachés tant que tu ne choisis pas « Montrer mes moyens de paiement dans ce pot »" in text, path
         assert "Une recherche par numéro exact révèle qu'une personne qui a ce numéro est sur Party" in text, path
         assert "empreinte chiffrée" not in text, path
         assert "Journal des connexions et des actions d'administration : 12 mois. Journal des appels à l'IA : 12 mois. Recherches de personnes : 1 heure." in text, path
@@ -802,6 +805,9 @@ def test_apple_check_round_two_texts_say_what_the_build_really_does():
     asc = (_root() / "ios/appstore/app-store-connect.md").read_text(encoding="utf-8")
     with open(_root() / "ios/Party/PrivacyInfo.xcprivacy", "rb") as f:
         types = [e["NSPrivacyCollectedDataType"] for e in plistlib.load(f)["NSPrivacyCollectedDataTypes"]]
+    # 27.11 : Search History (recherches de personnes 1 h, lieux chez Google) : textes ici, manifeste par le lot 6 iPhone.
+    types = sorted(set(types) | {"NSPrivacyCollectedDataTypeSearchHistory"})
+    assert "NSPrivacyCollectedDataTypeSearchHistory" in asc and "Search History" in asc
     assert f"exactement **{len(types)} types**" in asc and "à ajouter** au manifeste" not in asc
     assert "**à ajouter** au manifeste" not in asc
     assert "ses événements partent « pour validation »" not in asc

@@ -114,18 +114,23 @@ publicité, aucun SDK d'analyse. Pour chaque type ci-dessous : **lié à l'ident
 | User Content | **Audio Data** | Messages vocaux des Discussions | oui (16.11) |
 | User Content | **Customer Support** | « Ton avis » (idées, bugs) | oui (16.11) |
 | Purchases | **Purchase History** | « J'ai payé » d'un événement (et commandes du bar, sur le web seulement) | oui (16.11) |
+| Search History | **Search History** | Recherches de personnes (« Ajouter quelqu'un » à un groupe, numéro exact ou nom) gardées 1 h pour limiter les abus ; texte tapé dans la recherche d'un lieu (envoyé à Google Places) | oui (27.11, `NSPrivacyCollectedDataTypeSearchHistory`, lot 6 iPhone) |
 
 Pas collecté (à laisser décoché) : e-mail, adresse postale, localisation (aucun CoreLocation ; les adresses d'événement
-et la ville du covoiturage sont du contenu), santé, historique de navigation, historique de recherche (la recherche de
-titres n'est pas gardée), données sensibles (les profils par catégorie de Purify Test ne sont jamais gardés,
+et la ville du covoiturage sont du contenu), santé, historique de navigation, données sensibles (les profils par catégorie de Purify Test ne sont jamais gardés,
 `purity.scrub`), audio : **à cocher depuis le 16.11** (Audio Data : messages vocaux des Discussions, allumées en prod),
 Crash Data / Performance Data, publicité.
 
-**26.11.2026 (contrôle Apple, tour 2), fait foi** : le manifeste `ios/Party/PrivacyInfo.xcprivacy` déclare
+**27.11.2026, fait foi** : le manifeste déclare exactement **17 types** : les 16 ci-dessous + **Search History**
+(recherches de personnes gardées 1 h, texte d'une recherche de lieu envoyé à Google Places ; lié à l'identité, sans
+suivi, App Functionality ; `NSPrivacyCollectedDataTypeSearchHistory`, ajouté par le lot 6 iPhone, commit d7d4fddf).
+Cocher exactement ces 17 dans App Store Connect et vérifier qu'ils sont dans le build choisi.
+
+**26.11.2026 (contrôle Apple, tour 2)** : le manifeste `ios/Party/PrivacyInfo.xcprivacy` déclare
 exactement **16 types**, tous liés à l'identité, sans suivi, pour le fonctionnement de l'app : Phone Number, Name,
 Photos or Videos, Contacts, Emails or Text Messages, Other User Content, Gameplay Content, User ID, Device ID, Product
 Interaction, Other Diagnostic Data, Other Financial Info, **Payment Info**, Audio Data, Purchase History, Customer
-Support. Cocher exactement ces 16 dans App Store Connect (le tableau ci-dessus les reprend tous). Historique :
+Support (remplacé le 27.11 par les 17 ci-dessus ; le tableau les reprend tous). Historique :
 
 **État au 14.11.2026** : le manifeste `ios/Party/PrivacyInfo.xcprivacy` déclare exactement ces 12 types (Phone,
 Name, Photos, Contacts, Emails/Text, Other User Content, Gameplay Content, User ID, Device ID, Product Interaction,

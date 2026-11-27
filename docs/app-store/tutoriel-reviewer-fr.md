@@ -51,8 +51,9 @@ nom et prénom** (Réglages › Mon profil, éteint par défaut).
 ## 3. Événements
 
 ### 3.1 La liste
-Pastilles **À venir · Sondages · Brouillons · Passés · Filtres** ; loupe et cloche (Activité) en haut à droite ;
-en bas à droite **✨ Avec l'IA** et **+ Proposer**. 📸 (liste avec des événements de démo, sans données réelles)
+Pastilles **À venir · Sondages · Brouillons · Passés · Filtres** ; en haut à droite **+ Proposer** (« + » seul sur les
+petits iPhone ; il passe en bas à droite dès qu'on fait défiler), loupe et cloche (Activité) ; en bas à droite
+**✨ Avec l'IA**. 📸 (liste avec des événements de démo, sans données réelles)
 
 ### 3.2 La fiche
 De haut en bas : titre, date, lieu (« Itinéraire › »), « À propos », **Ajouter à mon agenda**, la réponse, les sondages de
@@ -87,6 +88,11 @@ Groupes › un groupe › **Inviter avec un lien**. Amis : Réglages › **Mes a
 demandé après une explication) : contacts déjà sur Party (empreinte des numéros faite sur l'iPhone, aucun nom ne sort),
 et contacts pas encore sur Party, chacun avec son bouton qui ouvre Messages d'Apple avec mon lien personnel : je relis et
 j'envoie moi-même, un contact à la fois. Aucun « tout sélectionner » ; Party n'envoie rien. 📸 (feuille Inviter)
+**↻ Relancer** (organisation, carte Invités repliée) : une notification par jour au plus aux invités sans réponse ;
+sans app ni notification, un lien que l'organisateur partage lui-même. Événement complet avec liste d'attente :
+« Complet · liste d'attente ouverte », la place libérée va au suivant, prévenu. Lien d'un groupe ouvert sans compte :
+nom, emoji, couleur du groupe et surnom de qui invite, jamais les membres. Une personne bloquée ne peut être ni notée
+présente ni ajoutée en co-organisatrice ; co-organisateurs proposés seulement parmi les personnes liées.
 
 ### 3.6 Répondre
 **Présent** · **Peut-être** · **Absent** (le libellé à l'écran est « Absent »). L'heure de chaque réponse s'affiche.
@@ -124,7 +130,9 @@ citée dans la demande concerne aujourd'hui les cryptomonnaies ; ne pas la citer
 **Caché dans l'app App Store** (refus 1.4.3, 25.11) : ni menu, ni commande, ni notification du bar. Le site le garde.
 
 ### 3.13 Discussion d'un événement
-Option « Forum de l'événement » : section **Discussion** › **Ouvrir ›** ; mêmes règles que les Discussions.
+Option « Forum de l'événement » : section **Discussion** › **Ouvrir ›** ; mêmes règles que les Discussions. Réservée
+à l'organisation et aux **Présent** / **Peut-être** ; sondage de dates : ouverte une fois la date fixée.
+**@toutlemonde** et les annonces (📣, épinglées) : organisation seulement.
 
 ## 4. Discussions
 Onglet **Discussions** › « Démo Apple » : texte, photos, vocaux, réponses, réactions. Premier message : CGU.
@@ -137,7 +145,8 @@ Confidentialité › **Demandes de message** (Tout membre / Personne) et **Confi
 (bouton rose) : suggestions de vrais liens seulement, recherche par nom (jamais par numéro) ; 2 personnes ou plus = groupe
 privé, jamais lu par l'administration. Toucher un nom ou une photo : mini-profil (« Envoyer un message », « Déjà vu N
 fois », Bloquer · Signaler). Bloquer : les messages de la personne bloquée disparaissent aussitôt, les modérateurs sont prévenus ; débloquer : Réglages ›
-Confidentialité › **Personnes bloquées**. 📸
+Confidentialité › **Personnes bloquées**. **Ma note privée** (mini-profil ou fiche d'un membre) : 500 caractères, vue
+par moi seul, jamais par la personne ni par l'administration. Après « Signaler » : contact pour l'urgent, traité sous 24 h. 📸
 
 ## 5. Groupes
 Réglages › **Groupes** : mes groupes, **Nouveau groupe**, membres, **Inviter avec un lien**, « Montrer mon numéro dans ce
@@ -173,8 +182,9 @@ pour ne rien cacher (2.3.1).
 - **Pot commun** : dépenses partagées (rien n'est payé dans l'app), scan de ticket (IA facultative, avec accord). On y
   entre par son lien, ou d'office en répondant **Présent** (ou noté Présent par l'organisateur) à un événement dont l'organisateur a choisi le
   pot (on le quitte
-  à tout moment : Réglages › Pot commun › **Quitter ce pot commun**) ; les membres voient le nom de chacun ; les moyens de paiement d'un membre restent cachés dans ce pot tant qu'il ne
-  choisit pas **Montrer mes moyens de paiement dans ce pot**. Ajouter une dépense ou
+  à tout moment : Réglages › Pot commun › **Quitter ce pot commun**) ; les membres voient le nom de chacun ; les moyens de paiement de qui a créé le pot ou l'a rejoint par son lien sont montrés ; ajouté d'office (événement ou
+  autre membre), ils restent cachés tant qu'il ne choisit pas **Montrer mes moyens de paiement dans ce pot**. Aucun pot
+  préparé : Réglages › Pot commun › **Nouveau pot commun** ; « Rembourser » apparaît dès qu'un autre membre doit ou reçoit. Ajouter une dépense ou
   une photo de ticket demande les CGU ; chaque dépense et photo de ticket a **Signaler**.
 - **Mes amis dans Party**, **Mes stats de jeu**, **Ton avis** (selon le rôle ; écrit à l'équipe de Party, l'éditeur).
 - **Confidentialité** : Noms de mes contacts, **Personnes bloquées**, **Conditions d'utilisation** (contact
