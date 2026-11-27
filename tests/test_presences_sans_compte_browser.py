@@ -265,7 +265,16 @@ def test_every_remove_asks_first_cancel_keeps_and_remove_removes(browser, events
             question = frame.get_by_text(f'Retirer {name} des présences ?', exact=True)
             pw.expect(question).to_be_visible(timeout=5000)
             if name == 'Léa':
-                shot(page, '6-question-retirer')
+                # Dans le cadre de Party (comme l'app) : la question et ses boutons sont DANS l'écran, au-dessus des onglets.
+                page.wait_for_timeout(800)
+                tabs_top = page.locator('#tabs').bounding_box()['y']
+                for target in (question, frame.get_by_role('button', name='Retirer', exact=True),
+                               frame.get_by_role('button', name='Annuler', exact=True)):
+                    box = target.bounding_box()
+                    assert box and box['y'] >= 0 and box['y'] + box['height'] <= tabs_top, (box, tabs_top)
+                if SHOTS:
+                    Path(SHOTS).mkdir(parents=True, exist_ok=True)
+                    page.screenshot(path=str(Path(SHOTS) / '6-question-retirer.png'))
             page.wait_for_timeout(500)
             assert rpc() == [] and deletes() == []  # rien au premier toucher
             frame.get_by_role('button', name='Annuler', exact=True).click()
