@@ -283,7 +283,8 @@ export function openChat(c: Pick<ChatItem, 'kind' | 'id' | 'user_id'>, push: (pa
   const n = native();
   if (c.kind === 'event') {
     if (typeof n?.openEvent === 'function') return n.openEvent(c.id);
-    return push(`/event/${c.id}/chat${message ? `?message=${message}` : ''}`);
+    // from=chats : « ‹ » ramène à la liste (sinon, ouverte depuis la fiche, il y ramène : libellé du retour).
+    return push(`/event/${c.id}/chat?from=chats${message ? `&message=${message}` : ''}`);
   }
   if (c.kind === 'group' && typeof n?.openGroup === 'function') return n.openGroup(c.id);
   if (c.kind === 'direct' && c.user_id && typeof n?.openDirect === 'function') return n.openDirect(c.user_id);

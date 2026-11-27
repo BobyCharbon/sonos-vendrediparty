@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 import { useQuery } from '@/lib/data';
 import { potPaymentChoice, setPotPayment } from '@/lib/rsvp';
-import { ErrorText, ToggleRow } from './ui';
+import { ErrorText, T, ToggleRow } from './ui';
 
 /**
  * Pot commun d'un événement, pour qui y est (ajouté d'office en répondant Présent) : ses moyens de paiement restent cachés
@@ -31,6 +31,18 @@ export function PotPaymentToggle({ eventId, me }: { eventId: string; me: string 
     } finally {
       setBusy(false);
     }
+  }
+
+  // Aucun moyen enregistré (et rien de montré) : l'interrupteur ne servirait à rien, on dit où les ajouter.
+  if (!data.hasMeans && !value) {
+    return (
+      <View testID="pot-payment">
+        <T muted size={13}>
+          Tu n’as encore aucun moyen de paiement enregistré : ajoute-les dans Réglages › Pot commun › Mon profil de paiement
+          (app iPhone), puis tu pourras les montrer dans ce pot.
+        </T>
+      </View>
+    );
   }
 
   return (

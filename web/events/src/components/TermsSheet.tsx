@@ -25,6 +25,7 @@ export function useTermsGate(title = 'Avant de publier') {
   const answer = useRef<((ok: boolean) => void) | null>(null);
   const card = useRef<View>(null);
   const overlay = useRef<View>(null);
+  const scroller = useRef<ScrollView>(null);
   const sheetTop = useSheetTop();
   useSheetDrag(open, () => finish(false), card, overlay);   // glisser vers le bas = « Plus tard »
 
@@ -66,7 +67,7 @@ export function useTermsGate(title = 'Avant de publier') {
         <SheetBackdrop onPress={() => finish(false)} />
         <View ref={card} style={st.sheet} accessibilityViewIsModal accessibilityLabel="Conditions d’utilisation">
           <SheetTop onClose={() => finish(false)} />
-          <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ gap: 16, paddingBottom: 4 }}>
+          <ScrollView ref={scroller} style={{ flexShrink: 1 }} contentContainerStyle={{ gap: 16, paddingBottom: 4 }}>
             <Title size={28} level={2}>{title}</Title>
             <T size={17} muted>Accepte une seule fois les conditions d’utilisation de Party, puis tu continues tout de suite.</T>
             {POINTS.map(([icon, line]) => (
@@ -75,13 +76,12 @@ export function useTermsGate(title = 'Avant de publier') {
                 <T size={16} style={{ flex: 1 }}>{line}</T>
               </View>
             ))}
-            <View style={st.adult}>
-              <T size={16} weight="bold">Party est réservée aux 18 ans et plus : en touchant « J’accepte », tu confirmes avoir 18 ans ou plus.</T>
-            </View>
             <Button small variant="ghost" label={readAll ? 'Masquer les conditions complètes' : 'Lire les conditions complètes'}
               onPress={() => setReadAll(!readAll)} />
             {readAll ? (
-              <View style={{ gap: 12 }} testID="terms-full">
+              // Déplié : la feuille défile jusqu'au texte (recette du 27.11 : il s'ouvrait sous les boutons, hors de vue).
+              <View style={{ gap: 12 }} testID="terms-full"
+                onLayout={(e) => scroller.current?.scrollTo({ y: e.nativeEvent.layout.y, animated: true })}>
                 <T size={13} muted>Version du {TERMS_UPDATED}</T>
                 {TERMS_SECTIONS.map((section) => (
                   <View key={section.title} style={{ gap: 6 }}>
@@ -92,6 +92,10 @@ export function useTermsGate(title = 'Avant de publier') {
               </View>
             ) : null}
           </ScrollView>
+          {/* Hors du défilement, juste au-dessus des boutons : toujours visible sans défiler (390×844, recette du 27.11). */}
+          <View style={st.adult} testID="terms-adult">
+            <T size={15} weight="bold">Party est réservée aux 18 ans et plus : en touchant « J’accepte », tu confirmes avoir 18 ans ou plus.</T>
+          </View>
           <ErrorText error={error} />
           <Button label="J’accepte les conditions" loading={busy} onPress={() => void accept()} />
           <Button variant="secondary" label="Plus tard" onPress={() => finish(false)} />
@@ -116,6 +120,6 @@ const POINTS: [string, string][] = [
 const st = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(10,6,22,0.94)', alignItems: 'center', padding: 16, overflowY: 'auto' } as object,
   point: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
-  adult: { padding: 14, borderRadius: radius.md, backgroundColor: 'rgba(255,79,154,0.14)' },
+  adult: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: radius.md, backgroundColor: 'rgba(255,79,154,0.14)' },
   sheet: { width: '100%', maxWidth: 520, maxHeight: '100%', marginVertical: 'auto', gap: 12, padding: 22, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.lineStrong },
 });

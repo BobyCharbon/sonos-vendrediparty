@@ -1,4 +1,4 @@
-import { router, Stack } from 'expo-router';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View, type TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -321,6 +321,7 @@ function unreadByCount(messages: GroupMessage[], unread: number, me: string): st
  * attachEvent : soirée à joindre au prochain message (« Envoyer à un ami », /chats/<id>?event=<id>). */
 export function GroupChat({ id, direct = false, event = false, attachEvent = null }: { id: string; direct?: boolean; event?: boolean; attachEvent?: string | null }) {
   const kind: ChatKind = event ? 'event' : direct ? 'direct' : 'group';
+  const { from: fromChats } = useLocalSearchParams<{ from?: string }>();
   const me = useMe();
   const mini = useMiniProfile();
   const [text, setText] = useState('');
@@ -933,6 +934,7 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
       <Stack.Screen options={{ title, headerShown: false }} />
       <ChatHeader title={title} subtitle={subtitle} typing={typers.length > 0} look={look} unread={unreadElsewhere}
         onBack={() => (router.canGoBack() ? router.back() : router.replace(event ? `/event/${id}` : '/chats'))}
+        backLabel={event && fromChats !== 'chats' ? 'Retour à la fiche' : undefined}
         whoLabel={direct ? `${title}. Ouvrir son profil` : event ? `${title}, ${subtitle ?? ''}, infos de la discussion` : `Groupe ${title} : voir les membres`}
         onWho={() => (direct && data?.other ? mini.open(data.other) : setShowInfo((v) => !v))}
         // Discussion d'un événement : la cloche des notifications (Tout / Mentions seulement / Rien, sourdine), à droite.

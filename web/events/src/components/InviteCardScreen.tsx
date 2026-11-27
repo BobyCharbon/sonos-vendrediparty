@@ -206,7 +206,7 @@ function Card({ card, onAnswer, join, onJoin }: { card: InviteCard; onAnswer: (a
         // Sondage de dates : on répond en votant les dates, comme dans l'app (jamais « Je viens » avant la date fixée).
         <View style={{ gap: 10 }}>
           <Approval card={card} />
-          <T style={{ textAlign: 'center' }} color={colors.textSoft}>La date n’est pas encore fixée : indique les dates où tu es dispo, {card.inviter || 'l’organisateur'} choisira celle qui arrange le plus de monde.</T>
+          <T style={{ textAlign: 'center' }} color={colors.textSoft}>La date n’est pas encore fixée : indique les dates où tu es dispo, {card.host || 'l’organisateur'} choisira celle qui arrange le plus de monde.</T>
           <Pressable accessibilityRole="button" onPress={() => onAnswer('poll')}
             style={({ pressed }) => [st.answer, st.answerYes, pressTransition, pressed && { transform: [{ scale: 0.97 }] }]}>
             <T weight="bold" size={17} color={colors.onAction}>📅 Choisir mes dates</T>

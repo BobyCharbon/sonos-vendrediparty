@@ -717,6 +717,8 @@ def test_organizer_marks_a_guest_present_then_absent_then_removes_the_answer(bro
     lea = '5b0c7e1e-1d3a-4c8e-9a51-6f2f4b9d0a11'
     context=browser.new_context(viewport={'width':390,'height':844})
     page=context.new_page();calls=mock_services(page,people=[{'id':lea,'display_name':'Léa'}])
+    # Léa est invitée : c'est ainsi qu'elle figure dans « Ajouter quelqu'un » (noms des invités lus après la fiche, 27.11).
+    page.route('https://gsuetixzobooggeaubvb.supabase.co/rest/v1/event_invites*',lambda r:r.fulfill(status=204 if r.request.method=='OPTIONS' else 200,content_type='application/json',headers={'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'*','Access-Control-Allow-Methods':'GET, OPTIONS'},body=json.dumps([{'user_id':lea,'via_link':False}])))
     errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
     sent=lambda:[json.loads(b) for _,path,b in calls if path.endswith('/rpc/set_rsvp_for')]
     try:

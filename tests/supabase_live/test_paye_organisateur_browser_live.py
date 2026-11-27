@@ -46,8 +46,8 @@ def test_the_organizer_ticks_a_payment_on_the_event_and_cancels_it(pages, party,
     pw.expect(page.get_by_text(TITLE, exact=True).first).to_be_visible(timeout=30000)
     todo = page.get_by_text('PAS ENCORE PAYÉ · 1', exact=True)
     pw.expect(todo).to_be_visible(timeout=30000)
-    hint = ('Payé sur le site sans le noter ? Si la personne te le dit, note-le pour elle.' if mode == 'online'
-            else 'Payé sans le noter ? Si tu as reçu son paiement, note-le pour elle.')
+    hint = ('Payé sur le site sans le noter ? Si on te le dit, note-le ici.' if mode == 'online'
+            else 'Payé sans le noter ? Si tu as reçu le paiement, note-le ici.')
     pw.expect(page.get_by_text(hint, exact=True)).to_be_visible()
     todo.scroll_into_view_if_needed()
     shot(page, f'a-paye-{mode}-1-avant')

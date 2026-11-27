@@ -78,7 +78,7 @@ export function TicketsManager({ eventId, enabled, canToggle, onToggled, refresh
         <>
           <Button
             small
-            label={waiting.length ? `Remettre à tous les présents (${waiting.length})` : 'Tous les présents ont leur billet ✓'}
+            label={waiting.length ? `Remettre à tous les présents (${waiting.length})` : present.length ? 'Tous les présents ont leur billet ✓' : 'Personne n’est encore présent'}
             disabled={!waiting.length}
             loading={busy === 'all'}
             onPress={() => run('all', async () => {

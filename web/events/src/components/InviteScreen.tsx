@@ -2,6 +2,7 @@ import { router, Stack, type Href } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 
+import { GroupTile } from '@/components/GroupBits';
 import { IdentityForm } from '@/components/IdentityForm';
 import { Button, Card, ErrorText, Loading, Screen, T, Title } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
@@ -34,7 +35,7 @@ export function InviteScreen({ kind, token }: { kind: 'event' | 'group'; token: 
     return (
       <Screen contentStyle={{ flexGrow: 1, justifyContent: 'center', gap: 16 }}>
         <Stack.Screen options={{ title: 'Invitation' }} />
-        <Title size={30}>Tu es invité !</Title>
+        {kind === 'group' ? <GroupTeaser token={token} /> : <Title size={30}>Tu es invité !</Title>}
         <T muted>
           Pour découvrir {kind === 'event' ? 'cet événement' : 'ce groupe'}, inscris-toi d’abord avec ton numéro de téléphone :
           un code te sera envoyé par SMS. Tu compléteras ensuite ton profil, puis tu y accéderas directement.
@@ -60,6 +61,28 @@ export function InviteScreen({ kind, token }: { kind: 'event' | 'group'; token: 
     );
   }
   return <JoinInvite kind={kind} token={token} />;
+}
+
+type GroupTeaserData = { name: string; emoji: string | null; color: string | null; inviter: string | null };
+
+/** Lien d'un groupe ouvert sans compte (recette du 27.11) : le groupe (nom, emoji, couleur) et qui invite, rien d'autre
+ * (ni membres ni nombre : group_invite_preview, migration 20261127100000). Base d'avant ou lien mort : « Tu es invité ! ». */
+function GroupTeaser({ token }: { token: string }) {
+  const { data, loading } = useQuery(async () => {
+    const { data, error } = await supabase.rpc('group_invite_preview', { token });
+    return !error && data && typeof (data as GroupTeaserData).name === 'string' ? (data as GroupTeaserData) : null;
+  }, [token]);
+  if (loading) return <View style={{ height: 120 }} />;
+  if (!data) return <Title size={30}>Tu es invité !</Title>;
+  return (
+    <View style={{ alignItems: 'center', gap: 12 }} testID="group-invite-teaser">
+      <GroupTile group={{ emoji: data.emoji || '🎉', color: data.color }} size={88} />
+      <T muted size={15} style={{ textAlign: 'center' }}>
+        {data.inviter ? `${data.inviter} t’invite dans son groupe` : 'Tu es invité dans le groupe'}
+      </T>
+      <Title size={30} style={{ textAlign: 'center' }}>{data.name}</Title>
+    </View>
+  );
 }
 
 function Unavailable({ kind, error }: { kind: 'event' | 'group'; error?: string | null }) {

@@ -73,7 +73,16 @@ def fake_manual_base(page, calls, rsvps, guests, missing=False, perms=None):
     page.route('https://gsuetixzobooggeaubvb.supabase.co/**', handle)
 
 
+def invite_lea(page):
+    """Léa est invitée (event_invites) : c'est ainsi qu'elle figure dans « Ajouter quelqu'un » (noms lus après la fiche, 27.11)."""
+    page.route('https://gsuetixzobooggeaubvb.supabase.co/rest/v1/event_invites*', lambda r: r.fulfill(
+        status=204 if r.request.method == 'OPTIONS' else 200, content_type='application/json',
+        headers={'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS'},
+        body=json.dumps([{'user_id': LEA, 'via_link': False}])))
+
+
 def open_event(page, events_origin):
+    invite_lea(page)
     page.goto(events_origin, wait_until='domcontentloaded')
     page.get_by_role('button', name='Événements', exact=True).click()
     frame = page.frame_locator('#eventsFrame')

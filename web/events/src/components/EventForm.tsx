@@ -302,6 +302,7 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
   const terms = useTermsGate();
   const { can } = useAuth();
   const isAdmin = can('events.publish_direct');  // publie sans passer par la validation
+  const siteAdmin = can('events.manage_all');  // co-organisateurs : choisit parmi tous les comptes qui peuvent modifier
   const canRepeat = can('events.recurring');  // Admin, Co-admin, Organisateur (Rôles et droits)
   const [draft, setDraft] = useState<Draft | null>(() => (eventId ? null : prefilled(prefill)));
   // Ce qui était là à l'ouverture : la base de « changements non enregistrés » et du « début changé ».
@@ -329,7 +330,7 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
   const cancel = () => (router.canGoBack() ? router.back() : router.replace((eventId ? `/event/${eventId}` : '/') as never));
 
   const { data: ctx, error: contextError, reload: reloadCtx } = useQuery(async () => {
-    const [taxonomy, members, groups, settings, current, editorRoles] = await Promise.all([
+    const [taxonomy, members, groups, settings, current, editorRoles, linked] = await Promise.all([
       fetchTaxonomy(),
       supabase.from('profiles').select('id, display_name, role').eq('status', 'active').order('display_name'),
       supabase.from('member_groups').select('id, name, created_by, system_key, events_need_approval, member_group_members(user_id)').order('name'),
@@ -337,6 +338,9 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
       eventId ? supabase.from('events').select(FORM_EVENT_COLS).eq('id', eventId).single() : Promise.resolve(null),
       // Co-organisateurs : seulement des rôles qui peuvent modifier un événement publié (sinon ni Modifier ni Annuler).
       supabase.from('role_permissions').select('role').in('perm', ['events.edit_own_published', 'events.manage_all']),
+      // Recette du 27.11 : un Guest tout neuf se voyait proposer les comptes de l'équipe. Seulement les personnes avec qui
+      // on a un lien (groupes en commun, événements en commun : migration 20261127100000) ; un admin du site garde tout.
+      siteAdmin ? Promise.resolve(null) : supabase.rpc('co_organizer_suggestions'),
     ]);
     if (eventId && !draft) {
       const loaded = await loadDraft(eventId);
@@ -368,6 +372,9 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
       createdBy: current ? (must(current) as { created_by?: string | null }).created_by ?? null : null,
       cover: current && coversOn ? (must(current) as Pick<EventRow, 'cover_url' | 'cover_credit' | 'cover_credit_url'>) : null,
       editors: new Set((must(editorRoles) as { role: string }[]).map((r) => r.role)),
+      // null : tout le monde (admin du site) ; base sans la fonction ou erreur : personne (jamais toute l'équipe).
+      linked: linked === null ? null
+        : new Set(!linked.error && Array.isArray(linked.data) ? (linked.data as { id: string }[]).map((p) => p.id) : []),
     };
   }, [eventId]);
 
@@ -681,16 +688,22 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
     }
   }
 
-  const memberChips = (key: 'organizers') => (
-    <View style={s.wrap}>
-      {ctx.members
-        // Co-organisateurs : comptes qui peuvent modifier (déjà choisis : gardés visibles pour pouvoir les retirer).
-        .filter((m) => m.id !== me.id && (ctx.editors.has(m.role ?? '') || d[key].includes(m.id)))
-        .map((m) => (
+  const memberChips = (key: 'organizers') => {
+    // Co-organisateurs : comptes qui peuvent modifier, parmi les personnes avec qui on a un lien (déjà choisis : gardés
+    // visibles pour pouvoir les retirer).
+    const people = ctx.members.filter((m) => m.id !== me.id
+      && ((ctx.editors.has(m.role ?? '') && (!ctx.linked || ctx.linked.has(m.id))) || d[key].includes(m.id)));
+    if (!people.length) {
+      return <T muted size={13}>Personne à proposer pour l’instant : les co-organisateurs se choisissent parmi les personnes de tes groupes et de tes soirées.</T>;
+    }
+    return (
+      <View style={s.wrap}>
+        {people.map((m) => (
           <Chip key={m.id} label={m.display_name} selected={d[key].includes(m.id)} onPress={() => toggleIn(key, m.id)} />
         ))}
-    </View>
-  );
+      </View>
+    );
+  };
 
   // Publier n'a lieu que pour un nouvel événement, un brouillon ou un refusé (needsSubmit) : ailleurs (publié, en
   // attente de validation, annulé), le bouton enregistre seulement et le dit.
@@ -993,7 +1006,7 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
         >
           <View style={{ flex: 1, gap: 2 }}>
             <T weight="semibold">Plus d’options</T>
-            <T muted size={13}>Places, prix, sondage de dates, qui amène quoi…</T>
+            <T muted size={13}>Passe en mode Avancé : places, prix, sondage de dates, qui amène quoi… s’ajoutent au formulaire.</T>
             {hiddenActive.length ? <T size={13} color={colors.accent}>Actifs : {hiddenActive.join(', ')}</T> : null}
           </View>
           <View style={{ width: 8, height: 8, borderRightWidth: 2, borderTopWidth: 2, borderColor: colors.muted, transform: [{ rotate: '45deg' }] }} />

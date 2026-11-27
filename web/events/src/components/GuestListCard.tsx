@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { GuestGroupManager } from './GuestGroup';
 import { InviteSheet } from './InviteSheet';
@@ -65,7 +65,7 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
   const [error, setError] = useState<string | null>(null);
   const [groupEditing, setGroupEditing] = useState(false);
   const [nudging, setNudging] = useState<NudgeRequest | null>(null);
-  const { data: list, reload, error: loadError } = useQuery(() => fetchGuestList(event.id), [event.id, refreshKey]);
+  const { data: list, reload, error: loadError, setData: setList } = useQuery(() => fetchGuestList(event.id), [event.id, refreshKey]);
 
   const refresh = () => { reload(); onChanged(); };
   const host = me.display_name.trim() || 'Moi';
@@ -108,11 +108,22 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
     ((await copyText(inviteLinkUrl(l.token))) ? 'Lien copié' : 'Copie impossible : réessaie'));
 
   /** Personne invitée par un invité (12.11) : l'organisateur l'accepte (elle voit l'événement) ou la refuse. */
-  const decide = (r: JoinRequest, accept: boolean) => run(async () => {
-    await decideJoinRequest(event.id, r.id, accept);
-    onChanged();
-    return accept ? `${r.name} est invité : il voit l’événement` : `${r.name} ne verra pas l’événement`;
-  });
+  // Retour immédiat (recette du 27.11) : bouton occupé pendant l'envoi, puis la ligne disparaît sans attendre la relecture.
+  const [deciding, setDeciding] = useState<string | null>(null);
+  const decide = (r: JoinRequest, accept: boolean) => {
+    if (deciding) return;
+    setDeciding(`${r.id}:${accept}`);
+    void run(async () => {
+      try {
+        // La base renvoie la liste à jour : la ligne part aussitôt (la relecture suit quand même).
+        setList(await decideJoinRequest(event.id, r.id, accept));
+      } finally {
+        setDeciding(null);
+      }
+      onChanged();
+      return accept ? `${r.name} est invité : il voit l’événement` : `${r.name} ne verra pas l’événement`;
+    });
+  };
 
   if (!list && loadError && quietOnError) return null;
   if (!list) {
@@ -166,7 +177,8 @@ export function GuestListCard({ event, me, onChanged, openSheet = false, headlin
           </T>
           <T muted size={12}>Invités par tes invités : ils ne voient l’événement qu’une fois acceptés.</T>
           {requests.map((r) => (
-            <RequestRow key={r.id} request={r} me={me.id} onAccept={() => void decide(r, true)} onRefuse={() => void decide(r, false)} />
+            <RequestRow key={r.id} request={r} me={me.id} busy={deciding?.startsWith(`${r.id}:`) ? (deciding.endsWith(':true') ? 'accept' : 'refuse') : null}
+              onAccept={() => decide(r, true)} onRefuse={() => decide(r, false)} />
           ))}
         </View>
       ) : null}
@@ -383,7 +395,9 @@ function GuestRow({ guest, me, onNudge, onRemove }: { guest: Guest; me: string; 
 const ANSWER_WORDS = { yes: 'Viendrait', maybe: 'Peut-être', no: 'Ne peut pas', poll: 'Votera les dates' } as const;
 
 /** Une demande : qui, invité par qui, sa réponse ; Accepter (il voit l'événement) ou Refuser (en deux temps). */
-function RequestRow({ request, me, onAccept, onRefuse }: { request: JoinRequest; me: string; onAccept: () => void; onRefuse: () => void }) {
+function RequestRow({ request, me, busy, onAccept, onRefuse }: {
+  request: JoinRequest; me: string; busy: 'accept' | 'refuse' | null; onAccept: () => void; onRefuse: () => void;
+}) {
   const [confirm, setConfirm] = useState(false);
   const by = request.invited_by_id === me ? 'toi' : request.invited_by?.trim() || 'un invité';
   const origin = `Invité par ${by}${request.link_label ? ` · lien « ${request.link_label} »` : ''}`;
@@ -396,13 +410,15 @@ function RequestRow({ request, me, onAccept, onRefuse }: { request: JoinRequest;
       </View>
       <View style={{ gap: 6 }}>
         <Pressable accessibilityRole="button" accessibilityLabel={`Accepter ${request.name}`} hitSlop={4} onPress={onAccept}
-          style={({ pressed }) => [st.accept, pressTransition, pressed && { transform: [{ scale: 0.96 }] }]}>
-          <T size={13} weight="bold" color={colors.onAction}>Accepter</T>
+          disabled={!!busy} accessibilityState={{ busy: busy === 'accept', disabled: !!busy }}
+          style={({ pressed }) => [st.accept, pressTransition, pressed && { transform: [{ scale: 0.96 }] }, !!busy && { opacity: 0.6 }]}>
+          {busy === 'accept' ? <ActivityIndicator size="small" color={colors.onAction} /> : <T size={13} weight="bold" color={colors.onAction}>Accepter</T>}
         </Pressable>
         <Pressable accessibilityRole="button" accessibilityLabel={confirm ? `Confirmer le refus de ${request.name}` : `Refuser ${request.name}`}
-          hitSlop={4} onPress={() => (confirm ? onRefuse() : setConfirm(true))}
-          style={({ pressed }) => [st.refuse, pressed && { opacity: 0.7 }]}>
-          <T size={13} weight="bold" color={colors.red}>{confirm ? 'Confirmer' : 'Refuser'}</T>
+          hitSlop={4} onPress={() => (confirm ? onRefuse() : setConfirm(true))} disabled={!!busy}
+          accessibilityState={{ busy: busy === 'refuse', disabled: !!busy }}
+          style={({ pressed }) => [st.refuse, pressed && { opacity: 0.7 }, !!busy && { opacity: 0.6 }]}>
+          {busy === 'refuse' ? <ActivityIndicator size="small" color={colors.red} /> : <T size={13} weight="bold" color={colors.red}>{confirm ? 'Confirmer' : 'Refuser'}</T>}
         </Pressable>
       </View>
     </View>

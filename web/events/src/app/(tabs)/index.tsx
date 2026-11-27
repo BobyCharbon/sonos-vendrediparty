@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { EventCard } from '@/components/EventCard';
@@ -48,6 +48,11 @@ export default function Home() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   // « + Proposer » s’efface en descendant dans la liste et revient dès qu’on remonte (comme Mail ou Photos).
   const [fabAway, setFabAway] = useState(false);
+  // Haut de la liste : « + » dans l'en-tête (le bouton flottant recouvrait « Absent » de la première carte, 27.11).
+  const [atTop, setAtTop] = useState(true);
+  // Très petit écran avec « 📅 Agenda » : l'en-tête n'a pas la place, le bouton flottant reste (320 px).
+  const { width } = useWindowDimensions();
+  const headerPropose = canPropose && atTop && !(agendaOn && width - side.left - side.right < 360);
   const lastY = useRef(0);
 
   const { data, error, loading, reload } = useQuery(async () => {
@@ -162,6 +167,7 @@ export default function Home() {
         scrollEventThrottle={32}
         onScroll={(e) => {
           const y = e.nativeEvent.contentOffset.y;
+          if ((y < FAB_SCROLL_START) !== atTop) setAtTop(y < FAB_SCROLL_START);
           const dy = y - lastY.current;
           if (Math.abs(dy) < FAB_SCROLL_SLOP) return;
           lastY.current = y;
@@ -175,6 +181,7 @@ export default function Home() {
           important={important}
           onBell={() => router.push('/activity')}
           agendaPending={agendaPending}
+          onPropose={headerPropose ? () => router.push('/event/new') : null}
         />
 
         {data && !searchOpen ? <GroupBubbles groups={data.groups.filter((g) => g.member)} /> : null}
@@ -292,7 +299,7 @@ export default function Home() {
         ))}
       </ScrollView>
 
-      {canPropose || aiEvent ? (
+      {(canPropose && !headerPropose) || aiEvent ? (
       <View pointerEvents="box-none" style={[st.fabWrap, { left: side.left, right: side.right }]}>
         {/* Effacé : hors de l'arbre d'accessibilité aussi (VoiceOver « activer » touchait ce qu'il y a derrière). */}
         <View pointerEvents={fabAway ? 'none' : 'box-none'} aria-hidden={fabAway || undefined} accessibilityElementsHidden={fabAway}
@@ -311,7 +318,7 @@ export default function Home() {
             <T color={colors.text} style={{ ...font.bold, fontSize: 15 }}>✨ Avec l’IA</T>
           </Pressable>
         ) : null}
-        {canPropose ? (
+        {canPropose && !headerPropose ? (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Proposer un événement"
