@@ -460,8 +460,8 @@ l'admin. Toujours :
   Tests : `tests/test_compliance_1611.py`, `tests/supabase_live/test_conformite_app_store_live.py`.
 
 ## Refus Apple 1.4.3 (25.11) — à garder
-- Règle : JAMAIS de jeu à boire ni de gorgées dans l'app App Store (« PartyStore » dans l'User-Agent ; en prod, aussi tout appel
-  natif `X-Party-Native: ios`, la BETA ne parlant qu'au site de test). Ni boisson, ivresse, drogue, emoji 🍻🍺🥃🍸🍹🍷, mode Hot / Mix, ni bar.
+- Règle : JAMAIS de jeu à boire ni de gorgées dans l'app App Store (« PartyStore » dans l'User-Agent, et tout appel natif
+  `X-Party-Native: ios`, site de test compris : la BETA est la copie de l'app App Store). Ni boisson, ivresse, drogue, emoji 🍻🍺🥃🍸🍹🍷, mode Hot / Mix, ni bar.
 - Décision de l'admin du 25.11 : pour la 1.0.0, TOUS les jeux à boire par leur origine, leur mécanique ou leurs textes sont
   BLOQUÉS dans l'app (`HIDDEN_GAMES` : Casino, Blackjack, Beer pong, Biskit, Purify Test, Pyramide, Je n'ai jamais, Qui de
   nous ?, Roulette), ainsi que toute option de gorgées : PAS de « ⭐ Mode points » qui les remplacerait (`options.sips` forcé à 0
