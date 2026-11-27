@@ -12,3 +12,5 @@
 10. **Méninges** : tu relis les 26 débuts de mots retirés (liste dans le rapport du lot 10) ?
 11. **« Ok prod »** pour : les 13 fichiers de `supabase/prod/` (ordre dans `checklist-envoi.md`), le déploiement de develop sur main, send-push et send-web-push. (Rien avant ton accord ; et rien pendant une revue d'Apple.)
 12. **Envoi à Apple** : je te montre la réponse en anglais avant tout envoi — tu valides le texte ?
+13. **Nouveau compte qui refuse les CGU (« Plus tard »)** : aujourd'hui il garde les Jeux, mais Événements et Discussions restent sur « Faisons connaissance » (le surnom exige les CGU) et ce qu'il avait tapé est perdu en rouvrant l'app. On garde ainsi (simple, accepté par Apple), ou on le laisse REGARDER les événements publics sans CGU (les CGU seulement au premier contenu : répondre, écrire) ? Je garderais le texte tapé dans les deux cas.
+14. **Présences, personne avec un compte** : réessaie le ✕ dans l'app (la question « Retirer X des présences ? » doit s'afficher) et dis-moi si ça marche.
