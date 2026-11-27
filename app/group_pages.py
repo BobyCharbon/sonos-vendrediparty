@@ -8,6 +8,7 @@ gardes group_look_guard / group_photo_guard, filtre des noms, CGU, Membres Vendr
 jamais de photo). Une réponse vide d'une écriture (règle RLS qui ne laisse rien passer) devient « forbidden »."""
 import re
 import time
+import unicodedata
 import uuid
 from urllib.parse import quote
 from concurrent.futures import ThreadPoolExecutor
@@ -197,23 +198,27 @@ class GroupPages:
         participants et organisateurs. Lecture impossible : on ne garde que les cartes sans boisson (jamais de fuite)."""
         ids = ",".join(by_id)
         rows = self._quiet(lambda: self._rows(
-            "/rest/v1/events?select=id,visibility,title,description,location_name,created_by,event_organizers(user_id),"
-            f"polls(question,poll_options(label)),bring_items(label)&id=in.({ids})", token), [])
+            "/rest/v1/events?select=id,visibility,title,description,location_name,location_address,created_by,"
+            f"event_organizers(user_id),event_invites(user_id),event_groups(group_id),polls(question,poll_options(label)),bring_items(label)&id=in.({ids})", token), [])
         info = {r["id"]: r for r in rows if isinstance(r, dict) and r.get("id")}
+        # Membres Vendredi Party (lisible par ses seuls membres) : ses événements comptent comme publics (contrôle Apple tour 7).
+        vip = self._quiet(lambda: self._rows("/rest/v1/member_groups?select=id&system_key=eq.vip", token), [])
+        vip_id = vip[0].get("id") if vip and isinstance(vip[0], dict) else None
 
         def hidden(card: dict) -> bool:
             e = info.get(card["id"])
             if card.get("mine") or (e and (e.get("created_by") == uid
-                                           or any(o.get("user_id") == uid for o in e.get("event_organizers") or []))):
+                                           or any(o.get("user_id") == uid for o in (e.get("event_organizers") or []) + (e.get("event_invites") or [])))):
                 return False
-            if e and e.get("visibility") != "all":
+            if e and e.get("visibility") != "all" and not any(g.get("group_id") == vip_id for g in e.get("event_groups") or []):
                 return False
             texts = [card.get("title"), card.get("place")]
             if e:
-                texts += [e.get("title"), e.get("description"), e.get("location_name")]
+                texts += [e.get("title"), e.get("description"), e.get("location_name"), e.get("location_address")]
                 texts += [t for p in e.get("polls") or [] for t in [p.get("question")] + [o.get("label") for o in p.get("poll_options") or []]]
                 texts += [b.get("label") for b in e.get("bring_items") or []]
-            return any(store_app.drinky(t) for t in texts if t)
+            # Texte ramené en NFC : « apéro » en lettres décomposées passait le filtre (contrôle Apple tour 7).
+            return any(store_app.drinky(unicodedata.normalize("NFC", t)) for t in texts if t)
 
         return {k: c for k, c in by_id.items() if not hidden(c)}
 

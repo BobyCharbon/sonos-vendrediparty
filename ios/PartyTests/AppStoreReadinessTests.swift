@@ -64,7 +64,7 @@ struct AppStoreReadinessTests {
         #expect(AIConsentSheet.Copy.event.text.contains("captures d'écran"))
         #expect(AIConsentSheet.Copy.event.acceptID != AIConsentSheet.Copy.feedback.acceptID)
         // Accord version 3 (25.11) : un seul texte (avis, voix, captures, photos, liens, tickets, GitHub), le même que le web.
-        #expect(FeedbackAI.consentVersion == 3)
+        #expect(FeedbackAI.consentVersion == 4)
         for copy in [AIConsentSheet.Copy.feedback, .event, .receipt] {
             #expect(copy.title == "✨ Utiliser l'IA de Party ?" && copy.text == FeedbackAI.consentText)
         }

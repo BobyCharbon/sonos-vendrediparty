@@ -16,9 +16,12 @@ struct ProfileView: View {
     @State private var filled = false
     /// CGU exigées (terms_enforced) avant un nouveau surnom : la feuille, puis l'enregistrement repart.
     @State private var askTerms = false
-    @FocusState private var focused: Bool
+    /// Champ actif : le formulaire le fait remonter au-dessus du clavier (recette iPhone du 27.11 : Nom et Surnom cachés).
+    private enum Field: Hashable { case first, last, nickname }
+    @FocusState private var focused: Field?
 
     var body: some View {
+        ScrollViewReader { proxy in
         Form {
             // « Enregistrer » grisé : on dit ce qui manque, juste dessous (comme le web, IdentityForm).
             if filled, let missing = ProfileRules.missingText(first: first, last: last, nickname: nickname) {
@@ -30,7 +33,9 @@ struct ProfileView: View {
             photoSection
             Section {
                 TextField("Prénom", text: $first).textContentType(.givenName)
+                    .focused($focused, equals: .first).id(Field.first).accessibilityIdentifier("profile-first")
                 TextField("Nom", text: $last).textContentType(.familyName)
+                    .focused($focused, equals: .last).id(Field.last).accessibilityIdentifier("profile-last")
             } header: {
                 Text("Identité")
             } footer: {
@@ -39,6 +44,7 @@ struct ProfileView: View {
             NamePrivacySection(store: store.privacy)
             Section {
                 TextField("Surnom", text: $nickname)
+                    .focused($focused, equals: .nickname).id(Field.nickname).accessibilityIdentifier("profile-nickname")
                     .onChange(of: nickname) { new in
                         // Un surnom d'avant la règle (plus long) reste affiché tel quel ; dès qu'on y touche, il passe à 12.
                         if new.count > ProfileRules.nicknameLength && new != store.profile?.displayName {
@@ -59,7 +65,12 @@ struct ProfileView: View {
                 }
             }
         }
-        .focused($focused)
+        .onChange(of: focused) { field in
+            guard let field else { return }
+            // Le clavier monte en ~0,3 s : on vise le champ une fois la place connue.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { withAnimation { proxy.scrollTo(field, anchor: .center) } }
+        }
+        }
         .textInputAutocapitalization(.words)
         .scrollContentBackground(.hidden)
         .background(AppConfig.background.ignoresSafeArea())
@@ -89,7 +100,7 @@ struct ProfileView: View {
         .sheet(isPresented: $askTerms) {
             TermsAcceptSheet(store: store.moderation, title: "Avant de choisir ton surnom") { accepted in
                 if accepted { save() } else {
-                    focused = false
+                    focused = nil
                     store.notice = .init(text: TermsLater.message("choisir ton surnom", button: "Enregistrer"), isError: true)
                 }
             }
@@ -176,7 +187,7 @@ struct ProfileView: View {
     }
 
     private func save() {
-        focused = false
+        focused = nil
         Task {
             if nickname != store.profile?.displayName, !(await store.moderation.termsAccepted()) {
                 askTerms = true

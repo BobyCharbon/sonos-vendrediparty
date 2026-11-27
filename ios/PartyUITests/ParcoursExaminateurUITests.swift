@@ -141,7 +141,8 @@ final class ParcoursExaminateurUITests: XCTestCase {
         launch(fresh: true)
         sleep(8)
         record("premier-lancement")
-        for (label, name) in [("Musique", "visiteur-musique"), ("Jeux", "visiteur-jeux"), ("Événements", "visiteur-evenements")] {
+        // App App Store : pas d'onglet Musique (refus 1.4.3, on la rejoint par Jeux › Code).
+        for (label, name) in [("Jeux", "visiteur-jeux"), ("Événements", "visiteur-evenements")] {
             visitTab(label, name)
         }
         signIn(phone)
@@ -149,12 +150,12 @@ final class ParcoursExaminateurUITests: XCTestCase {
         let row = app.staticTexts["Profil à compléter"].firstMatch
         if row.waitForExistence(timeout: 20) {
             row.tap()
-            let first = app.collectionViews.textFields["Prénom"].firstMatch
+            let first = app.collectionViews.textFields["profile-first"].firstMatch
             XCTAssertTrue(first.waitForExistence(timeout: 15), "fiche du profil")
             record("profil-a-remplir")
             first.tap(); app.typeText("Examen")
-            app.collectionViews.textFields["Nom"].firstMatch.tap(); app.typeText("Apple")
-            app.collectionViews.textFields["Surnom"].firstMatch.tap(); app.typeText("Examen QA")
+            app.collectionViews.textFields["profile-last"].firstMatch.tap(); app.typeText("Apple")
+            app.collectionViews.textFields["profile-nickname"].firstMatch.tap(); app.typeText("Examen QA")
             // Simulateur neuf : la bulle d'iOS sur la saisie glissée (« Continue ») couvre le clavier ; on la ferme.
             let tip = app.buttons.matching(NSPredicate(format: "label IN {'Continue', 'Continuer'}")).firstMatch
             if tip.exists { tip.tap() }
@@ -171,7 +172,7 @@ final class ParcoursExaminateurUITests: XCTestCase {
             record("profil-introuvable")
             XCTFail("« Profil à compléter » absent après la connexion d'un compte neuf")
         }
-        for (label, name) in [("Musique", "membre-musique"), ("Jeux", "membre-jeux"), ("Événements", "membre-evenements"),
+        for (label, name) in [("Jeux", "membre-jeux"), ("Événements", "membre-evenements"),
                               ("Discussions", "membre-discussions"), ("Réglages", "membre-reglages")] {
             visitTab(label, name)
         }
@@ -235,7 +236,7 @@ final class ParcoursExaminateurUITests: XCTestCase {
     func testDemoAccountTabs() {
         launch()
         if !tab("Discussions").waitForExistence(timeout: 15) { signIn("0790000004") }
-        for (label, name) in [("Musique", "admin-musique"), ("Jeux", "admin-jeux"), ("Événements", "admin-evenements"),
+        for (label, name) in [("Jeux", "admin-jeux"), ("Événements", "admin-evenements"),
                               ("Discussions", "admin-discussions"), ("Réglages", "admin-reglages")] {
             visitTab(label, name, wait: 5)
             if app.buttons["Plus tard"].exists { app.buttons["Plus tard"].tap(); sleep(1) }

@@ -198,7 +198,9 @@ struct TricountGroupView: View {
         VStack(spacing: 10) {
             ForEach(g.members.filter { $0.left != true || $0.balance_cents != 0 }) { m in
                 HStack(spacing: 12) {
-                    Text(m.name + (m.me ? " (toi)" : "")).font(.subheadline.weight(.semibold)).frame(width: 110, alignment: .leading).lineLimit(1)
+                    // « Personne bloquée » (blocage, 27.11) tenait mal sur une ligne : deux lignes, puis plus petit (recette du 27.11).
+                    Text(m.name + (m.me ? " (toi)" : "")).font(.subheadline.weight(.semibold)).lineLimit(2).minimumScaleFactor(0.75)
+                        .frame(width: 110, alignment: .leading)
                     GeometryReader { geo in
                         let half = geo.size.width / 2
                         let w = half * CGFloat(abs(m.balance_cents)) / CGFloat(biggest)
@@ -406,6 +408,8 @@ struct MembersSheet: View {
     @State private var newName = ""
     @State private var renaming: TC.Member?
     @State private var renameText = ""
+    /// Règle de l'admin : tout retrait demande une confirmation (contrôle Apple tour 7).
+    @State private var removing: TC.Member?
 
     var body: some View {
         NavigationStack {
@@ -424,7 +428,7 @@ struct MembersSheet: View {
                             }
                             .swipeActions {
                                 if !m.me {
-                                    Button(role: .destructive) { Task { await store.removeMember(m.id) } } label: { Label("Retirer", systemImage: "trash") }
+                                    Button { removing = m } label: { Label("Retirer", systemImage: "trash") }.tint(.red)
                                 }
                                 Button { renaming = m; renameText = m.name } label: { Label("Renommer", systemImage: "pencil") }.tint(.blue)
                             }
@@ -464,6 +468,12 @@ struct MembersSheet: View {
             .navigationTitle("Membres")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("OK") { dismiss() } } }
+            .confirmationDialog(removing.map { "Retirer \($0.name) du pot ?" } ?? "",
+                                isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
+                                titleVisibility: .visible, presenting: removing) { m in
+                Button("Retirer", role: .destructive) { Task { await store.removeMember(m.id) } }
+                Button("Annuler", role: .cancel) {}
+            } message: { _ in Text("Une personne qui a des dépenses reste dans les comptes.") }
             .alert("Renommer", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
                 TextField("Prénom", text: $renameText)
                 Button("Annuler", role: .cancel) {}

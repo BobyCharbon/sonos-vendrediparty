@@ -14,7 +14,7 @@ import { TicketsManager } from '@/components/TicketsManager';
 import { CalendarButton } from '@/components/CalendarButton';
 import { EventGiftsLink } from '@/components/EventGifts';
 import { barOn, compagnonOn, coversOn, discussionsOn, invitesV2On, pronosOn, souvenirsOn, storeApp } from '@/lib/features';
-import { DRINK_RE, drinkyEvent } from '@/lib/storeEvents';
+import { DRINK_RE, drinkyEvent, fetchVipGroupId, storePublic } from '@/lib/storeEvents';
 import { coverDeleted } from '@/lib/eventCover';
 import { GuestListCard } from '@/components/GuestListCard';
 import { AnnounceStatusCard } from '@/components/AnnounceStatusCard';
@@ -41,7 +41,7 @@ import { eventPeopleIds, undecidedNames } from '@/lib/eventPeople';
 import { useLiveRefresh, useOnline, usePaymentsTick, useSlowLoad } from '@/lib/connectivity';
 import { safeHref } from '@/lib/links';
 import { createdLine, formatLongDay, formatShort, formatTime, plural, relativeDay } from '@/lib/format';
-import type { ReportTarget } from '@/lib/moderation';
+import { onBlocksChanged, type ReportTarget } from '@/lib/moderation';
 import { must, supabase } from '@/lib/supabase';
 import { openEventChat, sendEventToFriend } from '@/lib/nativeChat';
 import { repeatLabel, type Series } from '@/lib/recurrence';
@@ -132,12 +132,18 @@ export default function EventScreen() {
     ]);
     const event = must(ev) as unknown as Full;
     const pollIds = event.polls.map((p) => p.id);
-    const [results, allVotes] = pollIds.length
-      ? await Promise.all([
-          supabase.from('poll_results').select('*').in('poll_id', pollIds),
-          supabase.from('poll_votes').select('option_id, user_id').in('poll_id', pollIds),
-        ])
-      : [{ data: [] }, { data: [] }];
+    const [[results, allVotes], blockedAuthor] = await Promise.all([
+      pollIds.length
+        ? Promise.all([
+            supabase.from('poll_results').select('*').in('poll_id', pollIds),
+            supabase.from('poll_votes').select('option_id, user_id').in('poll_id', pollIds),
+          ])
+        : Promise.resolve([{ data: [] }, { data: [] }] as const),
+      // Contrôle Apple tour 7 (1.2) : blocage entre l'auteur et moi, dans un sens ou dans l'autre (blocked_with).
+      event.created_by && event.created_by !== me.id
+        ? supabase.rpc('blocked_with', { target: event.created_by }).then((r) => r.data === true, () => false)
+        : Promise.resolve(false),
+    ]);
     const votes = (allVotes.data ?? []) as { option_id: string; user_id: string }[];
     const msgs = (messages.data ?? []) as Message[];
     const invites = (links.data ?? []) as { user_id: string; via_link: boolean }[];
@@ -164,9 +170,14 @@ export default function EventScreen() {
       viaLink: new Set(invites.filter((l) => l.via_link).map((l) => l.user_id)),
       attendance: attendance.get(id) ?? null,
       groupNames: ((groupNames.data ?? []) as string[]).join(', '),
+      blockedAuthor,
+      invitedMe: invites.some((i) => i.user_id === me.id),
+      vip: storeApp ? await fetchVipGroupId() : null,
       loadedAt: Date.now(),
     };
   }, [id, me.id]);
+  // Bloquer / débloquer l'auteur depuis son mini-profil : la fiche se relit aussitôt.
+  useEffect(() => onBlocksChanged(reload), [reload]);
 
   // App iPhone : les membres de mon répertoire sous le nom de mes contacts (« Nom · pseudo »), partout sur la page.
   const contacts = useContactNames();
@@ -251,9 +262,15 @@ export default function EventScreen() {
     if (!loadError && online && !slow) return <EventSkeleton />;
     return <LoadProblem error={loadError} online={online} onRetry={reload} />;
   }
+  // Contrôle Apple tour 7 (1.2) : l'événement d'une personne bloquée (dans un sens ou dans l'autre), ouvert par un lien,
+  // est indisponible, sauf si j'en fais partie (réponse, invitation, organisation).
+  if (data.blockedAuthor && !canManage && !data.invitedMe && !ev.rsvps.some((r) => r.user_id === me.id)) {
+    return <LoadProblem error={BLOCKED_UNAVAILABLE} online onRetry={() => router.replace('/')} />;
+  }
   // App App Store (refus Apple 1.4.3) : un événement public « à boisson » ouvert par un lien, où je ne suis pour rien, ne
   // s'affiche pas (même règle que la liste, lib/storeEvents.ts).
-  if (storeApp && ev.visibility === 'all' && !canManage && !ev.rsvps.some((r) => r.user_id === me.id)
+  // Réservé aux Membres Vendredi Party = public ici ; une invitation compte comme pour la liste (contrôle Apple tour 7).
+  if (storeApp && storePublic(ev, data.vip) && !canManage && !data.invitedMe && !ev.rsvps.some((r) => r.user_id === me.id)
     && drinkyEvent(ev as unknown as Parameters<typeof drinkyEvent>[0])) {
     return <LoadProblem error={STORE_UNAVAILABLE} online onRetry={() => router.replace('/')} />;
   }
@@ -668,11 +685,12 @@ export default function EventScreen() {
 /** Chargement impossible : jamais une impasse ni l'anglais de la base. Supprimé / pas ouvert : pas de « Réessayer » inutile ;
  * hors ligne : « Pas de connexion », la fiche se recharge seule au retour du réseau. */
 const STORE_UNAVAILABLE = 'Cet événement n’est pas disponible dans l’app.';
+const BLOCKED_UNAVAILABLE = 'Cet événement est indisponible.';
 
 function LoadProblem({ error, online, onRetry }: { error: string | null; online: boolean; onRetry: () => void }) {
-  const gone = !!error && (isGoneError(error) || error === STORE_UNAVAILABLE);
+  const gone = !!error && (isGoneError(error) || error === STORE_UNAVAILABLE || error === BLOCKED_UNAVAILABLE);
   const offline = !online || (!!error && isNetworkError(error));
-  const text = gone ? GONE_TEXT
+  const text = error === BLOCKED_UNAVAILABLE ? BLOCKED_UNAVAILABLE : gone ? GONE_TEXT
     : offline ? 'Pas de connexion. Vérifie ton réseau : la fiche se chargera dès qu’il revient.'
     : error ?? 'Le chargement prend plus de temps que prévu.';
   return (

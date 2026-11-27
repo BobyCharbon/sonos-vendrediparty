@@ -2,7 +2,8 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { storeApp } from './features';
-import { DRINK_RE, STORE_EVENT_EXTRA, storeVisible } from './storeEvents';
+import { DRINK_RE, fetchVipGroupId, STORE_EVENT_EXTRA, storeVisible } from './storeEvents';
+import { onBlocksChanged } from './moderation';
 import { must, supabase } from './supabase';
 import type { Category, EventRow, Rsvp, Tag } from './types';
 
@@ -201,6 +202,8 @@ export type EventListItem = EventRow & {
   date_options: { id: string; date_votes: { user_id: string }[] }[];
   /** Groupes de l'événement (étiquette sur la carte : seulement ceux dont je fais partie). */
   event_groups?: { group_id: string }[];
+  event_organizers?: { user_id: string }[];
+  event_invites?: { user_id: string }[];
 };
 
 /** Liste des événements ; ids : seulement ceux-là (page d'un groupe, base : group_events). */
@@ -209,18 +212,46 @@ export async function fetchEventList(ids?: string[]): Promise<EventListItem[]> {
   let q = supabase
     .from('events')
     .select(
-      '*, category:categories(*), event_tags(tag_id), rsvps(user_id, status, waitlisted, plus_ones), date_options(id, date_votes(user_id)), event_groups(group_id)'
+      '*, category:categories(*), event_tags(tag_id), rsvps(user_id, status, waitlisted, plus_ones), date_options(id, date_votes(user_id)), event_groups(group_id), event_organizers(user_id), event_invites(user_id)'
         + (storeApp ? STORE_EVENT_EXTRA : ''),
     );
   if (ids) q = q.in('id', ids);
-  const res = await q
-    .order('starts_at', { ascending: true, nullsFirst: false })
-    .order('created_at', { ascending: false });
-  const events = must(res) as unknown as EventListItem[];
+  const [res, blocks, session] = await Promise.all([
+    q.order('starts_at', { ascending: true, nullsFirst: false }).order('created_at', { ascending: false }),
+    // Personnes que j'ai bloquées (RLS : les miennes seulement) ; en cas d'échec, la liste reste lisible.
+    supabase.from('direct_blocks').select('blocked_id').then((r) => r.data as { blocked_id: string }[] | null, () => null),
+    supabase.auth.getSession(),
+  ]);
+  const me = session.data.session?.user.id;
+  const blocked = new Set((blocks ?? []).map((b) => b.blocked_id));
+  const all = must(res) as unknown as EventListItem[];
+  // Et ceux qui M'ONT bloqué (invisible dans direct_blocks) : blocked_with, une fois par auteur toutes les 5 minutes.
+  const authors = [...new Set(all.filter((e) => !isPartOf(e, me) && !blocked.has(e.created_by)).map((e) => e.created_by))];
+  (await Promise.all(authors.map(blockedMe))).forEach((yes, i) => { if (yes) blocked.add(authors[i]); });
+  // Contrôle Apple tour 7 (1.2) : l'événement d'une personne bloquée (dans un sens ou dans l'autre) disparaît de ma liste
+  // et de ma recherche, sauf si j'en fais partie (réponse, invitation, organisation).
+  const events = all.filter((e) => !blocked.has(e.created_by) || isPartOf(e, me));
   if (!storeApp) return events;
   // App App Store : pas d'événement public « à boisson » dans la liste, sauf pour qui y est pour quelque chose.
-  const me = (await supabase.auth.getSession()).data.session?.user.id;
-  return storeVisible(events, me);
+  return storeVisible(events, me, await fetchVipGroupId());
+}
+
+const BLOCKED_ME_MS = 5 * 60_000;
+const blockedMeCache = new Map<string, { yes: boolean; at: number }>();
+onBlocksChanged(() => blockedMeCache.clear());  // blocage ou déblocage fait ici : relu aussitôt
+/** Blocage entre cette personne et moi (deux sens, base : blocked_with) ; panne : non (la liste reste lisible). */
+async function blockedMe(author: string): Promise<boolean> {
+  const hit = blockedMeCache.get(author);
+  if (hit && Date.now() - hit.at < BLOCKED_ME_MS) return hit.yes;
+  const { data, error } = await Promise.resolve(supabase.rpc('blocked_with', { target: author })).catch(() => ({ data: null, error: true }));
+  if (!error) blockedMeCache.set(author, { yes: data === true, at: Date.now() });
+  return data === true;
+}
+
+/** J'y suis pour quelque chose : réponse, invitation ou organisation. */
+export function isPartOf(e: EventListItem, me: string | null | undefined): boolean {
+  return !!me && (e.created_by === me || e.rsvps.some((r) => r.user_id === me)
+    || (e.event_organizers ?? []).some((o) => o.user_id === me) || (e.event_invites ?? []).some((i) => i.user_id === me));
 }
 
 export function rsvpCounts(rsvps: Pick<Rsvp, 'status' | 'waitlisted' | 'plus_ones'>[]) {

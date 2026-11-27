@@ -83,7 +83,7 @@ final class RecetteRefus143UITests: XCTestCase {
     /// (REFUS_MUSIC_PIN) dans Jeux › Code, puis « Revenir à la soirée Musique ».
     func testHiddenGameCodesAndMusicCode() {
         app = XCUIApplication()
-        app.launchEnvironment["PARTY_DEBUG_JS"] = "localStorage.setItem('vp_install_dismissed','1');localStorage.setItem('vp_name','Léa');localStorage.removeItem('vp_room');localStorage.removeItem('vp_game');"
+        app.launchEnvironment["PARTY_DEBUG_JS"] = "localStorage.setItem('vp_install_dismissed','1');localStorage.setItem('vp_name','Léa');localStorage.setItem('vp_games_terms','1');localStorage.removeItem('vp_room');localStorage.removeItem('vp_game');"
         app.launch()
         sleep(6)
         step = 20
@@ -162,7 +162,7 @@ final class RecetteRefus143UITests: XCTestCase {
 
     func testGamesHaveNoDrinking() {
         app = XCUIApplication()
-        app.launchEnvironment["PARTY_DEBUG_JS"] = "localStorage.setItem('vp_install_dismissed','1');localStorage.setItem('vp_name','Léa');localStorage.removeItem('vp_room');localStorage.removeItem('vp_game');"
+        app.launchEnvironment["PARTY_DEBUG_JS"] = "localStorage.setItem('vp_install_dismissed','1');localStorage.setItem('vp_name','Léa');localStorage.setItem('vp_games_terms','1');localStorage.removeItem('vp_room');localStorage.removeItem('vp_game');"
         app.launch()
         sleep(6)
 

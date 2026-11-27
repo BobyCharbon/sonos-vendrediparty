@@ -610,8 +610,8 @@ def test_round_five_group_pronos_page_is_guarded_privacy_and_consent_are_exact()
         assert "publié sur GitHub, où tout le monde peut le lire, puis lu par Claude, sans ton prénom ni ton numéro" in (_root() / path).read_text(encoding="utf-8"), path
     # Le texte a changé (GitHub public dit en clair) : un accord d'avant ne vaut plus (5.1.2(ii)).
     from app import ai_feedback
-    assert ai_feedback.CONSENT_VERSION >= 3
-    assert "static let consentVersion = 3" in (_root() / "ios/Party/Feedback/FeedbackAI.swift").read_text(encoding="utf-8")
+    assert ai_feedback.CONSENT_VERSION >= 4
+    assert "static let consentVersion = 4" in (_root() / "ios/Party/Feedback/FeedbackAI.swift").read_text(encoding="utf-8")
 
 
 def test_round_five_listing_notes_and_checklist():

@@ -151,7 +151,7 @@ final class SettingsAuditUITests: XCTestCase {
         profile.tap()
         sleep(3)
         expectLoaded("profil")
-        XCTAssertFalse((app.textFields["Prénom"].value as? String ?? "").isEmpty, "prénom chargé")
+        XCTAssertFalse((app.textFields["profile-first"].value as? String ?? "").isEmpty, "prénom chargé")
         back()
 
         settingsTab()

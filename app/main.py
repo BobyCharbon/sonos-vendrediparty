@@ -5165,9 +5165,19 @@ def state(request: Request, guest_id: str = ""):
         "guest_tracks": guest_tracks(guest_id, request) if guest_id else None,
     }
     try:
-        return {**base, **public_sonos(snapshot(), guest_id, owners(request, guest_id))}
+        out = {**base, **public_sonos(snapshot(), guest_id, owners(request, guest_id))}
     except Exception:
         return {**base, "error": "La musique est injoignable pour le moment"}
+    # App App Store (contrôle Apple tour 7, 1.2) : jamais le prénom d'un autre invité (« par … », « demandé par … ») ;
+    # ses propres titres gardent le sien. Le site et l'hôte voient toujours qui a demandé quoi.
+    return music_without_names(out) if store_app.is_store(request) else out
+
+
+def music_without_names(out: dict) -> dict:
+    out["now"] = {**out["now"], "by": None}
+    out["upcoming"] = [t if t.get("rid") else {**t, "by": None} for t in out["upcoming"]]
+    out["played"] = [{**p, "by": None} for p in out["played"]]
+    return out
 
 
 @app.get("/api/search", dependencies=[Depends(require_guest)])
