@@ -35,7 +35,7 @@ export default function AccountSettings() {
       router.replace('/sign-in');
     } catch (error) {
       const message = error instanceof Error ? error.message : '';
-      setError(message || 'Ton compte n’a pas pu être supprimé. Vérifie ta connexion et réessaie.');
+      setError(message || 'La suppression de ton compte n’a pas abouti. Réessaie plus tard ou écris à support@vendrediparty.ch.');
     } finally {
       submitting.current = false;
       setBusy(false);

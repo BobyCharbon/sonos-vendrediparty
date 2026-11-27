@@ -78,7 +78,7 @@ class AccountAuth:
         if r.status_code not in (200, 204):
             if "last_admin" in r.text:
                 raise AccountError("Tu es le dernier administrateur : désigne d'abord un autre administrateur actif dans Membres.")
-            raise AccountError("Ton compte n'a pas pu être supprimé. Vérifie ta connexion et réessaie.")
+            raise AccountError("La suppression de ton compte a été refusée par le serveur. Réessaie plus tard ou écris à support@vendrediparty.ch.")
         # Les fichiers du Storage ne suivent pas la cascade de la base : ses photos de profil partent aussi (5.1.1(v)).
         if photos:
             self.accounts._remove_photos(photos, token)
