@@ -30,10 +30,13 @@
          testés sur TEST le 27.11 ; aucune fonction commune avec les fichiers 1 à 9 : n'importe quel ordre). Blocage qui
          empêche d'être noté présent ou ajouté en co-organisateur ; suppression du compte d'un membre de l'équipe qui a
          validé l'événement d'un autre ; plus de trace du compte supprimé (qui amène quoi, groupes d'un événement, photo de groupe). Sans lui en prod : retirer de B4.5 / B7 du guide (et du tutoriel 3.5) la phrase
+         sur « noté présent » par une personne bloquée, puis régénérer le PDF.
       11. `2026-11-27-blocage-suite` (20261127120000) : **PRÊT**, à appliquer EN DERNIER (après 2, 5 et 10 : ils redéfinissent
          `join_group_by_link` / créent `guard_coorganizer_block`). Blocage avec le créateur d'un événement ou d'un groupe,
          co-organisateurs retirés par un blocage, lien de groupe et ancien lien d'événement refusés en blocage, plus « et photo ».
-         sur « noté présent » par une personne bloquée, puis régénérer le PDF.
+      12. `2026-11-27-filtre-sosies` (20261127130000) : **PRÊT** (apply + rollback, testés sur TEST le 27.11 ; redéfinit
+         seulement `private.mod_normalize` et `private.mod_hit`, aucune fonction commune avec 1 à 11 : n'importe quel ordre).
+         Filtre commun : lettres cyrilliques / grecques sosies et formes NFKC (« Cоnnard », pleine chasse) refusées.
 - [ ] **Revérifier les ancres contre la prod avant d'appliquer** (150000 a réécrit event_changed, event_guest_list,
       apply_waitlist, event_attendance, public_event, chat_event_cards, invite_preview).
       **Fait le 27.11 en LECTURE SEULE** (`sbq.py prod`, `pg_get_functiondef` de la prod ; photo du 27.11, à refaire si
