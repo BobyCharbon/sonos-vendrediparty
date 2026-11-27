@@ -70,7 +70,7 @@ ci-dessous et le serveur ; « nouveau build » = seulement dans la nouvelle app 
 | Recherches de personnes gardées 1 h en empreinte | Avec ce lot (20261126100000) | Politique de confidentialité ; rien à montrer |
 | Phrases d'autorisation propres à l'app App Store (caméra sans Souvenirs, calendrier limité aux sondages) | Nouveau build | Oui : B8 |
 
-Les « non décrit » ci-dessus sont de petites choses visibles sans explication ; la partie A est pleine (3 994 caractères
+Les « non décrit » ci-dessus sont de petites choses visibles sans explication ; la partie A est pleine (3 977 caractères
 sur 4 000), donc rien n'y a été ajouté.
 
 ## C. Depuis 03357b5c (27.11)
@@ -81,9 +81,15 @@ sur 4 000), donc rien n'y a été ajouté.
 | `112ef30b` | Suppression du compte : un refus du serveur est dit tel quel (plus « vérifie ta connexion »), contact support | B4.20 inchangé ; recette du jour de l'envoi (checklist) |
 | `3592adf8` | iPhone : la feuille « J'accepte les conditions » montre les conditions de l'app App Store (sans bar ni Pronos) | Rien à dire à Apple (B7 dit déjà que les CGU de l'app n'ont ni bar ni Pronos) |
 | lot 6 (textes) | Politique du 27 novembre 2026 (web = iPhone) : présences notées à la main, aperçu d'un lien de groupe, moyens de paiement du Pot commun (montrés si on a créé le pot ou l'a rejoint par son lien, sinon par « Montrer mes moyens de paiement dans ce pot »), IA en mode Modifier ; guide : B2 (Pot commun à créer), B4.2, B4.5 (Relancer, liste d'attente), B4.12 (discussion réservée, @toutlemonde, Ma note privée), B4.16, B7 ; App Privacy à 17 types ; plan de prod (9e fichier) | — |
+| `56493e6a` | Suppression du compte jamais bloquée par une garde (approved_by, qui amène quoi, groupes d'un événement, photo de groupe) et blocage respecté (co-organisateur, présence notée, notifications) ; migration 20261127110000 **prête** (apply / rollback), pas en prod | Oui : B4.5, B7, tutoriel 3.5 (phrase du blocage, à garder seulement si la migration passe en prod) |
+| `d7d4fddf` | iPhone : « 18 ans et plus » dans le bas fixe des conditions, Signaler « Traité sous 24 h · support@ », notifications coupées après la suppression du compte, écran Contacts à un seul bouton (5.1.1(iv)), Zicou du profil réservé à la BETA, Search History au manifeste | App Privacy à 17 types (§ 6 de la checklist) ; rien d'autre à dire |
+| `97a34e0e` | Contrôle Apple, tour 4 (jeux de l'app) : prénoms nettoyés (« Joueur 1 »…), filtre à chaque entrée de prénom, Pour ou contre sur la banque de Party seule, argot et contournements filtrés, pages HTML brutes et /admin en 404 pour l'app, « Plus tard » vers Méninges seul, classement du Quiz numéroté | Oui : A « Games » (Méninges seul, nos dilemmes), B4.14, B6, tutoriel 6 |
+| `6bbe45c9` | Lot 7 (recette iPhone) : « Publier » rend la main après 20 s sans seconde publication, lien de groupe → page du groupe, suppression du compte (clavier fermé, refus en entier), Mon profil, feuille « Avant de choisir ton surnom » | Rien à dire à Apple |
+| `7daf1b9c` | Politique (web et iPhone) : accent cassé « montrÃ© » corrigé, test contre tout texte mal encodé | Rien à dire à Apple |
+| lot 8 (textes) | Contrôle Apple, tour 5 : partie A (3 977 caractères : Méninges seul après « Plus tard », nos dilemmes, moyens de paiement des membres ajoutés d'office, numéro d'Apple-test 2), B2 / tutoriel 8 (« Rembourser » quand on doit à un membre), B4.3 (sans « polls » : un Guest+ n'a pas `polls.create`), B4.14, B4.18, B6 ; iPhone : bouton « Ouvrir l'admin du site (secours) » caché dans l'app App Store (/admin y répond 404) ; PDF régénéré | — |
 
-`20261127090000` (présences, suppression du compte) est **déjà en prod** ; `20261127110000` (suppression-blocage) est en
-préparation : sans lui, la phrase « une personne bloquée ne peut être ni notée présente ni ajoutée en co-organisatrice »
+`20261127090000` (présences, suppression du compte) est **déjà en prod** ; `20261127110000` (suppression-blocage) est
+**prêt** (fichiers apply / rollback dans `supabase/prod/`, testé sur TEST, pas encore en prod) : sans lui, la phrase « une personne bloquée ne peut être ni notée présente ni ajoutée en co-organisatrice »
 sort du guide (checklist).
 
 ## Reste à faire par l'admin
@@ -92,7 +98,7 @@ sort du guide (checklist).
 - [ ] Dépôt GitHub `BobyCharbon/sonos-vendrediparty` à passer en PRIVÉ (ou `GITHUB_REPO` sur un dépôt privé à part).
 - [ ] App Store Connect : AUCUNE version tvOS jointe ; App Privacy = les **17 types** (Search History ajouté le 27.11 ; manifeste : lot 6 iPhone, d7d4fddf), ni plus ni moins ;
       anciennes captures et ancienne vidéo d'aperçu SUPPRIMÉES (6,9" et Duo), nouvelles captures faites avec l'app App Store.
-- [ ] Guide PDF : rejoindre `docs/app-store/guide-revue-apple.pdf` régénéré le 27.11 (lot 6 : B2, B4.2, B4.5, B4.12, B4.16, B7).
+- [ ] Guide PDF : rejoindre `docs/app-store/guide-revue-apple.pdf` régénéré le 27.11 (lot 6 : B2, B4.2, B4.5, B4.12, B4.16, B7 ; lot 8, tour 5 : B2, B4.3, B4.14, B4.18, B6).
 - [ ] Couverture de l'événement « Verknipt » : la vérifier / remplacer (aucune boisson visible).
 - [ ] Lien Shotgun de « Hard Boat » : le nettoyer (sans `uhandle` ni `utm_*`).
 - [ ] Relire le classement du Quiz dans l'app App Store (points seulement, aucun mot de boisson ni gorgée) ; au passage,

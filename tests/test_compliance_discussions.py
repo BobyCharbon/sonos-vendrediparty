@@ -120,8 +120,11 @@ def test_review_notes_describe_discussions_v2_within_4000_characters():
     assert len(notes) <= 4000
     section = notes.split("DISCUSSIONS (1.2)", 1)[1].split("\n\n", 1)[0]
     for words in ("message request", "Demandes de message", "Nouveau message", "private group", "not read by admins",
-                  "mini-profile", "Signaler", "Bloquer", "last 10 messages", "Apple-test 2", "support@vendrediparty.ch"):
+                  "Signaler", "Bloquer", "Apple-test 2", "support@vendrediparty.ch"):
         assert words in section, words
+    # Contrôle Apple, tour 5 : faute de place, le mini-profil et les 10 messages joints ne sont plus que dans la partie B.
+    part_b = read("docs/app-store/notes-for-review.md").split("## PART B", 1)[1]
+    assert "mini-profile" in part_b and "Joindre les 10 messages précédents" in part_b
     assert not re.search(r"\b\d{6}\b", notes)  # jamais un code de compte de démo
 
 

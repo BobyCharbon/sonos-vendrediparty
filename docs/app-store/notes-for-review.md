@@ -5,9 +5,8 @@
 > Vérifié le 16.11.2026 en lecture seule : en prod, le numéro de démo à code fixe **+41 79 000 09 99** existe
 > (Supabase › Auth › « Test OTP », valable jusqu'au 31.12.2027) ; son compte **« Apple-test »** (Apple Review) est actif,
 > rôle **Guest+ (« User+ »)**, profil complet avec photo, **CGU pas encore acceptées** (la feuille des CGU s'affichera au
-> premier contenu : c'est bien, Apple la verra). Le code fixe n'est écrit nulle part dans le dépôt ; le fichier
-> `~/sb-work/apple/demo.txt` cité par `ios/appstore/app-store-connect.md` **n'existe pas sur ce Mac** (peut-être sur un autre ordinateur) : sinon retrouver le code
-> dans Supabase (prod › Authentication › Providers › Phone › Test OTP) et le saisir seulement dans App Store Connect.
+> premier contenu : c'est bien, Apple la verra). Le code fixe n'est écrit nulle part dans le dépôt : le retrouver dans Supabase
+> (prod › Authentication › Providers › Phone › Test OTP) et le saisir seulement dans App Store Connect.
 >
 > Données à préparer en PRODUCTION (le coordinateur s'en charge ; les notes y renvoient sous CES noms exacts) :
 > 1. Événement **« Soirée démo »** (organisé par un admin), **sur invitation** (un bar payant n'existe que sur un événement
@@ -34,18 +33,18 @@
 >    « Bloquer » masque aussitôt les messages et prévient les modérateurs ; aucun jeu à boire, aucune gorgée, aucun mode Hot / Mix
 >    ni bar dans l'app App Store (refus 1.4.3, 25.11, `app/store_app.py`) ; CGU « 18 ans et plus ». Si l'une manque en prod : corriger ce
 >    texte avant l'envoi (Apple compare les notes et l'app).
-> 8. Copier la **partie A** dans App Store Connect › App Review Information › **Notes** (3994 caractères, limite 4 000 ; 26.11 : contrôle Apple, tour 3) ET
+> 8. Copier la **partie A** dans App Store Connect › App Review Information › **Notes** (3977 caractères, limite 4 000 ; 27.11 : contrôle Apple, tour 5) ET
 >    dans `ios/appstore/review-notes.txt` (même texte) (c'est ce fichier que `tools/appstore_submit.py` envoie ; la partie A garde tous
 >    les mots exigés par `tests/test_ios_app.py::test_review_notes_describe_every_big_feature_delivered_by_the_web`).
 > 9. Exporter la **partie B** en PDF (sans cet encadré) et la joindre dans App Review Information › **Attachment**.
 
 ---
 
-## PART A — Text for the "Notes" field (3,994 characters, limit 4,000)
+## PART A — Text for the "Notes" field (3,977 characters, limit 4,000)
 
 ```text
 ABOUT
-"Vendredi Party": free app by Ludovic Trombert, an individual developer based in France, to organise real-world events with friends, chats and party games. French, 18+. No ads, tracking or in-app purchase. Guide attached (PDF).
+"Vendredi Party": free app by Ludovic Trombert, an individual developer based in France, to organise real-world events with friends, chats and party games. French, 18+. No ads, tracking or IAP. Guide attached (PDF).
 
 CHANGES SINCE THE 1.4.3 REJECTION (new build + server, permanent for this version)
 Removed from this app: every drinking-related game (Pyramide, Je n'ai jamais, Qui de nous ?, Roulette, Beer pong, Biskit, Purify Test), every drink option, Hot/Mix questions, the party bar, Casino, Blackjack and the Music tab. Not renamed or re-skinned: our server refuses them to this app, even by code or QR.
@@ -60,25 +59,25 @@ TRY IT
 4. Games > "Créer une salle" > Quiz, or Méninges.
 
 NATIVE (4.2)
-Native tab bar; SwiftUI Settings, Discussions, Groups, event chat, "Ton avis", AI assistant, "Pot commun", "Mes amis dans Party" (contacts on Party; SMS invite you send). Push (a switch per type), Wallet, QR scanner, Calendar, Contacts (optional, hashed), dictation. Share sheet > Party: event from a link.
+Native tab bar, SwiftUI Settings, Discussions, Groups, event chat, "Ton avis", AI assistant, "Pot commun", "Mes amis dans Party". Push (a switch per type), Wallet, QR scanner, Calendar, Contacts (optional, hashed), dictation. Share sheet > Party: event from a link.
 
 WEB CONTENT (2.5.2)
-Events and Games tabs: our site in a WKWebView. Other sites: Safari. Games > Code: 4 digits = a game; 6 digits = a host's music party (native screen, no tab; needs the host's Sonos; optional Live Activity for your song; it ends by itself). Not in this version (never opened by this build; would need a new review): Pronos, Agenda, companion, Souvenirs.
+Events and Games tabs: our site in a WKWebView. Other sites: Safari. Games > Code: 4 digits = a game; 6 digits = a host's music party (native screen, no tab; needs the host's Sonos; optional Live Activity for your song). Not in this version (never opened by this build; would need a new review): Pronos, Agenda, companion, Souvenirs.
 
 EVENTS
 Links for one person or "Plusieurs"; guests make and stop own links. Not public: a guest's guest waits ("À accepter"). Date poll. Calendar feed. Carpool (no money), QR ticket + Wallet: organiser options. Groups: "Inviter avec un lien". Events need sign-in (nickname: 12 characters max); games need no account. Updates live; tap a name to open the profile; each answer shows its time. Admins: "Nouveau compte", announcement or maintenance.
 
 PAYMENTS (3.1.3(e))
-Party never sells, holds or moves money. Events: organiser's own Revolut/Twint/IBAN, ticketing link (Safari) or on site. Once the organiser confirms, guests get a QR entry ticket for the real event; nothing digital is sold or unlocked. "Pot commun": "Présent" at an event with a pot (or marked so) adds you; leave it in Settings; payment details hidden unless each picks "Montrer mes moyens de paiement dans ce pot"; "Rembourser" shows them; "Signaler" on expenses and receipts.
+Party never sells, holds or moves money. Events: organiser's own Revolut/Twint/IBAN, ticketing link (Safari) or on site. Once the organiser confirms, guests get a QR entry ticket for the real event; nothing digital is sold or unlocked. "Pot commun": "Présent" at an event with a pot (or marked so) adds you; leave it in Settings; auto-added members' payment details stay hidden until they pick "Montrer mes moyens de paiement dans ce pot"; "Rembourser" shows them; "Signaler" on expenses and receipts.
 
 DISCUSSIONS (1.2)
-Event chats: guests coming ("Présent"/"Peut-être") and organisers only. DMs only with a real link (shared group or event); others send a message request: one text, no photo/link/number: "Accepter / Supprimer / Bloquer / Signaler". "Demandes de message" in Settings. "Nouveau message": real links, search by name; 2+ people make a private group, not read by admins. Terms first, word filter, "Signaler" on each message (last 10 messages if ticked); "Bloquer": messages from a blocked person disappear at once, moderators alerted. Tap a name: mini-profile. Reports handled within 24 h. Demo "Apple-test 2": sender side. Contact: support@vendrediparty.ch.
+Event chats: guests coming ("Présent"/"Peut-être") and organisers only. DMs only with a real link (shared group or event); others send a message request: one text, no photo/link/number: "Accepter / Supprimer / Bloquer / Signaler". "Demandes de message" in Settings. "Nouveau message": real links, search by name; 2+ people make a private group, not read by admins. Terms first, word filter, "Signaler" on each message; "Bloquer": messages from a blocked person disappear at once, moderators alerted. Reports handled within 24 h. Demo "Apple-test 2" (+41 79 000 00 01, same code): sender side. Contact: support@vendrediparty.ch.
 
 AI (5.1.2(i))
 "Avec l'IA", "Ton avis" and receipts go to Anthropic (Claude) only after "J'accepte" (withdraw in Settings).
 
 GAMES (18+)
-No drinking games: quizzes, card, word, 3D games; points only; first-party. No gambling, purchase, prize. Players first tick "J'ai 18 ans ou plus et j'accepte les conditions" (server-checked); first names and answers filtered; "Signaler" on written answers. Anyone can leave; host can ban.
+No drinking games: quizzes, card, word, 3D games; points only; first-party. No gambling, purchase, prize. Players first tick "J'ai 18 ans ou plus et j'accepte les conditions" (server-checked; "Plus tard": Méninges only); names and answers filtered; Pour ou contre: our dilemmas only; "Signaler" on written answers. Anyone can leave; host can ban.
 
 DELETION
 Settings > "Gérer mon compte" > "Supprimer mon compte" (type SUPPRIMER).
@@ -123,7 +122,7 @@ has a **fixed code** (also in "Sign-in information", Password field): no SMS is 
 | Event **"Soirée démo Vendredi Party"** (12 Dec.) | Organised by us, invitation only; the demo account is invited AND co-organiser: answer (**Présent**), see who comes, event discussion; organiser side: guests and their answers, ZONE ORGANISATEUR. QR tickets are on: answer **Présent**, then in the organiser card **Billets QR** of the event page tap **Remettre à tous les présents** (you are co-organiser) to get your own ticket (card **Ton billet**, Apple Wallet, B4.10); payment and carpool are off on this event (options of the organiser, described below for completeness). |
 | Group **"Démo Apple"** | The demo account + one of our admins, with a few messages. |
 | Direct message | One message from our admin to the demo account. |
-| "Pot commun" | No pot is prepared: create one in Réglages › Pot commun › Nouveau pot commun; "Rembourser" appears once another member owes or is owed. |
+| "Pot commun" | No pot is prepared: create one in Réglages › Pot commun › Nouveau pot commun; "Rembourser" appears when you owe another member (add a member, then an expense they paid). |
 | Second demo account **"Apple-test 2"** | Number **+41 79 000 00 01**, same fixed code as the first demo account (no SMS; checked by signing in on the day of submission). Shares no group or private event with "Apple-test" and has sent it a **message request** (Discussions › **Demandes**). Sign in with it to see the sender side ("Demande envoyée", input closed until accepted). |
 
 If you test account deletion: please do it last. Signing in again with the same number then creates a new, empty
@@ -178,7 +177,7 @@ Tab **Événements**:
 #### B4.3 Create an event with the form
 
 1. Événements › **+ Proposer**.
-2. Choose **Simple** or **Avancé** (advanced: tags, places, price, date poll, polls, who brings what, forum…).
+2. Choose **Simple** or **Avancé** (advanced: tags, places, price, date poll, who brings what, forum…).
 3. Fill in **Titre**, **Description**, **Quand** (date), **Où** (place search or text).
 4. To publish at once: in **Qui** › "Qui est invité ?", tap **Sur invitation**, then tick **Démo Apple · 2**, then **Publier**.
    The form opens on "Publique + lien": a public event, or an invitation-only event with no group, shows
@@ -362,6 +361,9 @@ Tab **Jeux**:
   (first name, answer, proposal) from a player who has not ticked it. First names and written answers pass the word
   filter, including a first name changed during a game. Any player can leave a game at any time; the host can remove
   and ban a player; written answers can be reported ("Signaler") and are then hidden for the whole table.
+  A player who taps **Plus tard · jouer seul à Méninges** only sees Méninges (nothing they type is shown to anyone);
+  **👥 Jouer avec les autres** brings the first-name screen back.
+- In the App Store app, Pour ou contre only uses Party's own dilemmas: players cannot write or propose any.
 - **Index of games (4.7.4)**: all games are first-party, written and hosted by the developer; there are no third-party
   mini apps or games. Universal link to the games: https://party.bobycharbon.ch/?tab=games (opens the **Jeux** tab of
   the app). Games offered in the App Store app: Quiz, Qui est le plus… ?, L'Intrus, Président, Pour ou contre, Le Divan,
@@ -402,7 +404,7 @@ a bug report to the Party team (the publisher); optional AI writing help (consen
 
 #### B4.18 Notifications
 
-Réglages › **Notifications**: one switch per type, grouped as Général, Jeux, Ton avis, Événements (new event,
+Réglages › **Notifications**: one switch per type, grouped as Général, Jeux (party host only), Ton avis, Événements (new event,
 reminders, event discussions…), Discussions des groupes, Amis, Comptes et modération, Quand j'organise. Music notification settings appear only for the host of a music party; a
 guest's switches are on the Music screen. The moon icon
 (top right of Réglages) pauses notifications for a while. Each event page has **🔔 Sourdine** (mute). The app works
@@ -452,7 +454,7 @@ platforms are separate; the app never opens their games.
   hate, sexual or violent content, illegal content, spam; zero tolerance. Users must be **18 or older**.
 - **Word filter** on messages, nicknames, names, group names, places and texts shown in games.
 - **Signaler** (report) on every message, profile, profile photo, event and poll, and on the players' written answers
-  shown to the table in Le Masque, Tu me connais ? and the dilemmas proposed in Pour ou contre (hidden at once for
+  shown to the table in Le Masque and Tu me connais ? (hidden at once for
   everyone, logged for moderators), on group names and photos (**Signaler le groupe**), and on "Pot commun" expenses and receipt photos. In every game the host can remove or ban a player.
 - **Bloquer** (block) from a profile, a mini-profile, a direct chat or a message request; messages from a blocked
   person disappear at once and the block is reported to moderators.

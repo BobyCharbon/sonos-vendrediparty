@@ -709,13 +709,13 @@ def test_apple_check_round_one_texts_promise_only_what_the_reviewer_can_try():
     assert '"+ Proposer" > "Sur invitation" > tick group "Démo Apple" > Publish' in notes
     assert 'tap **Sur invitation**, then tick **Démo Apple · 2**, then **Publier**' in part_b
     assert "J'ai 18 ans ou plus et j'accepte les conditions" in notes and "server-checked" in notes
-    assert "first names and answers filtered" in notes and "a first name changed during a game" in part_b
-    assert "messages from a blocked person disappear at once" in notes and "(last 10 messages if ticked)" in notes
+    assert "names and answers filtered" in notes and "a first name changed during a game" in part_b
+    assert "messages from a blocked person disappear at once" in notes and "Joindre les 10 messages précédents" in part_b
     assert "photo/voice copied" not in notes  # la copie des photos signalées : guide seulement
     for text in (notes, guide):
         assert "cover" not in text.lower()
     # Tour 2 : l'Activité en direct est dans le build (décrite, facultative) ; Souvenirs : « Not in this version ».
-    assert "optional Live Activity for your song; it ends by itself" in notes
+    assert "optional Live Activity for your song" in notes and "it ends by itself once the song has played" in part_b
     assert "Souvenirs" in notes.split("Not in this version", 1)[1].split("\n", 1)[0]
     assert "needs the host's Sonos" in notes  # Musique décrite, jamais cachée (2.3.1)
     titles = [l.split(" ", 2)[1] for l in part_b.splitlines() if l.startswith("#### B4.")]
@@ -786,7 +786,7 @@ def test_apple_check_round_two_texts_say_what_the_build_really_does():
     part_b = guide.split("## PART B", 1)[1]
     flat = " ".join(guide.split("## PART B", 1)[1].split())
     assert len(notes) <= 4000 and notes in guide
-    assert '"Mes amis dans Party" (contacts on Party; SMS invite you send)' in notes
+    assert '"Mes amis dans Party"' in notes  # l'invitation par SMS : partie B (B8, ci-dessous)
     assert "No select-all; Party sends nothing." in flat and '"Mes amis dans Party": numbers are hashed' in flat
     assert "Live Activity" in part_b.split("#### B4.15", 1)[1].split("#### B4.16", 1)[0]
     assert "Pronos, Agenda, companion, Souvenirs." in notes
@@ -1023,3 +1023,27 @@ def test_every_store_report_sheet_promises_24_hours_and_the_contact():
     for path in ("ios/Party/Settings/Moderation/ModerationSheets.swift", "ios/Party/Chats/Conversation/ConversationNeon.swift"):
         text = (_root() / path).read_text(encoding="utf-8")
         assert "Traité sous 24 h · \\(TermsView.supportEmail)" in text, path
+
+
+def test_apple_check_round_five_texts_match_the_app_store_build():
+    """Contrôle Apple du 27.11, tour 5 : Méninges seul après « Plus tard », dilemmes de Party seulement, « Rembourser »
+    quand on doit à un membre, pas de sondages pour un Guest+, et pas de bouton vers /admin (404) dans l'app App Store."""
+    notes = (_root() / "ios/appstore/review-notes.txt").read_text(encoding="utf-8").strip()
+    guide = (_root() / "docs/app-store/notes-for-review.md").read_text(encoding="utf-8")
+    part_b = guide.split("## PART B", 1)[1]
+    tuto = (_root() / "docs/app-store/tutoriel-reviewer-fr.md").read_text(encoding="utf-8")
+    assert len(notes) <= 4000 and notes in guide
+    for words in ('"Plus tard": Méninges only', "Pour ou contre: our dilemmas only",
+                  "auto-added members' payment details stay hidden", '"Apple-test 2" (+41 79 000 00 01, same code)'):
+        assert words in notes, words
+    assert "dilemmas proposed in Pour ou contre" not in guide
+    assert "Plus tard · jouer seul à Méninges" in part_b and "Jouer avec les autres" in part_b
+    assert "Pour ou contre only uses Party's own dilemmas" in part_b
+    assert "Plus tard · jouer seul à Méninges" in tuto and "dilemmes de Party" in tuto
+    assert "when you owe another member" in part_b and "quand tu dois de l'argent à un autre membre" in tuto
+    avance = part_b.split("#### B4.3", 1)[1].split("**Avancé**", 1)[1].split("\n", 1)[0]
+    assert "polls" not in avance.replace("date poll", "")
+    games_js = (_root() / "app/static/games.js").read_text(encoding="utf-8")
+    assert "Plus tard · jouer seul à Méninges" in games_js and "👥 Jouer avec les autres" in games_js
+    host = (_root() / "ios/Party/HostMusic/HostPeopleView.swift").read_text(encoding="utf-8")
+    assert 'if !AppConfig.isStoreApp {\n                    Section {\n                        Button("Ouvrir l\'admin du site (secours)"' in host

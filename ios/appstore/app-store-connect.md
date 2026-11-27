@@ -2,7 +2,8 @@
 
 À saisir ou à vérifier avant « Ajouter pour vérification ». Contrôlé dans le code le 09.11.2026 (develop, 99e16c1),
 drapeaux de prod lus sur https://party.bobycharbon.ch/api/features : `compagnon: false`, `discussions: true`,
-`invites_v2: true`. **Mis à jour le 16.11.2026** : `discussions: true` et `bar: true` en production ; dossier complet et
+`invites_v2: true`. **Mis à jour le 16.11.2026** : `discussions: true` en production ; `bar: false` pour l'app App Store
+(« PartyStore », refus 1.4.3, 25.11 ; le web garde le bar) ; dossier complet et
 à jour dans `docs/app-store/` (checklist-envoi.md fait foi pour App Privacy et le questionnaire d'âge).
 
 ## 1. Fiche de la version
@@ -10,7 +11,7 @@ drapeaux de prod lus sur https://party.bobycharbon.ch/api/features : `compagnon:
 | Champ | Valeur |
 |---|---|
 | Nouveautés (What's New) | **Rien** : 1.0.0 est la première version, Apple n'affiche pas ce champ. |
-| Notes pour la revue (App Review Information › Notes) | Copier `ios/appstore/review-notes.txt` (3994 caractères, limite 4 000 ; à jour au 26.11.2026 (contrôle Apple, tour 3 : billet de démo à se remettre soi-même par « Remettre à tous les présents » ; tour 2 : « Mes amis dans Party », Activité en direct facultative de la Musique, Souvenirs dans « Not in this version », moyens de paiement du Pot commun cachés par défaut et « Signaler ») ; avant : 19.11.2026 : Discussions v2, groupes et discussion d'événement natifs (réservée à Présent / Peut-être) ; « Not in this version » : Pronos, Agenda, compagnon, Souvenirs, jamais ouverts par ce build). |
+| Notes pour la revue (App Review Information › Notes) | Copier `ios/appstore/review-notes.txt` (3977 caractères, limite 4 000 ; à jour au 27.11.2026 (contrôle Apple, tour 5 : Pour ou contre sur les dilemmes de Party, « Plus tard » = Méninges seul, moyens de paiement des membres ajoutés d'office, numéro d'Apple-test 2) ; tour 3 : billet de démo à se remettre soi-même par « Remettre à tous les présents » ; tour 2 : « Mes amis dans Party », Activité en direct facultative de la Musique, Souvenirs dans « Not in this version », moyens de paiement du Pot commun cachés par défaut et « Signaler ») ; avant : 19.11.2026 : Discussions v2, groupes et discussion d'événement natifs (réservée à Présent / Peut-être) ; « Not in this version » : Pronos, Agenda, compagnon, Souvenirs, jamais ouverts par ce build). |
 | URL d'assistance (Support URL) | `https://party.bobycharbon.ch/support` (page d'assistance : contact support@vendrediparty.ch, éditeur, questions fréquentes ; 25.11) |
 | URL de confidentialité (Privacy Policy URL) | `https://party.bobycharbon.ch/events/privacy?app=ios` (texte de l'app App Store, sans bar ni Pronos ; 25.11) |
 | URL marketing | Vide. **Jamais** `vendrediparty.ch` : ce domaine n'a pas de site (aucun enregistrement A), seulement la messagerie. |
@@ -37,7 +38,7 @@ Les deux pages sont dessinées en JavaScript : `curl` reçoit une page sans text
 |---|---|
 | Sign-in required | Oui |
 | User name | `+41 79 000 09 99` (compte « Apple-test ») |
-| Password | Le code fixe à 6 chiffres : voir le fichier local `~/sb-work/apple/demo.txt` (ligne `code=`). Jamais dans le dépôt. |
+| Password | Le code fixe à 6 chiffres : Supabase prod › Authentication › Providers › Phone › Test OTP. Jamais dans le dépôt. |
 
 À faire avant l'envoi :
 - Fait le 09.11 (prod) : « Apple-test » est **Guest+**, profil complet (prénom Apple, nom Review, photo neutre « AR »). La photo de profil est facultative depuis le 09.11.
@@ -118,7 +119,7 @@ publicité, aucun SDK d'analyse. Pour chaque type ci-dessous : **lié à l'ident
 
 Pas collecté (à laisser décoché) : e-mail, adresse postale, localisation (aucun CoreLocation ; les adresses d'événement
 et la ville du covoiturage sont du contenu), santé, historique de navigation, données sensibles (les profils par catégorie de Purify Test ne sont jamais gardés,
-`purity.scrub`), audio : **à cocher depuis le 16.11** (Audio Data : messages vocaux des Discussions, allumées en prod),
+`purity.scrub`),
 Crash Data / Performance Data, publicité.
 
 **27.11.2026, fait foi** : le manifeste déclare exactement **17 types** : les 16 ci-dessous + **Search History**
@@ -137,7 +138,7 @@ Name, Photos, Contacts, Emails/Text, Other User Content, Gameplay Content, User 
 Other Diagnostic Data, Other Financial Info), tous liés à l'identité, sans suivi, pour le fonctionnement de l'app.
 Cocher **exactement** les mêmes dans App Store Connect (**Other Diagnostic Data est à cocher en plus**, 14.11).
 **16.11.2026** : + Audio Data (vocaux des Discussions), Purchase History (commandes du bar liées au compte), Customer
-Support (« Ton avis ») : 15 types, à cocher aussi dans App Store Connect.
+Support (« Ton avis ») : 15 types le 16.11 (historique ; 17 depuis le 27.11, voir plus haut).
 L'écran natif Réglages › Confidentialité est daté du 14 novembre 2026 comme la politique web, et l'accord IA s'y
 retire (« IA de Party ») pour tous les comptes.
 
