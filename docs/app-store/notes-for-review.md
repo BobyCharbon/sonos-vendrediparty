@@ -362,6 +362,7 @@ Tab **Jeux**:
   (first name, answer, proposal) from a player who has not ticked it. First names and written answers pass the word
   filter, including a first name changed during a game. Any player can leave a game at any time; the host can remove
   and ban a player; written answers can be reported ("Signaler") and are then hidden for the whole table.
+  Tap 🚩 next to another player's name (☰ › Participants): "🚩 Signaler ce prénom" — shown as "Joueur N" to the table at once, sent to moderation.
   A player who taps **Plus tard · jouer seul à Méninges** only sees Méninges (nothing they type is shown to anyone);
   **👥 Jouer avec les autres** brings the first-name screen back.
 - In the App Store app, Pour ou contre only uses Party's own dilemmas: players cannot write or propose any.

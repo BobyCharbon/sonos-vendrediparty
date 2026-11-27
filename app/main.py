@@ -1476,7 +1476,54 @@ def scrub_store_names(g: dict) -> bool:
     for x, peer in ((g, other), (other, g)):
         if x and x.get("store") and store_app.scrub_names(x, [peer] if peer else []):
             changed = True
+        if x and alias_reported(x, [peer] if peer else []):
+            changed = True
     return changed
+
+
+def alias_reported(x: dict, peers: list) -> bool:
+    """Prénom signalé par un joueur (« 🚩 Signaler ce prénom », Apple 1.2) : « Joueur N » pour toute la table, web
+    compris, comme un prénom refusé (même numéro dans la salle et son jeu, copies comprises), même s'il le change."""
+    changed = False
+    for gid in x.get("name_reports") or {}:
+        p = games.player(x, gid)
+        old = p["name"] if p else (x.get("host_name") if x.get("host") == gid else None)
+        aliases = x.setdefault("store_alias", {})
+        alias = aliases.get(gid) or next((y["store_alias"][gid] for y in peers if gid in (y.get("store_alias") or {})), None)
+        if not old or old == alias:
+            continue
+        if not alias:
+            taken = {q.get("name") for y in [x, *peers] for q in y.get("players", [])}
+            taken |= {a for y in [x, *peers] for a in (y.get("store_alias") or {}).values()}
+            n = 1
+            while f"{store_app.ALIAS} {n}" in taken:
+                n += 1
+            alias = f"{store_app.ALIAS} {n}"
+        aliases[gid] = alias
+        if p:
+            p["name"] = alias
+        if x.get("host") == gid:
+            x["host_name"] = alias
+        store_app._replace(x, (old, re.compile(r"(?<![^\W\d_])" + re.escape(old) + r"(?![^\W\d_])")), alias)
+        changed = True
+    return changed
+
+
+def report_name(g: dict, me: str, pid: str, request: Request):
+    """« 🚩 Signaler ce prénom » (tout joueur, sur un AUTRE joueur) : « Joueur N » aussitôt pour la table (partie et
+    salle), journal `game.report` et admin prévenu (log_game_report) ; une fois par signaleur et par joueur."""
+    target = games.gid_of(g, pid)
+    p = games.player(g, target) if target else None
+    if not p or target == me or not (games.player(g, me) or g.get("host") == me):
+        raise HTTPException(409, "Pas maintenant")
+    if me in (g.get("name_reports") or {}).get(target, []):
+        return
+    log_game_report(g, me, {"text": f"Prénom signalé : {p['name']}", "author": target}, request)
+    other = room_child(g) if g["type"] == "room" else room_of(g)
+    for x in filter(None, (g, other)):
+        if x is g or games.player(x, target):
+            x.setdefault("name_reports", {}).setdefault(target, []).append(me)
+    g["updated_at"] = time.time()
 
 
 # Contrôle du 26.11 (Apple 1.2) : dans l'app App Store, un joueur n'écrit rien que la table lira (son prénom, une réponse,
@@ -1645,6 +1692,9 @@ def room_launch(room: dict, me: str, settings: dict):
     # Les autres identités des joueurs (onglet resté sur l'identité d'invité, place reprise) les suivent dans le jeu :
     # sinon ce téléphone y prendrait une deuxième place.
     child["aliases"] = {a: o for a, o in (room.get("aliases") or {}).items() if games.player(child, o)}
+    # Prénoms signalés dans la salle : « Joueur N » aussi dans chaque jeu lancé ensuite (même numéro).
+    child["name_reports"] = {k: list(v) for k, v in (room.get("name_reports") or {}).items() if games.player(child, k)}
+    child["store_alias"] = {**(room.get("store_alias") or {}), **(child.get("store_alias") or {})}
     child["room"] = room["code"]
     room["rvotes"] = {}  # le vote du jeu suivant repart à zéro
     room["current"] = child["code"]
@@ -1724,6 +1774,8 @@ def full_view_raw(g: dict, gid: str) -> dict:
     now = time.time()
     for p in v.get("players", []):
         real = games.player(g, games.gid_of(g, p["pid"]))
+        if real and gid in (g.get("name_reports") or {}).get(real["id"], []):
+            p["name_reported"] = True  # déjà signalé par ce joueur : plus de 🚩
         if not real or real.get("manual"):
             continue
         last = last_seen_of(g, real["id"])
@@ -3646,7 +3698,7 @@ def sync_player_name(g: dict, guest_id: str, name: str, request: Request | None 
     l'entrée (contrôle Apple du 26.11) et, dans l'app App Store, case des conditions cochée ; sinon l'ancien reste."""
     p = games.player(g, guest_id) if guest_id else None
     clean = " ".join(unicodedata.normalize("NFKC", name or "").split())[:30]
-    if p and clean and p["name"] != clean and not p.get("manual"):
+    if p and clean and p["name"] != clean and not p.get("manual") and guest_id not in (g.get("name_reports") or {}):
         store = store_app.is_store(request)
         if (store and not p.get("terms")) or name_refusal(clean, store or bool(g.get("store"))):
             return
@@ -3801,6 +3853,11 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     sync_player_name(g, body.guest_id, body.name, request)
     admin_lead(g, request, body.guest_id)
     a, me = body.action, body.guest_id
+    if a == "nreport":  # tous les jeux et la salle, même en pause
+        report_name(g, me, body.target, request)
+        scrub_store_names(g)
+        save_games(g["code"], g.get("room") or "", g.get("current") or "")
+        return full_view(g, me, request)
     if g["type"] == "president" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "up", "down", "handover", "end", "prplay", "prpass", "prexchange", "pause", "resume"}:
         raise HTTPException(400, "Action indisponible au Président")
     if g["type"] == "heist" and a not in {"join", "leave", "start", "next", "restart", "remove", "ban", "handover", "end", "hset", "pause", "resume"}:

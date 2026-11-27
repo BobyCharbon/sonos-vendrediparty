@@ -3251,8 +3251,10 @@ function renderDrawer(g) {
       <div class="icon-btns">
         ${movable && i > 0 ? `<button class="secondary" data-gact="up" data-target="${esc(p.pid)}" title="Monter" aria-label="Monter">⬆</button>` : ""}
         ${movable && i < g.players.length - 1 ? `<button class="secondary" data-gact="down" data-target="${esc(p.pid)}" title="Descendre" aria-label="Descendre">⬇</button>` : ""}
+        ${g.me && p.pid !== g.me.pid && !p.name_reported ? `<button class="secondary g-name-report" data-gact="nreport" data-target="${esc(p.pid)}" data-name="${esc(p.name)}" title="Signaler ce prénom" aria-label="Signaler le prénom ${esc(p.name)}">🚩</button>` : ""}
         ${lead && p.pid !== g.me?.pid ? `<button class="secondary" data-gact="remove" data-target="${esc(p.pid)}" title="Exclure de la partie" aria-label="Exclure de la partie">✕</button>` : ""}
       </div></div>`).join("") || `<p class="empty" style="padding:12px">Personne pour l'instant : fais scanner le QR.</p>`}</div>
+    ${g.me && g.players.some((p) => p.pid !== g.me.pid && !p.name_reported) ? `<p class="artist" style="margin-top:6px">🚩 Un prénom déplacé ? Signale-le : il devient « Joueur N » pour toute la table.</p>` : ""}
     ${movable && ["biskit", "pyramid"].includes(g.type) ? `<p class="artist" style="margin-top:6px">Range les joueurs dans l'ordre où ils sont assis (vers la gauche).</p>` : ""} <!-- store-cut -->
     ${(g.type !== "pyramid" || g.phase === "lobby") ? manualForm(g) : ""} <!-- store-cut -->
     <!-- <store> ${manualForm(g)} -->
@@ -3365,6 +3367,11 @@ document.addEventListener("click", (ev) => {
   if (a === "addplayers") return gameAction("names", { names: game.names.concat(game.players.map((p) => p.name)) });
   if (a === "eliminate" && !confirm("Éliminer ce joueur ?")) return;
   if (a === "remove") return openKickSheet(b.dataset.target);
+  // « 🚩 Signaler ce prénom » (Apple 1.2) : « Joueur N » aussitôt pour la table, modération prévenue.
+  if (a === "nreport") {
+    if (!confirm(`🚩 Signaler ce prénom : « ${b.dataset.name} » ?\nIl s'affiche aussitôt « Joueur N » pour toute la table, et la modération est prévenue.\nTraité sous 24 h · support@vendrediparty.ch`)) return;
+    return pressed(b, gameAction("nreport", { target: b.dataset.target }).then((ok) => ok && toast("🚩 Prénom signalé, merci.")));
+  }
   pressed(b, gameAction(a, { target: b.dataset.target || "", amount: +(b.dataset.amount || 0), guess: b.dataset.guess || "", who: b.dataset.who || "" }));
 });
 // Toucher « + Ajouter » ne retire pas le focus du champ : le clavier reste ouvert et l'iPhone ne fait pas défiler la page.
