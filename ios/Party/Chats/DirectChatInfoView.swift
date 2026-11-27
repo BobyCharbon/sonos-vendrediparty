@@ -71,7 +71,7 @@ struct DirectChatInfoView: View {
                     } header: {
                         Text("Confidentialité")
                     } footer: {
-                        Text("Conversation privée : seuls vous deux la lisez. Une personne bloquée ne peut plus t'écrire (et toi non plus), ni te citer, t'inviter ou voir ta fiche ; elle n'en est pas prévenue. L'historique reste.")
+                        Text("Conversation privée : seuls vous deux la lisez. Une personne bloquée ne peut plus t'écrire (et toi non plus), ni te citer, t'inviter ou voir ta fiche ; elle n'en est pas prévenue. Ses messages sont masqués ici et dans les groupes ; la débloquer les fait réapparaître.")
                     }
                     .listRowBackground(ConvNeon.surface)
                 }

@@ -86,11 +86,13 @@ struct TricountGroupView: View {
                     }
                     Button { showMembers = true } label: { Label("Membres", systemImage: "person.2") }
                     Button { showSettings = true } label: { Label("Réglages du pot commun", systemImage: "gearshape") }
-                    // Signaler le nom du pot (contrôle Apple du 27.11, 1.2) ; la base refuse si c'est moi qui l'ai créé.
-                    Button { reporting = Self.report(pot: g.id, name: g.name) } label: {
-                        Label("Signaler le nom du pot", systemImage: "flag")
+                    // Signaler le nom du pot (contrôle Apple du 27.11, 1.2) ; caché pour son créateur (la base le refuse).
+                    if !Self.createdByMe(g) {
+                        Button { reporting = Self.report(pot: g.id, name: g.name) } label: {
+                            Label("Signaler le nom du pot", systemImage: "flag")
+                        }
+                        .accessibilityIdentifier("tc-report-pot")
                     }
-                    .accessibilityIdentifier("tc-report-pot")
                     Button(role: .destructive) { confirmLeave = true } label: { Label("Quitter ce pot commun", systemImage: "rectangle.portrait.and.arrow.right") }
                 } label: { Image(systemName: "ellipsis.circle") }
                 .accessibilityIdentifier("tc-menu")
@@ -108,6 +110,21 @@ struct TricountGroupView: View {
         } message: {
             Text("Tes dépenses restent dans le pot commun. Tu pourras revenir avec le lien.")
         }
+    }
+
+    /// Créateur du pot : la base ne donne pas created_by ; un pot créé à la main (tc_create) a son créateur en premier
+    /// membre (membres triés par date d'arrivée, lui seul à la création). Pot d'un événement : organisateur et présents
+    /// arrivent ensemble, l'ordre n'y dit rien ; le menu reste (la base refuse alors avec sa phrase).
+    static func createdByMe(_ g: TC.Group) -> Bool {
+        g.event == nil && g.members.first?.me == true
+    }
+
+    /// « C'est remboursé » : seulement le payeur ou le receveur du virement ; un membre ajouté à la main (sans compte) ne
+    /// peut pas le noter lui-même, alors tout membre le peut pour lui (sinon personne ne pourrait solder ce virement).
+    static func maySettle(_ t: TC.Settle, in g: TC.Group) -> Bool {
+        guard let me = g.me else { return false }
+        if t.from == me || t.to == me { return true }
+        return g.member(t.from)?.linked != true || g.member(t.to)?.linked != true
     }
 
     /// Signaler (contrôle Apple du 27.11) : le nom du pot (type tc_group) ou le prénom d'un membre (tc_member).
@@ -254,9 +271,11 @@ struct TricountGroupView: View {
                             if t.from == g.me {
                                 Button { paying = t } label: { Label("Rembourser", systemImage: "arrow.uturn.left") }.buttonStyle(.borderedProminent)
                             }
-                            Button { Haptics.tap(); Task { await store.settle(t) } } label: { Label("C'est remboursé", systemImage: "checkmark") }
-                                .buttonStyle(.bordered)
-                                .disabled(g.archived || store.busy)
+                            if Self.maySettle(t, in: g) {
+                                Button { Haptics.tap(); Task { await store.settle(t) } } label: { Label("C'est remboursé", systemImage: "checkmark") }
+                                    .buttonStyle(.bordered)
+                                    .disabled(g.archived || store.busy)
+                            }
                         }
                         .controlSize(.small)
                     }
@@ -442,7 +461,8 @@ struct MembersSheet: View {
                                         .font(.caption).foregroundStyle(.secondary)
                                 }
                                 Spacer()
-                                if !(m.payment?.isEmpty ?? true) { Image(systemName: "creditcard.fill").foregroundStyle(TCColor.owed) }
+                                if !(m.payment?.isEmpty ?? true) { Image(systemName: "arrow.uturn.left.circle.fill").foregroundStyle(TCColor.owed)
+                                    .accessibilityLabel("Montre comment le rembourser") }
                             }
                             .swipeActions {
                                 if !m.me {

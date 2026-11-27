@@ -16,21 +16,26 @@ struct AIConsentSheet: View {
     let answer: (Bool) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text(copy.title).font(.title2.weight(.bold))
-            Text(copy.text)
-            Text(copy.footnote).font(.subheadline).foregroundStyle(.secondary)
-            Button { answer(true) } label: {
-                Text("J'accepte").bold().frame(maxWidth: .infinity, minHeight: 44)
+        // Tout le texte de l'accord se lit (recette du 27.11 : coupé en .medium) : défilement + feuille agrandissable.
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                Text(copy.title).font(.title2.weight(.bold))
+                Text(copy.text).fixedSize(horizontal: false, vertical: true)
+                Text(copy.footnote).font(.subheadline).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button { answer(true) } label: {
+                    Text("J'accepte").bold().frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.borderedProminent).tint(Palette.accent).accessibilityIdentifier(copy.acceptID)
+                Button { answer(false) } label: {
+                    Text(copy.decline).frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.bordered)
             }
-            .buttonStyle(.borderedProminent).tint(Palette.accent).accessibilityIdentifier(copy.acceptID)
-            Button { answer(false) } label: {
-                Text(copy.decline).frame(maxWidth: .infinity, minHeight: 44)
-            }
-            .buttonStyle(.bordered)
+            .padding(24)
         }
-        .padding(24)
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 }
 

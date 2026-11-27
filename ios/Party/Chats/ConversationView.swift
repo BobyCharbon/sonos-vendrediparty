@@ -219,7 +219,7 @@ struct ConversationView: View {
                 }
                 messages(chat).transition(.opacity).onAppear { ChatTiming.mark("conv.shown") }
                 if chat.blocked == true {
-                    // Message direct : j'ai bloqué cette personne ; l'historique reste, l'écriture revient en la débloquant.
+                    // Message direct : j'ai bloqué cette personne ; ses messages sont masqués (serveur), l'écriture revient en la débloquant.
                     footNote("Tu as bloqué \(title). Débloque-le dans les infos (…) pour lui écrire.")
                 } else if request == .incoming || (request == .outgoing && chat.messages.contains { $0.mine }) {
                     // Demande : le destinataire répond après avoir accepté ; l'expéditeur a envoyé son seul message.

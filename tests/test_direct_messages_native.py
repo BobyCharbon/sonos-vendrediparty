@@ -150,3 +150,15 @@ def test_chat_list_signs_the_photo_of_the_other_person():
     acc = accounts_mod.Accounts(b"secret", httpx.Client(transport=httpx.MockTransport(handler)))
     rows = gc.GroupChats(ga.GroupAdmin(acc)).chats("jeton")["chats"]
     assert rows[0]["photo"].endswith("/profile-photos/lea.jpg?t=1") and "photo" not in rows[1]
+
+
+def test_messages_of_someone_i_blocked_are_masked_in_a_direct_chat_too():
+    """Même règle que les groupes (App Store 1.2, recette du 27.11) : bloquer masque aussitôt ses messages directs."""
+    c = fake(blocked=True)[0].conversation("jeton", CHAT, direct=True)
+    lea = [m for m in c["messages"] if m["author"] == LEA]
+    assert lea and all(m["body"] == gc.BLOCKED_TEXT and not m["photo"] and not m["audio"] for m in lea), lea
+    assert c["messages"][1]["reply"]["text"] == gc.BLOCKED_TEXT  # la citation ne garde pas le texte non plus
+    assert c["highlights"] == []
+    mine = next(m for m in c["messages"] if m["author"] == ME)
+    assert mine["body"] == "Oui !" and mine["photo"]  # mes messages restent
+    assert fake()[0].conversation("jeton", CHAT, direct=True)["messages"][0]["body"] == "Tu viens ?"

@@ -306,6 +306,13 @@ def test_admins_name_organizers_and_choose_who_writes_everyone(monkeypatch):
     assert calls == [("org", "t", GRP, member, True), ("all", "t", GRP, "staff")]
 
 
+def test_database_keys_never_show_before_the_sentence():
+    """Recette du 27.11 : « request_pending: … » s'affichait tel quel ; toutes les clés de la base sont retirées."""
+    for key in ("request_pending", "limit", "edit_window", "locked", "pin_limit", "forbidden"):
+        r = httpx.Response(400, json={"message": f"{key}: Une phrase claire."})
+        assert ga.readable(r, "x") == "Une phrase claire.", key
+
+
 def test_messages_of_someone_i_blocked_are_masked_in_a_group():
     """App Store 1.2 : bloquer quelqu'un masque aussitôt ses messages (texte, photo, vocal) et ses épinglés dans les groupes."""
     chats, _seen = fake(blocked=(LEA,))
