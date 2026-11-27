@@ -1096,7 +1096,7 @@ def test_b5_names_every_feature_the_app_store_build_switches_off_by_itself():
     }
     for path, said in gates.items():
         assert said in b5, (path, said)
-    assert "bar: its notification switches" in b5
+    assert "bar, Agenda" in b5 and "Pronos, in Settings › Notifications" in b5
     import re
     seen = set()
     for f in (_root() / "ios").rglob("*.swift"):

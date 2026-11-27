@@ -426,6 +426,8 @@ struct MembersSheet: View {
     /// Règle de l'admin : tout retrait demande une confirmation (contrôle Apple tour 7).
     @State private var removing: TC.Member?
     @State private var reporting: ReportTarget?
+    /// Nouveau lien : l'ancien cesse de marcher pour tout le monde, donc demandé d'abord (contrôle final).
+    @State private var renewing = false
 
     var body: some View {
         NavigationStack {
@@ -482,7 +484,7 @@ struct MembersSheet: View {
                             ShareLink(item: link, message: Text("Rejoins mon pot commun « \(g.name) » dans l'app Party : ")) {
                                 Label("Partager le lien pour rejoindre", systemImage: "square.and.arrow.up")
                             }
-                            Button { Task { await store.renewLink() } } label: { Label("Nouveau lien (l'ancien ne marchera plus)", systemImage: "arrow.clockwise") }
+                            Button { renewing = true } label: { Label("Nouveau lien (l'ancien ne marchera plus)", systemImage: "arrow.clockwise") }
                         }
                     }
                 }
@@ -497,6 +499,10 @@ struct MembersSheet: View {
                 Button("Retirer", role: .destructive) { Task { await store.removeMember(m.id) } }
                 Button("Annuler", role: .cancel) {}
             } message: { _ in Text("Une personne qui a des dépenses reste dans les comptes.") }
+            .confirmationDialog("Créer un nouveau lien ?", isPresented: $renewing, titleVisibility: .visible) {
+                Button("Nouveau lien", role: .destructive) { Task { await store.renewLink() } }
+                Button("Annuler", role: .cancel) {}
+            } message: { Text("L'ancien lien ne marchera plus pour personne.") }
             .alert("Renommer", isPresented: Binding(get: { renaming != nil }, set: { if !$0 { renaming = nil } })) {
                 TextField("Prénom", text: $renameText)
                 Button("Annuler", role: .cancel) {}
