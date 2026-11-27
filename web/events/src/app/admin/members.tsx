@@ -4,7 +4,7 @@ import { View } from 'react-native';
 
 import { DeleteMember } from '@/components/DeleteMember';
 import { SignupOriginStats } from '@/components/SignupOrigin';
-import { Avatar, Button, Card, Chip, ErrorText, Input, LinkRow, Screen, s, Section, T } from '@/components/ui';
+import { Avatar, Button, Card, Chip, ConfirmButton, ErrorText, Input, LinkRow, Screen, s, Section, T } from '@/components/ui';
 import { useAuth, useMe } from '@/lib/auth';
 import { useQuery } from '@/lib/data';
 import { formatMessageTime } from '@/lib/format';
@@ -140,7 +140,7 @@ function MemberRow({ person: p, beta, me, myRank, canRoles, canBan, canDelete, b
             : null}
           {canBan ? (
             p.status === 'active'
-              ? <Chip label="Retirer l’accès" color={colors.coral} disabled={busy} onPress={() => onUpdate(p.id, { status: 'banned' })} />
+              ? <ConfirmButton small label="Retirer l’accès" confirmLabel="Retirer l’accès" onConfirm={() => onUpdate(p.id, { status: 'banned' })} />
               : <Chip label="Réintégrer" disabled={busy} onPress={() => onUpdate(p.id, { status: 'active' })} />
           ) : null}
           {p.status === 'active' && canRoles && !hasCompleteIdentity(p) ? <T muted size={13}>Profil incomplet : il reste Guest tant qu’il manque nom, prénom ou surnom.</T> : null}

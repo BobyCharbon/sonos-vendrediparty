@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Platform, Pressable, Share, View } from 'react-native';
+import { Platform, Share, View } from 'react-native';
 
 import { Button, ConfirmButton, ErrorText, Section, Segmented, T, Toast } from './ui';
 import { useQuery } from '@/lib/data';
@@ -89,9 +89,7 @@ function SingleUseLinks({ kind, id }: { kind: Kind; id: string }) {
                 </T>
               </View>
               {l.status === 'pending' ? (
-                <Pressable accessibilityRole="button" accessibilityLabel="Annuler ce lien" hitSlop={8} onPress={() => void revoke(l.token)}>
-                  <T size={13} weight="semibold" color={colors.redSoft}>Annuler</T>
-                </Pressable>
+                <ConfirmButton small label="Annuler" accessibilityLabel="Annuler ce lien" confirmLabel="Oui, annuler le lien" onConfirm={() => revoke(l.token)} />
               ) : null}
             </View>
           ))}

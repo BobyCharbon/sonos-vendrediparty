@@ -160,6 +160,9 @@ def test_the_organizer_switches_tickets_on_and_hands_them_out(browser, origin):
         pw.expect(frame.get_by_text('✓ Billet remis', exact=True)).to_be_visible(timeout=10000)
         assert state['issued'] == [True]
         frame.get_by_role('button', name='Retirer', exact=True).click()
+        # Retrait confirmé (règle de l'admin, 27.11) : rien ne part avant « Retirer le billet ».
+        assert state['issued'] == [True]
+        frame.get_by_role('button', name='Retirer le billet', exact=True).click()
         pw.expect(frame.get_by_text('Billet pas encore remis', exact=True)).to_be_visible(timeout=10000)
         frame.get_by_role('button', name='Remettre à tous les présents (1)', exact=True).click()
         pw.expect(frame.get_by_text('1 billet remis : chacun est prévenu.', exact=True)).to_be_visible(timeout=10000)

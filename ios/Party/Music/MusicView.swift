@@ -14,6 +14,8 @@ struct MusicView: View {
     @State private var message = ""
     @State private var scanning = false
     @State private var signingIn = false
+    /// Règle de l'admin : tout retrait demande une confirmation.
+    @State private var removing: QueueItem?
     @FocusState private var searchFocused: Bool
 
     var body: some View {
@@ -49,6 +51,12 @@ struct MusicView: View {
             Button("Ajouter") { Task { await store.confirm(name: name) } }
         } message: {
             Text("Il s'affiche à côté de tes titres dans la file.")
+        }
+        .confirmationDialog(removing.map { "Retirer « \($0.title) » de la file ?" } ?? "",
+                            isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
+                            titleVisibility: .visible, presenting: removing) { item in
+            Button("Retirer", role: .destructive) { Task { await store.remove(item) } }
+            Button("Annuler", role: .cancel) {}
         }
         .sheet(isPresented: $scanning) {
             QRScannerSheet { text in Task { await store.handleScanned(text) } }
@@ -224,7 +232,7 @@ struct MusicView: View {
             TrackRow(title: item.title, subtitle: [item.artist, who, when].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "),
                      art: item.art, highlighted: item.isMine, store: store) {
                 if item.isMine && state.queueEditable {
-                    Button(role: .destructive) { Haptics.tap(); Task { await store.remove(item) } } label: {
+                    Button(role: .destructive) { Haptics.tap(); removing = item } label: {
                         Image(systemName: "minus.circle.fill").font(.title2)
                     }
                     .accessibilityLabel("Retirer « \(item.title) » de la file")

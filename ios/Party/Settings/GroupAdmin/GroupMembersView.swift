@@ -159,7 +159,10 @@ struct MemberDetailView: View {
     private func access(_ person: AdminMembers.Person) -> some View {
         Section {
             if person.active {
-                Button("Retirer l'accès", role: .destructive) { Task { await store.setBanned(true, person) } }
+                ConfirmedButton("Retirer l'accès", question: "Retirer l'accès de \(person.name) ?",
+                                message: "La personne ne peut plus rien voir ni faire dans Party ; tu peux la réintégrer ensuite.") {
+                    Task { await store.setBanned(true, person) }
+                }
             } else {
                 Button("Réintégrer") { Task { await store.setBanned(false, person) } }
             }

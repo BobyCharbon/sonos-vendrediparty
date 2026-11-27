@@ -5,7 +5,7 @@ import { Modal, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 import { ast, Badge, Divider, Group, Label, Note, TopBar } from '@/components/agenda/Bits';
 import { SetupBar } from '@/components/agenda/Tutorial';
 import { GroupTile } from '@/components/GroupBits';
-import { Button, ErrorText, Field, Screen, Segmented, T, Toast } from '@/components/ui';
+import { ConfirmButton, Button, ErrorText, Field, Screen, Segmented, T, Toast } from '@/components/ui';
 import {
   agoText, CAL_COLOR_NAMES, CAL_COLORS, calColor, dateDots, errorText, fetchIcs, nativeAgenda, rpc, savePrefs, useAgendaBadge,
   type Calendar, type Links, type NativeAccess, type NativeCalendar, type Prefs, type Sharing,
@@ -276,7 +276,7 @@ function IcsEditor({ cal, onDone }: { cal: Calendar; onDone: () => void }) {
       <ColorChips value={color} onChange={setColor} />
       <ErrorText error={error} />
       <View style={{ flexDirection: 'row', gap: 8 }}>
-        <Button small variant="danger" label="Supprimer" style={{ flex: 1 }} onPress={() => void remove()} />
+        <ConfirmButton small label="Supprimer" confirmLabel="Supprimer ce calendrier" style={{ flex: 1 }} onConfirm={() => remove()} />
         <Button small label="Enregistrer" style={{ flex: 1 }} onPress={() => void save()} />
       </View>
     </View>

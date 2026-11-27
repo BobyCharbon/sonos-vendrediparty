@@ -6,6 +6,8 @@ struct HostTopSection: View {
     let state: AdminState
     @State private var link = ""
     @State private var toLaunch: AdminState.TopPlaylist?
+    /// Règle de l'admin : tout retrait demande une confirmation.
+    @State private var removing: AdminState.TopPlaylist?
 
     var body: some View {
         HostSection("Top playlists", symbol: "music.note.list", badge: count, key: "top", openByDefault: false) {
@@ -27,6 +29,12 @@ struct HostTopSection: View {
             get: { toLaunch != nil }, set: { if !$0 { toLaunch = nil } }), titleVisibility: .visible) {
             Button("Lancer") { if let toLaunch { Task { await store.launch(toLaunch) } } }
         } message: { Text("La file actuelle sera remplacée (les demandes en attente sont gardées).") }
+        .confirmationDialog(removing.map { "Retirer « \($0.title) » de la liste ?" } ?? "",
+                            isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
+                            titleVisibility: .visible, presenting: removing) { x in
+            Button("Retirer", role: .destructive) { Task { await store.editTop(["action": "remove", "id": x.id]) } }
+            Button("Annuler", role: .cancel) {}
+        }
     }
 
     private var count: String? { state.topPlaylists.isEmpty ? nil : "\(state.topPlaylists.count)" }
@@ -46,7 +54,7 @@ struct HostTopSection: View {
                 if index > 0 {
                     Button { Task { await store.editTop(["action": "up", "id": playlist.id]) } } label: { Label("Monter", systemImage: "arrow.up") }
                 }
-                Button(role: .destructive) { Task { await store.editTop(["action": "remove", "id": playlist.id]) } } label: {
+                Button(role: .destructive) { removing = playlist } label: {
                     Label("Retirer de la liste", systemImage: "trash")
                 }
             } label: { Image(systemName: "ellipsis.circle").font(.title3).frame(width: 36, height: 36) }
@@ -177,7 +185,9 @@ struct HostRequestsSection: View {
             }
             Spacer()
             if request.status == "queued" && !state.usesSpotify {
-                Button(role: .destructive) { Task { await store.removeRequest(request) } } label: { Image(systemName: "xmark") }
+                ConfirmedButton(question: "Retirer « \(request.title) » de la file ?", confirm: "Retirer") {
+                    Task { await store.removeRequest(request) }
+                } label: { Image(systemName: "xmark") }
                     .buttonStyle(.bordered).disabled(store.busy.contains("r.\(request.id)"))
                     .accessibilityLabel("Retirer de la file")
             }

@@ -302,8 +302,8 @@ function Editor({ data, onSaved }: { data: DropData; onSaved: (d: DropData) => v
             onConfirm={() => run('publish', () => supabase.rpc('pet_event_drop_publish', { p_event: data.event.id }))} />
         ) : null}
         {data.drop?.status === 'draft' ? (
-          <Button small variant="danger" label="Supprimer le brouillon" loading={busy === 'delete'}
-            onPress={() => run('delete', () => supabase.rpc('pet_event_drop_delete', { p_event: data.event.id }))} />
+          <ConfirmButton small label="Supprimer le brouillon" confirmLabel="Supprimer le brouillon"
+            onConfirm={() => run('delete', () => supabase.rpc('pet_event_drop_delete', { p_event: data.event.id }))} />
         ) : null}
       </View>
     </Section>

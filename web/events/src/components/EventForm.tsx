@@ -18,7 +18,7 @@ import { colors, radius } from '@/lib/theme';
 import type { DateMode, EventRow, MemberGroup, PaymentMode, Poll, PollOption, Reminder } from '@/lib/types';
 import { UNLIMITED_PLUS_ONES, VIP_GROUP_KEY } from '@/lib/types';
 
-import { Button, Cascade, Chip, ErrorText, Field, HeaderBack, Input, Reveal, Rows, s, Screen, Section, Segmented, T, ToggleRow } from './ui';
+import { Button, Cascade, Chip, ConfirmButton, ErrorText, Field, HeaderBack, Input, Reveal, Rows, s, Screen, Section, Segmented, T, ToggleRow } from './ui';
 import { afterPublish } from './InviteStep';
 import { PUBLIC_REVIEW } from './VisibilityChoice';
 import { coversOn, invitesV2On, souvenirsOn } from '@/lib/features';
@@ -953,7 +953,9 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
                       maxLength={120}
                       style={{ flex: 1 }}
                     />
-                    <Button small variant="ghost" label="Retirer" onPress={() => setPoll(i, { options: p.options.filter((_, k) => k !== j) })} />
+                    {p.id
+                      ? <ConfirmButton small label="Retirer" confirmLabel="Retirer et ses votes" onConfirm={() => setPoll(i, { options: p.options.filter((_, k) => k !== j) })} />
+                      : <Button small variant="ghost" label="Retirer" onPress={() => setPoll(i, { options: p.options.filter((_, k) => k !== j) })} />}
                   </Reveal>
                 ))}
                 {p.id ? <T muted size={13}>Les votes des options conservées restent enregistrés. Retirer une option supprime ses votes.</T> : null}
@@ -964,7 +966,9 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
                   <Chip label="Options libres" selected={p.members_can_add_options} onPress={() => setPoll(i, { members_can_add_options: !p.members_can_add_options })} />
                   <Chip label="Résultats après vote" selected={p.results_after_vote} onPress={() => setPoll(i, { results_after_vote: !p.results_after_vote })} />
                 </View>
-                <Button small variant="danger" label="Retirer ce sondage" onPress={() => set({ polls: d.polls.filter((_, j) => j !== i) })} />
+                {p.id
+                  ? <ConfirmButton small label="Retirer ce sondage" confirmLabel="Retirer le sondage et ses votes" onConfirm={() => set({ polls: d.polls.filter((_, j) => j !== i) })} />
+                  : <Button small variant="danger" label="Retirer ce sondage" onPress={() => set({ polls: d.polls.filter((_, j) => j !== i) })} />}
               </Reveal>
             ))}
             {/* Sans « Créer des sondages » (polls.create), la base refuse : le bouton n'est pas proposé. */}

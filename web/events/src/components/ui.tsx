@@ -272,16 +272,19 @@ export function ConfirmButton({
   onConfirm,
   small,
   style,
+  accessibilityLabel,
 }: {
   label: string;
   confirmLabel: string;
   onConfirm: () => void | Promise<unknown>;
   small?: boolean;
   style?: StyleProp<ViewStyle>;
+  /** Nom lu par VoiceOver du premier bouton (« Supprimer la demande de Zoé ») ; sinon le texte affiché. */
+  accessibilityLabel?: string;
 }) {
   const [armed, setArmed] = useState(false);
   const [busy, setBusy] = useState(false);
-  if (!armed) return <Button small={small} variant="danger" label={label} style={style} onPress={() => setArmed(true)} />;
+  if (!armed) return <Button small={small} variant="danger" label={label} style={style} accessibilityLabel={accessibilityLabel} onPress={() => setArmed(true)} />;
   return (
     <View style={[s.row, enter('fade'), style]}>
       <Button small={small} variant="secondary" label="Garder" style={{ flex: 1 }} onPress={() => setArmed(false)} />

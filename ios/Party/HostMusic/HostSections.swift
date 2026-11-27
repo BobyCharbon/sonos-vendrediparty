@@ -108,6 +108,7 @@ struct GuestRow: View {
     @State private var renaming = false
     @State private var newName = ""
     @State private var confirmBan = false
+    @State private var confirmPurge = false
 
     var body: some View {
         HStack(spacing: 10) {
@@ -129,7 +130,7 @@ struct GuestRow: View {
                     Button(role: .destructive) { confirmBan = true } label: { Label("Bannir", systemImage: "nosign") }
                 }
                 if guest.queued > 0 && !usesSpotify {
-                    Button(role: .destructive) { act("purge") } label: { Label("Retirer ses titres en attente", systemImage: "trash") }
+                    Button(role: .destructive) { confirmPurge = true } label: { Label("Retirer ses titres en attente", systemImage: "trash") }
                 }
             } label: {
                 Image(systemName: "ellipsis.circle").font(.title3).frame(width: 36, height: 36)
@@ -149,6 +150,10 @@ struct GuestRow: View {
         .confirmationDialog("Bannir \(guest.name) ?", isPresented: $confirmBan, titleVisibility: .visible) {
             Button("Bannir", role: .destructive) { act("ban") }
         } message: { Text("Il ne pourra plus ajouter de titres ni rejoindre les jeux.") }
+        .confirmationDialog("Retirer les titres en attente de \(guest.name) ?", isPresented: $confirmPurge, titleVisibility: .visible) {
+            Button("Retirer", role: .destructive) { act("purge") }
+            Button("Annuler", role: .cancel) {}
+        }
     }
 
     private var detail: String {

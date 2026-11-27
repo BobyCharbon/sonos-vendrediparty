@@ -65,7 +65,7 @@ struct PrivateNoteCard: View {
                     .font(.caption).foregroundStyle(PronoTheme.t3)
                 Spacer(minLength: 8)
                 if let saved, !saved.isEmpty, !dirty {
-                    Button("Effacer") { Task { await store("") } }
+                    ConfirmedButton("Effacer", question: "Effacer ta note privée ?") { Task { await store("") } }
                         .font(.subheadline.weight(.semibold)).foregroundStyle(PronoTheme.t2)
                         .frame(minHeight: 44)
                         .accessibilityLabel("Effacer ma note")

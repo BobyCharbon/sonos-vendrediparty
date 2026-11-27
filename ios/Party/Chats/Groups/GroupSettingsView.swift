@@ -518,7 +518,8 @@ struct GroupLinksSection: View {
                         }
                         Spacer()
                         if l.status == "pending" {
-                            Button("Annuler", role: .destructive) { Task { await revoke(l) } }
+                            ConfirmedButton("Annuler", question: "Annuler ce lien ?", confirm: "Annuler le lien",
+                                            message: "Il ne marchera plus.") { Task { await revoke(l) } }
                                 .buttonStyle(.borderless).frame(minHeight: 44)
                                 .accessibilityLabel("Annuler ce lien")
                         }

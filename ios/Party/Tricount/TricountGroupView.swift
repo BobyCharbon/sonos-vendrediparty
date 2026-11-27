@@ -86,6 +86,11 @@ struct TricountGroupView: View {
                     }
                     Button { showMembers = true } label: { Label("Membres", systemImage: "person.2") }
                     Button { showSettings = true } label: { Label("Réglages du pot commun", systemImage: "gearshape") }
+                    // Signaler le nom du pot (contrôle Apple du 27.11, 1.2) ; la base refuse si c'est moi qui l'ai créé.
+                    Button { reporting = Self.report(pot: g.id, name: g.name) } label: {
+                        Label("Signaler le nom du pot", systemImage: "flag")
+                    }
+                    .accessibilityIdentifier("tc-report-pot")
                     Button(role: .destructive) { confirmLeave = true } label: { Label("Quitter ce pot commun", systemImage: "rectangle.portrait.and.arrow.right") }
                 } label: { Image(systemName: "ellipsis.circle") }
                 .accessibilityIdentifier("tc-menu")
@@ -103,6 +108,16 @@ struct TricountGroupView: View {
         } message: {
             Text("Tes dépenses restent dans le pot commun. Tu pourras revenir avec le lien.")
         }
+    }
+
+    /// Signaler (contrôle Apple du 27.11) : le nom du pot (type tc_group) ou le prénom d'un membre (tc_member).
+    static func report(pot id: String, name: String) -> ReportTarget {
+        let n = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return ReportTarget(kind: .tcGroup, id: id, label: n.isEmpty ? "le nom de ce pot" : "le nom « \(n) »")
+    }
+
+    static func report(member: TC.Member) -> ReportTarget {
+        ReportTarget(kind: .tcMember, id: member.id, label: "le prénom « \(member.name) »")
     }
 
     // ── En-tête : total et mon solde ──
@@ -410,6 +425,7 @@ struct MembersSheet: View {
     @State private var renameText = ""
     /// Règle de l'admin : tout retrait demande une confirmation (contrôle Apple tour 7).
     @State private var removing: TC.Member?
+    @State private var reporting: ReportTarget?
 
     var body: some View {
         NavigationStack {
@@ -432,8 +448,14 @@ struct MembersSheet: View {
                                 }
                                 Button { renaming = m; renameText = m.name } label: { Label("Renommer", systemImage: "pencil") }.tint(.blue)
                             }
+                            // Tout membre renomme tout membre : on peut aussi signaler son propre prénom.
+                            .contextMenu {
+                                Button { reporting = TricountGroupView.report(member: m) } label: {
+                                    Label("Signaler ce prénom", systemImage: "flag")
+                                }
+                            }
                         }
-                    } footer: { Text("Glisse une ligne pour renommer ou retirer. Une personne qui a des dépenses reste dans les comptes.") }
+                    } footer: { Text("Glisse une ligne pour renommer ou retirer, appuie longtemps pour signaler un prénom. Une personne qui a des dépenses reste dans les comptes.") }
                     if let on = store.myShowPayment {
                         Section {
                             Toggle("Montrer mes moyens de paiement dans ce pot", isOn: Binding(
@@ -466,6 +488,7 @@ struct MembersSheet: View {
                 }
             }
             .navigationTitle("Membres")
+            .sheet(item: $reporting) { ReportSheet(store: store.moderation, target: $0) }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("OK") { dismiss() } } }
             .confirmationDialog(removing.map { "Retirer \($0.name) du pot ?" } ?? "",

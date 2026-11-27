@@ -198,6 +198,13 @@ def test_direct_conversation_neon_card_seen_edit_menu_and_typing(phone, events_o
     page.get_by_text('Ok pour le pain ! 🥖', exact=True).click(button='right')
     pw.expect(page.get_by_role('button', name='Supprimer')).to_be_visible()
     pw.expect(page.get_by_role('button', name='Modifier')).to_have_count(0)
+    # Supprimer : le menu demande d'abord (règle de l'admin, 27.11) ; « Garder » ne supprime rien.
+    page.get_by_role('button', name='Supprimer', exact=True).click()
+    pw.expect(page.get_by_role('button', name='Oui, supprimer ce message')).to_be_visible()
+    page.get_by_role('button', name='Garder', exact=True).click()
+    page.wait_for_timeout(300)
+    assert not [c for c in state['calls'] if 'delete' in c[0]], state['calls']
+    page.get_by_text('Ok pour le pain ! 🥖', exact=True).click(button='right')
     page.get_by_role('button', name='Fermer le menu').click()
     pw.expect(page.get_by_role('button', name='Fermer le menu')).to_have_count(0)
     # Au clavier (lecteur d'écran) : Entrée sur la bulle ouvre le même menu.
@@ -283,6 +290,9 @@ def test_incoming_request_can_be_deleted_or_blocked(phone, events_origin):
     assert ('set_direct_block', {'target': LEA, 'blocked': True}) in state['calls']
     open_dm(page, events_origin, again=True)
     page.get_by_role('button', name='Supprimer la demande').click()
+    # Suppression confirmée (règle de l'admin, 27.11) : rien ne part avant « Oui, supprimer la demande ».
+    assert ('decline_message_request', {'chat': DM}) not in state['calls']
+    page.get_by_role('button', name='Oui, supprimer la demande').click()
     page.wait_for_url('**/events/chats', timeout=10000)
     assert ('decline_message_request', {'chat': DM}) in state['calls']
     assert not errors, errors

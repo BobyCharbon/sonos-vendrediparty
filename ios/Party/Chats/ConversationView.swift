@@ -48,6 +48,9 @@ struct ConversationView: View {
     /// Premier vocal avant les CGU : gardé pendant la feuille, envoyé après « J'accepte », effacé après « Plus tard ».
     @State private var pendingVoice: PendingVoice?
     @State private var confirmBlock = false
+    /// Règle de l'admin : toute suppression demande une confirmation (message, demande de message).
+    @State private var deletingMessage: Conversation.Message?
+    @State private var declining: Conversation?
     /// Organisation d'un événement : le prochain message part en annonce (📣).
     @State private var announcing = false
     /// Bas du fil visible ; sinon le bouton ↓ apparaît avec le nombre de messages arrivés entre-temps.
@@ -140,6 +143,18 @@ struct ConversationView: View {
             } message: {
                 Text("Sa demande disparaît et elle ne pourra plus t'écrire. Les modérateurs sont prévenus. Tu pourras débloquer dans Réglages › Confidentialité.")
             }
+            .confirmationDialog("Supprimer ce message ?",
+                                isPresented: Binding(get: { deletingMessage != nil }, set: { if !$0 { deletingMessage = nil } }),
+                                titleVisibility: .visible, presenting: deletingMessage) { m in
+                Button("Supprimer", role: .destructive) { Task { await store.delete(m) } }
+                Button("Annuler", role: .cancel) {}
+            }
+            .confirmationDialog("Supprimer cette demande ?",
+                                isPresented: Binding(get: { declining != nil }, set: { if !$0 { declining = nil } }),
+                                titleVisibility: .visible, presenting: declining) { chat in
+                Button("Supprimer", role: .destructive) { Task { if await v2.decline(chat) { dismiss() } } }
+                Button("Annuler", role: .cancel) {}
+            } message: { _ in Text("La personne n'est pas prévenue.") }
             .overlay(alignment: .bottom) { notice }
             .task(id: group) {
                 v2.attach(store)
@@ -306,7 +321,7 @@ struct ConversationView: View {
     private func requestBanner(_ request: MessageRequest, chat: Conversation) -> some View {
         RequestBanner(request: request, name: title, sent: chat.messages.contains { $0.mine },
                       onAccept: { Task { await v2.accept(chat) } },
-                      onDelete: { Task { if await v2.decline(chat) { dismiss() } } },
+                      onDelete: { declining = chat },
                       onBlock: { confirmBlock = true },
                       onReport: {
                           if let first = chat.messages.first(where: { !$0.mine }) {
@@ -670,7 +685,7 @@ struct ConversationView: View {
                                  isAdmin: chat.admin, canReply: canReply, player: player,
                                  onReact: { emoji in Haptics.tap(); Task { await store.react(m, emoji) } },
                                  onReply: { reply(to: m) }, onPin: { Task { await store.pin(m) } },
-                                 onDelete: { Task { await store.delete(m) } }, onReport: report,
+                                 onDelete: { deletingMessage = m }, onReport: report,
                                  onPrivateReply: canPrivate ? { replyPrivately(to: m, in: chat) } : nil,
                                  onPhoto: { showPhoto(m) })
             } else {
@@ -683,7 +698,7 @@ struct ConversationView: View {
                            onReply: { reply(to: m) },
                            onQuote: { if let id = m.reply?.id { jumpTo = id } },
                            onPin: { Task { await store.pin(m) } },
-                           onDelete: { Task { await store.delete(m) } },
+                           onDelete: { deletingMessage = m },
                            onReport: report,
                            onEdit: canEdit ? { startEdit(m) } : nil,
                            onPrivateReply: canPrivate ? { replyPrivately(to: m, in: chat) } : nil,

@@ -401,6 +401,7 @@ def test_requests_accept_delete_block_and_report(phone, events_origin):
     pw.expect(page.get_by_text('Signaler la demande de Zoé', exact=True)).to_be_visible()
     page.get_by_role('button', name='Fermer la fenêtre').click()
     page.get_by_role('button', name='Supprimer la demande de Zoé').click()
+    page.get_by_role('button', name='Oui, supprimer la demande').click()
     pw.expect(page.get_by_role('status')).to_contain_text('Demande supprimée')
     pw.expect(page.get_by_text('Hello, tu viens au paintball ?')).to_have_count(0)
     assert ('decline_message_request', {'chat': REQ_ZOE}) in state['rpc']

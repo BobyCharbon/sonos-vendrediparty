@@ -13,6 +13,8 @@ struct ReportTarget: Identifiable, Equatable {
         case tcExpense = "tc_expense"
         /// Un groupe (son nom, contrôle Apple du 26.11, tour 2) : la cible est l'id du groupe.
         case group
+        /// Pot commun (27.11) : son nom (cible = id du pot) et le prénom d'un membre (cible = id de la ligne du membre).
+        case tcGroup = "tc_group", tcMember = "tc_member"
     }
 
     let kind: Kind
@@ -133,6 +135,8 @@ struct ModerationReport: Decodable, Equatable, Identifiable {
         "group_message": "Message de groupe", "direct_message": "Message direct", "event_message": "Discussion d'événement",
         "profile": "Profil", "profile_photo": "Photo de profil", "event": "Événement", "pet_name": "Nom du Zicou", "pet_item": "Objet de Zicou",
         "pet_offer": "Offre d'échange", "pet_showcase": "Vitrine", "pet_word": "Mot de Zicou",
+        "group": "Groupe (nom)", "group_photo": "Photo de groupe", "tc_expense": "Dépense du Pot commun",
+        "tc_group": "Nom du Pot commun", "tc_member": "Prénom (Pot commun)",
     ]
     static let resolutions = ["hide": "Contenu masqué", "warn": "Averti", "suspend": "Suspendu", "ban": "Banni",
                               "dismiss": "Classé sans suite"]

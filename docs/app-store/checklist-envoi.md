@@ -47,6 +47,20 @@
          créateur du pot ; résumé des réponses sans la personne en blocage avec l'organisateur. Ancres vérifiées le 27.11
          en lecture seule contre la prod (état prod + fichier 6 = état de TEST, à l'octet ; `tc_join_info`,
          `flush_rsvp_digests` identiques ; `tc_save_expense` ne diffère que par `require_terms` du fichier 5).
+      14. `2026-11-27-blocage-notifications-pot` (20261127150000) : **PRÊT** (apply + rollback, testés sur TEST le 27.11 :
+         `tests/supabase_live/test_blocage_notifications_pot_live.py`, retour arrière essayé puis réapplication, état
+         identique à l'octet). À appliquer APRÈS les fichiers 5, 6 et 10 (mêmes fonctions, ancres indépendantes : chacun
+         garde celle de l'autre) ; son retour arrière passe AVANT les leurs et refuse s'il existe déjà des signalements
+         `tc_group` / `tc_member`. Redéfinit par ancre `drop_blocked_notification` (plus aucune notification qui vient
+         du créateur d'un événement ou l'annonce — new_event, event_changed, poll_new, poll_nudge, reminder, date_fixed,
+         private_invite, rsvp_set, coorganizer_added, bar_changed — quand il est en blocage avec le destinataire, envois de
+         pg_cron compris, d'après `events.created_by` ; chat, bar, paiements, billets, souvenirs, modération gardés), `report_snapshot`, `moderation_hide`, `notify_new_report`,
+         `notify_content_hidden` et la contrainte `content_reports_target_kind_check` (+ `tc_group`, `tc_member`, ancre
+         'pet_word', tous les types en place gardés). « Signaler » le nom d'un Pot commun et le prénom d'un membre (iPhone,
+         nouveau build). Ancres vérifiées le 27.11 en lecture seule contre la prod (`  return new;\nend`, `elsif p_kind in
+         ('profile', 'profile_photo') then`, `elsif r.target_kind = 'profile' then`, `else 'Zicou' end)`, `else 'Un contenu
+         que tu as publié a été retiré' end`, 'pet_word' : toutes présentes) ; serveur : `app/moderation_api.py` (KINDS)
+         déployé avec.
 - [ ] **Revérifier les ancres contre la prod avant d'appliquer** (150000 a réécrit event_changed, event_guest_list,
       apply_waitlist, event_attendance, public_event, chat_event_cards, invite_preview).
       **Fait le 27.11 en LECTURE SEULE** (`sbq.py prod`, `pg_get_functiondef` de la prod ; photo du 27.11, à refaire si

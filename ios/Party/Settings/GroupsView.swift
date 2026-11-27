@@ -790,7 +790,8 @@ private struct InviteLinkSection: View {
                 }
                 Spacer()
                 if link.status == .pending {
-                    Button("Annuler", role: .destructive) { Task { await store.revoke(link, of: group) } }
+                    ConfirmedButton("Annuler", question: "Annuler ce lien ?", confirm: "Annuler le lien",
+                                    message: "Il ne marchera plus.") { Task { await store.revoke(link, of: group) } }
                         .buttonStyle(.borderless)
                         .disabled(store.busy.contains(link.token))
                 }

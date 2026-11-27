@@ -215,4 +215,14 @@ struct AppStoreReadinessTests {
         #expect(ExpenseEditor.report(expense: "e1", title: "").label == "cette dépense")
         #expect(ExpenseEditor.report(receipt: "e1").kind.rawValue == "tc_expense")
     }
+
+    @Test("Signaler le Pot commun : son nom et le prénom d'un membre (27.11)")
+    func sharedPotNameReportTargets() {
+        #expect(TricountGroupView.report(pot: "g1", name: " Vacances ").kind.rawValue == "tc_group")
+        #expect(TricountGroupView.report(pot: "g1", name: " Vacances ").label == "le nom « Vacances »")
+        #expect(TricountGroupView.report(pot: "g1", name: "").label == "le nom de ce pot")
+        let m = TC.Member(id: "m1", name: "Léa", linked: true, left: false, me: false, balance_cents: 0, payment: nil)
+        #expect(TricountGroupView.report(member: m).kind.rawValue == "tc_member")
+        #expect(TricountGroupView.report(member: m).id == "m1")
+    }
 }

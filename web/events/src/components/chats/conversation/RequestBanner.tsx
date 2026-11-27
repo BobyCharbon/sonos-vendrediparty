@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import { C, cf, Icon, pinkButton, web } from './kit';
-import { Avatar } from '../../ui';
+import { Avatar, ConfirmButton } from '../../ui';
 import { enter, pressTransition } from '@/lib/motion';
 
 type Incoming = {
@@ -72,10 +72,8 @@ function IncomingBanner({ name, userId, photo, onAccept, onDelete, onBlock, onRe
           {busy === 'accept' ? <ActivityIndicator size="small" color={C.onPink} /> : null}
           <Text style={[cf.bold, { color: C.onPink, fontSize: 16 }]}>Accepter</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Supprimer la demande" accessibilityState={{ busy: busy === 'delete' }} onPress={act('delete', onDelete)}
-          style={({ pressed }) => [btn, { backgroundColor: C.glass, borderWidth: 1, borderColor: C.glassLine }, pressTransition, pressed && { opacity: 0.7 }]}>
-          <Text style={[cf.bold, { color: C.t1, fontSize: 16 }]}>Supprimer</Text>
-        </Pressable>
+        {/* Règle de l'admin : toute suppression demande une confirmation. */}
+        <ConfirmButton label="Supprimer" accessibilityLabel="Supprimer la demande" confirmLabel="Oui, supprimer la demande" style={{ flex: 1 }} onConfirm={act('delete', onDelete)} />
       </View>
       <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6 }}>
         {confirmBlock ? (

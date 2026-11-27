@@ -98,7 +98,7 @@ private struct ChatRequestCard: View {
                         .background(ChatNeon.pinkGradient, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
                 .accessibilityIdentifier("chat-request-accept")
-                Button {
+                ConfirmedButton(question: "Supprimer cette demande ?", message: "La personne n'est pas prévenue.") {
                     busy = true
                     Task { await store.decline(chat); busy = false }
                 } label: {

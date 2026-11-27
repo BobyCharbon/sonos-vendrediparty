@@ -40,6 +40,8 @@ const KIND_LABELS: Record<string, string> = {
   booking_request: 'Demande de rendez-vous (personne sans compte)', agenda_link: 'Lien de dispo (page publique)',
   // Souvenirs (24.11) : masquée aussitôt pour tous ; « Masquer » l'efface, « Classer » la remet.
   souvenir: 'Photo Souvenirs',
+  // Pot commun (27.11) : dépense, nom du pot, prénom d'un membre (signalés depuis l'app iPhone).
+  tc_expense: 'Dépense du Pot commun', tc_group: 'Nom du Pot commun', tc_member: 'Prénom (Pot commun)',
 };
 /** Contenus rattachés à un événement : « Ouvrir l'événement » mène au contexte (la copie garde event_id). */
 const EVENT_KINDS = new Set(['event', 'event_message', 'rsvp_note', 'poll', 'poll_option', 'bring_item', 'souvenir']);

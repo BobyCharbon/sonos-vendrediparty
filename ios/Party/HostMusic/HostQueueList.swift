@@ -16,6 +16,8 @@ struct HostQueueList: View {
     let artwork: (String) async -> UIImage?
 
     static let rowHeight: CGFloat = 68
+    /// Règle de l'admin : tout retrait demande une confirmation.
+    @State private var removing: AdminState.QueueTrack?
     /// Titre reposé : il glisse jusqu'à sa case (ressort de la poignée, un peu plus vif que Motion.snappy).
     private static let settle = Animation.spring(response: 0.3, dampingFraction: 0.85)
 
@@ -49,6 +51,12 @@ struct HostQueueList: View {
         .motion(Motion.snappy, value: tracks.map(\.id))
         // Nouvel état du serveur (déplacement confirmé, ou file changée ailleurs) : c'est lui qui fait foi.
         .onChange(of: tracks.map(\.id)) { _ in localOrder = nil }
+        .confirmationDialog(removing.map { "Retirer « \($0.title) » de la file ?" } ?? "",
+                            isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
+                            titleVisibility: .visible, presenting: removing) { x in
+            Button("Retirer", role: .destructive) { action(x, "remove") }
+            Button("Annuler", role: .cancel) {}
+        }
     }
 
     /// Décalage d'une ligne pendant le glissement : la ligne prise suit le doigt, celles qu'elle survole s'écartent.
@@ -119,7 +127,7 @@ struct HostQueueList: View {
             Button { action(track, "down") } label: { Label("Descendre", systemImage: "arrow.down") }
         }
         Button { action(track, "play") } label: { Label("Jouer maintenant", systemImage: "play.fill") }
-        Button(role: .destructive) { action(track, "remove") } label: { Label("Retirer", systemImage: "trash") }
+        Button(role: .destructive) { removing = track } label: { Label("Retirer", systemImage: "trash") }
     }
 
     /// Poignée : seul endroit d'où l'on fait glisser (appui long, puis on bouge le doigt).

@@ -6,6 +6,7 @@ import { PersonFace } from './Faces';
 import { listTime, previewText } from './format';
 import { Icon } from './Icons';
 import { usePersonText } from '@/components/PersonName';
+import { ConfirmButton } from '@/components/ui';
 import type { ChatItem } from '@/lib/chatList';
 import { enter, pressTransition } from '@/lib/motion';
 
@@ -50,11 +51,8 @@ export function RequestCard({ chat, index, busy, onProfile, onAccept, onDecline,
           pressTransition, pressed && { transform: [{ scale: 0.97 }] }]}>
           <Text style={[chatFont.bold, { color: c.onPink, fontSize: 17 }]}>Accepter</Text>
         </Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel={`Supprimer la demande de ${name}`} disabled={busy} onPress={onDecline}
-          style={({ pressed }) => [st.btn, { flex: 1, backgroundColor: c.glass, borderWidth: 1, borderColor: c.line2 }, busy && { opacity: 0.6 },
-            pressTransition, pressed && { transform: [{ scale: 0.97 }] }]}>
-          <Text style={[chatFont.semibold, { color: c.t1, fontSize: 17 }]}>Supprimer</Text>
-        </Pressable>
+        {/* Règle de l'admin : toute suppression demande une confirmation. */}
+        <ConfirmButton label="Supprimer" accessibilityLabel={`Supprimer la demande de ${name}`} confirmLabel="Oui, supprimer la demande" style={{ flex: 1 }} onConfirm={onDecline} />
       </View>
 
       {confirm ? (

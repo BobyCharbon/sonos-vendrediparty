@@ -5,7 +5,7 @@ import { colors, radius } from '@/lib/theme';
 import { fetchCheckins, issueAllTickets, issueTicket, setTicketsEnabled, type TicketPerson } from '@/lib/tickets';
 
 import { PersonName } from './PersonName';
-import { Avatar, Button, ErrorText, Section, T, ToggleRow } from './ui';
+import { ConfirmButton, Avatar, Button, ErrorText, Section, T, ToggleRow } from './ui';
 
 type Props = {
   eventId: string;
@@ -107,7 +107,7 @@ export function TicketsManager({ eventId, enabled, canToggle, onToggled, refresh
 /** « Remettre le billet » / « Retirer » pour un présent (liste des présents, écran d'entrée). */
 export function IssueButton({ person, busy, onPress }: { person: TicketPerson; busy?: boolean; onPress: (issued: boolean) => void }) {
   return person.issued ? (
-    <Button small variant="ghost" label="Retirer" loading={busy} onPress={() => onPress(false)} />
+    <ConfirmButton small label="Retirer" confirmLabel="Retirer le billet" onConfirm={() => onPress(false)} />
   ) : (
     <Button small label="Remettre le billet" loading={busy} onPress={() => onPress(true)} />
   );

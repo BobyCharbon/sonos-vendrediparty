@@ -884,7 +884,11 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
     } else if (direct ? !requestIn && !requestOut : groupPin) {
       out.push({ key: 'pin', label: m.pinned ? 'Désépingler' : 'Épingler', icon: 'pin', run: () => void pin(m.id, !m.pinned) });
     }
-    if (mine || isAdmin) out.push({ key: 'delete', label: 'Supprimer', icon: 'trash', danger: true, run: () => void remove(m.id) });
+    // Règle de l'admin : toute suppression demande une confirmation ; le menu se rouvre avec la question.
+    if (mine || isAdmin) out.push({ key: 'delete', label: 'Supprimer', icon: 'trash', danger: true, run: () => setMenu({ m, actions: [
+      { key: 'delete-yes', label: 'Oui, supprimer ce message', icon: 'trash', danger: true, run: () => void remove(m.id) },
+      { key: 'delete-no', label: 'Garder', icon: 'x', run: () => {} },
+    ] }) });
     if (!mine) out.push({ key: 'report', label: 'Signaler', icon: 'flag', danger: true, run: () => report(m) });
     return out;
   }

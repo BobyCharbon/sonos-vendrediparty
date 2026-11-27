@@ -29,7 +29,7 @@ import { ReportSheet } from './ReportSheet';
 import { RsvpButtons } from './RsvpButtons';
 import { PotPaymentToggle } from './PotPaymentToggle';
 import { termsLater, useTermsGate } from './TermsSheet';
-import { Avatar, Button, Chip, ErrorText, Input, Meter, Reveal, s, Section, T } from './ui';
+import { Avatar, Button, ConfirmButton, Chip, ErrorText, Input, Meter, Reveal, s, Section, T } from './ui';
 import { NameLinks, type NamedPerson } from './NameLinks';
 
 type Names = Map<string, string>;
@@ -805,7 +805,7 @@ export function BringSection({
             {/* Qui le prend change (moi, un autre, personne) : la nouvelle action se pose à sa place. */}
             <Reveal key={`${it.claimed_by ?? 'libre'}`} kind={grew || claimsChanged ? 'pop' : null}>
             {it.added_by === me ? (
-              <Button small variant="secondary" label="Retirer" onPress={() => act(supabase.from('bring_items').delete().eq('id', it.id), onChange, setError)} />
+              <ConfirmButton small label="Retirer" confirmLabel="Retirer" onConfirm={() => act(supabase.from('bring_items').delete().eq('id', it.id), onChange, setError)} />
             ) : it.claimed_by === me ? (
               <Button small variant="secondary" label="Je ne prends plus" onPress={() => act(supabase.from('bring_items').update({ claimed_by: null }).eq('id', it.id), onChange, setError)} />
             ) : it.claimed_by ? (

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { termsLater, useTermsGate } from './TermsSheet';
-import { Avatar, Button, Card, ErrorText, Field, T } from './ui';
+import { ConfirmButton, Avatar, Button, Card, ErrorText, Field, T } from './ui';
 import {
   CarpoolError, MAX_SEATS, carpoolSummary, drive, drop, fetchCarpool, freeSeats, leave, pick, seek, takeSeat,
   type Carpool, type CarpoolDriver, type CarpoolMe, type CarpoolPerson,
@@ -135,12 +135,12 @@ function MyStatus({ me, myCar, riding, busy, onLeave, onChange, onDrop }: {
         <View key={p.id} style={st.person}>
           <Avatar id={p.id} name={p.name} size={26} />
           <T size={14} style={st.grow}>{p.name}</T>
-          <Button label="Retirer" variant="ghost" small disabled={busy} accessibilityLabel={`Retirer ${p.name} de ta voiture`} onPress={() => onDrop(p.id)} />
+          <ConfirmButton label="Retirer" small confirmLabel={`Retirer ${p.name}`} onConfirm={() => onDrop(p.id)} />
         </View>
       ))}
       <View style={st.row}>
         {!riding ? <Button label="Modifier" variant="secondary" small disabled={busy} onPress={onChange} /> : null}
-        <Button label={leaveLabel} variant="ghost" small disabled={busy} onPress={onLeave} />
+        <ConfirmButton label={leaveLabel} small confirmLabel={leaveLabel} onConfirm={onLeave} />
       </View>
     </View>
   );

@@ -95,7 +95,7 @@ struct GroupAdminView: View {
                     HStack {
                         Button("Accepter") { Task { await store.decide(request, accept: true) } }
                             .buttonStyle(.borderedProminent).disabled(!request.complete)
-                        Button("Refuser", role: .destructive) { Task { await store.decide(request, accept: false) } }
+                        ConfirmedButton("Refuser", question: "Refuser cette demande ?") { Task { await store.decide(request, accept: false) } }
                             .buttonStyle(.bordered)
                     }
                     .controlSize(.small)
