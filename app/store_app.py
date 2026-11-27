@@ -137,6 +137,10 @@ RAPE = re.compile(r"(?<![^\W\d_])(?<!une )(?<!la )(?<!ma )(?<!ta )(?<!sa )(?<!le
 CREVE = re.compile(r"(?<![^\W\d_])(cr[eè]vez|cr[eè]vent|crèves?)(?![^\W\d_])(?![\s-]+(de|d['’]|du|des|c(œ|oe)ur)\b)",
                    re.IGNORECASE)
 
+# « champ' » (champagne, lot 16) : forme exacte avec son apostrophe, lue sur le texte tel quel ; « champ », « champs »,
+# « champion » passent.
+CHAMP = re.compile(r"(?<![^\W\d_])champ['’ʼ](?![^\W\d_])", re.IGNORECASE)
+
 
 def _plain_hit(text: str) -> bool:
     """Une forme du texte (NFKC) : liste commune de l'app, argot, chiffres, lettres séparées, deux morceaux recollés."""
@@ -316,7 +320,7 @@ def player_offensive(text) -> bool:
     compris (formes NFKC, sosies cyrillique / grec, accents hors table, chiffres, signes, lettres séparées ou répétées,
     morceaux recollés, mot collé à un article)."""
     text = PLAYER_SAFE.sub(" ", nfkc(moderation_clean(str(text or ""))))
-    if RAPE.search(text) or CREVE.search(text) or _plain_hit(text):
+    if RAPE.search(text) or CREVE.search(text) or CHAMP.search(text) or _plain_hit(text):
         return True
     base_ok = moderation_check(text, "name").ok  # insulte d'une réponse masquée ailleurs : seulement si une forme la révèle
     for form in _derived(text):

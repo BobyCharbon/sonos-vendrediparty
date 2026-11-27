@@ -112,7 +112,7 @@ def test_review_notes_describe_every_big_feature_delivered_by_the_web():
     features = {
         "invitations v2 (liens pour une personne / Plusieurs)": "Plusieurs",
         "partage commun (chaque invité crée ses liens)": "own links",
-        "accord de l'organisateur": "À accepter",
+        "accord de l'organisateur": "attend ton accord",
         "sondage de dates": "Date poll",
         "agenda abonné": "calendar feed",
         "covoiturage": "Carpool",

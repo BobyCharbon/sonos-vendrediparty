@@ -24,7 +24,7 @@ import { ReportSheet } from './ReportSheet';
 import { SouvenirsChatBanner } from './souvenirs/SouvenirsChatBanner';
 import { termsLater, useTermsGate } from './TermsSheet';
 import { usePersonText } from './PersonName';
-import { Button, Input, Loading, s, Toast } from './ui';
+import { Button, ConfirmButton, Input, Loading, s, Toast } from './ui';
 import { useMe } from '@/lib/auth';
 import { useContactNames } from '@/lib/contactNames';
 import { chatTimeline, directAsGroupMessage, EVENT_TAGS, eventChatPrefs, eventTag, firstUnread, insertMention, isAnnouncement, markEventChatRead,
@@ -879,10 +879,17 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
       out.push({ key: 'copy', label: 'Copier', icon: 'copy', run: () => { void navigator.clipboard?.writeText(withoutAnnounceTag(m.body)).catch(() => {}); } });
     }
     if (mine && canCompose && editable(m)) out.push({ key: 'edit', label: 'Modifier', icon: 'pencil', run: () => startEdit(m) });
+    // Retirer une annonce / désépingler retire pour tout le monde : confirmé comme une suppression.
+    const unpinAsk = (yes: string) => () => setMenu({ m, actions: [
+      { key: 'unpin-yes', label: yes, icon: 'pin', danger: true, run: () => void pin(m.id, false) },
+      { key: 'unpin-no', label: 'Garder', icon: 'x', run: () => {} },
+    ] });
     if (announced) {
-      if (isStaff) out.push({ key: 'pin', label: 'Retirer l’annonce', icon: 'pin', run: () => void pin(m.id, false) });
+      if (isStaff) out.push({ key: 'pin', label: 'Retirer l’annonce', icon: 'pin', run: unpinAsk('Oui, retirer l’annonce') });
     } else if (direct ? !requestIn && !requestOut : groupPin) {
-      out.push({ key: 'pin', label: m.pinned ? 'Désépingler' : 'Épingler', icon: 'pin', run: () => void pin(m.id, !m.pinned) });
+      out.push(m.pinned
+        ? { key: 'pin', label: 'Désépingler', icon: 'pin', run: unpinAsk('Oui, désépingler ce message') }
+        : { key: 'pin', label: 'Épingler', icon: 'pin', run: () => void pin(m.id, true) });
     }
     // Règle de l'admin : toute suppression demande une confirmation ; le menu se rouvre avec la question.
     if (mine || isAdmin) out.push({ key: 'delete', label: 'Supprimer', icon: 'trash', danger: true, run: () => setMenu({ m, actions: [
@@ -1057,8 +1064,9 @@ export function GroupChat({ id, direct = false, event = false, attachEvent = nul
               </Pressable>
               {bannerMenu && canUnpinBanner ? (
                 <View style={[s.row, { marginHorizontal: 12, marginTop: 6 }, enter('drop')]}>
-                  <Button small variant="secondary" label={banner.announcement ? 'Retirer l’annonce' : 'Désépingler'}
-                    onPress={() => { setBannerMenu(false); void pin(banner.id, false); }} />
+                  <ConfirmButton small label={banner.announcement ? 'Retirer l’annonce' : 'Désépingler'}
+                    confirmLabel={banner.announcement ? 'Oui, retirer' : 'Oui, désépingler'}
+                    onConfirm={() => { setBannerMenu(false); void pin(banner.id, false); }} />
                   <Button small variant="ghost" label="Annuler" onPress={() => setBannerMenu(false)} />
                 </View>
               ) : null}

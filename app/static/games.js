@@ -3163,7 +3163,8 @@ function presenceTag(p) {
 function openKickSheet(pid) {
   const p = game?.players.find((x) => x.pid === pid);
   if (!p) return;
-  if (p.manual) return gameAction("remove", { target: pid });  // sans téléphone : on le retire simplement
+  // Sans téléphone : on le retire simplement, après confirmation (règle de l'admin : tout retrait est confirmé).
+  if (p.manual) return confirm(`Exclure ${p.name} de la partie ?`) ? gameAction("remove", { target: pid }) : undefined;
   closeRoomSheet(true);
   const name = esc(p.name);
   const wrap = document.createElement("div");
@@ -3369,7 +3370,7 @@ document.addEventListener("click", (ev) => {
   if (a === "show") { wordShown = b.dataset.key; wordUntil = Date.now() + 3000; return renderGame(game); }
   if (a === "hide") { wordShown = ""; wordUntil = 0; return renderGame(game); }
   if (a === "roles") { showRoles = !showRoles; return renderGame(game); }
-  if (a === "dropname") return gameAction("names", { names: game.names.filter((n) => n !== b.dataset.name) });
+  if (a === "dropname") return !confirm(`Retirer ${b.dataset.name} de la roue ?`) ? undefined : gameAction("names", { names: game.names.filter((n) => n !== b.dataset.name) });
   if (a === "addplayers") return gameAction("names", { names: game.names.concat(game.players.map((p) => p.name)) });
   if (a === "eliminate" && !confirm("Éliminer ce joueur ?")) return;
   if (a === "remove") return openKickSheet(b.dataset.target);

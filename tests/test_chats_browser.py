@@ -186,6 +186,9 @@ def test_announcement_is_highlighted_on_top_and_an_admin_removes_it_with_a_long_
     assert frame.get_by_text('📣 ANNONCE').first.is_visible()  # la carte de l'annonce dans le fil
     banner.click(delay=900)  # appui long
     frame.get_by_role('button', name='Retirer l’annonce').click()
+    # Retirer pour tout le monde : toujours confirmé (règle de l'admin), rien n'est retiré avant.
+    assert not any(c[0] == 'pin' for c in state['rpc'])
+    frame.get_by_role('button', name='Oui, retirer').click()
     pw.expect(banner).to_have_count(0)
     assert ('pin', {'msg': 'a0000000-0000-4000-8000-000000000002', 'pin': False}) in state['rpc']
     # Un membre annonce à son tour : sa bulle s'affiche en annonce aussitôt, la base l'épingle.
@@ -225,6 +228,9 @@ def test_an_organizer_announces_and_removes_announcements(phone, events_origin):
     banner = frame.get_by_role('button', name='Annonce : Tom, Soirée samedi 20h chez Léa')
     banner.click(delay=900)
     frame.get_by_role('button', name='Retirer l’annonce').click()
+    # Retirer pour tout le monde : toujours confirmé (règle de l'admin), rien n'est retiré avant.
+    assert not any(c[0] == 'pin' for c in state['rpc'])
+    frame.get_by_role('button', name='Oui, retirer').click()
     pw.expect(banner).to_have_count(0)
     assert ('pin', {'msg': 'a0000000-0000-4000-8000-000000000002', 'pin': False}) in state['rpc']
     assert not errors, errors

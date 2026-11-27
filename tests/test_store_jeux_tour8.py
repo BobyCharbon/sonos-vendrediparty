@@ -128,3 +128,19 @@ def test_divan_cards_about_a_drink_or_a_legendary_night_are_left_out_of_the_app(
     from app import divan_cards, store_app
     assert card in str(vars(divan_cards)) and store_app.drinky(card)
     assert not store_app.drinky("Si tu étais une créature légendaire, laquelle serais-tu ?")
+
+
+# ── Lot 16 : apéritif, effervescents, tabac à sucer, « une Kro », « champ' » (joueurs de l'app seulement) ──
+@pytest.mark.parametrize("text", ["Pastaga", "Un pastaga", "Du mousseux", "Un crémant", "Snus", "Du snus", "Du champ'",
+                                  "champ’", "Une Kro", "Kro"])
+def test_lot16_drink_and_tobacco_words_are_refused_for_app_players(text):
+    assert main.name_refusal(text, True) != ""
+    assert answer_blocked(text)
+    assert moderation.check(text, "answer").ok  # le filtre commun (web, événements) n'y touche pas
+
+
+@pytest.mark.parametrize("text", ["Suze", "jaune", "un demi", "high", "piccolo", "déchiré", "Krokmou", "champion",
+                                  "Un champ de blé", "Les Champs-Élysées"])
+def test_lot16_neighbours_stay_accepted(text):
+    assert main.name_refusal(text, True) == ""
+    assert not answer_blocked(text)

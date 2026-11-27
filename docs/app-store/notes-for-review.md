@@ -50,10 +50,10 @@ CHANGES SINCE THE 1.4.3 REJECTION (new build + server)
 Removed: every drinking-related game (Pyramide, Je n'ai jamais, Qui de nous ?, Roulette, Beer pong, Biskit, Purify Test), every drink option, Hot/Mix questions, the party bar, Casino, Blackjack and the Music tab. Not renamed; our server refuses them, even by code or QR.
 
 SIGN-IN
-Phone + 6-digit SMS code. Demo "Apple-test": number and code in the sign-in fields (fixed, no SMS).
+Phone + 6-digit SMS code. Demo "Apple-test": number and code in the sign-in fields (no SMS).
 
 TRY IT
-1. Events > "Soirée démo Vendredi Party" (co-organiser): answer "Présent", see who comes, event chat, then "Remettre à tous les présents": your QR ticket.
+1. Events > "Soirée démo Vendredi Party" (co-organiser): answer "Présent", event chat, then "Remettre à tous les présents": your QR ticket.
 2. Events > "+ Proposer" > "Sur invitation" > tick group "Démo Apple" > Publish: live at once. Public events: moderated first (1.2).
 3. Discussions > "Démo Apple": long-press > "Signaler"; "Nouveau message"; "Demandes".
 4. Games > "Créer une salle" > Quiz, or Méninges.
@@ -62,16 +62,16 @@ NATIVE (4.2)
 Tab bar, SwiftUI Settings, Discussions, Groups, event chat, "Ton avis", AI assistant, "Pot commun", "Mes amis dans Party". Push (switch per type), Wallet, QR scanner, Calendar, Contacts (optional, hashed), dictation. Share sheet > "Party !": event from a link.
 
 WEB CONTENT (2.5.2)
-Events and Games tabs: our site in a WKWebView. Other sites: Safari. Games > Code: 4 digits = a game; 6 digits = a host's music party (native screen, no tab; needs the host's Sonos; we run one on request; optional Live Activity for your song). Not in this version (would need a new review): Pronos, Agenda, companion, Souvenirs. In the binary but never opened by this build (2.5.19): companion, Pyramide card panel.
+Events and Games tabs: our site in a WKWebView. Other sites: Safari. Games > Code: 4 digits = a game; 6 digits = a host's music party (native screen, no tab; needs the host's Sonos; we run one on request; optional Live Activity for your song). Not in this version (would need a new review): Pronos, Agenda, companion, Souvenirs. In the binary but never opened by this build (2.5.19): companion, Pyramide card panel, bar notification switches.
 
 EVENTS
-Links for one person or "Plusieurs"; guests make and stop own links. Not public: a guest's guest waits ("À accepter"). Date poll. Calendar feed. Carpool (no money), QR ticket + Wallet: organiser options. Groups: "Inviter" > "Le lien du groupe" (WhatsApp, Copier, Autre, QR). Events need sign-in (nickname ≤ 12 characters); games need none. Updates live; tap a name to open the profile; each answer shows its time. Admins: "Nouveau compte", announcement or maintenance.
+Links for one person or "Plusieurs"; guests make and stop own links. Not public: a guest's guest waits ("… attend ton accord"). Date poll. Calendar feed. Carpool (no money), QR ticket + Wallet: organiser options. Groups: "Inviter" > "Le lien du groupe" (WhatsApp, Copier, Autre, QR). Events need sign-in (nickname ≤ 12 characters); games need none. Updates live; tap a name to open the profile; each answer shows its time. Admins: "Nouveau compte", announcement or maintenance.
 
 PAYMENTS (3.1.3(e))
 Party never sells, holds or moves money. Events: organiser's own Revolut/Twint/IBAN, ticketing link (Safari) or on site. Once confirmed, guests get a QR entry ticket for the real event; nothing digital is sold or unlocked. "Pot commun": "Présent" at an event with a pot (or marked so) adds you; leave it in Settings; auto-added members' payment details stay hidden until they pick "Montrer mes moyens de paiement dans ce pot"; "Rembourser" shows them; "Signaler" on expenses and receipts.
 
 DISCUSSIONS (1.2)
-Event chats: guests coming ("Présent"/"Peut-être") and organisers only. DMs only with a real link (shared group or event); others send a message request: one text, no photo/link/number: "Accepter / Supprimer / Bloquer / Signaler". "Demandes de message" in Settings. "Nouveau message": real links, search by name; 2+ people: private group, not read by admins. Terms first, word filter, "Signaler" on each message; "Bloquer": messages from a blocked person disappear at once, moderators alerted. Reports: within 24 h. Demo "Apple-test 2" (+41 79 000 00 01, same code): sender side. Contact: support@vendrediparty.ch.
+Event chats: guests coming ("Présent"/"Peut-être") and organisers only. DMs only with a real link (shared group or event); others send a message request: one text, no photo/link/number: "Accepter / Supprimer / Bloquer / Signaler". "Demandes de message" in Settings. "Nouveau message": real links, search by name; 2+ people: private group, not read by admins. Terms first, word filter, "Signaler" on each message; "Bloquer": messages from a blocked person disappear at once, moderators alerted. Reports: ≤ 24 h. Demo "Apple-test 2" (+41 79 000 00 01, same code): sender side. Contact: support@vendrediparty.ch.
 
 AI (5.1.2(i))
 "Avec l'IA", "Ton avis" and receipts go to Anthropic (Claude) only after "J'accepte" (withdraw in Settings).
@@ -213,8 +213,9 @@ On an online event you organise (e.g. one you create), card **Invités** › **+
   link name ("Nom du lien"), then **Partager le lien…** (iOS share sheet: Messages, WhatsApp…) or copy it.
 - The person opens the link, signs in with their phone like everyone, and answers.
 - Each guest has the same "Invités" card with **counts only** (never names) and can create, copy and stop **their own**
-  links. On a non-public event, someone who comes through a *guest's* link waits for the organiser: section
-  **À accepter** in the organiser's "Invités" card.
+  links. On a non-public event, someone who comes through a *guest's* link waits for the organiser: the
+  organiser's "Invités" card shows **"… attend ton accord"** ("N personnes attendent ton accord" for several), with
+  **Accepter** / **Refuser**.
 - **↻ Relancer** (organisers, in the folded "Invités" card): reminds the guests who have not answered, at most one
   notification a day; guests without the app or notifications get a link the organiser shares himself.
 - Places: when an event with a seat limit is full and the organiser keeps a waiting list, new answers go to the
@@ -450,9 +451,10 @@ the app never opens its games.
   feature** delivered this way is described in these notes before it is turned on in production (2.3.1(a)). Pronos,
   Agenda, the companion and Souvenirs (event photos) are not available in this app, and the removed games stay removed for version 1.0.0. They
   would only come in a future app version submitted for review and approved, never for this version.
-- Documented here, not hidden (2.5.19): Pronos, Agenda and Souvenirs are not compiled into this build. Two pieces of
-  code are in the binary but never opened by it: the companion, and the private card panel of the removed Pyramide
-  game. The App Store build switches them off by itself; no screen, setting, link or server answer can open them.
+- Documented here, not hidden (2.5.19): Pronos, Agenda and Souvenirs are not compiled into this build. Three pieces of
+  code are in the binary but never opened by it: the companion, the private card panel of the removed Pyramide
+  game, and the bar's notification switches in Settings › Notifications (hidden because the bar is off in this build).
+  The App Store build switches them off by itself; no screen, setting, link or server answer can open them.
 
 ### B6. User-generated content and safety (1.2)
 

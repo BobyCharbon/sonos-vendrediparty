@@ -227,5 +227,8 @@ STORE_ONLY = (
     # haine : vocabulaire nazi (« reich » en mot exact : Reichenbach passe)
     "gestapo", "swastika", "svastika", "croix gammee", "hakenkreuz", "wehrmacht", "=waffen", "=reich", "=kapos?",
     "mengele", "eva braun", "sieg heil", "hitlerjugend",
+    # Lot 16 (27.11) : apéritif, vins effervescents, tabac à sucer, « une Kro » (mot entier : « Krokmou » passe) ;
+    # « champ' » est lu sur le texte tel quel (store_app.CHAMP : « champion », « un champ » passent).
+    "pastaga", "mousseux", "cremant", "=snus", "=kro",
     # Lot 15b : phrases de haine et d'incitation au suicide du tour 8, sorties du filtre commun (faux refus)
 ) + HATE_PHRASES + SUICIDE

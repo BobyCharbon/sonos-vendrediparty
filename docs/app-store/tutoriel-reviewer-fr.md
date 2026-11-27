@@ -83,7 +83,7 @@ jamais la liste des membres. 📸 (étape 1)
 ### 3.5 Inviter
 Carte **Invités** › **+ Inviter** › **Une personne** ou **Plusieurs** (sans limite par défaut, − / + pour les places),
 nom du lien facultatif › **Partager le lien…**. Chaque invité voit les **chiffres** seulement et gère ses propres liens.
-Événement non public : la personne venue par le lien d'un invité attend dans **À accepter**. Groupes : Réglages ›
+Événement non public : la personne venue par le lien d'un invité attend : la carte **Invités** affiche « … attend ton accord » (**Accepter** / **Refuser**). Groupes : Réglages ›
 Groupes › un groupe › **Inviter** › **Le lien du groupe** (WhatsApp, Copier, Autre, code QR). Amis : Réglages › **Mes amis dans Party** (facultatif, Contacts
 demandé après une explication) : contacts déjà sur Party (empreinte des numéros faite sur l'iPhone, aucun nom ne sort),
 et contacts pas encore sur Party, chacun avec son bouton qui ouvre Messages d'Apple avec mon lien personnel : je relis et

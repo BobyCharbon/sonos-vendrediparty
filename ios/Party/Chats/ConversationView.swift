@@ -63,6 +63,8 @@ struct ConversationView: View {
     /// Entré avec sa réponse à un événement (17.11) : bandeau gardé tant que l'écran est ouvert (la base ne le rend qu'une fois).
     @State private var joinNote: Conversation.JoinNote?
     @State private var confirmLeave = false
+    /// Retirer une annonce / désépingler (pour tout le monde) : toujours confirmé.
+    @State private var unpinning: Conversation.Highlight?
     /// « Nouveaux messages » : premier message non lu à l'ouverture, et leur nombre (discussion d'un événement).
     @State private var newFrom: String?
     @State private var newCount = 0
@@ -155,6 +157,12 @@ struct ConversationView: View {
                 Button("Supprimer", role: .destructive) { Task { if await v2.decline(chat) { dismiss() } } }
                 Button("Annuler", role: .cancel) {}
             } message: { _ in Text("La personne n'est pas prévenue.") }
+            .confirmationDialog(unpinning?.announcement == true ? "Retirer l'annonce ?" : "Désépingler ce message ?",
+                                isPresented: Binding(get: { unpinning != nil }, set: { if !$0 { unpinning = nil } }),
+                                titleVisibility: .visible, presenting: unpinning) { h in
+                Button(h.announcement ? "Retirer l'annonce" : "Désépingler", role: .destructive) { Task { await store.unpin(h.id) } }
+                Button("Annuler", role: .cancel) {}
+            } message: { _ in Text("Il n'apparaîtra plus en haut de la discussion, pour tout le monde.") }
             .overlay(alignment: .bottom) { notice }
             .task(id: group) {
                 v2.attach(store)
@@ -519,7 +527,7 @@ struct ConversationView: View {
         .contextMenu {
             Button { jumpTo = h.id } label: { Label("Voir le message", systemImage: "text.bubble") }
             if canRemove {
-                Button(role: .destructive) { Task { await store.unpin(h.id) } } label: {
+                Button(role: .destructive) { unpinning = h } label: {
                     Label(h.announcement ? "Retirer l'annonce" : "Désépingler", systemImage: "pin.slash")
                 }
             }
@@ -527,7 +535,7 @@ struct ConversationView: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(h.announcement ? "Annonce" : "Épinglé") \(pins.count > 1 ? "\(index + 1) sur \(pins.count)" : "") : \(h.authorName), \(Self.clean(h.text))")
         .accessibilityHint("Touche pour voir le message")
-        .accessibilityAction(named: h.announcement ? "Retirer l'annonce" : "Désépingler") { if canRemove { Task { await store.unpin(h.id) } } }
+        .accessibilityAction(named: h.announcement ? "Retirer l'annonce" : "Désépingler") { if canRemove { unpinning = h } }
         .accessibilityIdentifier("chat-banner")
     }
 
