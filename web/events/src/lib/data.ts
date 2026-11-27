@@ -7,6 +7,8 @@ import { must, supabase } from './supabase';
 import type { Category, EventRow, Rsvp, Tag } from './types';
 
 let realtimeSubscriptionSequence = 0;
+/** Au-delà, une lecture en cours est tenue pour bloquée : useQuery en relance une sans l'attendre. */
+const STUCK_MS = 15_000;
 
 /** Charge des données, recharge au retour sur l'écran, expose `reload`. `initial` : dernière version connue (cache),
  * affichée tout de suite puis remplacée par la lecture fraîche (Discussions : liste et conversations sans attente). */
@@ -16,16 +18,37 @@ export function useQuery<T>(fn: () => Promise<T>, deps: unknown[] = [], initial:
   const [loading, setLoading] = useState(initial === null);
   const fnRef = useRef(fn);
   useEffect(() => { fnRef.current = fn; }, [fn]);
+  // Une seule lecture à la fois, plus UNE de rattrapage : une rafale (temps réel, signal, retour sur l'écran) pendant
+  // qu'une lecture tourne ne lance plus des lectures en parallèle. Recette du 27.11 : une publication déclenchait des
+  // dizaines de lectures lourdes qui se doublaient, la base de TEST saturait et la fiche restait 10 s en squelette.
+  // Qui attend `reload()` après une écriture reçoit la lecture de rattrapage, qui part après l'écriture.
+  // Lecture bloquée (réseau perdu, app en veille) : au-delà de STUCK_MS, une nouvelle lecture part quand même.
+  const running = useRef<Promise<void> | null>(null);
+  const startedAt = useRef(0);
+  const again = useRef(false);
 
-  const reload = useCallback(async () => {
-    try {
-      setData(await fnRef.current());
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
+  const reload = useCallback(() => {
+    if (running.current && Date.now() - startedAt.current < STUCK_MS) {
+      again.current = true;
+      return running.current;
     }
+    startedAt.current = Date.now();
+    const run = async () => {
+      do {
+        again.current = false;
+        try {
+          setData(await fnRef.current());
+          setError(null);
+        } catch (e) {
+          setError(e instanceof Error ? e.message : String(e));
+        } finally {
+          setLoading(false);
+        }
+      } while (again.current);
+    };
+    const current = run().finally(() => { if (running.current === current) running.current = null; });
+    running.current = current;
+    return current;
     // This wrapper deliberately forwards the caller's dependency list.
     // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/use-memo
   }, deps);

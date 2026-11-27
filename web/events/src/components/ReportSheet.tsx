@@ -69,7 +69,9 @@ export function ReportSheet({ target, onClose, send: sendOwn, allowContext = fal
           {sent ? (
             <>
               <T weight="bold" size={18}>Merci, c’est envoyé</T>
-              <T muted size={14}>{thanks ?? 'Un modérateur va regarder. La personne n’est pas prévenue que c’est toi.'}</T>
+              <T muted size={14}>{thanks ?? (target?.kind === 'group'
+                ? 'Un modérateur va regarder. Ni le groupe ni ses membres ne sont prévenus que c’est toi.'
+                : 'Un modérateur va regarder. La personne n’est pas prévenue que c’est toi.')}</T>
               <T muted size={13}>Urgent ou grave (menace, contenu illégal) : écris aussi à {SUPPORT_EMAIL}.</T>
               <Button label="Fermer" onPress={close} />
             </>

@@ -431,3 +431,5 @@ export function authorOf(item: { author?: string | null; author_name?: string | 
 
 /** Discussion réservée à ceux qui viennent (décision de l'admin du 19.11) : Présent / Peut-être et l'organisation. */
 export const CHAT_FOR_GUESTS = 'La discussion est réservée à ceux qui viennent : réponds Présent ou Peut-être pour la rejoindre.';
+/** Sondage de dates (recette du 27.11) : pas de « Présent » avant la date fixée, on le dit au lieu de renvoyer vers un bouton absent. */
+export const CHAT_FOR_VOTERS = 'La discussion est réservée à ceux qui viennent : vote les dates, puis réponds Présent ou Peut-être une fois la date fixée pour la rejoindre.';

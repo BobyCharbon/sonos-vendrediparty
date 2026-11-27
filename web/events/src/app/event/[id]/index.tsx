@@ -44,7 +44,7 @@ import type { ReportTarget } from '@/lib/moderation';
 import { must, supabase } from '@/lib/supabase';
 import { openEventChat, sendEventToFriend } from '@/lib/nativeChat';
 import { repeatLabel, type Series } from '@/lib/recurrence';
-import { CHAT_FOR_GUESTS } from '@/lib/chats';
+import { CHAT_FOR_GUESTS, CHAT_FOR_VOTERS } from '@/lib/chats';
 import { colors, radius } from '@/lib/theme';
 import { ticketRelevant, chf } from '@/lib/tickets';
 import type { BringItem, Category, DateOption, DateVoteRow, EventRow, Message, Poll, PollOption, Rsvp, Tag } from '@/lib/types';
@@ -140,11 +140,21 @@ export default function EventScreen() {
     const votes = (allVotes.data ?? []) as { option_id: string; user_id: string }[];
     const msgs = (messages.data ?? []) as Message[];
     const invites = (links.data ?? []) as { user_id: string; via_link: boolean }[];
-    const peopleIds = eventPeopleIds(event, votes, msgs, invites);
+    // Noms déjà connus (moi, l'auteur, lu avec l'événement) : pas de requête de plus pour eux. Un événement tout juste
+    // publié n'a qu'eux ; la lecture des profils, lente pour un Guest (règle d'accès qui parcourt tous les événements),
+    // gardait la fiche en squelette plusieurs secondes (recette du 27.11).
+    const known = new Map<string, string>(me.display_name ? [[me.id, me.display_name]] : []);
+    const author = (event as { author?: { id?: string; display_name?: string } | null }).author;
+    if (author?.id && author.display_name) known.set(author.id, author.display_name);
+    // Les invités sans réponse (seulement dans Présences › « Ajouter quelqu'un ») : lus ensuite, sans retenir la fiche
+    // (un événement de groupe tout juste publié en compte des dizaines).
+    const peopleIds = eventPeopleIds(event, votes, msgs).filter((p) => !known.has(p));
+    const lateIds = [...new Set(invites.map((i) => i.user_id))].filter((p) => !known.has(p) && !peopleIds.includes(p));
     const members = peopleIds.length ? await supabase.from('profiles').select('id, display_name').in('id', peopleIds) : { data: [] };
     return {
       event,
-      names: new Map(((members.data ?? []) as { id: string; display_name: string }[]).map((m) => [m.id, m.display_name])),
+      lateIds,
+      names: new Map([...known, ...((members.data ?? []) as { id: string; display_name: string }[]).map((m) => [m.id, m.display_name] as const)]),
       results: (results.data ?? []) as { poll_id: string; option_id: string; votes: number }[],
       myVotes: new Set(votes.filter((v) => v.user_id === me.id).map((v) => v.option_id)),
       allVotes: votes,
@@ -159,7 +169,20 @@ export default function EventScreen() {
 
   // App iPhone : les membres de mon répertoire sous le nom de mes contacts (« Nom · pseudo »), partout sur la page.
   const contacts = useContactNames();
-  const data = useMemo(() => (loaded ? { ...loaded, names: withContactNames(loaded.names, contacts) } : loaded), [loaded, contacts]);
+  const [lateNames, setLateNames] = useState<Map<string, string>>(() => new Map());
+  const lateKey = (loaded?.lateIds ?? []).filter((p) => !lateNames.has(p)).join(',');
+  useEffect(() => {
+    if (!lateKey) return undefined;
+    let live = true;
+    void supabase.from('profiles').select('id, display_name').in('id', lateKey.split(',')).then(({ data: rows }) => {
+      if (!live || !rows) return;
+      setLateNames((m) => new Map([...m, ...(rows as { id: string; display_name: string }[]).map((r) => [r.id, r.display_name] as const)]));
+    });
+    return () => { live = false; };
+  }, [lateKey]);
+  const data = useMemo(() => (loaded
+    ? { ...loaded, names: withContactNames(lateNames.size ? new Map([...lateNames, ...loaded.names]) : loaded.names, contacts) }
+    : loaded), [loaded, lateNames, contacts]);
 
   // Temps réel filtré sur CET événement : un vote ailleurs dans Party ne recharge plus la fiche (campagne 2, rapport 10).
   const optionIds = (loaded?.event.date_options ?? []).map((o) => o.id).slice(0, REALTIME_IN_MAX);
@@ -494,7 +517,7 @@ export default function EventScreen() {
         <EventChatEntry eventId={ev.id} chat={chat} me={me.id} last={data.messages[0] ?? null}
           authorName={data.messages[0] ? data.names.get(data.messages[0].user_id) ?? '?' : ''} onOpen={openChat} />
       ) : chatOn ? (
-        <T size={14} color={colors.muted} style={{ paddingHorizontal: 4 }}>💬 {CHAT_FOR_GUESTS}</T>
+        <T size={14} color={colors.muted} style={{ paddingHorizontal: 4 }}>💬 {ev.date_mode === 'poll' ? CHAT_FOR_VOTERS : CHAT_FOR_GUESTS}</T>
       ) : null}
       {/* Ordre de la fiche (demande de l'admin, 12.11) : description, ta réponse, puis la carte Invités (repliée).
           Invités (avis 83ebee37aa0f, 11.11) : le même menu ; un invité y voit les chiffres seulement (aucun nom) et ses liens. */}

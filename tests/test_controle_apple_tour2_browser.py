@@ -30,6 +30,12 @@ def open_fiche(browser, events_origin, state, rpc_status=200):  # noqa: F811
         fulfill(route, [{'show_payment': state['on']}])
     page.route(f'{SUPA}/rest/v1/tc_members*', members)
 
+    def payment(route):  # profil de paiement (le sien) : un IBAN, sauf « means: False »
+        row = {'iban': 'CH9300762011623852957', 'links': {}} if state.get('means', True) else None
+        obj = 'vnd.pgrst.object' in (route.request.headers.get('accept') or '')
+        fulfill(route, row if obj else ([row] if row else []))
+    page.route(f'{SUPA}/rest/v1/tc_payment*', payment)
+
     def toggle(route):
         if route.request.method == 'OPTIONS':
             return fulfill(route, None)
@@ -64,6 +70,19 @@ def test_added_by_the_event_my_payment_details_stay_hidden_until_i_show_them(bro
         pw.expect(switch).to_have_attribute('aria-checked', 'false')
         assert calls[-1] == {'p_group': POT, 'p_on': False}
         assert not errors, errors
+    finally:
+        ctx.close()
+
+
+def test_without_any_payment_means_the_pot_says_where_to_add_them(browser, events_origin):  # noqa: F811
+    """Recette du 27.11 : aucun moyen enregistré, l'interrupteur ne montrerait rien ; on dit où les ajouter."""
+    ctx, page, errors, calls = open_fiche(browser, events_origin, {'on': False, 'means': False})
+    try:
+        box = page.get_by_test_id('pot-payment')
+        pw.expect(box).to_contain_text('aucun moyen de paiement enregistré', timeout=15000)
+        pw.expect(box).to_contain_text('Réglages › Pot commun')
+        pw.expect(page.get_by_role('switch', name='Montrer mes moyens de paiement dans ce pot')).to_have_count(0)
+        assert not calls and not errors, errors
     finally:
         ctx.close()
 
@@ -110,6 +129,9 @@ def test_a_member_reports_the_group_from_its_page(browser, events_origin):  # no
         page.get_by_role('button', name='Envoyer', exact=True).click()
         page.wait_for_timeout(500)
         assert [(r['p_kind'], r['p_target'], r['p_reason']) for r in reports] == [('group', DISCO, 'shocking')]
+        # Recette du 27.11 : la confirmation parle du groupe, jamais de « la personne ».
+        pw.expect(page.get_by_text('Ni le groupe ni ses membres ne sont prévenus que c’est toi.')).to_be_visible()
+        pw.expect(page.get_by_text('La personne n’est pas prévenue', exact=False)).to_have_count(0)
         assert not errors, errors
     finally:
         ctx.close()

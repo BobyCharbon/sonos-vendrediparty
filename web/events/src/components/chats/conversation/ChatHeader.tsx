@@ -21,6 +21,8 @@ type Props = {
   /** Non lus des autres discussions (chat_badge), à côté de ‹ comme Messages. */
   unread: number;
   onBack: () => void;
+  /** Où ramène « ‹ » (lecteur d'écran) : « Retour aux Discussions » par défaut ; discussion d'un événement : la fiche. */
+  backLabel?: string;
   /** Toucher le nom ou la photo : mini-profil (direct), infos (groupe, soirée). */
   onWho: () => void;
   whoLabel: string;
@@ -33,12 +35,12 @@ type Props = {
 
 /** En-tête de la conversation (maquette 4) : ‹ + non lus, photo / tuile du groupe / tuile date, nom en Bricolage,
  * « écrit… » ou le nombre de membres, … pour les infos. Flou et dégradé sombre, liseré en bas. */
-export function ChatHeader({ title, subtitle, typing, look, unread, onBack, onWho, whoLabel, onInfo, infoLabel, infoOpen, extra }: Props) {
+export function ChatHeader({ title, subtitle, typing, look, unread, onBack, backLabel = 'Retour aux Discussions', onWho, whoLabel, onInfo, infoLabel, infoOpen, extra }: Props) {
   return (
     <View style={[{ zIndex: 3, borderBottomWidth: 1, borderBottomColor: C.line },
       web({ backgroundImage: 'linear-gradient(180deg, rgba(14,10,31,0.96), rgba(14,10,31,0.82))', backdropFilter: 'blur(20px) saturate(1.5)' })]}>
       <View style={{ height: 58, flexDirection: 'row', alignItems: 'center', gap: 2, paddingLeft: 4, paddingRight: 6 }}>
-        <Pressable accessibilityRole="button" accessibilityLabel={unread ? `Retour aux Discussions, ${unread} non lus` : 'Retour aux Discussions'}
+        <Pressable accessibilityRole="button" accessibilityLabel={unread ? `${backLabel}, ${unread} non lus` : backLabel}
           onPress={onBack} style={({ pressed }) => [{ minWidth: 44, height: 44, flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: 4 },
             pressTransition, pressed && { opacity: 0.5 }]}>
           <Icon name="chevl" size={26} color={C.lav} />

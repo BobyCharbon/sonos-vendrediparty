@@ -88,7 +88,7 @@ export function PendingPayments({ eventId, price, refreshKey, onConfirmed, onlin
       {unpaid.length ? (
         <View style={{ gap: 4 }}>
           <T size={12} weight="bold" color={colors.muted}>{'Pas encore payé'.toUpperCase()} · {unpaid.length}</T>
-          <T muted size={12}>{online ? 'Payé sur le site sans le noter ? Si la personne te le dit, note-le pour elle.' : 'Payé sans le noter ? Si tu as reçu son paiement, note-le pour elle.'}</T>
+          <T muted size={12}>{online ? 'Payé sur le site sans le noter ? Si on te le dit, note-le ici.' : 'Payé sans le noter ? Si tu as reçu le paiement, note-le ici.'}</T>
           {unpaid.map((p) => (
             <View key={p.user_id} style={st.paidRow}>
               <Avatar id={p.user_id} name={p.display_name} photo={p.avatar_url} size={24} />

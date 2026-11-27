@@ -545,6 +545,7 @@ function showTab(tab, eventTarget) {
   window.ZicouHome?.tabChanged?.(tab); // <store-cut/>
   if (tab === "feedback") loadFeedback();
   if (tab === "music" && musicAdminMounted && fbIsAdmin()) MusicAdmin.show();
+  if (tab === "music" && !$("hello").classList.contains("hidden")) maybeInstallSheet();
   if (tab === "host" && musicAdminMounted) { MusicAdmin.refresh(); window.AuditAdmin?.refresh(); }
   if (tab === "stats") showStats();
   if (tab === "notice") window.NoticeAdmin?.refresh();
@@ -1293,8 +1294,15 @@ const android = /Android/i.test(navigator.userAgent); // <store-cut/>
 // <store> const android = false;
 const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 let installEvent = null;
+// Jamais par-dessus une feuille du module (conditions d'utilisation…) ni sur Événements avant la fin de l'inscription
+// (recette du 27.11 : « Installe Party ! » couvrait la feuille des conditions) : on réessaie plus tard.
+function installWait() {
+  return document.documentElement.classList.contains("events-sheet")
+    || (["events", "account", "chats"].includes(document.body.dataset.tab) && !account?.name);
+}
 function offerInstall() {
   if (standalone || store("vp_install_dismissed")) return;
+  if (installWait()) return void setTimeout(offerInstall, 5000);
   if (!$("installSheet").classList.contains("hidden")) return;  // guide déjà ouvert : le bandeau masquerait la flèche
   if (ios) {
     $("installHelp").innerHTML = `Touche ici : on te montre comment, en 10 secondes.`;
@@ -1419,6 +1427,8 @@ function openInstallSheet() {
 async function maybeInstallSheet() {
   // Une fois par visite, au moment où l'on demande le prénom, seulement dans le navigateur (pas dans l'app installée).
   if (!(ios || android) || standalone || store("vp_install_dismissed")) return;
+  // Seulement dans Musique, là où l'on demande le prénom (l'écran « hello » se prépare aussi derrière les autres onglets).
+  if (document.body.dataset.tab !== "music" || installWait()) return;
   // Android : l'app est peut-être déjà installée alors qu'on est dans Chrome (déclarée dans le manifeste).
   try { if ((await navigator.getInstalledRelatedApps?.())?.length) return; } catch {}
   try { if (sessionStorage.getItem("vp_install_sheet")) return; sessionStorage.setItem("vp_install_sheet", "1"); } catch {}

@@ -113,7 +113,7 @@ export function potNotice(state: PotState): string {
  * show_payment est faux ; la base ne renvoie l'IBAN et les liens d'un membre aux autres que s'il l'a allumé.
  * null : pas dans le pot, ou base d'avant (colonne absente) → l'interrupteur se cache sans erreur.
  */
-export async function potPaymentChoice(eventId: string, me: string): Promise<{ group: string; on: boolean } | null> {
+export async function potPaymentChoice(eventId: string, me: string): Promise<{ group: string; on: boolean; hasMeans: boolean } | null> {
   const { data: groups, error } = await supabase.from('tc_groups').select('id').eq('event_id', eventId).limit(1);
   const group = !error && Array.isArray(groups) ? (groups[0] as { id?: string } | undefined)?.id : undefined;
   if (!group) return null;
@@ -121,7 +121,11 @@ export async function potPaymentChoice(eventId: string, me: string): Promise<{ g
     .eq('group_id', group).eq('user_id', me).is('left_at', null).maybeSingle();
   const row = data as { show_payment?: unknown } | null;
   if (e2 || !row || typeof row.show_payment !== 'boolean') return null;
-  return { group, on: row.show_payment };
+  // Profil de paiement (le sien seul est lisible) : sans IBAN ni lien, l'interrupteur ne montrerait rien (recette du 27.11).
+  const { data: pay } = await supabase.from('tc_payment').select('iban, links').eq('user_id', me).maybeSingle();
+  const profile = pay as { iban?: string | null; links?: Record<string, unknown> | null } | null;
+  const hasMeans = !!profile?.iban || Object.values(profile?.links ?? {}).some((v) => typeof v === 'string' && v.trim() !== '');
+  return { group, on: row.show_payment, hasMeans };
 }
 
 /** false : la fonction n'existe pas encore (base d'avant) ; une autre erreur remonte avec sa phrase. */
