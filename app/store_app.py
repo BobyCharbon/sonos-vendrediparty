@@ -149,6 +149,7 @@ NAME_MAX = 30
 NAME_CHARS = re.compile(rf"[{LATIN}0-9 '’-]{{1,{NAME_MAX}}}")
 ANSWER_CHARS = re.compile(rf"[{LATIN}0-9 '’\-.,;:!?\"«»()…–—%/&+°\n]*")
 HAS_LETTER = re.compile(rf"[{LATIN}0-9]")
+NAME_REFUSED = "Ce prénom n'est pas accepté dans les jeux : choisis-en un autre."
 NAME_CHARS_REFUSED = "Ce prénom n'est pas accepté ici : lettres, chiffres, espace, trait d'union et apostrophe seulement."
 ANSWER_CHARS_REFUSED = "Ce texte n'est pas accepté ici : lettres, chiffres et ponctuation courante seulement (ni emoji ni symbole)."
 
@@ -164,7 +165,7 @@ def name_chars_ok(name) -> bool:
 # (jamais « nazi », « shit », « chatte » : Nazim, Shitaké, Matchatte restent acceptés).
 GLUED = ("picol", "trinqu", "pompette", "biture", "pinard", "defonc", "saoul", "vodka", "whisk", "tequila", "hitler",
          "cocaine", "cannabis", "ganja", "ketamin", "pochtron", "ivrogne", "poivrot", "smirnof", "schnaps", "kronenbourg",
-         "desperados", "baileys", "jackdaniel", "jackpot", "winamax", "betclic", "violeur", "inceste", "trisomique",
+         "desperados", "baileys", "jackdaniel", "jackpot", "winamax", "betclic", "tierce", "violeur", "inceste", "trisomique",
          "pedophil", "salope", "connard", "encule", "putain", "merdeux", "marijuana", "heroine", "codeine", "poppers",
          "alcool", "biere", "gorgee", "cocktail", "champagne", "mojito", "pastis", "casino", "poker", "blackjack",
          "pompett", "beuverie", "suicid", "terroris", "daech", "daesh", "staline", "bougnoul", "pedo", "porno")
@@ -186,8 +187,8 @@ def check_text(text, store: bool, kind: str = "answer"):
         return
     if kind == "name" and not name_chars_ok(text):
         raise ValueError(NAME_CHARS_REFUSED)
-    if kind == "name" and glued_hit(text):
-        raise ValueError(TEXT_REFUSED)
+    if kind == "name" and (glued_hit(text) or player_offensive(text)):
+        raise ValueError(NAME_REFUSED)
     if kind != "name" and not answer_chars_ok(text):
         raise ValueError(ANSWER_CHARS_REFUSED)
     if player_offensive(text):

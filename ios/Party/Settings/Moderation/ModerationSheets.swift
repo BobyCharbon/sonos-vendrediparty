@@ -188,9 +188,21 @@ struct TermsAcceptSheet: View {
                     .controlSize(.large)
                     .disabled(store.busy.contains("accept"))
                     .accessibilityIdentifier("terms-accept")
-                    Button("Plus tard") { onDone(false); dismiss() }
-                        .font(.body).foregroundStyle(PronoTheme.t2).padding(.vertical, 6)
-                        .accessibilityIdentifier("terms-later")
+                    // Le lien des conditions complètes reste visible ici (petit écran : la ligne du texte passait
+                    // sous ce bas fixe, contrôle Apple tour 5).
+                    HStack {
+                        Button("Lire les conditions") {
+                            readAll = true
+                            withAnimation { scroller.scrollTo("terms-read-all", anchor: .top) }
+                        }
+                        .font(.body.weight(.semibold)).foregroundStyle(PronoTheme.pinkInk)
+                        .accessibilityIdentifier("terms-read-all-bottom")
+                        Spacer()
+                        Button("Plus tard") { onDone(false); dismiss() }
+                            .font(.body).foregroundStyle(PronoTheme.t2)
+                            .accessibilityIdentifier("terms-later")
+                    }
+                    .padding(.vertical, 6)
                     // Nouvel arrivant : il sait ce qu'il garde sans elles, rien ne le bloque (contrôle du 26.11).
                     Text("Sans elles, tu gardes les jeux. Écrire, publier, choisir ton surnom ou répondre à un événement te les redemanderont.")
                         .font(.footnote).foregroundStyle(PronoTheme.t2).multilineTextAlignment(.center)

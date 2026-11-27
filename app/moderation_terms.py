@@ -89,7 +89,7 @@ STORE_ONLY = (
     "passoa", "pernod", "=picon", "lillet", "amstel", "tuborg", "affligem", "goudale", "delirium tremens", "chouffe",
     "karmeliet", "westmalle", "feldschl*", "calanda", "quollfrisch", "absolut vodka", "grey goose", "jagerbomb*",
     # paris
-    "jackpot", "betclic", "winamax", "=pmu", "tierce", "unibet", "parions sport", "pokerstars", "=bwin", "zebet", "=fdj",
+    "jackpot", "betclic", "winamax", "=pmu", "unibet", "parions sport", "pokerstars", "=bwin", "zebet", "=fdj",
     "euromillion*", "bookmaker*", "bookie", "machine a sous", "machines a sous", "loterie", "=loto", "=lotos", "grattage",
     # haine
     "=kkk", "ku klux klan", "kuklux*", "daech", "daesh", "ben laden", "al qaida", "al qaeda", "=ratons?(?! laveur)",

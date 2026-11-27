@@ -1194,7 +1194,10 @@ document.addEventListener("click", (ev) => {
   const what = t ? t.dataset.gterms : "close";
   if (what === "open") { ev.preventDefault(); return openGamesTerms(true); }
   if (what === "close") return openGamesTerms(false);
-  if (what === "later") { gTermsLater = true; refreshGame(); }
+  if (what === "later") {  // clavier fermé : le champ du prénom disparaît (contrôle Apple, tour 5)
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    gTermsLater = true; refreshGame();
+  }
 });
 document.addEventListener("change", (ev) => {
   if (ev.target.id !== "gTermsCheck") return;
