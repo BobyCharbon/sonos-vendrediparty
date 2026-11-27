@@ -993,3 +993,10 @@ def test_round_three_a_drinking_dilemma_proposed_on_the_web_never_reaches_the_ap
 def test_round_three_by_is_a_name_shown_as_joueur_to_the_app():
     assert "by" in games.STORE_NAMES
     assert games.store_view({"q": {"text": "x", "by": "Hitler"}}) == {"q": {"text": "x", "by": "Joueur"}}
+
+
+def test_round_four_terms_sheet_shows_only_the_store_filtered_terms():
+    """Contrôle Apple, tour 4 (27.11) : la feuille « J'accepte les conditions » de l'iPhone affichait les conditions sans le
+    filtre de l'app App Store (sections bar et Pronos). Elle doit utiliser TermsView.shown, comme Réglages › Conditions."""
+    sheet = (_root() / "ios/Party/Settings/Moderation/ModerationSheets.swift").read_text(encoding="utf-8")
+    assert "TermsView.sections" not in sheet and "TermsView.shown" in sheet

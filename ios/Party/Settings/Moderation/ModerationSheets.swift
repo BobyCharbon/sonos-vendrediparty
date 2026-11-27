@@ -139,7 +139,7 @@ struct TermsAcceptSheet: View {
                     DisclosureGroup(isExpanded: $readAll) {
                         VStack(alignment: .leading, spacing: 14) {
                             Text("Version du \(TermsView.updated)").id("terms-start").font(.footnote).foregroundStyle(PronoTheme.t2)
-                            ForEach(TermsView.sections, id: \.0) { section, paragraphs in
+                            ForEach(TermsView.shown, id: \.0) { section, paragraphs in
                                 VStack(alignment: .leading, spacing: 6) {
                                     Text(section).font(.headline).foregroundStyle(PronoTheme.t1)
                                     ForEach(paragraphs, id: \.self) {
