@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, TextInput, View } from 'react-native';
 
+import { ConfirmButton } from '@/components/ui';
 import { supabase } from '@/lib/supabase';
 
 import { K, txt, web } from './bits';
@@ -67,10 +68,9 @@ export function PrivateNote({ userId, name, style }: { userId: string; name: str
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <Text style={[txt(12, '400', K.t3, 16), { flex: 1 }]}>{draft.length}/{NOTE_MAX}{done ? ' · Enregistrée ✓' : ''}</Text>
         {saved && !dirty ? (
-          <Pressable accessibilityRole="button" accessibilityLabel="Effacer ma note" disabled={busy} onPress={() => void store('')}
-            style={{ minHeight: 44, paddingHorizontal: 10, justifyContent: 'center' }}>
-            <Text style={txt(14, '600', K.t2)}>Effacer</Text>
-          </Pressable>
+          // Règle de l'admin : tout effacement demande une confirmation (contrôle final, comme PrivateNoteCard sur iPhone).
+          <ConfirmButton small label="Effacer" confirmLabel="Oui, effacer ma note" accessibilityLabel="Effacer ma note"
+            onConfirm={() => void store('')} />
         ) : null}
         {dirty ? (
           <Pressable testID="private-note-save" accessibilityRole="button" disabled={busy} onPress={() => void store(draft)}

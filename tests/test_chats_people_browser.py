@@ -483,6 +483,9 @@ def test_a_private_note_on_the_mini_profile_is_written_edited_and_erased(phone, 
     assert rpc_args(state, 'member_note_set')[-1] == {'target': LEA, 'body': 'Rencontrée au paintball, amie de Noé'}
     shot(page, 'mini-profil-note')
     note.get_by_role('button', name='Effacer ma note').click()
+    # Confirmation d'abord (règle de l'admin : tout effacement est demandé) : rien n'est encore effacé.
+    assert rpc_args(state, 'member_note_set')[-1]['body'] == 'Rencontrée au paintball, amie de Noé'
+    note.get_by_role('button', name='Oui, effacer ma note').click()
     pw.expect(box).to_have_value('')
     assert rpc_args(state, 'member_note_set')[-1] == {'target': LEA, 'body': ''}
     assert not errors, errors
