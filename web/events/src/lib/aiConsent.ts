@@ -12,8 +12,8 @@ export type AiConsentStatus = {
   consent_at: number | null;
 };
 
-/** Même texte que la feuille d'accord (version 2 : app/static/index.html #fbAiConsent, FeedbackAI.consentText d'iOS). */
-export const AI_CONSENT_TEXT = 'Quand tu utilises l’IA, Party envoie ce que tu lui confies à Anthropic (Claude) : le texte de ton avis (et la transcription de ta voix) ; avec l’assistant des événements, ta description, tes captures d’écran, tes photos et les liens que tu donnes, ainsi que ton surnom, les noms de tes groupes, les catégories et étiquettes des événements et les personnes déjà choisies, sous un alias (P1, P2…), jamais leur nom ; pour un ticket du pot commun, sa photo. Pour corriger l’app, ton avis peut aussi être publié sur GitHub, où tout le monde peut le lire, puis lu par Claude, sans ton prénom ni ton numéro. Jamais ton numéro.';
+/** Même texte que la feuille d’accord (version 4 : app/static/index.html #fbAiConsent, FeedbackAI.consentText d'iOS). */
+export const AI_CONSENT_TEXT = 'Quand tu utilises l’IA, Party envoie ce que tu lui confies à Anthropic (Claude) : le texte de ton avis (et la transcription de ta voix) ; avec l’assistant des événements, ta description, tes captures d’écran, tes photos et les liens que tu donnes, ainsi que ton surnom, les noms de tes groupes, les catégories et étiquettes des événements et les personnes déjà choisies, sous un alias (P1, P2…), jamais leur nom ; pour modifier un événement avec l’IA, aussi son contenu actuel (titre, description, date, lieu, sondages, qui amène quoi, prix et infos de paiement) ; pour un ticket du pot commun, sa photo. Pour corriger l’app, ton avis peut aussi être publié sur GitHub, où tout le monde peut le lire, puis lu par Claude, sans ton prénom ni ton numéro. Jamais ton numéro.';
 
 const FALLBACK = 'L’accord pour l’IA n’a pas pu être lu. Vérifie ta connexion et réessaie.';
 

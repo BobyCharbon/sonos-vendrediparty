@@ -345,3 +345,38 @@ def test_in_the_app_store_app_a_public_drinky_event_of_the_group_shows_only_to_t
                       headers={"user-agent": "Mozilla/5.0 PartyStore"}).json()["result"]
     # Description et mini-sondage comptent ; « mine » (participant) et un événement réservé au groupe restent.
     assert [e["title"] for e in app["upcoming"]] == ["Apéro", "Apéro du groupe"]
+
+
+STORE_UA = {"user-agent": "Mozilla/5.0 PartyStore"}
+
+
+def test_the_store_app_never_shows_nor_chooses_a_drink_emoji_for_a_group():
+    """Contrôle Apple tour 7 (1.4.3) : le relais des Discussions rend 🎉 au lieu de 🍻 / 🍷 à l'app App Store (liste, page,
+    réglages), et un 🍻 envoyé par l'app devient 🎉 ; le web garde l'emoji choisi."""
+    client, seen = fake(rpc={"chat_list": [{"id": GRP, "kind": "group", "emoji": "🍻"}]},
+                        writes={("POST", "member_groups"): (201, [{"id": GRP}]), ("POST", "member_group_members"): (201, [])})
+    assert call(client, "chat_list").json()["result"][0]["emoji"] == "🍻"
+    out = client.post("/api/account/chats/rpc", json={"token": "t", "fn": "chat_list", "args": {}}, headers=STORE_UA).json()
+    assert out["result"][0]["emoji"] == "🎉"
+    client.post("/api/account/chats/rpc", json={"token": "t", "fn": "group_create", "args": {"name": "Ski", "emoji": "🍷", "color": "sky"}},
+                headers=STORE_UA)
+    assert [b for m, p, b in seen if m == "POST" and p == "/rest/v1/member_groups"][-1]["emoji"] == "🎉"
+    client, _ = fake(row(emoji="🍻"), rpc={"group_chat_people": PEOPLE, "group_events": []})
+    page = client.post("/api/account/chats/rpc", json={"token": "t", "fn": "group_page", "args": {"grp": GRP}}, headers=STORE_UA).json()
+    assert "🍻" not in json.dumps(page, ensure_ascii=False)
+
+
+def test_in_the_store_app_members_only_drinky_events_the_address_and_invitations_follow_the_public_rule():
+    """Contrôle Apple tour 7 : réservé aux Membres Vendredi Party = public pour la règle ; l'adresse compte ; « apéro » en
+    lettres décomposées (NFD) est pris ; un invité garde l'événement."""
+    ev3 = "e3e3e3e3-0000-4000-8000-000000000003"
+    events = [{"id": EV1, "visibility": "invited", "title": "Apéro des membres", "created_by": LEA, "event_groups": [{"group_id": GRP}]},
+              {"id": EV2, "visibility": "all", "title": "Soirée", "location_address": "Rue de la Brasserie 3", "created_by": LEA},
+              {"id": ev3, "visibility": "all", "title": "Ape\u0301ro", "created_by": LEA, "event_invites": [{"user_id": ME}]}]
+    client, _ = fake(row(system_key="vip"), rpc={
+        "group_chat_people": PEOPLE,
+        "group_events": [{"id": i, "upcoming": True} for i in (EV1, EV2, ev3)],
+        "chat_event_cards": [{"id": EV1, "title": "Apéro des membres"}, {"id": EV2, "title": "Soirée"}, {"id": ev3, "title": "Apéro"}],
+    }, writes={("GET", "events"): (200, events)})
+    app = client.post("/api/account/chats/rpc", json={"token": "t", "fn": "group_page", "args": {"grp": GRP}}, headers=STORE_UA).json()["result"]
+    assert [e["title"] for e in app["upcoming"]] == ["Apéro"]  # invité : gardé ; les deux autres cachés

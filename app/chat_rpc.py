@@ -157,10 +157,15 @@ def chat_rpc_router(chats: GroupChats, invite_url=None) -> APIRouter:
                 raise HTTPException(404, "Fonction inconnue")
             if "context" in args:  # « Joindre les 10 messages précédents » (contrat : context ; base : p_context)
                 args["p_context"] = bool(args.pop("context"))
+        store = store_app.is_store(request)
+        # App App Store (refus 1.4.3, contrôle Apple tour 7) : jamais 🍻 / 🍷 d'un groupe, ni à l'écran (🎉) ni choisi par l'app.
+        if store and args.get("emoji") in store_app.DRINK_EMOJIS:
+            args["emoji"] = "🎉"
+        shown = store_app.neutral_emojis if store else (lambda d: d)
         if body.fn in LOCAL:
-            return local(body.fn, body.token, lambda: pages.call(body.fn, args, body.token, store_app.is_store(request)))
+            return local(body.fn, body.token, lambda: shown(pages.call(body.fn, args, body.token, store)))
         status, data = db.call(body.fn, args, body.token)
-        return answer(body.fn, status, data, body.token)
+        return answer(body.fn, status, shown(data) if status in (200, 204) else data, body.token)
 
     return router
 

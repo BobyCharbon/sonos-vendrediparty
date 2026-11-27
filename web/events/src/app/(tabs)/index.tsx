@@ -162,7 +162,8 @@ export default function Home() {
     <SafeAreaView style={s.screen} edges={['left', 'right']}>
       <ScrollView
         style={{ flex: 1, minHeight: 0 }}
-        contentContainerStyle={[s.content, { paddingBottom: 96 }]}
+        // La liste finit au-dessus de TOUS les boutons flottants (« + Proposer » et « ✨ Avec l'IA » une fois défilé).
+        contentContainerStyle={[s.content, { paddingBottom: (aiEvent && canPropose) ? 158 : 96 }]}
         refreshControl={<RefreshControl refreshing={loading && !!data} onRefresh={reload} tintColor={colors.accent} />}
         scrollEventThrottle={32}
         onScroll={(e) => {
@@ -183,6 +184,17 @@ export default function Home() {
           agendaPending={agendaPending}
           onPropose={headerPropose ? () => router.push('/event/new') : null}
         />
+
+        {/* Recette iPhone du 27.11 : en haut de la liste, « ✨ Avec l'IA » flottant couvrait « Absent » de la première carte.
+            Il est ici, sous l'en-tête ; il redevient flottant dès qu'on a défilé (comme « + Proposer »). */}
+        {aiEvent && atTop ? (
+          <Pressable accessibilityRole="button" testID="home-ai"
+            accessibilityLabel="Créer un événement avec l'IA, en le décrivant à voix haute"
+            onPress={aiEvent}
+            style={({ pressed }) => [st.fab, st.fabAI, st.fabInline, enter('pop'), pressTransition, pressed && { opacity: 0.85 }]}>
+            <T color={colors.text} style={{ ...font.bold, fontSize: 15 }}>✨ Avec l’IA</T>
+          </Pressable>
+        ) : null}
 
         {data && !searchOpen ? <GroupBubbles groups={data.groups.filter((g) => g.member)} /> : null}
 
@@ -299,14 +311,14 @@ export default function Home() {
         ))}
       </ScrollView>
 
-      {(canPropose && !headerPropose) || aiEvent ? (
+      {(canPropose && !headerPropose) || (aiEvent && !atTop) ? (
       <View pointerEvents="box-none" style={[st.fabWrap, { left: side.left, right: side.right }]}>
         {/* Effacé : hors de l'arbre d'accessibilité aussi (VoiceOver « activer » touchait ce qu'il y a derrière). */}
         <View pointerEvents={fabAway ? 'none' : 'box-none'} aria-hidden={fabAway || undefined} accessibilityElementsHidden={fabAway}
           importantForAccessibility={fabAway ? 'no-hide-descendants' : 'auto'}
           style={[st.fabColumn, transition('transform, opacity', duration.base, ease.out),
           fabAway && { opacity: 0, transform: [{ translateY: 24 }, { scale: 0.9 }] }]}>
-        {aiEvent ? (
+        {aiEvent && !atTop ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Créer un événement avec l'IA, en le décrivant à voix haute"
@@ -369,6 +381,8 @@ const st = StyleSheet.create({
   fabWrap: { position: 'absolute', left: 0, right: 0, bottom: 16, alignItems: 'center' },
   fabColumn: { width: '100%', maxWidth: 640, alignItems: 'flex-end', paddingRight: 16, gap: 10 },
   fabAI: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.accent },
+  // Sous l'en-tête (haut de la liste) : même pilule, sans ombre portée, calée à droite.
+  fabInline: { alignSelf: 'flex-end', height: 44, shadowOpacity: 0, elevation: 0 },
   fab: {
     height: 52, paddingHorizontal: 22, borderRadius: radius.pill,
     backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center',

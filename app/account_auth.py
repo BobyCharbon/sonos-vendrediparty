@@ -2,6 +2,7 @@
 La session obtenue est la même que celle du module Événements (supabase-js) : l'app la range là où la page la lit
 (storage_key dans le localStorage du site), si bien que la page, les jeux et les Réglages natifs partagent le compte."""
 import contextlib
+import logging
 import re
 import time
 from urllib.parse import urlparse
@@ -9,6 +10,7 @@ from urllib.parse import urlparse
 from . import accounts as accounts_mod
 from .accounts import AccountError, Accounts
 
+log = logging.getLogger(__name__)
 E164 = re.compile(r"^\+[1-9]\d{7,14}$")
 CONFIRM_DELETE = "SUPPRIMER"
 
@@ -81,8 +83,21 @@ class AccountAuth:
             raise AccountError("La suppression de ton compte a été refusée par le serveur. Réessaie plus tard ou écris à support@vendrediparty.ch.")
         # Les fichiers du Storage ne suivent pas la cascade de la base : ses photos de profil partent aussi (5.1.1(v)).
         if photos:
-            self.accounts._remove_photos(photos, token)
+            self._remove_photos_for_good(uid, photos, token)
         self.sign_out(token)
+
+    def _remove_photos_for_good(self, uid: str, photos: list[str], token: str) -> None:
+        """Filet (contrôle Apple tour 7) : l'effacement est vérifié (réponse du Storage) et réessayé 3 fois ; un échec n'est
+        plus avalé en silence, il est journalisé avec le dossier à vider à la main."""
+        for attempt in range(3):
+            try:
+                r = self.accounts._get("DELETE", f"/storage/v1/object/{accounts_mod.PROFILE_PHOTOS}", token, json={"prefixes": photos})
+                if r.status_code in (200, 204):
+                    return
+            except AccountError:
+                pass
+            time.sleep(0.5 * (attempt + 1))
+        log.warning("Photos de profil d'un compte supprimé non effacées : %s/%s/ à vider", accounts_mod.PROFILE_PHOTOS, uid)
 
     def _own_photos(self, uid: str, token: str) -> list[str]:
         """Photos de profil du compte (dossier <uid>/ du Storage), lues avant la suppression ; aucune lisible : []."""
