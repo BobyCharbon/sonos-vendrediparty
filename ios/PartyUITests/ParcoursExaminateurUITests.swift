@@ -155,7 +155,10 @@ final class ParcoursExaminateurUITests: XCTestCase {
             record("profil-a-remplir")
             first.tap(); app.typeText("Examen")
             app.collectionViews.textFields["profile-last"].firstMatch.tap(); app.typeText("Apple")
-            app.collectionViews.textFields["profile-nickname"].firstMatch.tap(); app.typeText("Examen QA")
+            // Le Surnom est plus bas dans la liste : il n'existe qu'une fois amené à l'écran (le doigt fait défiler).
+            let nickname = app.collectionViews.textFields["profile-nickname"].firstMatch
+            for _ in 0..<5 where !(nickname.exists && nickname.isHittable) { app.collectionViews.firstMatch.swipeUp(velocity: .slow) }
+            nickname.tap(); app.typeText("Examen QA")
             // Simulateur neuf : la bulle d'iOS sur la saisie glissée (« Continue ») couvre le clavier ; on la ferme.
             let tip = app.buttons.matching(NSPredicate(format: "label IN {'Continue', 'Continuer'}")).firstMatch
             if tip.exists { tip.tap() }
