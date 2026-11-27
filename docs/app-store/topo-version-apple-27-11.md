@@ -21,7 +21,7 @@ Trois façons de couper, à ne pas confondre :
 | Prénoms et textes de joueurs insultants, drogue, haine | Refusés ou remplacés par « Joueur » dans les parties de l'app | `store_app.check_text`, `quiz.py` |
 | Code des jeux cachés et fichiers de Zicou | Jamais servis à l'app, même par une adresse bricolée | `store_static.blocked` |
 | Bar de la soirée | Pas d'écran bar natif ; serveur : `bar: false` pour l'app, page sans bar, pas de notification du bar (send-push), cloche sans `bar_…`, billet Wallet sans bar ; l'app ne l'ouvre jamais même si le serveur dit oui | `/api/features`, `bar_page`, `SettingsStore.loadFeatures`, `activity.tsx` |
-| Onglet Musique | Caché (barre web et barre native). La musique reste joignable par le code à 6 chiffres de l'hôte (Jeux › Code) ou son QR | `index.html` (STORE_APP), `native-tabs.js` |
+| Onglet Musique | Absent par défaut (barre web et barre native) ; apparaît après le code à 6 chiffres de l'hôte (Jeux › Code) ou son QR, et repart dès qu'on n'est plus dans la soirée (Quitter, soirée arrêtée, code changé, retrait) | `index.html` (STORE_APP), `native-tabs.js` |
 | « Ajouter un titre » (action rapide) et extension Partager pour la musique | Absents de l'app App Store ; Partager › Party ne propose que « Créer l'événement » | `QuickActions.swift`, `project.yml` |
 | Réglages de notification Musique | Cachés, sauf chez l'hôte d'une soirée | `NotificationSettingsView.swift` |
 | Zicou | Présent dans l'app mais jamais lancé (`zicouBuild` faux hors BETA) ; serveur : routes en 404, page sans Zicou, ni réactions ni zone « 🐾 Zicou » de Ton avis | `AppConfig.zicouBuild`, `features.compagnon_enabled` |

@@ -474,11 +474,19 @@ l'admin. Toujours :
   textes écrits par les joueurs refusés s'ils parlent de boisson (`check_text`) ; salle où l'app est entrée : rien de caché.
   Page : `STORE`, `STORE_HIDDEN`, `storeScrubCards`, `candy()` (ne fait plus que retirer les phrases de boisson et renommer
   « Trou du cul » en « Dernier » ; sa conversion en points ne vaut que si `STORE_POINTS`). Catégorie vide : jamais de titre.
-- ONGLET MUSIQUE caché dans l'app App Store (index.html `STORE_APP` : bouton `hidden`, donc absent de la barre native,
-  native-tabs.js). On rejoint une soirée par Jeux › Code : 4 chiffres = un jeu, 6 chiffres = la soirée Musique
-  (`joinMusicByCode`, puis `showTab('music')` = écran natif sans onglet) ou le QR `?pin=`. Musique ne s'ouvre qu'après la
-  soirée rejointe (`musicJoined`, sinon Jeux : action rapide « Ajouter un titre » du build 216, notification). Nouveaux codes
-  Musique à 6 chiffres (`regenerate_pin`, web compris), un ancien code à 4 chiffres reste valable sur le web.
+- ONGLET MUSIQUE de l'app App Store (et de la BETA) : absent par défaut, il n'existe que PENDANT la soirée rejointe (décision
+  de l'admin du 27.11 : discret, la Musique n'est que pour ceux qui sont chez l'hôte). On rejoint par Jeux › Code : 4 chiffres
+  = un jeu, 6 chiffres = la soirée Musique (`joinMusicByCode`, texte sous le champ, 2.5.19) ou le QR `?pin=` → le bouton
+  `#tabs [data-tab="music"]` perd `hidden` (barre web ET barre native, UITabBar et barre verticale du Duo, qui décrivent les
+  boutons visibles : native-tabs.js) et Musique s'ouvre. Il repart, retour sur Jeux, dès que la personne n'est plus dans la
+  soirée : « Quitter la soirée » (`/api/leave` : jeton révoqué par le serveur ; web `#musicLeave`, natif `MusicStore.leave`),
+  soirée arrêtée, code changé, « Déconnecter » ou retrait sans limite de l'hôte (`removed` de `/api/state`), relancement sans
+  session ; soirée arrêtée = soirée quittée (la page appelle `/api/leave`) : la suivante redemande le code, l'onglet ne
+  revient jamais tout seul. Seul `/api/state` en décide (`setMusicIn`, appelé par `refresh`) ; `vp_music_joined` n'est qu'un indice de
+  démarrage, jamais une preuve. L'écran natif prévient la page à chaque entrée / sortie (`PartyMusic.check`, `musicChanged`).
+  Sans soirée : Musique → Jeux (action rapide « Ajouter un titre » du build 216, notification). Le web garde son onglet.
+  Nouveaux codes Musique à 6 chiffres (`regenerate_pin`, web compris), un ancien code à 4 chiffres reste valable sur le web.
+  Test : `test_store_app_music_tab_appears_with_the_six_digit_code_and_leaves_with_the_party` (+ hôte : retrait, code, arrêt).
 - Autres traces cachées dans l'app : « ✨ IA » de la fiche, étiquettes `#bar`, notifications `bar_*` de l'Activité, page du
   bar, sections Pronos / bar des CGU et bar / Purify de la confidentialité (`storeApp`, web ; `AppConfig.isStoreApp`, iOS au
   prochain build), emoji 🍻 du Pot commun (🥤 pour tous), fiche d'un événement public « à boisson » ouverte par un lien.

@@ -620,6 +620,25 @@ def guest_join(body: Login, request: Request, response: Response):
     return {"ok": True}
 
 
+class LeaveMusic(BaseModel):
+    guest_id: str = Field(default="", max_length=64)
+
+
+@app.post("/api/leave")
+def guest_leave(request: Request, response: Response, body: LeaveMusic | None = None):
+    """« Quitter la soirée » (app App Store : l'onglet Musique part avec la soirée) : le jeton de ce téléphone est
+    révoqué côté serveur (pas un simple cookie effacé) et l'invité sort de la liste de l'hôte. Il faudra le code."""
+    nonce = guest_token(request)
+    guest_id = body.guest_id if body else ""
+    if guest_id and nonce and nonce in store.session.guests.get(guest_id, {}).get("tokens", []):
+        store.kick(guest_id)  # comme « Déconnecter » de l'hôte (admin_kick)
+    elif nonce:
+        store.session.revoked = (store.session.revoked + [nonce])[-500:]
+        store.save()
+    response.delete_cookie("vp_guest")
+    return {"ok": True}
+
+
 class PinChoice(BaseModel):
     pin: str | None = None  # None : code tiré au hasard
 
@@ -5155,6 +5174,8 @@ def state(request: Request, guest_id: str = ""):
     store.link_token(guest_id, guest_token(request))
     base = {
         "active": True, "room": s.room_name, "source": s.source, "blocked": ban_message(guest_id, client_ip(request)),
+        # Retiré de la file sans limite par l'hôte : l'app App Store le sort de la soirée (onglet Musique retiré).
+        "removed": (store.ban_status(guest_id) or {}).get("until") == 0,
         # Prénom connu du serveur (l'hôte a pu le modifier) : la page invité le reprend.
         "name": s.guests.get(guest_id, {}).get("name"),
         # Ses propres messages et les réponses de l'hôte.

@@ -221,6 +221,7 @@ details[open] > summary h2::after { content: " ▾"; }
 .g-code-go { flex: none; height: 46px; margin: 0; padding: 0 16px; border-radius: 12px; }
 .g-code-note { margin: 8px 4px 0; font-size: .8rem; opacity: .8; }
 .g-music-back { width: 100%; margin-top: 10px; }
+.music-leave { margin: 0 0 10px; font-size: .85rem; padding: 8px 14px; }
 .gcard { background: var(--g-bg); color: #fff; border-radius: 26px; padding: 20px; display: flex; flex-direction: column; gap: 14px; margin-bottom: 14px; }
 .g-head { display: flex; gap: 14px; align-items: center; }
 /* Étiquette « Nouveau » d'un jeu récent : à cheval sur le coin haut droit de la carte (au-dessus du bouton « ? »). */

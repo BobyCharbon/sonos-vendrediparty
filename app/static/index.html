@@ -90,6 +90,7 @@
 
     <div id="warn" class="warn hidden"></div>
     <div id="blocked" class="warn hidden"></div>
+    <button type="button" class="secondary music-leave hidden" id="musicLeave">🚪 Quitter la soirée</button>
     <p id="guestTracks" class="sub guest-tracks hidden" aria-live="polite"></p>
 
     <div class="card now" id="now"></div>
@@ -314,7 +315,11 @@ let registered = false;  // l'invité s'est présenté au serveur (il apparaît 
 async function api(path, opts = {}) {
   const r = await fetch(path, { headers: { "Content-Type": "application/json" }, ...opts });
   const data = await r.json().catch(() => ({}));
-  if (r.status === 401 && path !== "/api/join") { show("pin"); throw new Error("Code d'accès requis"); }
+  if (r.status === 401 && path !== "/api/join") {
+    show("pin");
+    if (path.startsWith("/api/state")) setMusicIn(false);  // code changé, invité déconnecté : plus dans la soirée
+    throw new Error("Code d'accès requis");
+  }
   if (!r.ok) {
     // Détail objet (« compte requis » : app/guest_gate.py) : son message, et le détail pour GuestGate.
     const e = new Error(typeof data.detail === "string" ? data.detail : data.detail?.message || "Erreur");
@@ -362,7 +367,13 @@ async function refresh() {
   let s;
   try { s = await api("/api/state?guest_id=" + encodeURIComponent(guestId)); } catch { return; }
   stateAt = Date.now();
-  if (!s.active) return show("closed");
+  setMusicIn(!!s.active && !s.removed);  // app App Store : l'onglet Musique suit la soirée (serveur seul juge)
+  musicOut = !s.active ? "Pas de soirée Musique en cours pour le moment." : s.removed ? s.blocked || "L'hôte t'a retiré l'accès." : "";
+  if (!s.active) {
+    // App App Store : soirée arrêtée = soirée quittée ; la suivante redemandera le code (l'onglet ne revient pas tout seul).
+    if (STORE_APP && !fbIsAdmin()) api("/api/leave", { method: "POST", body: JSON.stringify({ guest_id: guestId }) }).catch(() => {});
+    return show("closed");
+  }
   if (!guestName) { if ($("hello").classList.contains("hidden")) show("hello"); return; }
   // Le serveur fait foi pour le prénom (l'hôte a pu le changer) : on le reprend AVANT de se présenter,
   // sinon l'ancien prénom gardé sur le téléphone écraserait le renommage.
@@ -494,12 +505,28 @@ const discussionsOn = document.documentElement.dataset.discussions !== "off";
 function startTab() {
   return store("vp_tab") === "games" && store("vp_game") ? "games" : "events";
 }
-// App App Store (décision de l'admin du 25.11) : l'onglet Musique est caché (barre web et barre native, qui ne décrit
-// que les boutons visibles : native-tabs.js). On rejoint la soirée Musique depuis Jeux, par le champ « Code » (6 chiffres,
-// games.js joinByCode) ou le QR de l'hôte (?pin=) ; Musique ne s'ouvre qu'une fois la soirée rejointe, sinon c'est Jeux.
+// App App Store (décision de l'admin du 27.11) : l'onglet Musique n'existe que pendant la soirée rejointe (barre web et
+// barre native, qui ne décrit que les boutons visibles : native-tabs.js). On la rejoint depuis Jeux, par le champ « Code »
+// (6 chiffres, games.js joinByCode) ou le QR de l'hôte (?pin=) ; l'onglet apparaît, puis part dès que la personne n'est
+// plus dans la soirée (« Quitter la soirée », soirée arrêtée, code changé, déconnectée ou retirée par l'hôte, relancement
+// sans session). Seul /api/state en décide (setMusicIn, depuis refresh) ; vp_music_joined n'est qu'un indice de démarrage.
 const STORE_APP = document.documentElement.classList.contains("party-store");
 if (STORE_APP) document.querySelector('#tabs [data-tab="music"]').classList.add("hidden");
 let musicJoined = STORE_APP && store("vp_music_joined") === "1";
+let musicOut = "";  // pourquoi on n'est pas (ou plus) dans la soirée, d'après le dernier /api/state
+function setMusicIn(on) {
+  if (!STORE_APP) return;
+  const was = musicJoined;
+  musicJoined = on;
+  try { on ? localStorage.setItem("vp_music_joined", "1") : localStorage.removeItem("vp_music_joined"); } catch {}
+  document.querySelector('#tabs [data-tab="music"]').classList.toggle("hidden", !on);
+  document.getElementById("gMusicBack")?.classList.toggle("hidden", !on);
+  $("musicLeave")?.classList.toggle("hidden", !on);
+  if (!on && document.body.dataset.tab === "music" && !(typeof fbIsAdmin === "function" && fbIsAdmin())) {
+    showTab("games");
+    if (was) toast("🎵 Tu n'es plus dans la soirée Musique");
+  }
+}
 const HOME_TAB = STORE_APP ? "events" : "music";  // repli d'un onglet inconnu ou fermé
 // Les événements utilisent leur compte SMS ; les accès musique/jeux restent indépendants.
 function showTab(tab, eventTarget) {
@@ -1196,13 +1223,9 @@ async function join(pin) {
     $("pinInput").value = "";
     registered = false;  // se représenter : un invité déconnecté réapparaît dans la liste de l'hôte
     if (source) listen();
-    if (STORE_APP) {  // app App Store : la soirée rejointe (code de Jeux ou QR) ouvre Musique, sans onglet
-      musicJoined = true;
-      store("vp_music_joined", "1");
-      document.getElementById("gMusicBack")?.classList.remove("hidden");
-      showTab("music");
-    }
-    await refresh();
+    await refresh();  // app App Store : l'onglet Musique apparaît si le serveur confirme la soirée (setMusicIn)
+    if (STORE_APP && musicJoined) showTab("music");
+    else if (STORE_APP && musicOut) toast(musicOut, "err");  // pas de soirée en cours, retiré par l'hôte : on dit pourquoi
   } catch (e) {
     $("pinInput").value = "";
     show("pin");
@@ -1218,7 +1241,18 @@ $("pinInput").addEventListener("input", () => {
 // App App Store : champ « Code » de Jeux, 6 chiffres (games.js joinByCode) ; « Revenir à la soirée Musique ».
 window.joinMusicByCode = (pin) => join(pin);
 document.addEventListener("click", (ev) => { if (ev.target.closest("#gMusicBack")) showTab("music"); });
-if (musicJoined) document.getElementById("gMusicBack")?.classList.remove("hidden");
+// « Quitter la soirée » (app App Store) : le serveur révoque l'accès de ce téléphone, l'onglet Musique part.
+async function leaveMusic() {
+  try { await api("/api/leave", { method: "POST", body: JSON.stringify({ guest_id: guestId }) }); }
+  catch (e) { return toast(e.message, "err"); }
+  registered = false;
+  setMusicIn(false);
+  show("pin");
+  toast("👋 Tu as quitté la soirée Musique", "ok");
+}
+$("musicLeave").addEventListener("click", leaveMusic);
+// App iPhone : l'écran Musique natif (Quitter, code saisi ou QR scanné) demande à la page de relire la soirée.
+window.PartyMusic = { check: () => refresh(), leave: leaveMusic };
 
 addEventListener("DOMContentLoaded", async () => {
   renderNameChip();

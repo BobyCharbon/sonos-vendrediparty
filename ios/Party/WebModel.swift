@@ -792,6 +792,10 @@ extension WebModel: WebStorage {
         webView?.evaluateJavaScript("typeof loadFeedback === 'function' && loadFeedback(false)")
     }
 
+    func musicChanged() {
+        webView?.evaluateJavaScript("window.PartyMusic && window.PartyMusic.check(); true")
+    }
+
     func writeLocal(_ key: String, _ value: String?) {
         let script = value.flatMap { Self.call("localStorage.setItem", key, $0) } ?? Self.call("localStorage.removeItem", key)
         guard let script else { return }

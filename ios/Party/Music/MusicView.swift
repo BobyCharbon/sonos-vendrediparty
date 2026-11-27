@@ -16,6 +16,7 @@ struct MusicView: View {
     @State private var signingIn = false
     /// Règle de l'admin : tout retrait demande une confirmation.
     @State private var removing: QueueItem?
+    @State private var leaving = false
     @FocusState private var searchFocused: Bool
 
     var body: some View {
@@ -57,6 +58,12 @@ struct MusicView: View {
                             titleVisibility: .visible, presenting: removing) { item in
             Button("Retirer", role: .destructive) { Task { await store.remove(item) } }
             Button("Annuler", role: .cancel) {}
+        }
+        .confirmationDialog("Quitter la soirée Musique ?", isPresented: $leaving, titleVisibility: .visible) {
+            Button("Quitter la soirée", role: .destructive) { Task { await store.leave() } }
+            Button("Annuler", role: .cancel) {}
+        } message: {
+            Text("L'onglet Musique disparaît. Pour revenir, entre à nouveau le code de l'hôte dans Jeux.")
         }
         .sheet(isPresented: $scanning) {
             QRScannerSheet { text in Task { await store.handleScanned(text) } }
@@ -158,6 +165,16 @@ struct MusicView: View {
         upcoming(state)
         messages(state)
         if !state.played.isEmpty { played(state).motionTransition() }
+        // L'onglet Musique de l'app n'existe que pendant la soirée ; l'invité la quitte ici (décision du 27.11).
+        if manage == nil {
+            Button(role: .destructive) { Haptics.tap(); leaving = true } label: {
+                Label("Quitter la soirée", systemImage: "rectangle.portrait.and.arrow.right")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityHint("L'onglet Musique disparaît ; il faudra le code de l'hôte pour revenir")
+            .accessibilityIdentifier("musicLeave")
+        }
     }
 
     // MARK: Recherche
