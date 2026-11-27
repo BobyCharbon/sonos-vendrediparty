@@ -93,3 +93,54 @@ def test_a_name_reported_in_the_room_stays_joueur_n_in_every_game_launched_after
         assert c.post(f"/api/games/{child['code']}", json={"guest_id": "namerep-sc", "action": "nreport", "target": pid}).status_code == 200
         assert len(sent["journal"]) == 1
         assert c.post(f"/api/games/{child['code']}", json={"guest_id": "namerep-sh", "action": "end"}).status_code == 200
+
+
+@pytest.mark.parametrize("kind, name", [("room", "room"), ("likely", "likely"), ("room", "lobby"), ("likely", "lobby")])
+def test_a_reported_name_equal_to_a_game_word_never_breaks_the_game(sent, kind, name):
+    """Relecture du lot 12 : un joueur « room », « likely » ou « lobby » signalé réécrivait `type` / `phase` (500 puis
+    « Partie introuvable » pour toute la table). Seuls les champs qui portent un prénom changent."""
+    c = TestClient(main.app, headers={"User-Agent": STORE_UA})
+    code = c.post("/api/games", json={"guest_id": "namerep-wh", "name": "Léa", "type": kind, "terms": True}).json()["code"]
+    for gid, n in (("namerep-wb", name), ("namerep-wc", "Tom")):
+        assert c.post(f"/api/games/{code}", json={"guest_id": gid, "name": n, "action": "join", "terms": True}).status_code == 200
+    g = main.store.session.games[code]
+    phase = g["phase"]
+    bad = next(p for p in c.get(f"/api/games/{code}?guest_id=namerep-wc").json()["players"] if p["name"] == name)
+    assert c.post(f"/api/games/{code}", json={"guest_id": "namerep-wc", "action": "nreport", "target": bad["pid"]}).status_code == 200
+    assert g["type"] == kind and g["phase"] == phase
+    for gid in ("namerep-wh", "namerep-wb", "namerep-wc"):
+        r = c.get(f"/api/games/{code}?guest_id={gid}")
+        assert r.status_code == 200 and name not in [p["name"] for p in r.json()["players"]]
+
+
+def test_a_reported_name_never_touches_the_secret_words_nor_the_questions():
+    g = {"type": "undercover", "phase": "playing", "host": "h", "host_name": "Léa", "winner": None,
+         "players": [{"id": "h", "pid": "p1", "name": "Léa", "word": "Chien"},
+                     {"id": "x", "pid": "p2", "name": "Chat", "word": "Chat"}],
+         "words": {"civil": "Chat", "undercover": "Chien"}, "options": {"mode": "Chat"},
+         "likely": {"history": [{"q": "Qui adopterait un Chat ?", "winners": ["Chat"]}]},
+         "log": ["Chat a gagné"], "name_reports": {"x": ["h"]}}
+    assert main.alias_reported(g, [])
+    alias = g["players"][1]["name"]
+    assert alias.startswith("Joueur ") and g["players"][1]["word"] == "Chat"
+    assert g["words"] == {"civil": "Chat", "undercover": "Chien"} and g["options"] == {"mode": "Chat"}
+    assert g["likely"]["history"] == [{"q": "Qui adopterait un Chat ?", "winners": [alias]}]
+    assert g["log"] == [f"{alias} a gagné"] and g["type"] == "undercover" and g["phase"] == "playing"
+
+
+def test_a_name_reported_in_the_room_while_out_of_its_game_stays_hidden_when_he_joins_it(sent):
+    """Relecture : signalé dans la salle alors qu'il n'était pas inscrit dans le jeu en cours, il y entrait ensuite
+    par la salle sous son vrai prénom."""
+    c = TestClient(main.app, headers={"User-Agent": STORE_UA})
+    room = c.post("/api/games", json={"guest_id": "namerep-oh", "name": "Léa", "type": "room", "terms": True}).json()["code"]
+    for gid, name in (("namerep-ob", "Maxou"), ("namerep-oc", "Tom")):
+        assert c.post(f"/api/games/{room}", json={"guest_id": gid, "name": name, "action": "join", "terms": True}).status_code == 200
+    assert c.post(f"/api/games/{room}", json={"guest_id": "namerep-oh", "action": "launch", "settings": {"type": "likely"}}).status_code == 200
+    child = main.room_child(main.store.session.games[room])
+    child["players"] = [p for p in child["players"] if p["id"] != "namerep-ob"]  # pas inscrit (plafond, jeu refusé…)
+    bad = next(p for p in c.get(f"/api/games/{room}?guest_id=namerep-oc").json()["players"] if p["name"] == "Maxou")
+    assert c.post(f"/api/games/{room}", json={"guest_id": "namerep-oc", "action": "nreport", "target": bad["pid"]}).status_code == 200
+    assert c.post(f"/api/games/{room}", json={"guest_id": "namerep-ob", "name": "Maxou", "action": "join", "terms": True}).status_code == 200
+    assert main.games.player(child, "namerep-ob"), "rentré dans le jeu par la salle"
+    names = [p["name"] for p in c.get(f"/api/games/{child['code']}?guest_id=namerep-oc").json()["players"]]
+    assert "Maxou" not in names and "Maxou" not in str(child)

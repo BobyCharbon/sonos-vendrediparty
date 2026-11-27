@@ -126,16 +126,17 @@ Deno.test('thread-id et catégorie : data.thread, sinon déduits du message ; ri
   assertEquals(categoryFor({ kind: 'group_message', group_id: EVENT }), null);
 });
 
-Deno.test('app App Store : aucune notification du bar ; la BETA les garde', () => {
+Deno.test('app App Store et BETA : aucune notification du bar', () => {
   assertEquals(storeAppSkips('ch.bobycharbon.party', 'bar_served'), true);
   assertEquals(storeAppSkips('ch.bobycharbon.party', 'bar_refund_declared'), true);
   assertEquals(storeAppSkips('ch.bobycharbon.party', 'event_changed'), false);
-  assertEquals(storeAppSkips('ch.bobycharbon.party.beta', 'bar_served'), false);
+  assertEquals(storeAppSkips('ch.bobycharbon.party.beta', 'bar_served'), true);
+  assertEquals(storeAppSkips('ch.bobycharbon.party.other', 'bar_served'), false);
 });
 
-Deno.test('app App Store : texte neutre quand la notification parle de boisson, la BETA garde tout', () => {
+Deno.test('app App Store et BETA : texte neutre quand la notification parle de boisson', () => {
   assertEquals(storeAppText('ch.bobycharbon.party', 'Soirée', 'Le nouveau lieu de l\'événement est Bar du Port.'), STORE_NEUTRAL);
   assertEquals(storeAppText('ch.bobycharbon.party', '🍻 Apéro', 'Demain'), STORE_NEUTRAL);
   assertEquals(storeAppText('ch.bobycharbon.party', 'Soirée jeux', 'Demain 20:00'), { title: 'Soirée jeux', body: 'Demain 20:00' });
-  assertEquals(storeAppText('ch.bobycharbon.party.beta', 'Apéro', 'Bar'), { title: 'Apéro', body: 'Bar' });
+  assertEquals(storeAppText('ch.bobycharbon.party.beta', 'Apéro', 'Bar'), STORE_NEUTRAL);
 });

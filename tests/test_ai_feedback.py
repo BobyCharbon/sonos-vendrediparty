@@ -202,6 +202,22 @@ def test_api_needs_the_right_to_write_but_not_ai_use(api):
     assert c.post("/api/feedback/ai/rewrite", json={"guest_id": GUEST, "token": PLUS, "turns": ["x y z"]}).status_code == 403
 
 
+def test_a_new_guest_account_with_ai_use_gives_its_consent_but_still_writes_no_review(api, monkeypatch):
+    """Compte neuf (rôle guest) : « ai.use » sans « feedback.write ». L'assistant des événements de l'app iPhone passe par
+    /api/feedback/ai/status et /consent (un seul accord pour toute l'IA) : permis ; « Ton avis » reste refusé."""
+    c, client = api
+    monkeypatch.setattr(main.accounts, "_perms", lambda token: {"ai.use"} if token == "tok-guest" else set())
+    monkeypatch.setattr(main.accounts, "_uid", lambda token: "u-guest")
+    assert c.post("/api/feedback/ai/status", json={"guest_id": GUEST, "token": "tok-guest"}).status_code == 200
+    r = c.post("/api/feedback/ai/consent", json={"guest_id": GUEST, "token": "tok-guest", "accept": True})
+    assert r.status_code == 200 and r.json()["consent"] == "accepted"
+    assert main.feedback_writer.consents.state("acct:u-guest") == "accepted"  # même clé que l'assistant (acct:<uid>)
+    no = c.post("/api/feedback/ai/rewrite", json={"guest_id": GUEST, "token": "tok-guest", "turns": ["Le quiz plante"]})
+    assert no.status_code == 403 and client.calls == []
+    # Sans « ai.use » ni « feedback.write » : rien.
+    assert c.post("/api/feedback/ai/consent", json={"guest_id": GUEST, "token": "tok-none", "accept": True}).status_code == 403
+
+
 def test_api_host_without_account_is_a_guest_subject(api, admin):  # noqa: F811
     r = admin.post("/api/feedback/ai/consent", json={"guest_id": GUEST, "token": "", "accept": True})
     assert r.status_code == 200 and main.feedback_writer.consents.state("guest:" + GUEST) == "accepted"
