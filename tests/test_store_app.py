@@ -1008,3 +1008,10 @@ def test_round_four_terms_sheet_shows_only_the_store_filtered_terms():
     filtre de l'app App Store (sections bar et Pronos). Elle doit utiliser TermsView.shown, comme Réglages › Conditions."""
     sheet = (_root() / "ios/Party/Settings/Moderation/ModerationSheets.swift").read_text(encoding="utf-8")
     assert "TermsView.sections" not in sheet and "TermsView.shown" in sheet
+
+
+def test_policy_and_terms_have_no_broken_accents():
+    """Contrôle Apple, tour 5 (27.11) : « montrÃ© » dans la politique (web et iPhone). Aucun texte cassé à l'écran."""
+    for path in ("web/events/src/app/privacy.tsx", "ios/Party/Settings/Account/SignInView.swift",
+                 "web/events/src/lib/terms.ts", "ios/Party/Settings/Moderation/TermsView.swift"):
+        assert "Ã" not in (_root() / path).read_text(encoding="utf-8"), path
