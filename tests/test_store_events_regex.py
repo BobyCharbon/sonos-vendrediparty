@@ -45,3 +45,15 @@ def test_the_screen_filter_answers_like_the_server_on_accented_words():
 def test_the_screen_filter_never_uses_a_lookbehind():
     # iOS 16.0–16.3 (cible minimale de l'app) refuse (?<! : le module entier ne se chargerait pas.
     assert not re.search(r'\(\?<[!=]', TS.read_text(encoding='utf-8'))
+
+
+def test_the_push_filter_answers_like_the_server_on_accented_words():
+    """Même défaut dans la copie de send-push (Deno) : exécutée pour de vrai sur le même corpus."""
+    src = (TS.parents[4] / 'supabase/functions/send-push/apns.ts').read_text(encoding='utf-8')
+    start = src.index('const DRINK_PY = ')
+    end = src.index("'iu');", src.index('export const DRINK_RE = ', start)) + 6
+    script = src[start:end].replace('export const', 'const') + f'\nconsole.log(JSON.stringify({json.dumps(CORPUS)}.map((t) => DRINK_RE.test(t))));'
+    out = subprocess.run(['node', '--no-warnings', '--input-type=module', '-e', script], capture_output=True, text=True,
+                         timeout=30, check=True)
+    py = [bool(store_app.DRINK_RE.search(t)) for t in CORPUS]
+    assert dict(zip(CORPUS, json.loads(out.stdout))) == dict(zip(CORPUS, py))

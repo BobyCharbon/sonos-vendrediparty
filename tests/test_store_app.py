@@ -278,7 +278,7 @@ def test_push_of_the_app_store_app_uses_exactly_the_same_drink_words():
     """Contrôle Apple du 26.11 : send-push neutralise une notification « à boisson » pour l'app App Store, avec
     EXACTEMENT DRINK_RE (copie dans l'Edge Function, Deno)."""
     ts = (__import__("pathlib").Path(main.__file__).resolve().parents[1] / "supabase/functions/send-push/apns.ts").read_text()
-    assert "new RegExp(String.raw`" + store_app.DRINK_RE.pattern + "`, 'iu')" in ts
+    assert "const DRINK_PY = String.raw`" + store_app.DRINK_RE.pattern + "`;" in ts
     index = (__import__("pathlib").Path(main.__file__).resolve().parents[1] / "supabase/functions/send-push/index.ts").read_text()
     assert "storeAppText(apns.topic, row.title, row.body)" in index and "text.title, text.body" in index
 
