@@ -315,7 +315,7 @@ struct MessageReportSheet: View {
                 if sent {
                     Section {
                         Label("Merci, c'est envoyé", systemImage: "checkmark.seal.fill").font(.headline)
-                        Text("Un modérateur va regarder. La personne n'est pas prévenue que c'est toi.").foregroundStyle(ConvNeon.t2)
+                        Text("Un modérateur va regarder. La personne n'est pas prévenue que c'est toi. Traité sous 24 h · \(TermsView.supportEmail)").foregroundStyle(ConvNeon.t2)
                     }
                     .listRowBackground(ConvNeon.surface)
                 } else {
@@ -350,8 +350,9 @@ struct MessageReportSheet: View {
                             .lineLimit(2...5)
                             .onChange(of: comment) { value in if value.count > 500 { comment = String(value.prefix(500)) } }
                     } footer: {
-                        Text(context ? "Le modérateur reçoit une copie de ce message et des 10 messages d'avant (texte, auteur, heure)."
-                                     : "Le modérateur reçoit une copie de ce message seulement.")
+                        Text((context ? "Le modérateur reçoit une copie de ce message et des 10 messages d'avant (texte, auteur, heure)."
+                                      : "Le modérateur reçoit une copie de ce message seulement.")
+                             + " Traité sous 24 h · \(TermsView.supportEmail)")
                     }
                     .listRowBackground(ConvNeon.surface)
                     if let error {

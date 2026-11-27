@@ -1015,3 +1015,11 @@ def test_policy_and_terms_have_no_broken_accents():
     for path in ("web/events/src/app/privacy.tsx", "ios/Party/Settings/Account/SignInView.swift",
                  "web/events/src/lib/terms.ts", "ios/Party/Settings/Moderation/TermsView.swift"):
         assert "Ã" not in (_root() / path).read_text(encoding="utf-8"), path
+
+
+def test_every_store_report_sheet_promises_24_hours_and_the_contact():
+    """Recette iPhone du 28.11 : la feuille « Signaler » d'un message (MessageReportSheet) n'affichait ni le délai ni le
+    contact, contrairement à la feuille commune. Toutes les feuilles de l'app App Store les montrent."""
+    for path in ("ios/Party/Settings/Moderation/ModerationSheets.swift", "ios/Party/Chats/Conversation/ConversationNeon.swift"):
+        text = (_root() / path).read_text(encoding="utf-8")
+        assert "Traité sous 24 h · \\(TermsView.supportEmail)" in text, path
