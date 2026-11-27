@@ -67,7 +67,14 @@ def test_normalization_keeps_the_length_so_masks_line_up():
 
 def test_the_migration_holds_exactly_the_python_patterns():
     sql = MIGRATION.read_text()
-    assert moderation.sql_values() in sql  # recopier `python -m app.moderation --sql` après un changement de la liste
+    # La DERNIÈRE migration qui réécrit la liste (et son fichier prod) porte exactement les motifs du module : recopier
+    # `python -m app.moderation --sql` dans une nouvelle migration après un changement de la liste.
+    root = MIGRATION.parents[1]
+    latest = [f for f in sorted((root / "migrations").glob("*.sql"))
+              if "insert into private.moderation_patterns" in f.read_text()][-1]
+    assert moderation.sql_values() in latest.read_text()
+    applies = [f for f in sorted((root / "prod").glob("*-apply.sql")) if "insert into private.moderation_patterns" in f.read_text()]
+    assert moderation.sql_values() in applies[-1].read_text()
     # Même normalisation des deux côtés (translate de la base = tables du module).
     froms = re.search(r"translate\(lower\(coalesce\(t, ''\)\),\s*'([^']*)',\s*'([^']*)'\)", sql)
     assert froms.group(1) == moderation.ACCENTS_FROM + moderation.LEET_FROM

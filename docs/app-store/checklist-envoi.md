@@ -61,6 +61,15 @@
          ('profile', 'profile_photo') then`, `elsif r.target_kind = 'profile' then`, `else 'Zicou' end)`, `else 'Un contenu
          que tu as publié a été retiré' end`, 'pet_word' : toutes présentes) ; serveur : `app/moderation_api.py` (KINDS)
          déployé avec.
+      15. `2026-11-27-haine-suicide-phrases` (20261127160000) : **PRÊT** (apply + rollback, testés sur TEST le 27.11 :
+         `tests/supabase_live/test_haine_suicide_live.py`, verdicts de la base = verdicts Python ligne à ligne, surnom et
+         message refusés ; retour arrière essayé (121 motifs, empreinte de la prod à l'identique) puis réapplication). À
+         appliquer APRÈS 12 (`filtre-sosies`, qui redéfinit `mod_hit`) ; ne redéfinit aucune fonction, réécrit seulement
+         la table `private.moderation_patterns` (121 → 137 motifs). Ancre vérifiée le 27.11 en lecture seule : la prod a
+         les 121 motifs de 20261104200000 (même empreinte md5 que TEST et le dépôt d'avant). Filtre COMMUN (surnoms, groupes,
+         messages, événements, jeux) : phrases de haine (groupes × tournures hostiles : « Mort aux juifs », « Sales
+         arabes », « Les noirs dehors », « Négresse ») et incitation au suicide (« Va te jeter d'un pont », « Tire-toi une
+         balle », « Meurs ») refusées ; serveur (`app/moderation_terms.py`) déployé avec.
 - [ ] **Revérifier les ancres contre la prod avant d'appliquer** (150000 a réécrit event_changed, event_guest_list,
       apply_waitlist, event_attendance, public_event, chat_event_cards, invite_preview).
       **Fait le 27.11 en LECTURE SEULE** (`sbq.py prod`, `pg_get_functiondef` de la prod ; photo du 27.11, à refaire si

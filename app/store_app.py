@@ -57,7 +57,8 @@ STORE_EXCLUDE = re.compile(
     r"sans savoir comment j['’]y étais arrivé|dormi dans ma voiture après une soirée|oublié avec qui j['’]étais venu"
     r"|oublier comment il est rentré|se réveiller chez quelqu['’]un d['’]autre|organiser l['’]after|la veille d['’]un examen"
     r"|plus jamais.{0,20}recommencer|dont tu ne te souviens plus du prénom|soirée légendaire|lendemain de soirée|lendemain d['’]une f[êe]te"
-    r"|sans se souvenir|trou noir|black-?out|si (?:tu étais|c['’]était) une boisson",
+    r"|sans se souvenir|trou noir|black-?out|si (?:tu étais|c['’]était) une boisson"
+    r"|(?:[ée]tait|serait) une boisson|soir[ée]e.{0,40}l[ée]gendaire",  # tour 8 : cartes du Divan
     re.IGNORECASE)
 
 
@@ -171,7 +172,8 @@ def fold(text: str) -> str:
 #    ramenées à une, puis à deux : « Vooodka », « Pompettte » ; « Shoot » reste « Shoot »), « ! » et « + » lus comme
 #    lettres ENTRE deux lettres (« H!tler », « Pu+ain » ; « par ! » ne devient pas « pari »).
 TRIPLE = re.compile(r"([^\W\d_])\1{2,}", re.IGNORECASE)
-SIGNS = (re.compile(r"(?<=[^\W\d_])!(?=[^\W\d_])"), "i"), (re.compile(r"(?<=[^\W\d_])\+(?=[^\W\d_])"), "t")
+SIGNS = ((re.compile(r"(?<=[^\W\d_])!(?=[^\W\d_])"), "i"), (re.compile(r"(?<=[^\W\d_])\+(?=[^\W\d_])"), "t"),
+         (re.compile(r"\(\)"), "o"))  # tour 8 : « V()dka », « C()ke »
 
 
 def _signs(text: str) -> str:
@@ -270,11 +272,36 @@ def _article_hit(text: str) -> bool:
 PLAYER_SAFE = re.compile(r"\b(verres?|bouteilles?) (d['’ ]?eau(?![\s-]*de[\s-]*vie)|de (lait|jus|sirop|soda|limonade|grenadine"
                          r"|th[ée]|caf[ée]|coca(?![iï]ne)|chocolat)\b)|\b(un|le|ce|quel|vrai|petit) crack (en|de|du|au|aux)\b"
                          r"|\b(à|a|en|vers|depuis|pr[èe]s de|(viens|vient|venu|venue|originaire|n[ée]e?) de) (bordeaux|bourgogne)\b"
-                         r"|\bcasino de montreux\b",
+                         r"|\bcasino de montreux\b"
+                         # Tour 8 (27.11) : boire de l'eau, du café… ; « sans alcool », « non à la drogue », « je déteste la
+                         # cigarette » ; le trou noir de l'espace ; Porto-Novo (capitale du Bénin). Seule la phrase sûre est
+                         # retirée : « une bière sans alcool », « je bois de l'eau et de la vodka » restent refusées.
+                         r"|\b(bu|bois|boit|boivent|boire|buvons|buvez)(\s+trop)?\s+(de\s+l['’]\s*|de\s+la\s+|de\s+|du\s+"
+                         r"|d['’]\s*|un\s+|une\s+|des\s+|le\s+|la\s+|l['’]\s*)?(eau(?![\s-]*de[\s-]*vie)|caf[ée]|th[ée]|jus"
+                         r"|lait|soda|sirop|limonade|chocolat|tisane)\b"
+                         r"|(?<!pas de )(?<!jamais de )(?<!aucune )\b(?:(?:une|la|ma|ta|notre|cette)\s+)?(?:soir[ée]e|f[êe]te|journ[ée]e"
+                         r"|semaine|vie|boisson)\s+sans\s+alcool\b|(?<!pas )(?<!jamais )\bz[ée]ro\s+alcool\b|\bnon\s+[àa]\s+la\s+drogue\b|\ble\s+tabac\s+tue\b"
+                         r"|\bd[ée]teste\s+(la\s+cigarette|les\s+cigarettes|le\s+tabac)\b"
+                         r"|\btrou\s+noir\s+(dans\s+l['’]\s*espace|de\s+l['’]\s*univers|supermassif|galactique)"
+                         r"|\bporto[\s-]+novo\b",
                          re.IGNORECASE)
 # Noms de famille qui contiennent un mot de DRINK_RE (prénoms et noms des joueurs seulement, tour 7) : Brasseur, Escobar
 # (jamais « Pablo Escobar »), Kirschner, Perdrix, Tchindjang.
-NAME_SAFE = re.compile(r"\b(brasseurs?|(?<!pablo )escobar|kirschner|perdrix|tchindjang)\b", re.IGNORECASE)
+NAME_SAFE = re.compile(r"\b(brasseurs?|(?<!pablo )escobar|kirschner|perdrix|tchindjang|porto[\s-]+novo)\b", re.IGNORECASE)
+# Tour 8 : « Bordeaux », « Cointreau » (noms de famille) seulement comme nom entier ou « Prénom Nom » ; jamais « Le
+# Bordeaux », « Team Cointreau », « Bordeaux rouge » (le prénom devant passe le filtre lui-même).
+FAMILY_NAME = re.compile(r"\s*(?:([^\W\d_][\w'’-]*)\s+)?(bordeaux|cointreau)\s*", re.IGNORECASE)
+NOT_FIRST_NAMES = {"team", "vin", "rouge", "blanc", "verre", "shot", "fan", "club", "grand", "cru", "petit", "gros", "mister",
+                   "monsieur", "madame", "miss", "king", "queen", "roi", "reine", "chateau", "château"}
+
+
+def name_safe(name) -> str:
+    """Le prénom sans ses noms de famille sûrs (NAME_SAFE, FAMILY_NAME) : le reste passe le filtre."""
+    text = NAME_SAFE.sub(" ", str(name or ""))
+    m = FAMILY_NAME.fullmatch(text)
+    if m and (not m.group(1) or m.group(1).lower() not in COMMON | NOT_FIRST_NAMES):
+        return m.group(1) or " "
+    return text
 
 
 @lru_cache(maxsize=8192)
@@ -356,7 +383,7 @@ def check_text(text, store: bool, kind: str = "answer"):
         return
     if kind == "name" and not name_chars_ok(text):
         raise ValueError(NAME_CHARS_REFUSED)
-    if kind == "name" and (glued_hit(NAME_SAFE.sub(" ", text)) or player_offensive(NAME_SAFE.sub(" ", text))):
+    if kind == "name" and (glued_hit(name_safe(text)) or player_offensive(name_safe(text))):
         raise ValueError(NAME_REFUSED)
     if kind != "name" and not answer_chars_ok(text):
         raise ValueError(ANSWER_CHARS_REFUSED)
@@ -369,7 +396,7 @@ def name_refused(name) -> bool:
     """Prénom jamais montré dans une partie de l'app : hors de l'alphabet des prénoms, refusé par l'app
     (player_offensive) ou par le filtre commun (un prénom du web hors de l'alphabet devient « Joueur N »)."""
     return isinstance(name, str) and bool(name) and (
-        not name_chars_ok(name) or glued_hit(NAME_SAFE.sub(" ", name)) or player_offensive(NAME_SAFE.sub(" ", name))
+        not name_chars_ok(name) or glued_hit(name_safe(name)) or player_offensive(name_safe(name))
         or not moderation_check(name, "name").ok)
 
 

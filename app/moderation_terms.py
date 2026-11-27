@@ -16,17 +16,89 @@ visent personne (« merde », « putain », « scheisse », « shit », « cazzo
 Les mots à double sens trop fréquents sont exclus (« con » = « avec » en italien, « chatte », « tapette », « queue »,
 « schwanz », « finocchio », « retard », « negroni »…)."""
 
+# ── Contrôle Apple, tour 8 (27.11) : phrases de haine et incitation au suicide fermées PAR CONSTRUCTION ──
+# Lues sur le texte normalisé et recollé (moderation.merged : a-z et une espace entre les mots ; « d'un » → « d un »).
+# Motifs portables Python / PostgreSQL : jamais de \b ni d'apostrophe ; lookahead / lookbehind de largeur fixe seulement.
+_W = "[^a-z]+"
+
+
+def _rx(*words: str) -> str:
+    return _W.join(words)
+
+
+# Groupes visés (liste fermée), formes féminines et plurielles comprises. « sale » n'est jamais « salle » (sa+le+).
+GROUPS = ("j+u+i+(f+|v+e+)s?", "f+e+u+j+s?", "a+r+a+b+e+s?", "r+e+b+e+u+(s|x)?", "n+o+i+r+e*s?", "r+e+n+o+i+e*s?",
+          "b+l+a+c+k+s?", "n+e+g+r+(e+|e+s+e+)s?", "m+u+s+u+l+m+a+n+e*s?", "c+h+r+e+t+i+e+n+(n+e+)?s?",
+          "b+l+a+n+c+(h+e+)?s?", "a+f+r+i+c+a+i+n+e*s?", "g+a+y+s?", "l+e+s+b+i+e+n+e+s?", "t+r+a+n+s+",
+          "h+o+m+o+s?", "h+o+m+o+s+e+x+u+e+l+(l+e+)?s?", "p+e+d+e+s?", "h+a+n+d+i+c+a+p+e+e*s?", "e+t+r+a+n+g+e+r+e*s?",
+          "i+m+i+g+r+e+e*s?", "m+i+g+r+a+n+t+e*s?", "r+e+f+u+g+i+e+e*s?", "r+o+m+s?", "g+i+t+a+n+e*s?", "t+s+i+g+a+n+e+s?",
+          "c+h+i+n+o+i+s+e*s?", "a+s+i+a+t+i+q+u+e+s?", "f+e+m+e+s?")
+# Sans article devant (« Juifs dehors », « Arabes dehors ») : les mêmes groupes au PLURIEL seulement (« il fait noir
+# dehors » est au singulier), dérivés de GROUPS ; jamais blanc ni chinois (invariable : « on mange chinois dehors ») ; et
+# pour « au four / au bûcher / à mort », jamais un mot de cuisine (« pains arabes au four », « riz noirs au four »).
+PLURAL = tuple(g[:-1] if g.endswith("s?") else g[:-1] if g.endswith("(s|x)?") else g for g in GROUPS)
+_WHITE, _COOK = ("b+l+a+n+",), ("b+l+a+n+", "c+h+i+n+", "a+r+a+b+", "n+o+i+r+", "a+s+i+a+t+")
+_G = "(" + "|".join(GROUPS) + ")"
+_G_NOT_WHITE = "(" + "|".join(g for g in GROUPS if not g.startswith(_WHITE)) + ")"  # « les blancs au four » (œufs)
+_P_OUT = "(" + "|".join(g for g in PLURAL if not g.startswith(("b+l+a+n+", "c+h+i+n+"))) + ")"
+_P_DEATH = "(" + "|".join(g for g in PLURAL if not g.startswith(_COOK)) + ")"
+# Couleurs : « je déteste les blancs d'œuf », « brûler les blancs de poulet » passent.
+_NOT_FOOD = "(?![a-z]*" + _W + "(d|de|du)" + _W + "(o+e+u+f+s?|poulet|dinde|poireaux?))"
+_ALL = "(" + _rx("tous") + _W + "|" + _rx("toutes") + _W + ")?"
+HOSTILE_BEFORE = "(" + "|".join((
+    "s+a+le+s?(" + _W + "(petite?s?|gros|grosses?|vieux|vieilles?))?",  # sale(s), sale petit…
+    _rx("morts?", "(aux?|a" + _W + "les)"), _rx("a", "mort", "les"), _rx("a", "bas", "les"), _rx("dehors", "les"),
+    "(gazer|gazez|tuer|tuez|exterminer|exterminez|bruler|brulez|cramer|massacrer|massacrez|eliminer|buter|butez"
+    "|niquer|niquez|nique|crever|deporter|pendre|pendez|lyncher)" + _W + _ALL + "(les|des|ces)",
+    "(je|j)" + _W + "(hais|deteste|emmerde|vomis|nique|exterminerais|tuerais|gazerais)" + _W + _ALL + "(les|ces)",
+)) + ")"
+OUT = ("dehors", _rx("go", "home"), _rx("hors", "de", "(france|suisse|belgique|chez", "nous)"),
+       _rx("a", "la", "chambre", "a", "gaz"))
+DEATH = (_rx("au", "fours?"), _rx("aux", "fours?"), _rx("au", "bucher"), _rx("a", "mort") + "(?!" + _W + "de($|[^a-z]))")
+HOSTILE_AFTER = "(" + "|".join(OUT + DEATH) + ")"
+HATE_PHRASES = (
+    "re:" + HOSTILE_BEFORE + _W + _G + _NOT_FOOD,
+    "re:(les|des|ces)" + _W + _G_NOT_WHITE + _W + HOSTILE_AFTER,
+    "re:" + _P_OUT + _W + "(" + "|".join(OUT) + ")",
+    "re:" + _P_DEATH + _W + "(" + "|".join(DEATH) + ")",
+)
+# Incitation au suicide (catégorie « haine » : refusée partout, jamais seulement masquée). « Va te jeter à l'eau »
+# (= lance-toi) et « Tire-toi une balle dans le pied » (= te nuire) passent ; « tu vas te tuer à la tâche », « il va te
+# tuer » (sujet devant « va ») passent ; « Meurs » seulement en tête, jamais « je meurs de faim ».
+# Sujet devant « va » : le mot entier (« bon va te pendre », « non va te noyer » restent refusés).
+_NO_SUBJECT = "".join(f"(?<! {w} )(?<!^{w} )" for w in ("tu", "il", "elle", "on", "ca", "qui", "ils", "ne"))
+_PLACE = ("(pont|fenetre|train|metro|tram|bus|falaise|balcon|toit|immeuble|vide|voiture|camion|precipice|ravin|seine|rhone|riviere|fleuve|canal|lac|leman)")
+SUICIDE = (
+    "re:" + _NO_SUBJECT + "(va|vas)" + _W + "te" + _W + "(noyer|pendre|suicider|immoler|flinguer|empoisonner|"
+    + _rx("foutre", "en", "l", "air") + "|" + _rx("tirer", "une", "balle") + "(?!" + _W + "dans" + _W + "le" + _W + "pied)|"
+    + _rx("ouvrir", "les", "veines") + ")",
+    "re:^(va|vas)" + _W + "te" + _W + "(tuer|jeter$)",
+    "re:(va" + _W + "te" + _W + "jeter|jette" + _W + "toi|balance" + _W + "toi|lance" + _W + "toi)" + _W
+    + "(du" + _W + "haut" + _W + ")?(d|du|de|depuis|par|sous|dans|devant)" + _W + "((un|une|le|la|les|l|des)" + _W + ")?"
+    + _PLACE,
+    "re:" + _rx("allez", "vous", "(pendre|noyer|suicider)"),
+    "re:(tire|tires|mets|colle|loge)" + _W + "toi" + _W + "une" + _W + "balle(?!" + _W + "dans" + _W + "le" + _W + "pied)",
+    "re:" + _rx("fous", "toi", "en", "l", "air"),
+    "re:(ouvre|taille|coupe|tranche)" + _W + "toi" + _W + "les" + _W + "veines",
+    "re:(tue|pends|suicide|flingue|immole|noie|egorge|empoisonne)" + _W + "toi(?!" + _W + "(ou|aussi|moi)($|[^a-z]))",
+    "re:^m+e+u+r+s+(?!" + _W + "(de|d|pas)($|[^a-z]))",
+    "re:" + _rx("le", "monde", "(irait|serait|ira|sera)", "mieux", "sans", "toi"),
+    "re:" + _rx("personne", "(ne" + _W + ")?te", "(regrettera|regretterait|pleurera|pleurerait)"),
+    "re:go" + _W + "die(?!" + _W + "hard)", "kill yourself", "kill urself", "go kill yourself",
+)
+
+
 HAINE = (
     # FR
     "negre", "bougnoul*", "bicot", "youpin", "youtre", "bamboula", "chinetoque", "niakoue", "pede", "pd", "gouine",
-    "tarlouze", "sale arabe", "sale juif", "sale noir", "sale negre",
+    "tarlouze", "re:n+e+g+r+e+s{2,}e+s?",  # « négresse » (jamais « Negresco » : deux s exigés)
     # DE
     "neger", "kanake", "kanacke", "schwuchtel", "judensau", "heil hitler", "sieg heil",
     # IT
     "negro", "frocio", "ricchione",
     # EN
     "re:n+i+g{2,}(a|e+r)[a-z]*", "faggot*", "fag", "kike", "=spic", "chink", "tranny", "white power",
-)
+) + HATE_PHRASES + SUICIDE
 
 SEXUEL = (
     # FR
