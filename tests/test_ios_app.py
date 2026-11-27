@@ -116,7 +116,7 @@ def test_review_notes_describe_every_big_feature_delivered_by_the_web():
         "sondage de dates": "Date poll",
         "agenda abonné": "calendar feed",
         "covoiturage": "Carpool",
-        "liens de groupe": "Inviter avec un lien",
+        "liens de groupe": '"Inviter" > "Le lien du groupe"',
         "inscription complète des invités": "nickname",
         "nouveau compte": "Nouveau compte",
         "annonce et maintenance": "maintenance",

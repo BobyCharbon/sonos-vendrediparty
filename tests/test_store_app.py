@@ -547,7 +547,7 @@ def test_round_four_review_notes_present_an_app_for_everyone_and_nothing_dormant
     notes = (_root() / "ios/appstore/review-notes.txt").read_text(encoding="utf-8").strip()
     guide = (_root() / "docs/app-store/notes-for-review.md").read_text(encoding="utf-8")
     assert len(notes) <= 4000 and notes in guide
-    assert "to organise real-world events with friends" in notes
+    assert "for anyone organising real-world events, chats and party games" in notes and "with friends" not in notes
     assert "group of friends" not in guide and "for friends:" not in notes
     assert "wait for our approval" not in notes and 'tick group "Démo Apple" > Publish: live at once' in notes
     assert "off for this app on our server" not in notes and "switched off for this app on our server" not in guide
@@ -1047,3 +1047,34 @@ def test_apple_check_round_five_texts_match_the_app_store_build():
     assert "Plus tard · jouer seul à Méninges" in games_js and "👥 Jouer avec les autres" in games_js
     host = (_root() / "ios/Party/HostMusic/HostPeopleView.swift").read_text(encoding="utf-8")
     assert 'if !AppConfig.isStoreApp {\n                    Section {\n                        Button("Ouvrir l\'admin du site (secours)"' in host
+
+
+def test_apple_check_round_six_group_link_and_texts_match_the_app_store_build():
+    """Contrôle Apple du 27.11, tour 6 : le libellé réel du lien de groupe (GroupPageView « Inviter » › GroupInviteView
+    « Le lien du groupe », WhatsApp / Copier / Autre, QR ; « Inviter le numéro … »), site public seul « à part »,
+    aucun libellé anglais inventé pour Spotify, lignes internes périmées retirées."""
+    root = _root()
+    notes = (root / "ios/appstore/review-notes.txt").read_text(encoding="utf-8").strip()
+    guide = (root / "docs/app-store/notes-for-review.md").read_text(encoding="utf-8")
+    part_b = guide.split("## PART B", 1)[1]
+    tuto = (root / "docs/app-store/tutoriel-reviewer-fr.md").read_text(encoding="utf-8")
+    fiche = (root / "docs/app-store/fiche-app-store.md").read_text(encoding="utf-8")
+    invite = (root / "ios/Party/Chats/Groups/GroupInviteView.swift").read_text(encoding="utf-8")
+    page = (root / "ios/Party/Chats/Groups/GroupPageView.swift").read_text(encoding="utf-8")
+    assert 'GroupActionLabel(title: "Inviter"' in page and 'Label("Le lien du groupe"' in invite
+    for word in ('"WhatsApp"', '"Copier"', '"Autre"', 'Inviter le numéro'):
+        assert word in invite, word
+    assert len(notes) <= 4000 and notes in guide
+    assert '"Inviter" > "Le lien du groupe" (WhatsApp, Copier, Autre, QR)' in notes
+    for text in (guide, tuto):
+        assert "Inviter avec un lien" not in text
+    assert part_b.count("**Inviter** › **Le lien du groupe**") == 2 and tuto.count("**Inviter** › **Le lien du groupe**") == 2
+    assert '"Inviter le numéro …"' in part_b
+    assert "other\nplatforms are separate" not in guide and "other platforms are separate" not in guide
+    assert "Open in Spotify" not in guide and "each song opens in Spotify" in part_b
+    assert "Pour une bande d'amis" not in fiche and "À VÉRIFIER)" not in fiche
+    assert "`https://party.bobycharbon.ch/events/privacy?app=ios`" in fiche and "09-musique.png" in fiche
+    assert "un bar payant n'existe que" not in guide
+    checklist = (root / "docs/app-store/checklist-envoi.md").read_text(encoding="utf-8")
+    assert ('Captures 6,9" et Duo refaites avec le binaire App Store (4 onglets, sans Musique ; la 09 remplacée par '
+            "Méninges ou la Salle de jeux), envoyées par `tools/appstore_submit.py screens`, vidéo d'aperçu supprimée") in checklist

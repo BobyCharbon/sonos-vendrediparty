@@ -1,20 +1,21 @@
 # Fiche App Store — Vendredi Party (iOS 1.0.0, français)
 
-Textes à saisir dans App Store Connect › l'app › version 1.0.0 › Localisation **Français**. Longueurs comptées par
-script le 16.11.2026. Vérifié dans le code (develop) et sur la prod en lecture seule : `/api/features` =
-`compagnon: false, discussions: true, invites_v2: true` ; `bar: false` pour l'app App Store (« PartyStore », 25.11). Rien sur Zicou, Casino, Blackjack.
+Textes à saisir dans App Store Connect › l'app › version 1.0.0 › Localisation **Français**. Longueurs recomptées par
+script le 27.11.2026 (contrôle Apple, tour 6 : nom 14, sous-titre 27, texte promotionnel 161, description 2 408).
+Dans l'app App Store (« PartyStore ») : Discussions et invitations v2 allumées ; Zicou, bar, Agenda et Pronos éteints
+par le build lui-même (`SettingsStore.loadParty`) et par le serveur (`/api/features`). Rien sur Zicou, Casino, Blackjack.
 
 ## Identité
 
 | Champ | Valeur | Source / remarque |
 |---|---|---|
 | Nom (30 car.) | **Vendredi Party** (14) | Choix de l'admin du 16.11 (« Party » et « Party ! » seuls sont pris, commit 1580f6a). Secours si refusé : « Party ! Événements & soirées » (28). Sous l'icône : « Party ! » (`PARTY_DISPLAY_NAME`, project.yml). |
-| Sous-titre (30 car.) | **Événements, groupes et jeux** (27 ; 25.11, refus 1.4.3 : plus « soirées ») | Pour une bande d'amis (25.11 : jamais « association »). |
+| Sous-titre (30 car.) | **Événements, groupes et jeux** (27 ; 25.11, refus 1.4.3 : plus « soirées ») | App pour tous ceux qui organisent des événements, des discussions et des jeux (jamais « pour une bande d'amis » ni « association »). |
 | Identifiant de lot | `ch.bobycharbon.party` | project.yml (Release) |
 | SKU | `party-ios` | ios/README.md |
 | Version | 1.0.0 | `MARKETING_VERSION` |
 | Langue principale | Français | |
-| Catégorie principale | **Style de vie** (Lifestyle) | Organiser ses soirées et événements entre amis. |
+| Catégorie principale | **Style de vie** (Lifestyle) | Organiser ses événements, ses groupes et ses soirées. |
 | Catégorie secondaire | **Divertissement** (Entertainment) | Jeux de soirée. Ne pas prendre « Jeux » (exigences et classements propres aux jeux). |
 | Prix | Gratuit | Aucun achat intégré |
 | Disponibilité | Les 26 pays francophones de l'App Store (décision du 09.11.2026) | Liste exacte : À VÉRIFIER dans Prix et disponibilité |
@@ -24,7 +25,7 @@ script le 16.11.2026. Vérifié dans le code (develop) et sur la prod en lecture
 
 | Champ | Valeur | État |
 |---|---|---|
-| URL de confidentialité (obligatoire) | `https://party.bobycharbon.ch/events/privacy?app=ios` | « ?app=ios » : texte de l'app App Store, sans bar, Purify Test ni Pronos (25.11). Répond 200 (16.11) ; page dessinée en JavaScript : l'ouvrir une fois dans Safari pour vérifier le texte (mis à jour le 14.11, section bar annoncée par le coordinateur : À VÉRIFIER). |
+| URL de confidentialité (obligatoire) | `https://party.bobycharbon.ch/events/privacy?app=ios` | « ?app=ios » : texte de l'app App Store, sans bar, Purify Test ni Pronos (25.11). Adresse à saisir telle quelle : `https://party.bobycharbon.ch/events/privacy?app=ios` (même valeur dans `metadata-fr.json`). |
 | URL d'assistance (obligatoire) | `https://party.bobycharbon.ch/support` | Page d'assistance (25.11) : contact `support@vendrediparty.ch`, éditeur établi en France, questions fréquentes, liens vers les CGU et la politique en version app (`?app=ios`). |
 | URL marketing (facultative) | **Vide** | Décision du 25.11 (refus 1.4.3) : jamais vers le site, qui garde ses jeux à boire. `metadata-fr.json` l'efface. Jamais `vendrediparty.ch` (aucun site, seulement la messagerie). |
 
@@ -96,11 +97,15 @@ Texte prêt pour la prochaine version (1.0.1), à mettre dans `ios/appstore/what
 
 iPhone seulement (`TARGETED_DEVICE_FAMILY: 1`) : **6,9 pouces (1320 × 2868)**, de 3 à 10 captures, sur la PRODUCTION
 (compagnon éteint) avec un compte de démo et des **données fictives** (aucun vrai nom, numéro ou visage sans accord).
-Les captures en place (25.11, et celles du 26.10) montrent encore l'onglet Musique : **à refaire sur le nouveau build App Store** (26.11) (ni Événements, ni Discussions,
-ni bar) et **sans l'onglet Musique**, caché dans l'app App Store depuis le 25.11. Règle 2.3.8 : captures adaptées à tous les publics même pour une app 18+ → **aucune boisson alcoolisée, aucune
-catégorie « 🍻 Alcool », aucun 🍻, ni Casino, ni Blackjack, ni Zicou**. Le script `ios/scripts/screenshots.sh` est en
-partie périmé (sa capture « 2-games-3d » vise une section cachée depuis l'accueil des Jeux du 15.11) : À VÉRIFIER / refaire
-à la main sur le simulateur.
+Les captures en place (`ios/appstore/screenshots/` et `screenshots-duo/`, 10 chacune) sont PÉRIMÉES : elles montrent
+l'onglet Musique et la 09 est `09-musique.png`. **À refaire avec le binaire App Store** (barre à 4 onglets : Jeux,
+Événements, Discussions, Réglages ; sans Musique), 6,9" et Duo, la 09 remplacée par Méninges ou la Salle de jeux, puis
+envoyées par `tools/appstore_submit.py screens` (case de `checklist-envoi.md`). Règle 2.3.8 : captures adaptées à tous
+les publics même pour une app 18+ → **aucune boisson alcoolisée, aucune catégorie « 🍻 Alcool », aucun 🍻, ni bar, ni
+Casino, ni Blackjack, ni Zicou**. Mode d'emploi du binaire App Store pour les captures : `checklist-envoi.md` (workflow
+`ios-screenshots.yml` sans la condition BETA, `ios/scripts/screenshots.sh`).
+
+Ordre proposé (fichiers `NN-nom.png`, envoyés dans l'ordre des noms) :
 
 | # | Écran | Comment l'obtenir | Légende (sur la capture) |
 |---|---|---|---|
@@ -112,8 +117,8 @@ partie périmé (sa capture « 2-games-3d » vise une section cachée depuis l'a
 | 6 | Ton billet (QR + badge « Ajouter à l'app Cartes Apple ») | Événement à billets, billet remis (« Remettre à tous les présents ») | Ton billet dans Cartes |
 | 7 | Discussion de l'événement (messages fictifs) | Fiche › Discussion | Toute la soirée se prépare ici |
 | 8 | Discussions : une conversation de groupe fictive | Onglet Discussions | Discute avec tes groupes |
-| 9 | Salle de jeux (tuiles d'« Ambiance » / « Jeux de cartes ») ou une question de Quiz | Jeux › Créer une salle | Une salle de jeux pour toute la bande |
-| 10 | Méninges (Faire chauffer) | Jeux › Méninges | Fais chauffer tes méninges |
+| 9 | Méninges (Faire chauffer) ou la Salle de jeux (remplace `09-musique.png`) | Jeux › Méninges, ou Jeux › Créer une salle | Fais chauffer tes méninges |
+| 10 | Pot commun (dépenses fictives, « Rembourser ») | Réglages › Pot commun | Qui a payé quoi, sans calcul |
 
 Aperçu vidéo : **aucun** pour cet envoi (26.11 : l'ancien, `docs/app-store/visuels/apercu/`, montre l'onglet Musique ;
 le supprimer dans App Store Connect, 6,9 pouces et Duo). Icône 1024 × 1024 sans transparence : en place

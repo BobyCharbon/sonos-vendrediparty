@@ -9,8 +9,8 @@
 > (prod › Authentication › Providers › Phone › Test OTP) et le saisir seulement dans App Store Connect.
 >
 > Données à préparer en PRODUCTION (le coordinateur s'en charge ; les notes y renvoient sous CES noms exacts) :
-> 1. Événement **« Soirée démo »** (organisé par un admin), **sur invitation** (un bar payant n'existe que sur un événement
->    non public), date fixée dans 2 à 3 semaines, lieu fictif, Apple-test **invité** (et de préférence déjà noté **Présent**,
+> 1. Événement **« Soirée démo »** (organisé par un admin), **sur invitation** (le bar est caché dans l'app App Store, point 2),
+>    date fixée dans 2 à 3 semaines, lieu fictif, Apple-test **invité** (et de préférence déjà noté **Présent**,
 >    billet remis). Contrôle Apple, tour 2 (26.11) : **prix et covoiturage restent ÉTEINTS** sur la démo (B2 et B4.9 le
 >    disent) ; les **Billets QR sont ALLUMÉS** sur la Soirée démo par le nettoyage de la démo (tour 2), SANS billet
 >    remis (le nettoyage n'en remet aucun) : B2, B4.10 et la partie A disent à Apple de répondre **Présent** puis de se
@@ -33,20 +33,20 @@
 >    « Bloquer » masque aussitôt les messages et prévient les modérateurs ; aucun jeu à boire, aucune gorgée, aucun mode Hot / Mix
 >    ni bar dans l'app App Store (refus 1.4.3, 25.11, `app/store_app.py`) ; CGU « 18 ans et plus ». Si l'une manque en prod : corriger ce
 >    texte avant l'envoi (Apple compare les notes et l'app).
-> 8. Copier la **partie A** dans App Store Connect › App Review Information › **Notes** (3977 caractères, limite 4 000 ; 27.11 : contrôle Apple, tour 5) ET
+> 8. Copier la **partie A** dans App Store Connect › App Review Information › **Notes** (3998 caractères, limite 4 000 ; 27.11 : contrôle Apple, tour 6) ET
 >    dans `ios/appstore/review-notes.txt` (même texte) (c'est ce fichier que `tools/appstore_submit.py` envoie ; la partie A garde tous
 >    les mots exigés par `tests/test_ios_app.py::test_review_notes_describe_every_big_feature_delivered_by_the_web`).
 > 9. Exporter la **partie B** en PDF (sans cet encadré) et la joindre dans App Review Information › **Attachment**.
 
 ---
 
-## PART A — Text for the "Notes" field (3,977 characters, limit 4,000)
+## PART A — Text for the "Notes" field (3,998 characters, limit 4,000)
 
 ```text
 ABOUT
-"Vendredi Party": free app by Ludovic Trombert, an individual developer based in France, to organise real-world events with friends, chats and party games. French, 18+. No ads, tracking or IAP. Guide attached (PDF).
+"Vendredi Party": free app by Ludovic Trombert, an individual developer based in France, for anyone organising real-world events, chats and party games. French, 18+. No ads, tracking or IAP. PDF guide attached.
 
-CHANGES SINCE THE 1.4.3 REJECTION (new build + server, permanent for this version)
+CHANGES SINCE THE 1.4.3 REJECTION (new build + server; for this whole version)
 Removed from this app: every drinking-related game (Pyramide, Je n'ai jamais, Qui de nous ?, Roulette, Beer pong, Biskit, Purify Test), every drink option, Hot/Mix questions, the party bar, Casino, Blackjack and the Music tab. Not renamed or re-skinned: our server refuses them to this app, even by code or QR.
 
 SIGN-IN
@@ -65,7 +65,7 @@ WEB CONTENT (2.5.2)
 Events and Games tabs: our site in a WKWebView. Other sites: Safari. Games > Code: 4 digits = a game; 6 digits = a host's music party (native screen, no tab; needs the host's Sonos; optional Live Activity for your song). Not in this version (never opened by this build; would need a new review): Pronos, Agenda, companion, Souvenirs.
 
 EVENTS
-Links for one person or "Plusieurs"; guests make and stop own links. Not public: a guest's guest waits ("À accepter"). Date poll. Calendar feed. Carpool (no money), QR ticket + Wallet: organiser options. Groups: "Inviter avec un lien". Events need sign-in (nickname: 12 characters max); games need no account. Updates live; tap a name to open the profile; each answer shows its time. Admins: "Nouveau compte", announcement or maintenance.
+Links for one person or "Plusieurs"; guests make and stop own links. Not public: a guest's guest waits ("À accepter"). Date poll. Calendar feed. Carpool (no money), QR ticket + Wallet: organiser options. Groups: "Inviter" > "Le lien du groupe" (WhatsApp, Copier, Autre, QR). Events need sign-in (nickname ≤ 12 characters); games need none. Updates live; tap a name to open the profile; each answer shows its time. Admins: "Nouveau compte", announcement or maintenance.
 
 PAYMENTS (3.1.3(e))
 Party never sells, holds or moves money. Events: organiser's own Revolut/Twint/IBAN, ticketing link (Safari) or on site. Once the organiser confirms, guests get a QR entry ticket for the real event; nothing digital is sold or unlocked. "Pot commun": "Présent" at an event with a pot (or marked so) adds you; leave it in Settings; auto-added members' payment details stay hidden until they pick "Montrer mes moyens de paiement dans ce pot"; "Rembourser" shows them; "Signaler" on expenses and receipts.
@@ -219,7 +219,8 @@ On an online event you organise (e.g. one you create), card **Invités** › **+
   notification a day; guests without the app or notifications get a link the organiser shares himself.
 - Places: when an event with a seat limit is full and the organiser keeps a waiting list, new answers go to the
   **liste d'attente** ("Complet · liste d'attente ouverte"); when a seat frees up, the next person is in and is notified.
-- Groups: Réglages › Groupes › a group › **Inviter avec un lien** (reusable group link). Someone without an account who
+- Groups: Réglages › Groupes › a group › **Inviter** › **Le lien du groupe** (reusable group link: WhatsApp, Copier,
+  Autre, QR code). Someone without an account who
   opens a group link only sees the group's name, emoji and colour and the nickname of who invites, never its members.
 - Friends: Réglages › **Mes amis dans Party** (optional; Contacts access is asked only after an explanation, and limited
   access is respected). It lists your phone contacts already on Party (matched with a hash of each number made on the
@@ -318,7 +319,7 @@ author, never by the person, never shown to our admins, never shared.
 
 #### B4.13 Groups
 
-Réglages › **Groupes**: your groups, **Nouveau groupe**, members, **Inviter avec un lien** (QR, copy, share),
+Réglages › **Groupes**: your groups, **Nouveau groupe**, members, **Inviter** › **Le lien du groupe** (WhatsApp, Copier, Autre, QR code),
 "Montrer mon numéro dans ce groupe" (hidden by default), leave a group. On a group's page, **Signaler le groupe**
 reports its name (and **Signaler la photo du groupe** its photo) to our moderators. Group admins can set roles
 (co-admin, organiser) and who may invite, create events, write or pin; optional approval of new members.
@@ -427,8 +428,8 @@ photos, answers, votes, messages, the events the person created, game stats, AI 
 Honestly stated: the **Events** and **Games** tabs (and a few settings pages for admins) are our own website,
 `https://party.bobycharbon.ch`, displayed in a `WKWebView`, maintained by us. Our server recognises the App Store app
 (its User-Agent) and always gives **every user of this app** the same dedicated version: no drinking game or drink
-option, no party bar, no Casino / Blackjack, no Hot / Mix questions, no Music tab. Our public website and other
-platforms are separate; the app never opens their games.
+option, no party bar, no Casino / Blackjack, no Hot / Mix questions, no Music tab. Our public website is separate;
+the app never opens its games.
 
 - What comes from the server: the whole Events module (lists, event pages, invitations, date polls, tickets, payments,
   carpool, event discussions, activity), all multiplayer games and Méninges, the admin "Annonce et
@@ -483,7 +484,7 @@ New build, and our server, permanent for this version of the App Store app:
 - In this build, the in-app terms and privacy policy show no bar, no drink and no Pronos; "Mes stats de jeu" shows
   Méninges only; the camera prompt names party, game and ticket codes only; no drink emoji in the group or "Pot commun"
   pickers; no "Ajouter un titre" shortcut on the icon; Music notification settings appear only for the host of a music
-  party (a guest's switches are on the Music screen); the Music screen credits Spotify ("Résultats Spotify", "Open in Spotify").
+  party (a guest's switches are on the Music screen); the Music screen credits Spotify ("Résultats Spotify"; each song opens in Spotify).
 - Pronos, Agenda, the companion and Souvenirs are not available in this app (only a future version, submitted for
   review, could add them); the
   "bar" tag is not listed in Settings › Notifications; song suggestions at a music party never require an account.
@@ -514,8 +515,9 @@ New build, and our server, permanent for this version of the App Store app:
 - The App Store description lists the "Partager › Party" extension (an event from a link); it no longer mentions the
   music party nor "mini-sondages", which the demo accounts cannot create.
 - Small changes of this build: "Ajouter quelqu'un" to a group also finds a member by their exact Swiss phone number
-  (never a list of members); the invitation page says, like the event page, that answering Présent joins the event's
-  "Pot commun"; refusing the terms ("Plus tard") always says what to do next and where to accept them later; a blocked
+  (never a list of members), and if nobody is found it offers "Inviter le numéro …": the person sees the
+  invitation when signing up with that number; the invitation page says, like the event page, that answering
+  Présent joins the event's "Pot commun"; refusing the terms ("Plus tard") always says what to do next and where to accept them later; a blocked
   person's mini-profile offers "Débloquer".
 - Payments: once the organiser confirms a payment, the guest gets a QR entry ticket (Wallet) for the real-world event;
   nothing digital is sold or unlocked.

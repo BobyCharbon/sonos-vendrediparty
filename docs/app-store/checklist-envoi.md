@@ -83,6 +83,7 @@
       ses stats Purify, son action rapide Musique, ses emojis 🍻 🍷 et son extension de partage Musique sont dans le binaire).
 - [ ] Captures 6,9" et Duo et vidéo d'aperçu REFAITES sur ce build (barre sans Musique, capture 09 = Méninges ou
       Discussions, aucune boisson) ; sinon supprimer la vidéo d'aperçu dans App Store Connect.
+- [ ] Captures 6,9" et Duo refaites avec le binaire App Store (4 onglets, sans Musique ; la 09 remplacée par Méninges ou la Salle de jeux), envoyées par `tools/appstore_submit.py screens`, vidéo d'aperçu supprimée (contrôle Apple, tour 6, 27.11).
 - [ ] Tour 4 (25.11) : `2026-11-25-surnom-sans-logo-apply.sql` retire aussi U+F8FF des 27 notifications déjà envoyées
       et (tour 7) des 3 noms du Pot commun (`tc_members`, dont « Cobalt Project Paintball ») ; contrôle : 0 ligne
       `notifications` / `tc_members` avec chr(63743). Son retour arrière ne remet PAS les notifications (leur texte n'entre

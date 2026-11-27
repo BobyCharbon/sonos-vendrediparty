@@ -19,8 +19,8 @@ allumés ; Zicou éteint ; `bar: false` pour l'app App Store, 25.11). Ce qui ne 
   invité). Groupes libres (22.11) : un événement réservé à « Démo Apple » est publié aussitôt ; un événement public ou
   « Sur invitation » sans groupe attend une validation. Valider vite pendant la revue.
 - Corrections annoncées par le coordinateur (décrites ci-dessous comme en place) — **À VÉRIFIER en prod avant l'envoi** :
-  « Bloquer » masque aussitôt les messages et prévient les modérateurs ; bar payant seulement sur un événement non public
-  (bar offert partout) ; articles tabac / drogues refusés ; classements des jeux sans gorgées ; CGU « 18 ans et plus » +
+  « Bloquer » masque aussitôt les messages et prévient les modérateurs ; bar caché dans l'app App Store (refus 1.4.3, 25.11 ; le web
+  garde ses règles : bar payant seulement sur un événement non public) ; articles tabac / drogues refusés ; classements des jeux sans gorgées ; CGU « 18 ans et plus » +
   section paiements. Les sections bar des CGU et de la politique n'existent que sur le web : jamais avec `?app=ios`
   ni dans le nouveau build (contrôle Apple, tour 2).
 
@@ -84,7 +84,7 @@ jamais la liste des membres. 📸 (étape 1)
 Carte **Invités** › **+ Inviter** › **Une personne** ou **Plusieurs** (sans limite par défaut, − / + pour les places),
 nom du lien facultatif › **Partager le lien…**. Chaque invité voit les **chiffres** seulement et gère ses propres liens.
 Événement non public : la personne venue par le lien d'un invité attend dans **À accepter**. Groupes : Réglages ›
-Groupes › un groupe › **Inviter avec un lien**. Amis : Réglages › **Mes amis dans Party** (facultatif, Contacts
+Groupes › un groupe › **Inviter** › **Le lien du groupe** (WhatsApp, Copier, Autre, code QR). Amis : Réglages › **Mes amis dans Party** (facultatif, Contacts
 demandé après une explication) : contacts déjà sur Party (empreinte des numéros faite sur l'iPhone, aucun nom ne sort),
 et contacts pas encore sur Party, chacun avec son bouton qui ouvre Messages d'Apple avec mon lien personnel : je relis et
 j'envoie moi-même, un contact à la fois. Aucun « tout sélectionner » ; Party n'envoie rien. 📸 (feuille Inviter)
@@ -149,7 +149,7 @@ Confidentialité › **Personnes bloquées**. **Ma note privée** (mini-profil o
 par moi seul, jamais par la personne ni par l'administration. Après « Signaler » : contact pour l'urgent, traité sous 24 h. 📸
 
 ## 5. Groupes
-Réglages › **Groupes** : mes groupes, **Nouveau groupe**, membres, **Inviter avec un lien**, « Montrer mon numéro dans ce
+Réglages › **Groupes** : mes groupes, **Nouveau groupe**, membres, **Inviter** › **Le lien du groupe** (WhatsApp, Copier, Autre, code QR), « Montrer mon numéro dans ce
 groupe » (caché par défaut). Page d'un groupe : **Signaler le groupe** (son nom) et
 **Signaler la photo du groupe**. Réglages du groupe (23.11) : l'admin du groupe donne des rôles (co-admin,
 organisateur) et choisit qui peut inviter, créer des événements, écrire ou épingler ; accord facultatif de chaque
