@@ -466,7 +466,7 @@ async function changeName() {
   // Le serveur vérifie d'abord le prénom (filtre commun ; app App Store : ni boisson ni drogue) : refusé, l'ancien reste.
   let r;
   try {
-    r = await fetch("/api/presence", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ guest_id: guestId, name }) });
+    r = await fetch("/api/presence", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ guest_id: guestId, name, game: typeof myGame === "string" ? myGame : "" }) });
   } catch { return toast("Pas de réseau : ton prénom n'a pas changé. Réessaie.", "err"); }
   if (!r.ok) {
     const data = await r.json().catch(() => null);

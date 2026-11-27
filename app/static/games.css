@@ -110,5 +110,9 @@ b[data-bump] { display: inline-block; }
   text-decoration: underline; text-underline-offset: 3px; box-shadow: none; }
 .g-terms-note { margin: 10px 4px 0; color: var(--muted); font-size: .85rem; }
 .g-terms-later { width: 100%; margin-top: 12px; }
+/* App App Store, « Plus tard » : Méninges seul (renderSoloHome). */
+.g-solo-back { display: none; width: 100%; margin: 0 0 16px; }
+#gHome.g-solo .g-solo-back { display: block; }
+#gHome.g-solo > :not(.g-solo-back):not(.g-cat[data-cat=brain]) { display: none !important; }
 .g-terms-sheet { height: min(88vh, 900px); }
 .g-terms-frame { flex: 1; width: 100%; min-height: 0; border: 0; border-radius: 14px; background: #fff; }

@@ -358,6 +358,7 @@ def view(g: dict, gid: str, lead: bool = False) -> dict:
             "result": _result_view(g),
             "proposals": [{"id": p["id"], "by": p["by"], "text": p["text"]} for p in S["proposals"]] if lead else [],
             "my_pending": sum(1 for p in S["proposals"] if p["gid"] == gid), "queued": len(S["queue"]),
+            "propose": not S.get("store"),  # app App Store : la banque seule, aucun dilemme proposé (contrôle Apple, tour 4)
             "max_text": MAX_TEXT, "min_text": MIN_TEXT,
             "history": [_public_entry(h) for h in S["history"]] if end else [],
             "summary": summary(g) if end else None}

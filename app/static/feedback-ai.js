@@ -7,7 +7,8 @@
 window.FeedbackAI = (() => {
   const AI_MIN = 8;  // FEEDBACK_AI_MIN_LENGTH (app/main.py)
   const KIND = { idea: "💡 Idée", bug: "🐞 Bug", other: "💬 Autre" };
-  const AREA = { music: "🎵 Musique", games: "🎲 Jeux", pet: "🐾 Zicou", events: "📅 Événements", calendar: "🗓️ Calendrier",
+  const AREA = { music: "🎵 Musique", games: "🎲 Jeux", pet: "🐾 Zicou", events: "📅 Événements", calendar: "🗓️ Calendrier", // <store-cut/>
+  // <store> const AREA = { music: "🎵 Musique", games: "🎲 Jeux", pet: "🌐 Général", events: "📅 Événements", calendar: "🗓️ Calendrier",
     chats: "💬 Discussions", account: "⚙️ Réglages", admin: "🛠️ Retours", tv: "📺 Apple TV", general: "🌐 Général" };
   const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
   let status = null;  // { configured, consent: "" | "accepted" | "declined", remaining }

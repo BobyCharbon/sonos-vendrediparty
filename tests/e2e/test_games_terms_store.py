@@ -96,16 +96,47 @@ def test_later_then_the_server_refusal_reopens_the_box(browser, server):
     page.wait_for_selector("#gName:not(.hidden) #gTermsLater:not(.hidden)")
     assert page.input_value("#gNameInput") == "Zoé"
     page.click("#gTermsLater")
-    page.wait_for_selector("#gHome:not(.hidden)")
-    # Elle crée une salle (son prénom serait lu par la table) : le serveur refuse, la case revient avec la raison.
-    page.click('#gHome [data-create="room"]')
+    # Contrôle Apple, tour 4 : « Plus tard » = Méninges seul (rien d'écrit n'est lu par d'autres), sans salle ni code.
+    page.wait_for_selector("#gHome.g-solo:not(.hidden)")
+    assert page.locator('#gHome [data-brain-open="brain"]').is_visible()
+    assert page.locator('#gHome [data-create="room"]').is_hidden() and page.locator("#gCode").is_hidden()
+    # « Jouer avec les autres » : la case revient ; cochée, la salle de jeux.
+    page.click("[data-gsolo-back]")
     page.wait_for_selector("#gName:not(.hidden) #gTermsCheck")
-    assert "conditions" in page.inner_text("#gTermsNote")
     page.check("#gTermsCheck")
-    page.wait_for_selector("#gHome:not(.hidden)")
+    page.wait_for_selector("#gHome:not(.hidden):not(.g-solo)")
     page.click('#gHome [data-create="room"]')
     page.wait_for_selector('[data-room-pick="quiz"]', state="visible")
     assert page.errors == []
+    ctx.close()
+
+
+def test_later_is_shown_from_the_start_and_opens_meninges_without_a_name(browser, server):
+    """Contrôle Apple, tour 4 : le texte parle de « revenir plus tard » : le bouton est là d'office, sans prénom."""
+    ctx, page = phone(browser, server)
+    page.wait_for_selector("#gName:not(.hidden) #gTermsLater:not(.hidden)")
+    page.click("#gTermsLater")
+    page.wait_for_selector("#gHome.g-solo:not(.hidden)")
+    page.click('#gHome [data-brain-open="brain"]')
+    page.wait_for_function("!!window.Brain")
+    assert page.evaluate("localStorage.getItem('vp_name')") is None
+    assert page.errors == [], page.errors
+    ctx.close()
+
+
+def test_a_refused_first_name_is_said_on_the_name_screen(browser, server):
+    """Le formulaire du prénom attend le serveur : refusé (argot, boisson…), il le dit et rien n'est gardé."""
+    ctx, page = phone(browser, server)
+    page.wait_for_selector("#gName:not(.hidden) #gTermsCheck")
+    page.fill("#gNameInput", "Pompette")
+    page.check("#gTermsCheck")
+    page.click("#gNameForm button")
+    page.wait_for_function("document.getElementById('gTermsNote').textContent.includes('pas accepté')")
+    assert page.locator("#gHome").is_hidden() and page.evaluate("localStorage.getItem('vp_name')") is None
+    page.fill("#gNameInput", "Léa")
+    page.click("#gNameForm button")
+    page.wait_for_selector("#gHome:not(.hidden)")
+    assert page.evaluate("guestName") == "Léa"
     ctx.close()
 
 

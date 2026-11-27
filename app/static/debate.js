@@ -13,8 +13,9 @@ GAME_RULES.debate = `
   <p>Après le débat, l'animateur choisit : <b>faire revoter</b> (une fois) pour voir combien ont changé d'avis, ou passer au dilemme suivant.</p>
   <h3>Les thèmes</h3>
   <p>L'animateur coche les thèmes du soir : ⚖️ Morale, 🏛️ Société, 💞 Relations & couple, 🍍 Léger${STORE ? "." : `… et <b>🤪 WTF 🔞</b> (absurde, idiot, osé, entre adultes), qui n'est <b>jamais</b> proposé d'office.`}</p>
-  <h3>Vos dilemmes</h3>
-  <p>Chacun peut proposer un dilemme (« ✍️ Proposer »). L'animateur le valide : il passe alors avant ceux de l'app, avec le prénom de son auteur.</p>
+  ${STORE ? `<h3>Les dilemmes</h3>
+  <p>Dans l'app, tous les dilemmes viennent de Party : personne n'en écrit.</p>` : `<h3>Vos dilemmes</h3>
+  <p>Chacun peut proposer un dilemme (« ✍️ Proposer »). L'animateur le valide : il passe alors avant ceux de l'app, avec le prénom de son auteur.</p>`}
   <h3>Sans téléphone ?</h3>
   <p>L'animateur ajoute les participants sans téléphone : son écran dit à qui le passer. La personne touche « C'est moi », vote, et l'écran se cache aussitôt.</p>
   <h3>La fin</h3>
@@ -66,7 +67,7 @@ function dbSettingsHtml(g) {
 
 // Proposer un dilemme : bouton pour tous les joueurs ; l'animateur voit en plus les propositions à valider.
 function dbProposeHtml(g) {
-  if (!g.me) return "";
+  if (!g.me || g.debate.propose === false) return "";  // partie avec l'app App Store : la banque de Party seule
   const v = g.debate;
   const mine = v.my_pending ? `<span class="db-pending">${v.my_pending} en attente de validation</span>` : "";
   return `<div class="db-propose-row"><button type="button" class="lk-sub" data-db-compose>✍️ Proposer un dilemme</button>${mine}</div>`;

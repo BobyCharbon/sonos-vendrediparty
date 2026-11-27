@@ -1457,8 +1457,25 @@ def check_store_access(request: Request, g: dict):
         if not x.get("store"):  # textes tirés et écrits filtrés pour la suite (tous les jeux gardés, la salle comprise)
             store_app.flag(x) if x["type"] != "room" else x.update(store=True)
             changed = True
-    if changed:
+    if scrub_store_names(g) or changed:
         save_games(g["code"], g.get("room") or "")
+
+
+def store_game(g: dict) -> bool:
+    """Partie touchée par l'app App Store (elle, sa salle ou le jeu de sa salle)."""
+    other = room_child(g) if g["type"] == "room" else room_of(g)
+    return bool(g.get("store") or (other and other.get("store")))
+
+
+def scrub_store_names(g: dict) -> bool:
+    """Partie de l'app (et sa salle / son jeu) : prénoms refusés réécrits « Joueur N » DANS la partie
+    (store_app.scrub_names), à la première lecture de l'app puis après chaque écriture de prénom."""
+    other = room_child(g) if g["type"] == "room" else room_of(g)
+    changed = False
+    for x, peer in ((g, other), (other, g)):
+        if x and x.get("store") and store_app.scrub_names(x, [peer] if peer else []):
+            changed = True
+    return changed
 
 
 # Contrôle du 26.11 (Apple 1.2) : dans l'app App Store, un joueur n'écrit rien que la table lira (son prénom, une réponse,
@@ -1735,6 +1752,7 @@ def game_presence(request: Request, guest_id: str, name: str):
 class Presence(BaseModel):
     guest_id: str
     name: str
+    game: str = Field(default="", max_length=12)  # partie en cours : celle de l'app App Store filtre comme l'app
 
 
 @app.post("/api/presence")
@@ -1743,7 +1761,8 @@ def presence(body: Presence, request: Request):
     Prénom refusé (filtre commun ; app App Store : boisson, drogue) : 400 avec la raison, la page garde l'ancien."""
     check_guest_id(body.guest_id)
     clean = " ".join((body.name or "").split())[:30]
-    if clean and (msg := name_refusal(clean, store_app.is_store(request))):
+    played = store.session.games.get(body.game) if body.game else None
+    if clean and (msg := name_refusal(clean, store_app.is_store(request) or bool(played and store_game(played)))):
         raise HTTPException(400, msg)
     game_presence(request, body.guest_id, body.name)
     return {"ok": True}
@@ -3634,6 +3653,8 @@ def read_game(code: str, request: Request, guest_id: str, name: str):
     game_presence(request, guest_id, name)
     guest_id = canonical_gid(g, guest_id)
     sync_player_name(g, guest_id, name, request)
+    if scrub_store_names(g):
+        save_games(g["code"], g.get("room") or "", g.get("current") or "")
     admin_lead(g, request, guest_id)
     if g.get("phase") == "end" and guest_id.startswith("acct-") and pet_reactions.rewardable_game(g) \
             and any(p.get("id") == guest_id for p in g.get("players", [])):
@@ -3756,6 +3777,9 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     if body.action == "join":
         if g["type"] in ACCOUNT_GAMES:
             require_account(body.token, body.guest_id, client_ip(request))
+        # Partie de l'app App Store (ou requête de l'app) : prénom filtré comme à la création (contrôle Apple, tour 4).
+        if msg := name_refusal(clean_name(body.name), store_app.is_store(request) or store_game(g)):
+            raise HTTPException(400, msg)
         reclaim_seat(g, body.guest_id, clean_name(body.name), client_ip(request))
     body.guest_id = canonical_gid(g, body.guest_id)
     sync_player_name(g, body.guest_id, body.name, request)
@@ -3823,6 +3847,11 @@ def perform_game_action(code: str, body: GameAction, request: Request):
     # Partie de l'app App Store : ni gorgées, ni thème WTF, ni paquet « Entre amis » (store_app, refus Apple 1.4.3).
     if a in ("lkset", "dbset", "qset") and store_app.refused_settings(g, body.settings):
         raise HTTPException(403, store_app.MESSAGE)
+    # Pour ou contre avec l'app App Store : la banque de Party seulement, aucun dilemme proposé (contrôle Apple, tour 4).
+    if a == "dbpropose" and store_app.bank_only(g):
+        raise HTTPException(409, "Dans cette partie, les dilemmes viennent tous de Party.")
+    if a == "addguest" and (msg := name_refusal(" ".join(body.guess.split())[:30], store_game(g))):
+        raise HTTPException(400, msg)
     if g["type"] == "room" and a == "launch":
         if not games.is_lead(g, me):
             raise HTTPException(403, "Seul l'animateur lance les jeux")
@@ -3940,6 +3969,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         game_terms_ok(request, [p for x in filter(None, (g, other)) for p in x["players"] if p["id"] == me], True)
     if not g["players"] and not g["host"]:
         store.session.games.pop(g["code"], None)
+    scrub_store_names(g)  # prénom entré ou changé dans une partie de l'app : « Joueur N » aussitôt
     save_games(g["code"], g.get("room") or "", g.get("current") or "")
     return with_gate(full_view(g, me, request), me, request, g["code"])
 
@@ -5462,6 +5492,13 @@ async def no_cache_static(request: Request, call_next):
     # (Zicou, /static/pet/ : déjà 404 « Zicou arrive bientôt. » pour l'app, compagnon_off.)
     # App App Store (26.11) : fichiers des jeux cachés refusés, et tout script ou style par /static/ (la page de l'app
     # n'utilise que /static-store/, tour 2 du contrôle : `/static/%2e%2e/static/purity.js` passait).
+    # Pages HTML brutes (index.html, admin.html, tv.html… lues telles quelles) et /admin : jamais pour l'app App Store
+    # (contrôle Apple, tour 4) ; sa page vient de « / », rendue pour elle.
+    raw = unquote(request.scope.get("raw_path", b"").decode("latin-1")).lower()
+    if store_app.is_store(request) and (
+            (path.startswith(("/static/", "/static-store/")) and (".htm" in path.lower() or ".htm" in raw))
+            or path.lower().startswith("/admin") or raw.startswith("/admin")):
+        return JSONResponse({"detail": "Introuvable"}, status_code=404, headers=NO_CACHE)
     if path.startswith("/static/") and not path.startswith("/static/pet/") and store_app.is_store(request) and (
             store_static.blocked(path[8:]) or store_static.blocked(request.scope.get("raw_path", b"").decode("latin-1")[8:])
             or path.lower().endswith((".js", ".css", ".mjs", ".map"))):
