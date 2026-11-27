@@ -26,9 +26,10 @@
          `group_invite_preview` réécrites EN ENTIER, aucune ancre ; d'après le contrôle du 27.11). Ancres de la prod
          PAS revérifiées pour ce fichier (aucune `position(…)` à vérifier) ; dans le dépôt, aucun des fichiers 1 à 8 ne
          touche ces deux fonctions (vérifié le 27.11).
-      10. `2026-11-27-suppression-blocage` (20261127110000) : **en préparation par un autre agent** (blocage qui empêche
-         d'être noté présent ou ajouté en co-organisateur, suppression du compte) ; à ajouter ici, dans son ordre, quand ses
-         fichiers `supabase/prod/` existent. Sans lui en prod : retirer de B4.5 / B7 du guide (et du tutoriel 3.5) la phrase
+      10. `2026-11-27-suppression-blocage` (20261127110000) : **PRÊT** (fichiers apply + rollback dans `supabase/prod/`,
+         testés sur TEST le 27.11 ; aucune fonction commune avec les fichiers 1 à 9 : n'importe quel ordre). Blocage qui
+         empêche d'être noté présent ou ajouté en co-organisateur ; suppression du compte d'un membre de l'équipe qui a
+         validé l'événement d'un autre ; plus de trace du compte supprimé (qui amène quoi, groupes d'un événement, photo de groupe). Sans lui en prod : retirer de B4.5 / B7 du guide (et du tutoriel 3.5) la phrase
          sur « noté présent » par une personne bloquée, puis régénérer le PDF.
 - [ ] **Revérifier les ancres contre la prod avant d'appliquer** (150000 a réécrit event_changed, event_guest_list,
       apply_waitlist, event_attendance, public_event, chat_event_cards, invite_preview).

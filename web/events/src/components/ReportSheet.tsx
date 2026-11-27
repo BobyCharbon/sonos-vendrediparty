@@ -100,7 +100,7 @@ export function ReportSheet({ target, onClose, send: sendOwn, allowContext = fal
               <Input accessibilityLabel="Commentaire" placeholder="Commentaire (facultatif)" value={comment}
                 onChangeText={setComment} maxLength={500} multiline style={{ minHeight: 70 }} />
               <ErrorText error={error} />
-              <T muted size={12}>Contact : {SUPPORT_EMAIL}</T>
+              <T muted size={12}>Traité sous 24 h · {SUPPORT_EMAIL}</T>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <Button variant="secondary" label="Annuler" style={{ flex: 1 }} onPress={close} />
                 <Button label="Envoyer" style={{ flex: 1 }} disabled={!reason} loading={busy} onPress={() => void send()} />

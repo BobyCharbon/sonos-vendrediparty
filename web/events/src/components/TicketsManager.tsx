@@ -97,7 +97,6 @@ export function TicketsManager({ eventId, enabled, canToggle, onToggled, refresh
               <IssueButton person={p} busy={busy === p.user_id} onPress={(issued) => run(p.user_id, () => issueTicket(eventId, p.user_id, issued))} />
             </View>
           )) : null}
-          {list && people && !present.length ? <T muted size={13}>Personne n’est encore noté présent.</T> : null}
         </>
       ) : null}
       <ErrorText error={error} />

@@ -694,7 +694,7 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
     const people = ctx.members.filter((m) => m.id !== me.id
       && ((ctx.editors.has(m.role ?? '') && (!ctx.linked || ctx.linked.has(m.id))) || d[key].includes(m.id)));
     if (!people.length) {
-      return <T muted size={13}>Personne à proposer pour l’instant : les co-organisateurs se choisissent parmi les personnes de tes groupes et de tes soirées.</T>;
+      return <T muted size={13}>Personne à proposer pour l’instant : les co-organisateurs se choisissent parmi les membres de tes groupes et de tes soirées qui ont le droit d’organiser.</T>;
     }
     return (
       <View style={s.wrap}>
@@ -1019,7 +1019,7 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
             {widened ? 'Élargi au public ou aux Membres Vendredi Party, l’événement repasse par la validation. ' : ''}
             {revalidate ? 'Une fois enregistrée, ta modification repasse en validation : l’événement reste invisible jusqu’à l’accord. ' : ''}
             {d.who.audience === 'public' ? PUBLIC_REVIEW
-              : 'Un admin doit valider ta proposition. Il pourra modifier n’importe quel champ avant de la publier. Réservé à tes groupes, il est publié sans validation.'}
+              : 'Un admin doit valider ta proposition. Il pourra modifier n’importe quel champ avant de la publier. S’il est réservé à un ou plusieurs de tes groupes, il est publié sans validation.'}
           </T>
         </View>
       ) : null}
