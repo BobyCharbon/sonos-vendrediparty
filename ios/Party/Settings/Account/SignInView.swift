@@ -123,6 +123,7 @@ struct DeleteAccountView: View {
     @ObservedObject var store: AccountStore
     let isAdmin: Bool
     @State private var confirmation = ""
+    @FocusState private var typing: Bool
     @Environment(\.dismiss) private var dismiss
 
     private static let word = "SUPPRIMER"
@@ -139,12 +140,24 @@ struct DeleteAccountView: View {
             } header: {
                 Text("Supprimer mon compte")
             }
+            // Refus (recette iPhone du 28.11) : le message rouge en entier, dans sa propre section au-dessus du champ,
+            // jamais coupé dans le pied de section sous le clavier.
+            if let error = store.error {
+                Section {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("delete-error")
+                }
+            }
             Section {
                 TextField("Écris \(Self.word) pour confirmer", text: $confirmation)
                     .textInputAutocapitalization(.characters)
                     .autocorrectionDisabled()
+                    .focused($typing)
                     .accessibilityIdentifier("delete-confirm")
                 Button(role: .destructive) {
+                    typing = false  // clavier fermé : la réponse (ou le refus) se lit en entier
                     Task { if await store.deleteAccount() { dismiss() } }
                 } label: {
                     HStack {
@@ -154,8 +167,6 @@ struct DeleteAccountView: View {
                 }
                 .disabled(confirmation != Self.word || store.busy)
                 .accessibilityIdentifier("delete-account")
-            } footer: {
-                if let error = store.error { Text(error).foregroundStyle(.red) }
             }
         }
         .scrollContentBackground(.hidden)

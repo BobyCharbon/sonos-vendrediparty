@@ -466,3 +466,51 @@ def test_a_base_before_the_23_11_keeps_the_old_rules_screen(phone, events_origin
     assert ('set_group_members_invite', {'grp': FOOT, 'allowed': False}) in state['rules']
     assert ('set_group_event_rules', {'grp': FOOT, 'need_approval': True, 'mode': 'request'}) in state['rules']
     assert not errors, errors
+
+
+def invite_link_services(page, state):
+    """Lien du groupe du foot : lu (pas encore dedans), puis rejoint (join_group_by_link)."""
+    def handle(route):
+        request = route.request
+        if request.method == 'OPTIONS':
+            return route.fulfill(status=204, headers=CORS)
+        if request.url.endswith('/rpc/join_group_by_link'):
+            state['joins'] = state.get('joins', 0) + 1
+            result = None
+        else:
+            result = {'id': FOOT, 'name': 'Les potes du foot', 'creator': 'Tom', 'members': 14, 'joined': state.get('joins', 0) > 0}
+        route.fulfill(status=200, content_type='application/json', body=json.dumps(result), headers=CORS)
+    page.route('https://gsuetixzobooggeaubvb.supabase.co/rest/v1/rpc/group_invite_info', handle)
+    page.route('https://gsuetixzobooggeaubvb.supabase.co/rest/v1/rpc/join_group_by_link', handle)
+
+
+def test_a_group_link_lands_on_the_group_page_with_a_confirmation(phone, events_origin):
+    """Recette iPhone du 28.11 (D3) : lien du groupe → connexion, profil → on arrive SUR la page du groupe (jamais
+    l'accueil des Événements), avec « Tu as rejoint le groupe « … » », comme promis par « Faisons connaissance »."""
+    page, errors = phone
+    state = group_services(page)
+    invite_link_services(page, state)
+    signed_in(page, events_origin, f'/group-invite/{TOKEN}')
+    pw.expect(page.get_by_test_id('group-joined')).to_have_text('✓ Tu as rejoint le groupe « Les potes du foot »', timeout=15000)
+    assert state['joins'] == 1
+    assert urlparse(page.url).path.endswith(f'/events/group/{FOOT}') and 'joined=1' in page.url, page.url
+    assert not errors, errors
+
+
+def test_a_group_link_opened_alone_reopens_party_on_the_group_page(phone, events_origin):
+    """Même lien ouvert seul hors du cadre (app iPhone) : Party s'ouvre sur la page du groupe et y reste ; un passage par
+    « / » juste après ne la remplace plus par l'accueil (premier départ gardé)."""
+    page, errors = phone
+    state = group_services(page)
+    invite_link_services(page, state)
+    signed_in(page, events_origin)
+    page.add_init_script("try { localStorage.removeItem('party_module_alone'); } catch (e) {}")
+    page.goto(f'{events_origin}/events/group-invite/{TOKEN}', wait_until='domcontentloaded')
+    page.wait_for_url(lambda url: 'path=' in url, timeout=15000)
+    assert parse_qs(urlparse(page.url).query).get('path') == [f'/group/{FOOT}?joined=1'], page.url
+    frame = page.frame_locator('#eventsFrame')
+    pw.expect(frame.get_by_test_id('group-joined')).to_be_visible(timeout=15000)
+    page.wait_for_timeout(1500)
+    pw.expect(frame.get_by_test_id('group-joined')).to_be_visible()
+    assert state['joins'] == 1
+    assert not errors, errors

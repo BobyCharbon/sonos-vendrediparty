@@ -435,12 +435,13 @@ struct NotificationSettingsView: View {
     }
 }
 
-/// Confirmation ou erreur d'enregistrement des Réglages, en bas de l'écran, 3 secondes.
+/// Confirmation ou erreur d'enregistrement des Réglages, en bas de l'écran, 3 secondes (Mon profil : en haut, 6 s).
 struct SettingsNoticeBanner: View {
     @ObservedObject var store: SettingsStore
+    var seconds: Double = 3
 
     var body: some View {
-        NoticeBanner(notice: store.notice.map { NoticeBanner.Notice(text: $0.text, isError: $0.isError) }) { store.notice = nil }
+        NoticeBanner(notice: store.notice.map { NoticeBanner.Notice(text: $0.text, isError: $0.isError) }, seconds: seconds) { store.notice = nil }
     }
 
 }

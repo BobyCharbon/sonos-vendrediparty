@@ -122,9 +122,11 @@ class FakeBase:
         return self.reply(route, [self.event] if self.event else [])  # la liste
 
 
-def launch(browser, origin, event=None, width=390):
+def launch(browser, origin, event=None, width=390, clock=False):
     context = browser.new_context(viewport={'width': width, 'height': 844})
     page = context.new_page()
+    if clock:
+        page.clock.install()  # le temps passe normalement, mais le test peut l'avancer (fast_forward)
     errors: list[str] = []
     page.on('pageerror', lambda e: errors.append(str(e)))
     mock_services(page, people=[{'id': LEA, 'display_name': 'Léa'}])
@@ -185,6 +187,48 @@ def test_simple_form_publishes_with_the_usual_defaults(browser, events_origin):
         assert [b for _, b in base.wrote('PATCH', 'events')][-1] == {'status': 'published'}
         assert base.event['status'] == 'published'
         assert not errors
+    finally:
+        context.close()
+
+
+def test_a_slow_publish_gives_up_after_20_seconds_and_a_new_try_never_publishes_twice(browser, events_origin):
+    """Recette iPhone du 28.11 (D1) : base lente, « Publier » tournait sans fin. Au bout de 20 s, un message clair ;
+    un nouveau toucher reprend la même publication (un seul événement créé, un seul passage de statut)."""
+    context, page, frame, base, errors = launch(browser, events_origin, clock=True)
+    held = []
+    plain = base.handle
+
+    def slow(route):
+        body = route.request.post_data or ''
+        if route.request.method == 'PATCH' and '/rest/v1/events' in route.request.url and '"status"' in body and not held:
+            held.append(route)  # la base ne répond pas (encore)
+            return None
+        return plain(route)
+    page.unroute(REST + '**')
+    page.route(REST + '**', slow)
+    try:
+        open_form(frame, 'Simple')
+        field(frame, 'Titre').fill('Base lente')
+        fill_date(frame, 'Début', '2030-12-12', '19:00')
+        frame.get_by_role('button', name='Publier', exact=True).click()
+        for _ in range(50):
+            if held:
+                break
+            page.wait_for_timeout(100)
+        assert held, 'la publication devait rester en route'
+        page.clock.fast_forward('00:21')
+        pw.expect(frame.get_by_text('La publication prend du temps', exact=False)).to_be_visible(timeout=5000)
+        pw.expect(frame.get_by_text('regarde dans tes événements avant de réessayer', exact=False)).to_be_visible()
+        # Nouvel essai pendant que la première publication est encore en route : il l'attend, rien de neuf n'est écrit.
+        frame.get_by_role('button', name='Publier', exact=True).click()
+        page.wait_for_timeout(500)
+        assert len(base.wrote('POST', 'events')) == 1
+        plain(held[0])  # la base répond enfin
+        pw.expect(frame.get_by_role('button', name='Modifier', exact=True)).to_be_visible(timeout=10000)
+        assert len(base.wrote('POST', 'events')) == 1
+        assert [b for _, b in base.wrote('PATCH', 'events') if 'status' in b] == [{'status': 'published'}]
+        assert base.event['status'] == 'published'
+        assert not errors, errors
     finally:
         context.close()
 

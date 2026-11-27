@@ -78,15 +78,18 @@ struct ProfileView: View {
             AdminLoading(loaded: store.profile != nil, error: store.profileError) { await store.loadProfile() }
         }
         .motion(Motion.smooth, value: store.profile == nil)
-        .overlay(alignment: .bottom) { SettingsNoticeBanner(store: store) }
+        // En haut et 6 s (recette iPhone du 28.11) : en bas, au-dessus du clavier, le bandeau « Plus tard » couvrait le
+        // champ Surnom et partait avant d'être lu.
+        .overlay(alignment: .top) { SettingsNoticeBanner(store: store, seconds: 6).padding(.top, 8) }
         .task {
             await store.loadProfile()
             fill()
         }
         .onChange(of: picked) { item in Task { await load(item) } }
         .sheet(isPresented: $askTerms) {
-            TermsAcceptSheet(store: store.moderation) { accepted in
+            TermsAcceptSheet(store: store.moderation, title: "Avant de choisir ton surnom") { accepted in
                 if accepted { save() } else {
+                    focused = false
                     store.notice = .init(text: TermsLater.message("choisir ton surnom", button: "Enregistrer"), isError: true)
                 }
             }

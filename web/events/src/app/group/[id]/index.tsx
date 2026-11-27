@@ -50,7 +50,7 @@ function PhotoCover({ group }: { group: Row }) {
 }
 
 export default function GroupPage() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, joined } = useLocalSearchParams<{ id: string; joined?: string }>();
   const me = useMe();
   const { can, rank } = useAuth();
   const insets = useSafeAreaInsets();
@@ -141,6 +141,14 @@ export default function GroupPage() {
         <View style={st.body}>
           <View style={[st.tileWrap, enter('pop')]}><GroupTile group={group} size={84} /></View>
           <Text role="heading" aria-level={1} style={st.name}>{name}</Text>
+          {/* Arrivée par le lien du groupe (recette iPhone du 28.11) : on le dit, comme promis par « Faisons connaissance ». */}
+          {joined === '1' && member ? (
+            <Reveal>
+              <View style={[st.joined, { borderColor: `${p.main}88` }]} testID="group-joined" role="status">
+                <T size={15} weight="bold" style={{ textAlign: 'center' }}>✓ Tu as rejoint le groupe « {name} »</T>
+              </View>
+            </Reveal>
+          ) : null}
           <View style={st.metaRow}>
             {faces.length ? <FaceStack faces={faces} total={Math.max(members.length - (member ? 1 : 0), faces.length)} size={28} /> : null}
             <T size={14} color={colors.textSoft} style={{ flex: 1 }}>
@@ -271,6 +279,7 @@ const st = StyleSheet.create({
     borderWidth: 1, borderColor: colors.lineStrong, alignItems: 'center', justifyContent: 'center' },
   sectionHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 14 },
   label: { letterSpacing: 0.8 },
+  joined: { padding: 14, borderRadius: radius.lg, borderWidth: 1, backgroundColor: colors.surface },
   empty: { alignItems: 'center', gap: 6, padding: 20, borderRadius: radius.lg, borderWidth: 1, borderStyle: 'dashed', backgroundColor: colors.surface },
   members: { borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 12 },
   member: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 58 },

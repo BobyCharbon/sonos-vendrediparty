@@ -24,14 +24,20 @@ const ALONE = /^\/(invite|share|group-invite|join|prono-invite|sign-in|welcome|t
 /** Page qui reste seule hors du cadre de Party (admin, CGU, liens publics…). */
 export const staysAlone = (path: string) => ALONE.test(path);
 
+// Départ vers Party déjà lancé : le premier l'emporte. Sinon un passage par « / » juste après (route protégée pendant que
+// le profil se relit) remplaçait « /group/<id> » par l'accueil (recette iPhone du 28.11 : lien de groupe → Événements).
+let leaving = false;
+
 /** Module ouvert seul sur une page « de l'app » : la page Party autour (même page du module). true : on part. */
 export function leaveIfAlone(routerPath?: string): boolean {
   if (insidePartyFrame()) return false;
+  if (leaving) return true;
   try { if (localStorage.getItem('party_module_alone') === '1') return false; } catch { /* stockage bloqué */ }
   // Chemin du routeur : l'adresse du navigateur le suit avec un temps de retard (« /welcome » lu comme « / »).
   const here = location.pathname.replace(/^\/events(?=\/|$)/, '') || '/';
   const path = routerPath ?? here;
   if (ALONE.test(path)) return false;
+  leaving = true;
   location.replace(partyUrl(path + (path === here ? location.search : '')));
   return true;
 }
@@ -39,5 +45,5 @@ export function leaveIfAlone(routerPath?: string): boolean {
 /** Ouvre une page du module : dans le cadre de Party, sur place ; module seul, la page Party autour. */
 export function openInParty(path: string) {
   if (insidePartyFrame()) router.replace(path as Href);
-  else location.assign(partyUrl(path));
+  else if (!leaving) { leaving = true; location.assign(partyUrl(path)); }
 }
