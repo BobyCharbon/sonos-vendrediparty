@@ -47,7 +47,8 @@ def fake(admin=False, rank=1, creator=LEA, write_status=201, organizer=LEA, bloc
                  "created_at": "2026-10-29T10:02:00Z", "deleted_at": "2026-10-29T10:03:00Z", "deleted_by_admin": True},
                 {"id": M2, "user_id": ME, "body": "Oui !", "photo_path": f"{GRP}/1-abc.jpg", "reply_to": M1, "pinned": False,
                  "created_at": "2026-10-29T10:01:00Z", "deleted_at": None, "edited_at": "2026-10-29T10:01:30Z"},
-                {"id": M1, "user_id": LEA, "body": "Tu viens ?", "photo_path": None, "reply_to": None, "pinned": True,
+                {"id": M1, "user_id": LEA, "body": "Tu viens ?", "photo_path": None, "audio_path": f"{GRP}/2-vocal.m4a", "audio_seconds": 3.4,
+                 "reply_to": None, "pinned": True,
                  "created_at": "2026-10-29T10:00:00Z", "deleted_at": None}])
         if path == "/rest/v1/group_messages":
             return httpx.Response(write_status, json=write_body or ({"message": "new row violates row-level security policy"} if write_status >= 400 else None))
@@ -318,7 +319,8 @@ def test_messages_of_someone_i_blocked_are_masked_in_a_group():
     chats, _seen = fake(blocked=(LEA,))
     conv = chats.conversation("tok", GRP)
     lea = [m for m in conv["messages"] if m.get("author_name") == "Léa" and not m.get("deleted")]
-    assert lea and all(m["body"] == gc.BLOCKED_TEXT and not m.get("photo") and not m.get("audio") for m in lea), lea
+    assert lea and all(m["body"] == gc.BLOCKED_TEXT and not m.get("photo") and not m.get("audio")
+                      and m.get("audio_seconds") is None for m in lea), lea  # aucun lecteur dessiné (recette du 28.11)
     assert all(h["author_name"] != "Léa" for h in conv["highlights"])
 
 

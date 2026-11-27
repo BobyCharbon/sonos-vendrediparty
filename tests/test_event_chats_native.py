@@ -148,7 +148,7 @@ def test_old_apps_still_read_notify_all_or_none():
 
 def test_blocked_people_are_masked_and_a_closed_discussion_is_refused():
     c = fake(blocked=(TOM,))[0].conversation("jeton", EV)
-    assert c["messages"][2]["body"] == gc.BLOCKED_TEXT and c["messages"][2]["audio"] is None
+    assert c["messages"][2]["body"] == gc.BLOCKED_TEXT and c["messages"][2]["audio"] is None and c["messages"][2]["audio_seconds"] is None
     try:
         fake(forum=False)[0].conversation("jeton", EV)
         raise AssertionError("discussion fermée acceptée")

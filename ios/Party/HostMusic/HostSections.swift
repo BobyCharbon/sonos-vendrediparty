@@ -96,7 +96,7 @@ struct HostAccessSection: View {
         let parser = ISO8601DateFormatter()
         parser.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let date = parser.date(from: iso) ?? ISO8601DateFormatter().date(from: iso)
-        return date?.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)) ?? ""
+        return date?.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).locale(.party)) ?? ""
     }
 }
 
@@ -157,14 +157,14 @@ struct GuestRow: View {
     }
 
     private var detail: String {
-        let joined = Date(timeIntervalSince1970: guest.joinedAt).formatted(date: .omitted, time: .shortened)
+        let joined = Date(timeIntervalSince1970: guest.joinedAt).formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: .party))
         var parts = ["arrivé à \(joined)"]
         if guest.via.contains("music") {
             parts.append("\(guest.total) titre\(guest.total > 1 ? "s" : "")")
             parts.append("\(guest.queued) " + (usesSpotify ? "envoi(s) Spotify" : "en attente"))
         }
         if let ban = guest.ban {
-            parts.append(ban.until == 0 ? "⛔ banni" : "⏸ bloqué jusqu'à \(Date(timeIntervalSince1970: ban.until).formatted(date: .omitted, time: .shortened))")
+            parts.append(ban.until == 0 ? "⛔ banni" : "⏸ bloqué jusqu'à \(Date(timeIntervalSince1970: ban.until).formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: .party)))")
         }
         return parts.joined(separator: " · ")
     }

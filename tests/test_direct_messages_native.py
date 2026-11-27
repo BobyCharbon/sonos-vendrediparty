@@ -36,7 +36,7 @@ def fake(start_status=200, blocked=False):
             return httpx.Response(200, json=[
                 {"id": M2, "user_id": ME, "body": "Oui !", "photo_path": f"{CHAT}/1-abc.jpg", "reply_to": M1, "pinned": False,
                  "created_at": "2026-11-04T10:01:00Z", "deleted_at": None},
-                {"id": M1, "user_id": LEA, "body": "Tu viens ?", "photo_path": None, "reply_to": None, "pinned": True,
+                {"id": M1, "user_id": LEA, "body": "Tu viens ?", "photo_path": None, "audio_path": f"{CHAT}/2-vocal.m4a", "audio_seconds": 3.4, "reply_to": None, "pinned": True,
                  "created_at": "2026-11-04T10:00:00Z", "deleted_at": None}])
         if path == "/rest/v1/direct_messages":
             return httpx.Response(201)
@@ -156,7 +156,8 @@ def test_messages_of_someone_i_blocked_are_masked_in_a_direct_chat_too():
     """Même règle que les groupes (App Store 1.2, recette du 27.11) : bloquer masque aussitôt ses messages directs."""
     c = fake(blocked=True)[0].conversation("jeton", CHAT, direct=True)
     lea = [m for m in c["messages"] if m["author"] == LEA]
-    assert lea and all(m["body"] == gc.BLOCKED_TEXT and not m["photo"] and not m["audio"] for m in lea), lea
+    assert lea and all(m["body"] == gc.BLOCKED_TEXT and not m["photo"] and not m["audio"]
+                   and m["audio_seconds"] is None for m in lea), lea  # aucun lecteur dessiné (recette du 28.11)
     assert c["messages"][1]["reply"]["text"] == gc.BLOCKED_TEXT  # la citation ne garde pas le texte non plus
     assert c["highlights"] == []
     mine = next(m for m in c["messages"] if m["author"] == ME)

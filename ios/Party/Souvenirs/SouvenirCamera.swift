@@ -122,7 +122,7 @@ final class SouvenirCameraSensor: NSObject, ObservableObject {
             if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1]) {
                 ctx.cgContext.drawLinearGradient(gradient, start: .zero, end: CGPoint(x: size.width, y: size.height), options: [])
             }
-            let text = "📸 Recette Souvenirs\n\(front ? "selfie" : "dos") · \(Date().formatted(date: .omitted, time: .standard))" as NSString
+            let text = "📸 Recette Souvenirs\n\(front ? "selfie" : "dos") · \(Date().formatted(Date.FormatStyle(date: .omitted, time: .standard, locale: .party)))" as NSString
             text.draw(in: CGRect(x: 200, y: 1640, width: 2620, height: 1000),
                       withAttributes: [.font: UIFont.systemFont(ofSize: 226, weight: .heavy), .foregroundColor: UIColor.white])
         }

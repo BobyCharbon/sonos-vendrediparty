@@ -173,7 +173,7 @@ struct AIUsageView: View {
                             HStack {
                                 VStack(alignment: .leading) {
                                     Text(c.feature == "receipt" ? "Ticket lu" : c.feature)
-                                    Text("\(c.name ?? "?") · \(Date(timeIntervalSince1970: c.at).formatted(date: .abbreviated, time: .shortened))")
+                                    Text("\(c.name ?? "?") · \(Date(timeIntervalSince1970: c.at).formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: .party)))")
                                         .font(.caption).foregroundStyle(.secondary)
                                 }
                                 Spacer()

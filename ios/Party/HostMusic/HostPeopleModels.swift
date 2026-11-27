@@ -42,7 +42,7 @@ struct HostPeople: Decodable, Equatable {
         }
 
         var label: String {
-            until == 0 ? "⛔ banni" : "⏸ bloqué jusqu'à \(Date(timeIntervalSince1970: until).formatted(date: .omitted, time: .shortened))"
+            until == 0 ? "⛔ banni" : "⏸ bloqué jusqu'à \(Date(timeIntervalSince1970: until).formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: .party)))"
         }
     }
 

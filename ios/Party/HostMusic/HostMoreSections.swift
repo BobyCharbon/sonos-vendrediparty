@@ -174,7 +174,7 @@ struct HostRequestsSection: View {
 
     private func row(_ request: AdminState.GuestRequest) -> some View {
         let labels = ["queued": state.usesSpotify ? "envoyé à Spotify" : "en attente", "played": "joué", "removed": "retiré"]
-        let time = Date(timeIntervalSince1970: request.addedAt).formatted(date: .omitted, time: .shortened)
+        let time = Date(timeIntervalSince1970: request.addedAt).formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: .party))
         return HStack(spacing: 10) {
             HostArtwork(path: request.image, load: store.artwork, size: 40)
             VStack(alignment: .leading, spacing: 2) {

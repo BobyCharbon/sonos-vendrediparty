@@ -227,7 +227,7 @@ class GroupChats:
         if blocked:
             # Même règle que les groupes (App Store 1.2) : la personne bloquée a ses messages masqués aussitôt
             # (texte, photo, vocal), ses épinglés retirés ; débloquer les rend.
-            messages = [{**m, "body": BLOCKED_TEXT, "photo_path": None, "audio_path": None} if m.get("user_id") == other else m
+            messages = [{**m, "body": BLOCKED_TEXT, "photo_path": None, "audio_path": None, "audio_seconds": None} if m.get("user_id") == other else m
                         for m in messages]
             got["highlights"] = [m for m in got["highlights"] or [] if m.get("user_id") != other]
         people = {p["id"]: p for p in got["profiles"] or []}
@@ -298,7 +298,7 @@ class GroupChats:
         hidden = {b.get("blocked_id") for b in got["blocks"] or []}
         joined = "group_message_reactions" in (got["messages"][0] if got["messages"] else {})
         rows, embedded = self._split_reactions(list(reversed(got["messages"])), "group_message_reactions", token, fetch=False)
-        messages = [{**m, "body": BLOCKED_TEXT, "photo_path": None, "audio_path": None} if m.get("user_id") in hidden else m
+        messages = [{**m, "body": BLOCKED_TEXT, "photo_path": None, "audio_path": None, "audio_seconds": None} if m.get("user_id") in hidden else m
                     for m in rows]
         got["highlights"] = [m for m in got["highlights"] or [] if m.get("user_id") not in hidden]
         admins = {a["user_id"] for a in got["admins"]}

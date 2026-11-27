@@ -170,7 +170,7 @@ struct HostPeopleView: View {
     }
 
     private func time(_ at: Double) -> String {
-        Date(timeIntervalSince1970: at).formatted(date: .omitted, time: .shortened)
+        Date(timeIntervalSince1970: at).formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: .party))
     }
 }
 

@@ -709,9 +709,9 @@ enum ChatDates {
     static func short(_ value: String?, now: Date = Date()) -> String {
         guard let date = parse(value) else { return "" }
         let calendar = Calendar.current
-        if calendar.isDate(date, inSameDayAs: now) { return date.formatted(date: .omitted, time: .shortened) }
+        if calendar.isDate(date, inSameDayAs: now) { return date.formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: .party)) }
         if let yesterday = calendar.date(byAdding: .day, value: -1, to: now), calendar.isDate(date, inSameDayAs: yesterday) { return "hier" }
-        return date.formatted(.dateTime.day(.twoDigits).month(.twoDigits))
+        return date.formatted(.dateTime.day(.twoDigits).month(.twoDigits).locale(.party))
     }
 }
 
@@ -915,4 +915,10 @@ extension PartyAPI {
                                                               body: ["token": token, "event_id": event, "before_id": before])
         return page.messages
     }
+}
+
+/// Langue de toute date montrée à l'écran (« il y a 40 minutes », « 14 nov. ») : le français, quelle que soit la langue
+/// du téléphone (recette de nuit : « Arrivé sur Party 40 minutes ago »).
+extension Locale {
+    static let party = Locale(identifier: "fr_CH")
 }

@@ -1219,7 +1219,7 @@ private struct MessageMeta: View {
     var body: some View {
         HStack(spacing: 3) {
             if message.edited && !message.deleted { Text("modifié") }
-            Text(message.date?.formatted(date: .omitted, time: .shortened) ?? "")
+            Text(message.date?.formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: .party)) ?? "")
             if seen { Text("· Vu") }
             if message.mine && !message.deleted {
                 if message.failed {
@@ -1246,7 +1246,7 @@ private struct MessageMeta: View {
 
     /// Texte invisible de même largeur : le texte du message s'arrête avant l'heure, qui se loge sur sa dernière ligne.
     static func spacer(for m: Conversation.Message, seen: Bool = false) -> String {
-        let time = m.date?.formatted(date: .omitted, time: .shortened) ?? ""
+        let time = m.date?.formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: .party)) ?? ""
         return "\u{2003}" + (m.edited ? "modifié " : "") + time + (seen ? " · Vu" : "") + (m.mine ? (seen ? " ✓✓" : " ✓") : "")
     }
 }
@@ -1392,7 +1392,7 @@ private struct ChatBubble: View {
     private var accessibility: String {
         let who = message.mine ? "Toi" : ContactNames.shared.label(for: message.author, pseudo: message.authorName).text
         let time = message.failed ? "pas envoyé, touche pour réessayer" : message.pending ? "envoi en cours"
-            : message.date?.formatted(date: .omitted, time: .shortened) ?? ""
+            : message.date?.formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: .party)) ?? ""
         var parts = ["\(who), \(time)"]
         if let card { parts.append("soirée \(card.title)") }
         if let quote { parts.append("réponse privée à \(quote.author) : \(quote.excerpt)") }
@@ -1509,7 +1509,7 @@ private struct AnnouncementCard: View {
                     Text("· \(message.mine ? "toi" : message.authorName)").font(.caption.weight(.semibold)).foregroundStyle(ConvNeon.t2).lineLimit(1)
                     Spacer(minLength: 0)
                     if message.pending { Image(systemName: "clock") } else {
-                        Text(message.date?.formatted(date: .omitted, time: .shortened) ?? "").font(.caption2.monospacedDigit())
+                        Text(message.date?.formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: .party)) ?? "").font(.caption2.monospacedDigit())
                             .foregroundStyle(ConvNeon.t2)
                     }
                 }

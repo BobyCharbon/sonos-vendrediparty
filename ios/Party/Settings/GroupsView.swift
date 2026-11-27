@@ -814,8 +814,8 @@ private struct InviteLinkSection: View {
     }
 
     private func dates(_ link: InviteLinkState) -> String {
-        let created = ChatDates.parse(link.createdAt)?.formatted(date: .abbreviated, time: .shortened) ?? ""
+        let created = ChatDates.parse(link.createdAt)?.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened, locale: .party)) ?? ""
         guard link.status == .pending, let end = ChatDates.parse(link.expiresAt) else { return "Créé le \(created)" }
-        return "Créé le \(created) · expire le \(end.formatted(date: .abbreviated, time: .omitted))"
+        return "Créé le \(created) · expire le \(end.formatted(Date.FormatStyle(date: .abbreviated, time: .omitted, locale: .party)))"
     }
 }

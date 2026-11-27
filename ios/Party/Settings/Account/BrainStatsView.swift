@@ -137,7 +137,7 @@ struct BrainStatsSections: View {
                     // 4 dates au plus : avec un an d'historique, une marque par semaine se chevauchait (52 dates).
                     AxisMarks(values: .automatic(desiredCount: typeSize.isAccessibilitySize ? 2 : 4)) { _ in
                         AxisGridLine()
-                        AxisValueLabel(format: .dateTime.day().month(.abbreviated), centered: false)
+                        AxisValueLabel(format: .dateTime.day().month(.abbreviated).locale(.party), centered: false)
                     }
                 }
                 .environment(\.locale, Locale(identifier: "fr_CH"))

@@ -464,8 +464,15 @@ final class PeopleStore {
         return (try await call("chat_people_search", ["q": q], as: [ChatPerson]?.self) ?? []).filter { $0.link != "none" }
     }
 
+    /// Contact du répertoire : l'empreinte de son numéro prouve qu'on se connaît, et la base propose alors une demande de
+    /// message au lieu de « none » (member_mini_contact ; recette de nuit du 28.11 : bouton grisé pour un contact).
     func mini(_ user: String) async throws -> MemberMini {
-        try await call("member_mini", ["target": user])
+        // Serveur ou base d'avant (fonction pas encore là) : repli sur member_mini, jamais un mini-profil en erreur.
+        if let hash = ContactNames.shared.contactHash(for: user),
+           let m = try? await call("member_mini_contact", ["target": user, "contact_hash": hash], as: MemberMini.self) {
+            return m
+        }
+        return try await call("member_mini", ["target": user])
     }
 
     /// « Tes contacts sur Party » : les membres reconnus sur cet iPhone (empreintes calculées ici, contacts_match), avec

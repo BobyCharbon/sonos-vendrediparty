@@ -43,7 +43,7 @@ enum EventChatText {
         let day = Calendar.current.isDateInToday(end) ? "aujourd'hui"
             : Calendar.current.isDateInTomorrow(end) ? "demain"
             : end.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(fr))
-        return "En sourdine jusqu'à \(day), \(end.formatted(date: .omitted, time: .shortened))"
+        return "En sourdine jusqu'à \(day), \(end.formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: .party)))"
     }
 
     /// Erreur de la base (« forbidden: Seule l'organisation… ») : la phrase seulement.

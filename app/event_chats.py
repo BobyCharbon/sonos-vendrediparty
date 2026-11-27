@@ -85,7 +85,7 @@ class EventChats:
         """Messages (ordre chronologique) mis en forme pour l'app : personnes bloquées masquées (texte, photo, vocal),
         citations (même d'un message plus ancien que la page), réactions, photos et vocaux signés."""
         def mask(m: dict) -> dict:
-            return {**m, "body": BLOCKED_TEXT, "photo_path": None, "audio_path": None} if m.get("user_id") in hidden else m
+            return {**m, "body": BLOCKED_TEXT, "photo_path": None, "audio_path": None, "audio_seconds": None} if m.get("user_id") in hidden else m
 
         messages = [mask(m) for m in raw]
         by_id = {m["id"]: m for m in messages}

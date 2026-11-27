@@ -296,8 +296,8 @@ struct FeedbackView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(item.title ?? item.text)
                         if item.title != nil { Text(item.text).font(.subheadline).foregroundStyle(.secondary) }
-                        Text("\(FeedbackKind.label(for: item.kind)) · \(item.date.formatted(.dateTime.day().month(.abbreviated))) · \(FeedbackStatus.label(for: item.status))"
-                             + (item.editedDate.map { " · modifié le " + $0.formatted(.dateTime.day().month(.abbreviated).hour().minute()) } ?? ""))
+                        Text("\(FeedbackKind.label(for: item.kind)) · \(item.date.formatted(.dateTime.day().month(.abbreviated).locale(.party))) · \(FeedbackStatus.label(for: item.status))"
+                             + (item.editedDate.map { " · modifié le " + $0.formatted(.dateTime.day().month(.abbreviated).hour().minute().locale(.party)) } ?? ""))
                             .font(.caption).foregroundStyle(.secondary)
                         if !item.reply.isEmpty {
                             Label(item.reply, systemImage: "arrowshape.turn.up.left.fill").foregroundStyle(Palette.accent)

@@ -236,7 +236,7 @@ struct FriendRowView: View {
 
     private var detail: String? {
         if showJoined, let joined = row.friend.joinedAt {
-            return "Arrivé sur Party \(joined.formatted(.relative(presentation: .named)))"
+            return "Arrivé sur Party \(joined.formatted(.relative(presentation: .named).locale(.party)))"
         }
         return row.friend.commonGroups.isEmpty ? nil : "En commun : " + row.friend.commonGroups.joined(separator: ", ")
     }
@@ -329,7 +329,7 @@ struct InvitedBySection: View {
             ForEach(rows) { row in
                 VStack(alignment: .leading, spacing: 2) {
                     Text(row.inviter.isEmpty ? "Compte supprimé" : row.inviter).font(.body.weight(.medium))
-                    Text(row.how + (row.at.map { " · " + $0.formatted(date: .abbreviated, time: .omitted) } ?? ""))
+                    Text(row.how + (row.at.map { " · " + $0.formatted(Date.FormatStyle(date: .abbreviated, time: .omitted, locale: .party)) } ?? ""))
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 .accessibilityElement(children: .combine)

@@ -84,6 +84,14 @@
          `private.audit_account_deleted` identiques sur prod et TEST (md5 contrôlé par le fichier, refus sinon). Politique
          (web et iPhone, nouveau build) : notifications déjà reçues par d'autres gardées 90 jours. Prod : rattrapage = 14 lignes
          (3 account.deleted, 3 account.created, 2 account.login, 2 group.add, 2 group.remove, 1 rsvp, 1 role ; compté le 27.11).
+      17. `2026-11-28-mini-profil-contact` (20261128090000) : **PRÊT** (apply + rollback ; appliqué et essayé sur TEST le
+         28.11 dans une transaction annulée : deux comptes Guest, `member_mini` « none », empreinte juste « request »,
+         empreinte fausse « none » + 1 échec noté, sans empreinte « none » ; retour arrière essayé (fonction retirée) puis
+         apply rejoué, même résultat). Nouvelle fonction seulement
+         (`member_mini_contact`), aucune ancre : n'importe quel ordre. Contact du répertoire inscrit sur Party : le
+         mini-profil propose la demande de message au lieu de « Tu ne peux pas lui écrire pour l'instant », et la personne
+         apparaît dans « Tes contacts sur Party » (recette de nuit du 28.11, notes de revue). Même plafond d'empreintes
+         qu'`open_direct_chat` (20 fausses / 24 h). Serveur (`app/chat_rpc.py`, RELAY) et nouveau build iPhone avec.
 - [ ] **Revérifier les ancres contre la prod avant d'appliquer** (150000 a réécrit event_changed, event_guest_list,
       apply_waitlist, event_attendance, public_event, chat_event_cards, invite_preview).
       **Fait le 27.11 en LECTURE SEULE** (`sbq.py prod`, `pg_get_functiondef` de la prod ; photo du 27.11, à refaire si

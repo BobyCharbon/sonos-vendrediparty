@@ -194,7 +194,7 @@ struct GroupOverviewRow: View {
                     Text(group.title).font(.body.weight(.bold)).foregroundStyle(PronoTheme.t1).lineLimit(1)
                     Spacer(minLength: 6)
                     if let at = ChatDates.parse(group.lastAt) {
-                        Text(at, format: .dateTime.hour().minute()).font(.caption).foregroundStyle(group.unread > 0 ? PronoTheme.pinkInk : PronoTheme.t3)
+                        Text(at, format: .dateTime.hour().minute().locale(.party)).font(.caption).foregroundStyle(group.unread > 0 ? PronoTheme.pinkInk : PronoTheme.t3)
                     }
                 }
                 HStack {

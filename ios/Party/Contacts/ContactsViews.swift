@@ -156,7 +156,7 @@ struct ContactNamesSettingsView: View {
         case .authorized, .limited:
             let count = contacts.recognized
             let who = count == 0 ? "Aucun membre reconnu pour l'instant" : "\(count) membre\(count > 1 ? "s" : "") reconnu\(count > 1 ? "s" : "")"
-            let when = contacts.snapshot.syncedAt.map { " · actualisé \($0.formatted(.relative(presentation: .named)))" } ?? ""
+            let when = contacts.snapshot.syncedAt.map { " · actualisé \($0.formatted(.relative(presentation: .named).locale(.party)))" } ?? ""
             return ("person.crop.circle.badge.checkmark", .green,
                     contacts.access == .limited ? "Accès limité aux contacts choisis" : "Activé", who + when)
         }

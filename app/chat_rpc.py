@@ -30,6 +30,7 @@ RELAY = {
     "chat_prefs_get", "chat_prefs_set",
     "chat_list", "set_chat_state", "chat_badge", "mark_event_chat_read", "reorder_chat_pins",  # §3 (+ ordre, 20.11)
     "chat_people_suggestions", "chat_people_search", "member_mini", "contacts_match",       # §4
+    "member_mini_contact",  # mini-profil d'un contact du répertoire (28.11, empreinte du numéro → demande de message)
     "create_chat_group", "chat_group_with",                                                 # §5
     "direct_seen", "chat_event_cards", "edit_direct_message", "edit_group_message",         # §6
     "chat_search", "chat_event_search",                                                     # §8 (+ événements, 19.11)

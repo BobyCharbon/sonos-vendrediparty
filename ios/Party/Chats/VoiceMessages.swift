@@ -11,6 +11,43 @@ enum AudioSessionQueue {
     static func perform<T: Sendable>(_ work: @escaping @Sendable () -> T) async -> T {
         await withCheckedContinuation { done in queue.async { done.resume(returning: work()) } }
     }
+
+    /// Comme perform, mais rendu au plus tard après `seconds` : nil si la file est encore prise (micro bloqué : recette
+    /// de nuit du 28.11, prepareToRecord resté plus de 3 min). Un résultat arrivé après le délai passe à `late`, sur la
+    /// file, pour être nettoyé dans l'ordre des gestes.
+    static func perform<T: Sendable>(within seconds: Double, _ work: @escaping @Sendable () -> T,
+                                     late: @escaping @Sendable (T) -> Void = { _ in }) async -> T? {
+        let once = Once()
+        return await withCheckedContinuation { (done: CheckedContinuation<T?, Never>) in
+            queue.async {
+                let value = work()
+                if once.claim() { done.resume(returning: value) } else { late(value) }
+            }
+            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + seconds) {
+                if once.claim() { done.resume(returning: nil) }
+            }
+        }
+    }
+
+    /// Reprise unique : le travail ou le délai, le premier des deux.
+    private final class Once: @unchecked Sendable {
+        private let lock = NSLock()
+        private var claimed = false
+        func claim() -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            if claimed { return false }
+            claimed = true
+            return true
+        }
+    }
+}
+
+/// L'enregistreur passe de la file audio au fil principal (AVAudioRecorder n'est pas Sendable : un seul fil s'en sert à
+/// la fois, la file pour l'ouvrir, puis le fil principal).
+final class RecorderBox: @unchecked Sendable {
+    let recorder: AVAudioRecorder?
+    init(_ recorder: AVAudioRecorder?) { self.recorder = recorder }
 }
 
 /// Messages vocaux des Discussions : appui long sur le micro pour enregistrer, relâcher pour envoyer, glisser vers la
@@ -20,7 +57,9 @@ enum AudioSessionQueue {
 final class VoiceRecorder: ObservableObject {
     /// En dessous, un appui trop court : rien n'est envoyé (évite les vocaux vides par erreur).
     static let minimumSeconds: TimeInterval = 0.6
-    static let maximumSeconds: TimeInterval = 600
+    nonisolated static let maximumSeconds: TimeInterval = 600
+    /// Au-delà, le micro est déclaré en panne : message à l'écran, la session est rendue dès que la file se libère.
+    nonisolated static let startTimeout: Double = 4
 
     @Published private(set) var recording = false
     @Published private(set) var elapsed: TimeInterval = 0
@@ -63,7 +102,13 @@ final class VoiceRecorder: ObservableObject {
         generation += 1
         let mine = generation
         problem = nil
-        let granted = await AudioSessionQueue.perform { AVAudioSession.sharedInstance().recordPermission == .granted }
+        // Avec délai : derrière un micro bloqué, la file ne répond plus (le nouvel appui ne doit pas geler non plus).
+        guard let granted = await AudioSessionQueue.perform(within: Self.startTimeout, {
+            AVAudioSession.sharedInstance().recordPermission == .granted
+        }) else {
+            if !recording { problem = "Le micro n'a pas pu démarrer. Réessaie." }
+            return
+        }
         if !granted {
             let allowed = await withCheckedContinuation { done in
                 AVAudioSession.sharedInstance().requestRecordPermission { done.resume(returning: $0) }
@@ -74,40 +119,55 @@ final class VoiceRecorder: ObservableObject {
             }
             return  // première autorisation : l'utilisateur relâche le bouton pendant la question ; il réappuie
         }
-        do {
-            let file = FileManager.default.temporaryDirectory.appendingPathComponent("vocal-\(UUID().uuidString).m4a")
-            var recorder: AVAudioRecorder?
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("vocal-\(UUID().uuidString).m4a")
+        // Session, création, préparation et démarrage de l'enregistreur hors du fil principal, dans la file de la session
+        // (ordre des gestes gardé) : prepareToRecord a gelé l'app plus de 3 min sur le fil principal (recette du 28.11).
+        let opened = await AudioSessionQueue.perform(within: Self.startTimeout, {
+            var made: AVAudioRecorder?
             // Deux essais : la session audio peut être encore prise (lecture d'un vocal, autre app) au premier.
-            for attempt in 0..<2 where recorder == nil {
-                if attempt > 0 { try? await Task.sleep(for: .milliseconds(150)) }
-                _ = await AudioSessionQueue.perform { try? VoiceRecorder.useBuiltInMicrophone() }
-                if let r = try? AVAudioRecorder(url: file, settings: Self.settings), r.prepareToRecord(),
-                   r.record(forDuration: Self.maximumSeconds) { recorder = r }
+            for attempt in 0..<2 where made == nil {
+                if attempt > 0 { Thread.sleep(forTimeInterval: 0.15) }
+                try? VoiceRecorder.useBuiltInMicrophone()
+                if let r = try? AVAudioRecorder(url: file, settings: VoiceRecorder.settings), r.prepareToRecord(),
+                   r.record(forDuration: VoiceRecorder.maximumSeconds) { made = r }
             }
-            guard let recorder else { throw CocoaError(.fileWriteUnknown) }
-            guard wanted, generation == mine, !recording else {  // arrêt (ou nouvel appui) pendant l'ouverture du micro
-                recorder.stop()
-                try? FileManager.default.removeItem(at: recorder.url)
-                // Session rendue seulement si plus personne ne veut le micro (un nouvel appui garde la sienne).
-                if !wanted && !recording {
-                    AudioSessionQueue.run { try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation) }
-                }
-                return
+            if made == nil {  // micro pas démarré : la session est rendue (la musique reprend)
+                try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
             }
-            self.recorder = recorder
-            started = Date()
-            elapsed = 0
-            recording = true
-            Haptics.press()
-            timer = Task { [weak self] in
-                while !Task.isCancelled {
-                    try? await Task.sleep(for: .milliseconds(100))
-                    guard let self else { return }
-                    self.elapsed = Date().timeIntervalSince(self.started)
-                }
+            return RecorderBox(made)
+        }, late: { box in
+            // Prêt après le délai : plus personne ne l'attend (message déjà affiché) ; rien ne s'enregistre.
+            box.recorder?.stop()
+            try? FileManager.default.removeItem(at: file)
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        })
+        guard let opened, let recorder = opened.recorder else {
+            if !recording { problem = "Le micro n'a pas pu démarrer. Réessaie." }
+            return
+        }
+        guard wanted, generation == mine, !recording else {  // arrêt (ou nouvel appui) pendant l'ouverture du micro
+            // Session rendue seulement si plus personne ne veut le micro (un nouvel appui garde la sienne).
+            let release = !wanted && !recording
+            let box = opened
+            AudioSessionQueue.run {
+                box.recorder?.stop()
+                try? FileManager.default.removeItem(at: file)
+                if release { try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation) }
             }
-        } catch {
-            problem = "Le micro n'a pas pu démarrer. Réessaie."
+            return
+        }
+        self.recorder = recorder
+        started = Date()
+        elapsed = 0
+        recording = true
+        problem = nil  // un appui précédent en panne ne laisse pas son message sous un enregistrement en cours
+        Haptics.press()
+        timer = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(100))
+                guard let self else { return }
+                self.elapsed = Date().timeIntervalSince(self.started)
+            }
         }
     }
 
