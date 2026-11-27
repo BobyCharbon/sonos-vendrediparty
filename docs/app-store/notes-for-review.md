@@ -62,7 +62,7 @@ NATIVE (4.2)
 Tab bar, SwiftUI Settings, Discussions, Groups, event chat, "Ton avis", AI assistant, "Pot commun", "Mes amis dans Party". Push (switch per type), Wallet, QR scanner, Calendar, Contacts (optional, hashed), dictation. Share sheet > "Party !": event from a link.
 
 WEB CONTENT (2.5.2)
-Events and Games tabs: our site in a WKWebView. Other sites: Safari. Games > Code: 4 digits = a game; 6 digits = a host's music party (native screen, no tab; needs the host's Sonos; we run one on request; optional Live Activity for your song). Not in this version (would need a new review): Pronos, Agenda, companion, Souvenirs. In the binary but never opened by this build (2.5.19): companion, Pyramide card panel, bar notification switches.
+Events and Games tabs: our site in a WKWebView. Other sites: Safari. Games > Code: 4 digits = a game; 6 digits = a host's music party (native screen, no tab; needs the host's Sonos; we run one on request; optional Live Activity for your song). Not in this version (would need a new review): Pronos, Agenda, companion, Souvenirs. Other code stays in the binary, never opened by this build (2.5.19): see B5.
 
 EVENTS
 Links for one person or "Plusieurs"; guests make and stop own links. Not public: a guest's guest waits ("… attend ton accord"). Date poll. Calendar feed. Carpool (no money), QR ticket + Wallet: organiser options. Groups: "Inviter" > "Le lien du groupe" (WhatsApp, Copier, Autre, QR). Events need sign-in (nickname ≤ 12 characters); games need none. Updates live; tap a name to open the profile; each answer shows its time. Admins: "Nouveau compte", announcement or maintenance.
@@ -451,9 +451,10 @@ the app never opens its games.
   feature** delivered this way is described in these notes before it is turned on in production (2.3.1(a)). Pronos,
   Agenda, the companion and Souvenirs (event photos) are not available in this app, and the removed games stay removed for version 1.0.0. They
   would only come in a future app version submitted for review and approved, never for this version.
-- Documented here, not hidden (2.5.19): Pronos, Agenda and Souvenirs are not compiled into this build. Three pieces of
+- Documented here, not hidden (2.5.19): Pronos, Agenda and Souvenirs are not compiled into this build. Five pieces of
   code are in the binary but never opened by it: the companion, the private card panel of the removed Pyramide
-  game, and the bar's notification switches in Settings › Notifications (hidden because the bar is off in this build).
+  game, the bar's notification switches in Settings › Notifications (hidden because the bar is off in this build),
+  the Share extension's "add a song to the Music queue" path, and the "Ajouter un titre" icon shortcut.
   The App Store build switches them off by itself; no screen, setting, link or server answer can open them.
 
 ### B6. User-generated content and safety (1.2)

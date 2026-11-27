@@ -65,6 +65,8 @@ struct ConversationView: View {
     @State private var confirmLeave = false
     /// Retirer une annonce / désépingler (pour tout le monde) : toujours confirmé.
     @State private var unpinning: Conversation.Highlight?
+    /// Menu d'un message déjà épinglé ou d'une annonce : retiré pour tout le monde, donc demandé d'abord (contrôle final).
+    @State private var unpinningMessage: Conversation.Message?
     /// « Nouveaux messages » : premier message non lu à l'ouverture, et leur nombre (discussion d'un événement).
     @State private var newFrom: String?
     @State private var newCount = 0
@@ -163,6 +165,7 @@ struct ConversationView: View {
                 Button(h.announcement ? "Retirer l'annonce" : "Désépingler", role: .destructive) { Task { await store.unpin(h.id) } }
                 Button("Annuler", role: .cancel) {}
             } message: { _ in Text("Il n'apparaîtra plus en haut de la discussion, pour tout le monde.") }
+            .modifier(UnpinMessageDialog(message: $unpinningMessage, store: store))
             .overlay(alignment: .bottom) { notice }
             .task(id: group) {
                 v2.attach(store)
@@ -692,7 +695,7 @@ struct ConversationView: View {
                 AnnouncementCard(message: m, names: names, reactions: chat.reactions, canWrite: chat.member, isStaff: chat.isStaff,
                                  isAdmin: chat.admin, canReply: canReply, player: player,
                                  onReact: { emoji in Haptics.tap(); Task { await store.react(m, emoji) } },
-                                 onReply: { reply(to: m) }, onPin: { Task { await store.pin(m) } },
+                                 onReply: { reply(to: m) }, onPin: { if m.pinned { unpinningMessage = m } else { Task { await store.pin(m) } } },
                                  onDelete: { deletingMessage = m }, onReport: report,
                                  onPrivateReply: canPrivate ? { replyPrivately(to: m, in: chat) } : nil,
                                  onPhoto: { showPhoto(m) })
@@ -705,7 +708,7 @@ struct ConversationView: View {
                            onReact: { emoji in Haptics.tap(); Task { await store.react(m, emoji) } },
                            onReply: { reply(to: m) },
                            onQuote: { if let id = m.reply?.id { jumpTo = id } },
-                           onPin: { Task { await store.pin(m) } },
+                           onPin: { if m.pinned { unpinningMessage = m } else { Task { await store.pin(m) } } },
                            onDelete: { deletingMessage = m },
                            onReport: report,
                            onEdit: canEdit ? { startEdit(m) } : nil,
@@ -1645,5 +1648,22 @@ private struct RecordingDot: View {
                 guard !reduceMotion else { return }
                 withAnimation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true)) { dim = true }
             }
+    }
+}
+
+
+/// Menu d'un message déjà épinglé ou d'une annonce : retiré pour tout le monde, donc demandé d'abord (contrôle final).
+/// À part de ConversationView : sa chaîne de modificateurs est déjà trop longue pour le compilateur.
+private struct UnpinMessageDialog: ViewModifier {
+    @Binding var message: Conversation.Message?
+    @ObservedObject var store: ChatsStore
+
+    func body(content: Content) -> some View {
+        content.confirmationDialog(message?.isAnnouncement == true ? "Retirer l'annonce ?" : "Désépingler ce message ?",
+                                   isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } }),
+                                   titleVisibility: .visible, presenting: message) { m in
+            Button(m.isAnnouncement ? "Retirer l'annonce" : "Désépingler", role: .destructive) { Task { await store.pin(m) } }
+            Button("Annuler", role: .cancel) {}
+        } message: { _ in Text("Il n'apparaîtra plus en haut de la discussion, pour tout le monde.") }
     }
 }
