@@ -149,7 +149,7 @@ const ALL_REMINDERS: Reminder[] = ['7d', '1d', '2h', '0h'];
 type FormMode = 'simple' | 'advanced';
 // Au-delà, « Publier » rend la main (la base peut encore finir : le même brouillon est repris, jamais un second).
 const PUBLISH_LIMIT_MS = 20000;
-const SLOW_PUBLISH = 'La publication prend du temps : ta proposition est peut-être déjà enregistrée, regarde dans tes événements avant de réessayer.';
+const SLOW_PUBLISH = 'La publication prend du temps : ton événement est peut-être déjà enregistré (publié ou en attente de validation), regarde dans tes événements avant de réessayer.';
 const modeKey = 'party-event-form-mode';
 function readMode(): FormMode {
   try { return localStorage.getItem(modeKey) === 'advanced' ? 'advanced' : 'simple'; } catch { return 'simple'; }
