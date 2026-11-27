@@ -41,11 +41,16 @@ class FakeAccounts:
 
     def _get(self, method, path, token, **kw):
         self.calls.append((method, path))
+        gone = []
         if path.startswith("/storage/"):
             status = self.storage.pop(0) if self.storage else 500
+            if status == "empty":  # le Storage répond 200 sans rien effacer (règle d'accès)
+                status = 200
+            elif status == 200:
+                gone = [{"name": p} for p in kw.get("json", {}).get("prefixes", [])]
         else:
             status = self.delete_status if path.endswith("delete_my_account") else 200
-        return type("R", (), {"status_code": status, "text": "last_admin" if status == 400 else "", "json": lambda self: []})()
+        return type("R", (), {"status_code": status, "text": "last_admin" if status == 400 else "", "json": lambda self: gone})()
 
     def forget(self, token):
         pass
@@ -71,6 +76,11 @@ def test_profile_photos_leave_after_the_account_with_a_checked_retry(monkeypatch
     acc = FakeAccounts(storage=(500, 500, 500))
     auth_with(acc, monkeypatch).delete_account("t" * 30, "SUPPRIMER")
     assert len(deletes(acc)) == 3 and "u1/ à vider" in caplog.text
+    # 200 sans rien d'effacé (relecture du 27.11) : réessayé, puis journalisé.
+    caplog.clear()
+    acc = FakeAccounts(storage=("empty", "empty", "empty"))
+    auth_with(acc, monkeypatch).delete_account("t" * 30, "SUPPRIMER")
+    assert len(deletes(acc)) == 3 and "u1/ à vider" in caplog.text
     # Suppression refusée (dernier admin) : le compte reste, sa photo aussi.
     acc = FakeAccounts(delete_status=400)
     try:
@@ -85,3 +95,24 @@ def test_the_ai_consent_names_the_event_edit_everywhere_and_asks_again():
     for path in ("app/static/index.html", "ios/Party/Feedback/FeedbackAI.swift", "web/events/src/lib/aiConsent.ts"):
         text = (ROOT / path).read_text(encoding="utf-8")
         assert "pour modifier un événement avec l" in text and "prix et infos de paiement" in text, path
+
+
+def test_the_guest_state_hides_names_even_when_the_music_is_unreachable(admin, monkeypatch):  # noqa: F811
+    """Relecture du 27.11 : la Musique injoignable renvoyait « Déjà passés » avec les prénoms des autres à l'app."""
+    main.store.session.played = [
+        {"track_id": "p" * 22, "title": "Avant", "artist": "A", "art": "", "by": "Noé", "at": 0},
+        {"track_id": "c" * 22, "title": "En cours", "artist": "A", "art": "", "by": "Noé", "at": 1},
+    ]
+    monkeypatch.setattr(main, "public_sonos", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("injoignable")))
+    guest = TestClient(main.app, headers={"user-agent": STORE_UA})
+    guest.post("/api/join", json={"pin": main.store.session.guest_pin})
+    guest.post("/api/hello", json={"guest_id": "guest-t7-2", "guest_name": "Zoé"})
+    s = guest.get("/api/state?guest_id=guest-t7-2").json()
+    assert s["error"] and [p["by"] for p in s["played"]] == [None]
+
+
+def test_pablo_escobar_is_refused_whatever_the_spacing():
+    for n in ("Pablo Escobar", "Pablo-Escobar", "Pablo  Escobar", "Pablo Escobar", "Escobar Pablo"):
+        assert main.name_refusal(main.clean_name(n), True), n
+    for n in ("Marie Escobar", "Escobar"):
+        assert not main.name_refusal(main.clean_name(n), True), n

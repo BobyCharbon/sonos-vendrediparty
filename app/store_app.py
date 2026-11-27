@@ -287,7 +287,7 @@ PLAYER_SAFE = re.compile(r"\b(verres?|bouteilles?) (d['’ ]?eau(?![\s-]*de[\s-]
                          re.IGNORECASE)
 # Noms de famille qui contiennent un mot de DRINK_RE (prénoms et noms des joueurs seulement, tour 7) : Brasseur, Escobar
 # (jamais « Pablo Escobar »), Kirschner, Perdrix, Tchindjang.
-NAME_SAFE = re.compile(r"\b(brasseurs?|(?<!pablo )escobar|kirschner|perdrix|tchindjang|porto[\s-]+novo)\b", re.IGNORECASE)
+NAME_SAFE = re.compile(r"\b(brasseurs?|escobar|kirschner|perdrix|tchindjang|porto[\s-]+novo)\b", re.IGNORECASE)
 # Tour 8 : « Bordeaux », « Cointreau » (noms de famille) seulement comme nom entier ou « Prénom Nom » ; jamais « Le
 # Bordeaux », « Team Cointreau », « Bordeaux rouge » (le prénom devant passe le filtre lui-même).
 FAMILY_NAME = re.compile(r"\s*(?:([^\W\d_][\w'’-]*)\s+)?(bordeaux|cointreau)\s*", re.IGNORECASE)
@@ -295,9 +295,15 @@ NOT_FIRST_NAMES = {"team", "vin", "rouge", "blanc", "verre", "shot", "fan", "clu
                    "monsieur", "madame", "miss", "king", "queen", "roi", "reine", "chateau", "château"}
 
 
+PABLO_ESCOBAR = re.compile(r"pablo[^a-z]*escobar|escobar[^a-z]*pablo")
+
+
 def name_safe(name) -> str:
     """Le prénom sans ses noms de famille sûrs (NAME_SAFE, FAMILY_NAME) : le reste passe le filtre."""
-    text = NAME_SAFE.sub(" ", str(name or ""))
+    text = str(name or "")
+    # « Pablo Escobar » (le trafiquant), quelle que soit l'espace ou l'ordre : jamais un nom sûr.
+    if not PABLO_ESCOBAR.search(normalize(nfkc(text))):
+        text = NAME_SAFE.sub(" ", text)
     m = FAMILY_NAME.fullmatch(text)
     if m and (not m.group(1) or m.group(1).lower() not in COMMON | NOT_FIRST_NAMES):
         return m.group(1) or " "

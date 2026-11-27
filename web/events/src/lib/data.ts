@@ -226,7 +226,8 @@ export async function fetchEventList(ids?: string[]): Promise<EventListItem[]> {
   const blocked = new Set((blocks ?? []).map((b) => b.blocked_id));
   const all = must(res) as unknown as EventListItem[];
   // Et ceux qui M'ONT bloqué (invisible dans direct_blocks) : blocked_with, une fois par auteur toutes les 5 minutes.
-  const authors = [...new Set(all.filter((e) => !isPartOf(e, me) && !blocked.has(e.created_by)).map((e) => e.created_by))];
+  // Sans session : personne ne peut m'avoir bloqué, aucun appel (relecture du 27.11).
+  const authors = me ? [...new Set(all.filter((e) => !isPartOf(e, me) && !blocked.has(e.created_by) && e.created_by !== me).map((e) => e.created_by))] : [];
   (await Promise.all(authors.map(blockedMe))).forEach((yes, i) => { if (yes) blocked.add(authors[i]); });
   // Contrôle Apple tour 7 (1.2) : l'événement d'une personne bloquée (dans un sens ou dans l'autre) disparaît de ma liste
   // et de ma recherche, sauf si j'en fais partie (réponse, invitation, organisation).
@@ -244,7 +245,8 @@ async function blockedMe(author: string): Promise<boolean> {
   const hit = blockedMeCache.get(author);
   if (hit && Date.now() - hit.at < BLOCKED_ME_MS) return hit.yes;
   const { data, error } = await Promise.resolve(supabase.rpc('blocked_with', { target: author })).catch(() => ({ data: null, error: true }));
-  if (!error) blockedMeCache.set(author, { yes: data === true, at: Date.now() });
+  // Panne aussi gardée 5 minutes : la liste ne relance pas des dizaines d'appels à chaque chargement.
+  blockedMeCache.set(author, { yes: !error && data === true, at: Date.now() });
   return data === true;
 }
 

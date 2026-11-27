@@ -92,7 +92,9 @@ class AccountAuth:
         for attempt in range(3):
             try:
                 r = self.accounts._get("DELETE", f"/storage/v1/object/{accounts_mod.PROFILE_PHOTOS}", token, json={"prefixes": photos})
-                if r.status_code in (200, 204):
+                # Le Storage répond 200 même quand il n'efface rien (règle d'accès) : on compte ce qu'il a vraiment effacé.
+                gone = r.json() if r.status_code == 200 else None
+                if isinstance(gone, list) and {g.get("name") for g in gone if isinstance(g, dict)} >= set(photos):
                     return
             except AccountError:
                 pass

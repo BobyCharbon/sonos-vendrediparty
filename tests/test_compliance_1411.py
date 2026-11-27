@@ -172,6 +172,8 @@ def fake_supabase(delete_status=204, photos=("1.jpg", "2.jpg")):
             return httpx.Response(200, json=[{"name": n, "id": n} for n in photos])
         if request.url.path == "/rest/v1/rpc/delete_my_account":
             return httpx.Response(delete_status, json={"message": "last_admin"} if delete_status >= 400 else None)
+        if request.method == "DELETE" and request.url.path == "/storage/v1/object/profile-photos":
+            return httpx.Response(200, json=[{"name": n} for n in json.loads(request.content)["prefixes"]])
         return httpx.Response(200, json=[])
 
     return accounts_mod.Accounts(b"s", httpx.Client(transport=httpx.MockTransport(handler))), seen
