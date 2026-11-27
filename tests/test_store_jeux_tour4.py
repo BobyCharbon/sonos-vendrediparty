@@ -84,7 +84,7 @@ def test_slang_and_disguised_words_are_refused_in_an_app_game(text):
 def test_ordinary_texts_pass(text):
     assert not store_app.player_offensive(text)
     assert games.shown_text(text, "answer", store=True)
-    if len(text) <= 30:
+    if len(text) <= 30 and store_app.name_chars_ok(text):  # « ? » n'est pas dans l'alphabet des prénoms (tour 5)
         assert not store_app.name_refused(text)
 
 

@@ -13,7 +13,7 @@ import re
 from functools import lru_cache
 
 from .features import is_test_site
-from .moderation import check as moderation_check, clean as moderation_clean, merged, normalize, store_hit
+from .moderation import check as moderation_check, clean as moderation_clean, merged, nfkc, normalize, store_hit
 
 MARK = "PartyStore"
 # Casino et Blackjack (jeux d'argent simulés) depuis le 05.11 ; les autres sont des jeux à boire par leur origine ou leur
@@ -100,7 +100,8 @@ PLAYER_NORM = re.compile(
     r"|torchent|defonc\w*|clopes?|clopers?|clopent|pari|parie[rsz]?|parient|parions|pariai[st]?|parieurs?|paries"
     r"|mise[rz]|misons|misent|misai[st]?|miseurs?|whiskey|vodka|hitler\w*"
     r"|(mettre|mets|met|mis|mise|mettent|mettait|mettais|mettons) (une|la|sa|ta|ma) (mine|race)"
-    r"|cul[ ]sec|rouler un pet\w*|de la c)( |$)"
+    r"|cul[ ]sec|rouler un pet\w*|de la c|demis? pression|petites? mousses?|mousses? (bien )?fraiches?"
+    r"|(boire|bu|prendre|prend|prends|pris|prenons|prennent|tenir|tient|tiens) (une|la|sa|ta|ma) caisse)( |$)"
     # « mise » / « mises » (enjeu) : refusé, sauf « mise à jour », « mise en place », « mise au point »…
     r"|(^| )mises?( |$)(?!(a|au|aux|en|bas|hors|jour|sur pied)( |$))")
 
@@ -120,30 +121,85 @@ def _player_forms(text: str) -> tuple[str, list[str]]:
     return norm, ["".join(p) for p in zip(words, words[1:])]
 
 
+# Mots en chiffres ou de deux lettres, lus sur le texte BRUT (NFKC, minuscules) en mot entier : la normalisation ferait
+# de « 88 » « bb » et de « 55 ans » « ss ». Contrôle Apple, tour 5.
+RAW_TOKENS = re.compile(r"(?<![^\W_])(88|14 ?88|ss|s\.s\.?|get ?27|get ?31|1664|label ?5)(?![^\W_])", re.IGNORECASE)
+
+
 @lru_cache(maxsize=8192)
 def player_offensive(text) -> bool:
     """Texte d'un joueur refusé dans une partie de l'app : liste commune de l'app (offensive) et argot, contournements
-    compris (chiffres, lettres séparées, mot coupé en deux)."""
-    text = str(text or "")
-    if offensive(text) or PLAYER_RAW.search(text) or PARIS.search(text):
+    compris (formes NFKC, sosies cyrilliques / grecs, chiffres, lettres séparées, mot coupé en deux)."""
+    text = nfkc(moderation_clean(str(text or "")))
+    # Nombres retirés avant la liste de l'app (« 55 ans » ≠ « ss ») : « 88 » et consorts sont lus par RAW_TOKENS.
+    if drinky(text) or store_hit(NUMBER.sub(" ", text)) or PLAYER_RAW.search(text) or PARIS.search(text) or RAW_TOKENS.search(text):
         return True
     norm, pairs = _player_forms(text)
     if DRINK_RE.search(norm) or STORE_EXCLUDE.search(norm) or PLAYER_NORM.search(norm):
         return True
-    return any(w in PAIR_WORDS or store_hit(w) for w in pairs)
+    # Paires recollées : les mots de PAIR_WORDS, ou un mot de STORE_ONLY d'au moins 6 lettres (« su ce » ≠ « suce »).
+    return any(w in PAIR_WORDS or (len(w) >= 6 and store_hit(w)) for w in pairs)
 
 
-def check_text(text, store: bool):
-    """Texte libre d'un joueur montré à la table d'une partie de l'app : jamais de boisson, de drogue ni de mot de
-    STORE_ONLY, argot compris (ValueError)."""
-    if store and player_offensive(text):
+# Alphabet des textes de joueurs de l'app (contrôle Apple, tour 5 : CHANGER DE MÉTHODE, liste blanche plutôt que liste
+# noire) : après NFKC, lettres latines (accents français et européens compris), chiffres, espace, trait d'union,
+# apostrophe (' et ’). Tout le reste (cyrillique, grec, symboles, emoji) est refusé. Réponses : plus la ponctuation courante.
+LATIN = "A-Za-zÀ-ÖØ-öø-ſȘ-ț"
+NAME_MAX = 30
+NAME_CHARS = re.compile(rf"[{LATIN}0-9 '’-]{{1,{NAME_MAX}}}")
+ANSWER_CHARS = re.compile(rf"[{LATIN}0-9 '’\-.,;:!?\"«»()…–—%/&+°\n]*")
+HAS_LETTER = re.compile(rf"[{LATIN}0-9]")
+NAME_CHARS_REFUSED = "Ce prénom n'est pas accepté ici : lettres, chiffres, espace, trait d'union et apostrophe seulement."
+ANSWER_CHARS_REFUSED = "Ce texte n'est pas accepté ici : lettres, chiffres et ponctuation courante seulement (ni emoji ni symbole)."
+
+
+def name_chars_ok(name) -> bool:
+    """Prénom d'un joueur de l'app : seulement l'alphabet des prénoms (après NFKC), 30 signes au plus."""
+    name = nfkc(moderation_clean(str(name or ""))).strip()
+    return bool(NAME_CHARS.fullmatch(name) and HAS_LETTER.search(name))
+
+
+# Prénoms de l'app : un mot de la liste COLLÉ à un autre (« Zoépicoler », recette iPhone du 28.11) est aussi refusé. Lu
+# dans chaque mot du prénom normalisé ; seulement des mots assez longs et sans double sens dans un prénom
+# (jamais « nazi », « shit », « chatte » : Nazim, Shitaké, Matchatte restent acceptés).
+GLUED = ("picol", "trinqu", "pompette", "biture", "pinard", "defonc", "saoul", "vodka", "whisk", "tequila", "hitler",
+         "cocaine", "cannabis", "ganja", "ketamin", "pochtron", "ivrogne", "poivrot", "smirnof", "schnaps", "kronenbourg",
+         "desperados", "baileys", "jackdaniel", "jackpot", "winamax", "betclic", "violeur", "inceste", "trisomique",
+         "pedophil", "salope", "connard", "encule", "putain", "merdeux", "marijuana", "heroine", "codeine", "poppers",
+         "alcool", "biere", "gorgee", "cocktail", "champagne", "mojito", "pastis", "casino", "poker", "blackjack",
+         "pompett", "beuverie", "suicid", "terroris", "daech", "daesh", "staline", "bougnoul", "pedo", "porno")
+
+
+def glued_hit(name) -> bool:
+    words = re.split("[^a-z]+", normalize(nfkc(moderation_clean(str(name or "")))))  # mot par mot (« mal à la gorge » passe)
+    return any(w in word for word in words for w in GLUED)
+
+
+def answer_chars_ok(text) -> bool:
+    return bool(ANSWER_CHARS.fullmatch(nfkc(moderation_clean(str(text or "")))))
+
+
+def check_text(text, store: bool, kind: str = "answer"):
+    """Texte libre d'un joueur montré à la table d'une partie de l'app : alphabet des prénoms (« name ») ou des réponses,
+    jamais de boisson, de drogue ni de mot de STORE_ONLY, argot compris (ValueError)."""
+    if not store:
+        return
+    if kind == "name" and not name_chars_ok(text):
+        raise ValueError(NAME_CHARS_REFUSED)
+    if kind == "name" and glued_hit(text):
+        raise ValueError(TEXT_REFUSED)
+    if kind != "name" and not answer_chars_ok(text):
+        raise ValueError(ANSWER_CHARS_REFUSED)
+    if player_offensive(text):
         raise ValueError(TEXT_REFUSED)
 
 
 @lru_cache(maxsize=8192)
 def name_refused(name) -> bool:
-    """Prénom jamais montré dans une partie de l'app : refusé par l'app (player_offensive) ou par le filtre commun."""
-    return isinstance(name, str) and bool(name) and (player_offensive(name) or not moderation_check(name, "name").ok)
+    """Prénom jamais montré dans une partie de l'app : hors de l'alphabet des prénoms, refusé par l'app
+    (player_offensive) ou par le filtre commun (un prénom du web hors de l'alphabet devient « Joueur N »)."""
+    return isinstance(name, str) and bool(name) and (
+        not name_chars_ok(name) or glued_hit(name) or player_offensive(name) or not moderation_check(name, "name").ok)
 
 
 ALIAS = "Joueur"

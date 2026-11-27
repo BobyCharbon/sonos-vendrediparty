@@ -16,6 +16,7 @@ Contournements simples gérés : majuscules, accents, chiffres et signes à la p
 répétées (saloooope), lettres séparées (s.a.l.o.p.e), caractères invisibles."""
 import re
 import sys
+import unicodedata
 from dataclasses import dataclass
 
 from .moderation_terms import CATEGORIES, STORE_ONLY
@@ -25,6 +26,12 @@ ACCENTS_FROM = "àáâãäåāăąæçćčďèéêëēėęěìíîïīįłñńň
 ACCENTS_TO = "aaaaaaaaaacccdeeeeeeeeiiiiiilnnnooooooooorrsssstuuuuuuuyyzzz"
 LEET_FROM = "0134578@$€"
 LEET_TO = "oieastbase"
+# Sosies cyrillique / grec → latin (contrôle Apple, tour 5 : « Hіtler », « Cоnnard »), majuscules ET minuscules, lettre
+# pour lettre d'après la FORME (Η grec → h, η → n ; Р / р → p) : appliquée avant les minuscules, comme la base.
+SOSIES_FROM = ("АВЕЁКМНОРСТУХЅІЇЈҺԀԚԜаеёкмнорстухѕіїјһԁԛԝвьгп"
+               "ΑΒΕΖΗΙΚΜΝΟΡΤΥΧΆΈΉΊΌΎαβγδεζηικνορτυχωςάέήίόύώμ")
+SOSIES_TO = ("abeekmhopctyxsiijhdqwaeekmhopctyxsiijhdqwbbrn"
+             "abezhikmnoptyxaehioyabydeznikvoptuxwsaeniouwu")
 INVISIBLE = re.compile("[​-‏⁠﻿­]")
 SUFFIX = "(s|x|e|es|en|n)?"
 LINK = re.compile(r"(https?://|www\.|(^|[^a-z0-9])[a-z0-9-]+\.(com|ch|fr|de|it|net|org|io|ly|me|gg|app|xyz|info|co|tv"
@@ -43,8 +50,10 @@ REASONS = {
     "lien": "un lien",
     "numero": "un numéro de téléphone",
 }
-assert len(ACCENTS_FROM) == len(ACCENTS_TO) and len(LEET_FROM) == len(LEET_TO)
-_TABLE = str.maketrans(ACCENTS_FROM + LEET_FROM, ACCENTS_TO + LEET_TO)
+assert len(ACCENTS_FROM) == len(ACCENTS_TO) and len(LEET_FROM) == len(LEET_TO) and len(SOSIES_FROM) == len(SOSIES_TO)
+assert len(set(ACCENTS_FROM + LEET_FROM + SOSIES_FROM)) == len(ACCENTS_FROM + LEET_FROM + SOSIES_FROM)  # translate() de la base : 1re occurrence
+_SOSIES = str.maketrans(SOSIES_FROM, SOSIES_TO)
+_TABLE = str.maketrans(ACCENTS_FROM + LEET_FROM + SOSIES_FROM, ACCENTS_TO + LEET_TO + SOSIES_TO)
 
 
 @dataclass(frozen=True)
@@ -104,8 +113,15 @@ def clean(text: str) -> str:
 
 
 def normalize(text: str) -> str:
-    """Minuscules, sans accents, chiffres et signes ramenés aux lettres : même longueur que le texte."""
-    return "".join(c.lower()[:1] or c for c in text).translate(_TABLE)
+    """Sosies cyrillique / grec ramenés au latin, minuscules, sans accents, chiffres et signes ramenés aux lettres : même
+    longueur que le texte (le masquage des insultes s'y repère)."""
+    return "".join(c.lower()[:1] or c for c in text.translate(_SOSIES)).translate(_TABLE)
+
+
+def nfkc(text: str) -> str:
+    """Formes de compatibilité ramenées à la lettre (Ｖｏｄｋａ, 𝐇𝐢𝐭𝐥𝐞𝐫, ﬁ…) : pour DÉTECTER seulement (la longueur
+    peut changer), comme private.mod_hit."""
+    return unicodedata.normalize("NFKC", text)
 
 
 def merged(norm: str) -> str:
@@ -124,6 +140,7 @@ def merged(norm: str) -> str:
 
 
 def _hit(text: str, kind: str) -> str | None:
+    text = nfkc(text)
     words = merged(normalize(text))
     for cat, _ in CATEGORIES:
         if _FULL[cat].search(words):
@@ -183,7 +200,7 @@ _STORE = re.compile("(^|[^a-z])(" + "|".join(compile_term(t).pattern for t in ST
 
 def store_hit(text) -> bool:
     """Mot refusé dans l'app App Store seulement (moderation_terms.STORE_ONLY), mêmes contournements que check()."""
-    return bool(_STORE.search(merged(normalize(clean(text)))))
+    return bool(_STORE.search(merged(normalize(nfkc(clean(text))))))
 
 
 def sql_values() -> str:
