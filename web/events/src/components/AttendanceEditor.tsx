@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, View } from 'react-native';
 
 import { useQuery } from '@/lib/data';
 import { addManualGuest, fetchManualGuests, removeManualGuest, setManualGuest, type ManualGuest } from '@/lib/manualGuests';
@@ -8,6 +8,7 @@ import { rsvpChoices, rsvpOptions, setRsvpFor, waitingPlusOnes } from '@/lib/rsv
 import { colors, font, radius } from '@/lib/theme';
 import type { EventRow, Rsvp, RsvpStatus } from '@/lib/types';
 
+import { SheetBackdrop } from './SheetGesture';
 import { Avatar, Button, ConfirmButton, ErrorText, Input, Reveal, Rows, s, Section, T } from './ui';
 
 const MAX_SUGGESTIONS = 6;
@@ -52,6 +53,8 @@ export function AttendanceEditor({ event, rsvps, names, me, onChange, refreshKey
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // ✕ : toujours une question d'abord (retour de l'admin du 27.11 : une ligne partait au premier toucher, sans le vouloir).
+  const [removing, setRemoving] = useState<Line | null>(null);
   const options = rsvpOptions(event.allow_maybe);
   const nameOf = (id: string) => (id === me ? 'Toi' : names.get(id) ?? '?');
   // null : base d'avant (pas de présences sans compte) ; l'éditeur reste celui des membres.
@@ -149,7 +152,7 @@ export function AttendanceEditor({ event, rsvps, names, me, onChange, refreshKey
                     })}
                   </View>
                   <Pressable accessibilityRole="button" accessibilityLabel={`Retirer ${l.name}`} disabled={!!busy} hitSlop={6}
-                    onPress={() => set(null)} style={({ pressed }) => [st.remove, pressed && { opacity: 0.6 }]}>
+                    onPress={() => setRemoving(l)} style={({ pressed }) => [st.remove, pressed && { opacity: 0.6 }]}>
                     <T size={15} muted>✕</T>
                   </Pressable>
                 </View>
@@ -230,6 +233,24 @@ export function AttendanceEditor({ event, rsvps, names, me, onChange, refreshKey
         </>
       ) : <T muted size={13}>Personne n’a encore répondu : écris un nom pour l’ajouter.</T>}
       <ErrorText error={error} />
+      <Modal visible={!!removing} transparent animationType="fade" onRequestClose={() => setRemoving(null)}>
+        <View style={st.confirmOverlay}>
+          <SheetBackdrop onPress={() => setRemoving(null)} />
+          <View style={st.confirmCard} accessibilityViewIsModal accessibilityRole="alert">
+            <T weight="bold" size={18}>{removing ? (removing.kind === 'member' && removing.id === me ? 'Te retirer des présences ?' : `Retirer ${removing.name} des présences ?`) : ''}</T>
+            <T size={14} color={colors.textSoft}>
+              {removing?.kind === 'member' ? (removing.id === me ? 'Ta réponse est effacée.' : 'Sa réponse est effacée et la personne est prévenue.') : 'Cette ligne est effacée.'}
+            </T>
+            <Button label="Retirer" variant="dangerSolid" loading={!!removing && busy === `${removing.kind === 'member' ? 'm' : 'g'}:${removing.id}:null`}
+              disabled={!!busy} onPress={async () => {
+                if (!removing) return;
+                await (removing.kind === 'member' ? applyMember(removing.id, null) : applyManual(removing.id, null));
+                setRemoving(null);
+              }} />
+            <Button label="Annuler" variant="secondary" onPress={() => setRemoving(null)} />
+          </View>
+        </View>
+      </Modal>
       {withoutAccount ? (
         <T muted size={12}>Une personne sans compte n’est pas prévenue et ne voit rien. Les invités voient seulement les nombres.</T>
       ) : null}
@@ -249,6 +270,8 @@ const st = StyleSheet.create({
   actions: { gap: 6, flexShrink: 0 },
   choices: { flexDirection: 'row', gap: 4 },
   choice: { minWidth: 36, minHeight: 36, paddingHorizontal: 6, alignItems: 'center', justifyContent: 'center', borderRadius: radius.sm, borderWidth: 1 },
-  remove: { width: 28, height: 36, alignItems: 'center', justifyContent: 'center' },
+  remove: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  confirmOverlay: { flex: 1, backgroundColor: 'rgba(10,6,22,0.85)', alignItems: 'center', justifyContent: 'center', padding: 16 },
+  confirmCard: { width: '100%', maxWidth: 380, gap: 12, padding: 20, borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.lineStrong },
   plus: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accentDim },
 });

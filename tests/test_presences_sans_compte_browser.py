@@ -136,8 +136,9 @@ def test_the_organizer_adds_a_member_and_someone_without_account_and_counts_foll
         counter(frame, 'Absents', 1)
         assert guests[0]['status'] == 'no'
 
-        # ✕ : retiré.
+        # ✕ : la question d'abord, puis retiré.
         frame.get_by_role('button', name='Retirer Pote Théo du bar', exact=True).click()
+        frame.get_by_role('button', name='Retirer', exact=True).click()
         counter(frame, 'Absents', 0)
         assert guests == []
         sent = [json.loads(b) for _, p, b, *_ in calls if p.endswith('/rpc/set_rsvp_for')]
@@ -249,5 +250,49 @@ def test_a_likely_duplicate_is_flagged_and_removed_in_two_touches(browser, event
         counter(frame, 'Présents', 2)
         pw.expect(hint).to_have_count(0)
         assert [g['name'] for g in guests] == ['Cousin Max']
+    finally:
+        context.close()
+
+
+def test_every_remove_asks_first_cancel_keeps_and_remove_removes(browser, events_origin):
+    """Retour de l'admin du 27.11 (prod) : le ✕ d'une présence partait au premier toucher, « sans faire exprès ». Membre
+    ET sans compte : « Retirer <nom> des présences ? » (Retirer / Annuler) ; Annuler (ou le fond) ne retire rien."""
+    context = browser.new_context(viewport={'width': 390, 'height': 844})
+    page = context.new_page()
+    rsvps = [{'event_id': EVENT, 'user_id': LEA, 'status': 'yes', 'plus_ones': 0, 'note': None, 'waitlisted': False,
+              'updated_at': '2026-11-26T19:00:00Z'}]
+    guests = [{'id': '00000001-0000-4000-8000-000000000000', 'name': 'Pote Théo du bar', 'status': 'yes', 'created_at': 'x'}]
+    calls = mock_services(page, people=[{'id': LEA, 'display_name': 'Léa'}], rsvps=rsvps)
+    fake_manual_base(page, calls, rsvps, guests)
+    rpc = lambda: [json.loads(b) for _, p, b, *_ in calls if p.endswith('/rpc/set_rsvp_for')]  # noqa: E731
+    deletes = lambda: [c for c in calls if c[0] == 'DELETE' and c[1].endswith('/event_manual_guests')]  # noqa: E731
+    try:
+        frame = open_event(page, events_origin)
+        counter(frame, 'Présents', 2)
+        for name in ('Léa', 'Pote Théo du bar'):
+            frame.get_by_role('button', name=f'Retirer {name}', exact=True).click()
+            question = frame.get_by_text(f'Retirer {name} des présences ?', exact=True)
+            pw.expect(question).to_be_visible(timeout=5000)
+            if name == 'Léa':
+                shot(page, '6-question-retirer')
+            page.wait_for_timeout(500)
+            assert rpc() == [] and deletes() == []  # rien au premier toucher
+            frame.get_by_role('button', name='Annuler', exact=True).click()
+            pw.expect(question).to_have_count(0)
+            counter(frame, 'Présents', 2)
+            assert rpc() == [] and deletes() == []
+
+        # Membre : Retirer → set_rsvp_for(null), la ligne part, les compteurs suivent.
+        frame.get_by_role('button', name='Retirer Léa', exact=True).click()
+        frame.get_by_role('button', name='Retirer', exact=True).click()
+        counter(frame, 'Présents', 1)
+        pw.expect(frame.get_by_role('button', name='Retirer Léa', exact=True)).to_have_count(0)
+        assert rpc() == [{'event': EVENT, 'member': LEA, 'answer': None}]
+
+        # Sans compte : Retirer → la ligne est effacée.
+        frame.get_by_role('button', name='Retirer Pote Théo du bar', exact=True).click()
+        frame.get_by_role('button', name='Retirer', exact=True).click()
+        counter(frame, 'Présents', 0)
+        assert guests == [] and len(deletes()) == 1
     finally:
         context.close()

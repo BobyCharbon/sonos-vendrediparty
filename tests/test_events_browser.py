@@ -734,6 +734,10 @@ def test_organizer_marks_a_guest_present_then_absent_then_removes_the_answer(bro
         frame.get_by_role('button',name='Léa : Absent',exact=True).click()
         pw.expect(frame.get_by_text('Absents : Léa',exact=True)).to_be_visible(timeout=10000)
         frame.get_by_role('button',name='Retirer Léa',exact=True).click()
+        # ✕ : la question d'abord (retour de l'admin du 27.11), rien ne part avant « Retirer ».
+        pw.expect(frame.get_by_text('Retirer Léa des présences ?',exact=True)).to_be_visible(timeout=5000)
+        assert len(sent())==2
+        frame.get_by_role('button',name='Retirer',exact=True).click()
         pw.expect(frame.get_by_text('Personne n’a encore répondu : écris un nom pour l’ajouter.',exact=True)).to_be_visible(timeout=10000)
         assert sent()==[{'event':EVENT,'member':lea,'answer':'yes'},{'event':EVENT,'member':lea,'answer':'no'},{'event':EVENT,'member':lea,'answer':None}]
         assert not errors
