@@ -100,4 +100,35 @@ STORE_ONLY = (
     # sexuel
     "=(?<!pique )niqu(e|es|er|ez|ent|ee|ees)", "=suc(e|es|er|ent)", "penis", "vagin", "clito*", "orgie", "sexe",
     "sperme", "branl*", "=sodo",
+    # Contrôle Apple, tour 6 (27.11) : la même chose en anglais, allemand, italien, espagnol (et néerlandais), et l'argot
+    # français qui manquait, une fois par famille. Formes « = » (mot exact) pour les mots courts ou à double sens ; jamais
+    # « die » (article allemand), « ale » (Ale, Alejandra), « butt » (nom de famille), « high » seul (« high school »),
+    # « isis » (prénom), « jaja » / « lager » (allemand), « retard » (« en retard »), « rape » (« râpe » : store_app.RAPE).
+    # boisson, ivresse
+    "alcohol*", "drunk*", "drink*", "=wines?", "booze*", "=wasted", "hammered", "tipsy", "=liquors?", "=kegs?",
+    "=chug", "chugging", "hangover*", "=beers", "=rum", "=cider", "purple drank", "=bier", "biertje",
+    "saufen", "besoffen", "betrunken", "=wein", "birra", "ubriac*", "sbronz*", "=vino", "cerveza*", "cerveja*",
+    "borrach*", "emborrach*", "chupito*", "dronken", "zuipen", "petit rose", "=martini", "jupiler", "paulaner", "=kwak",
+    "=murger", "se pinter", "se cuiter", "=cuiter", "queue de pelle", "chouille",
+    # drogue, tabac
+    "stoned", "=stoners?", "pothead*", "crackhead*", "junkie*", "get high", "getting high", "got high", "so high",
+    "get lit", "shrooms", "xanax", "=heroin", "=cocain", "cocaina", "kokain*", "=snort", "=cigs?", "=juul", "elfbar*",
+    "=iqos", "marlboro*", "lucky strike", "smoke weed", "kiffen", "=ecsta", "de la md", "ballon de proto", "=du proto",
+    "gaz hilarant", "amphet*", "=amphe", "=sniff", "sniffer", "sniffe", "sniffent", "sniffait", "=zamal", "=teuch",
+    # jeux d'argent
+    "=bets?", "betting", "gambl*", "wager*", "betway", "=ixbet", "swisslos", "=tribolo", "bandit manchot", "baccara",
+    "texas hold*", "faites vos jeux", "faites vos paris", "paris sportif*", "le quinte", "jouer de l argent",
+    # haine
+    "auschwitz", "mein kampf", "=petain", "troisieme reich", "drittes reich", "bin laden", "=dutroux", "=fourniret",
+    "=breivik", "=ritals?", "=boches?", "sale pedale", "=fiottes?", "=tafioles?", "=travelos?", "=trisos?",
+    "sale blanc", "sale blanche", "sale gitan*", "sale chinois*", "sale rital", "sale boche", "rudolf hess", "=heydrich",
+    "=eichmann", "terrorist*",
+    # sexuel
+    "levrette", "plan cul", "chaudasse", "=tchoin", "=cochonnes?", "=zob", "chibre", "braquemart", "foufoune",
+    "nibard*", "=boobs", "=tits", "=nude", "=naked", "orgasm*", "gangbang*", "=bdsm", "onlyfans", "=milfs?", "hentai",
+    "=sex", "=sexy", "gros cul", "=catins?", "prostitu*", "=nymphos?", "nymphoman*", "=ass",
+    # violence
+    "rapist*",  # « rape » : store_app.RAPE, sur le texte tel quel (« râpe » se normalise en « rape »)
+    "kill yourself", "kill urself", "=kys", "va crever", "vais te tuer", "va te tuer", "vais te buter", "va te pendre",
+    "ta gueule", "=ftg", "va te faire foutre", "fils de chien",
 )

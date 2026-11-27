@@ -58,7 +58,9 @@ RUDE_STARTS = frozenset("con cul bit put nic enc bai sod zob teu sex por pd".spl
                         # app App Store (contrôle Apple, tour 4) : boisson, drogue, haine, jeux d'argent, insultes anglaises ;
                         # tout début refusé par store_app.name_refused aussi (tests/test_store_app.py le vérifie)
                         + "vod alc ivr naz hit whi teq pok rhu cig gin vin sao shi ecs cok neg nig fuc dic cun caz bar fag"
-                          " fdp kir".split())
+                          " fdp kir"
+                          # tour 6 : anglais (ass, bet, rum, kys)
+                          " ass bet rum kys".split())
 
 SOURCES = {
     "grammalecte": {
