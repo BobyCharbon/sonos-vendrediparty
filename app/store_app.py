@@ -21,7 +21,10 @@ MARK = "PartyStore"
 # mécanique (Beer pong, Biskit, Pyramide, Je n'ai jamais, Qui de nous ?, Roulette « qui boit ») ou parlent de drogue et de
 # sexe explicite (Purify Test). Décision de l'admin du 25.11 : BLOQUÉS pour la version 1.0.0, ils ne reviendront que dans une
 # mise à jour décrite à Apple (le code « en points » de la Pyramide reste en place, éteint ici).
-HIDDEN_GAMES = ("casino", "blackjack", "beerpong", "biskit", "purity", "pyramid", "never", "whoof", "roulette")
+# Décision de l'admin du 28.11 (aucun texte libre de joueur dans les jeux de l'app) : Tu me connais ? (réponse écrite) et
+# Le Masque (réponses écrites, anonymes) ne se jouent pas sans texte écrit : cachés de la même façon (TEXT_GAMES).
+TEXT_GAMES = ("tmc", "masque")
+HIDDEN_GAMES = ("casino", "blackjack", "beerpong", "biskit", "purity", "pyramid", "never", "whoof", "roulette") + TEXT_GAMES
 # Modes de questions refusés (votes sexuels sur les personnes présentes, Apple 1.1.4 / 1.2).
 HIDDEN_MODES = ("hot", "mix")
 # Jeux dont le texte vient d'une banque (questions, mots, cartes) filtrée dans une partie `store` : une partie de l'un
@@ -411,6 +414,72 @@ def name_refused(name) -> bool:
 
 ALIAS = "Joueur"
 
+# Décision de l'admin du 28.11 (question 1, choix b) : dans une partie de l'app App Store (et de la BETA, sa copie), PLUS
+# AUCUN TEXTE LIBRE d'un joueur n'est montré aux autres. Prénom : un de cette liste (servie par /api/games/names), sinon
+# « Joueur N » donné par le serveur ; réponses : choisies parmi des propositions (jeux à texte écrit cachés : TEXT_GAMES).
+# Test : chaque prénom passe le filtre de l'app, aucun mot de boisson, aucun doublon (tests/test_store_sans_texte.py).
+PLAYER_NAMES = ("Adam", "Alex", "Alice", "Anna", "Arthur", "Aya", "Camille", "Charlie", "Chloé", "Clara", "Eden", "Elias",
+                "Emma", "Ethan", "Gabriel", "Hugo", "Inès", "Jade", "Jules", "Julia", "Kenzo", "Léa", "Léna", "Léo",
+                "Liam", "Lina", "Lou", "Louis", "Lucas", "Maël", "Manon", "Maxime", "Mia", "Morgan", "Nathan", "Nina",
+                "Noa", "Noé", "Nour", "Paul", "Raphaël", "Robin", "Sacha", "Sam", "Sarah", "Sofia", "Théo", "Tom",
+                "Yanis", "Zoé")
+ALIAS_RE = re.compile(rf"{ALIAS} [1-9]\d{{0,2}}")
+# Prénoms écrits par le serveur lui-même (repli de la salle, pause, croupier) : jamais un texte de joueur.
+SERVER_NAMES = ("Animateur", "L'animateur", "?", "Croupier")
+
+
+def _name_key(name) -> str:
+    text = unicodedata.normalize("NFKD", " ".join(str(name or "").split()))
+    return "".join(c for c in text if not unicodedata.combining(c)).casefold()
+
+
+_PLAYER_KEYS = {_name_key(n): n for n in PLAYER_NAMES}
+
+
+def listed_name(name) -> str | None:
+    """Le prénom de la liste (forme exacte de la liste : « lea » → « Léa ») ; None hors de la liste."""
+    return _PLAYER_KEYS.get(_name_key(name)) if isinstance(name, str) else None
+
+
+def name_shown(name) -> bool:
+    """Prénom qu'une partie de l'app peut garder : un de la liste, un « Joueur N », un prénom écrit par le serveur."""
+    return not name or not isinstance(name, str) or name in PLAYER_NAMES or bool(ALIAS_RE.fullmatch(name)) \
+        or name in SERVER_NAMES
+
+
+def alias_of(g: dict, gid: str, peers=()) -> str:
+    """« Joueur N » de cette place, stable : déjà donné dans la partie ou sa salle / son jeu (même numéro), ou son
+    prénom actuel s'il en est déjà un ; sinon le premier numéro libre (prénoms et alias de la partie et de ses voisines)."""
+    peers = [x for x in peers if isinstance(x, dict)]
+    games_ = [g, *peers]
+    aliases = g.setdefault("store_alias", {})
+    alias = aliases.get(gid) or next((x["store_alias"][gid] for x in peers if gid in (x.get("store_alias") or {})), None)
+    if not alias:
+        current = next((p.get("name") for x in games_ for p in x.get("players", [])
+                        if isinstance(p, dict) and p.get("id") == gid), None)
+        if isinstance(current, str) and ALIAS_RE.fullmatch(current):
+            alias = current
+    if not alias:
+        taken = {p.get("name") for x in games_ for p in x.get("players", []) if isinstance(p, dict)}
+        taken |= {a for x in games_ for a in (x.get("store_alias") or {}).values()}
+        n = 1
+        while f"{ALIAS} {n}" in taken:
+            n += 1
+        alias = f"{ALIAS} {n}"
+    aliases[gid] = alias
+    return alias
+
+
+def seat_name(g: dict, gid: str, requested, peers=()) -> str:
+    """Prénom d'une place dans une partie de l'app : celui de la liste s'il est libre à cette table, sinon « Joueur N »
+    (prénom tapé sur le web, surnom de compte, « Joueur 7 » envoyé par la page : jamais gardé tel quel)."""
+    name = listed_name(requested)
+    others = (p for x in [g, *peers] if isinstance(x, dict) for p in x.get("players", [])
+              if isinstance(p, dict) and p.get("id") != gid)
+    if name and not any(p.get("name") == name for p in others):
+        return name
+    return alias_of(g, gid, peers)
+
 
 ID_KEYS = ("id", "gid", "pid", "host", "code", "room", "current", "store_alias", "aliases", "leads", "kicked", "removed")
 
@@ -441,40 +510,41 @@ def _replace(o, old, new: str, named: bool = False):
     return o
 
 
+NEVER = re.compile(r"(?!x)x")
+
+
 def scrub_names(g: dict, peers=()) -> bool:
-    """Partie touchée par l'app App Store : tout prénom refusé (insulte, haine, drogue, boisson, argot) devient
-    « Joueur 1 », « Joueur 2 »… DANS la partie (stable par joueur, même numéro dans la salle et son jeu), copies
-    comprises : rien ne reste à masquer à l'affichage. True si un prénom a changé."""
+    """Partie touchée par l'app App Store : tout prénom hors de la liste (PLAYER_NAMES, décision du 28.11 ; avant :
+    seulement les prénoms refusés) devient « Joueur 1 », « Joueur 2 »… DANS la partie (stable par joueur, même numéro
+    dans la salle et son jeu), copies comprises : rien ne reste à masquer à l'affichage. True si un prénom a changé."""
     if not isinstance(g, dict):
         return False
     peers = [x for x in peers if isinstance(x, dict)]
     seats = [(p, p.get("id")) for p in g.get("players", []) if isinstance(p, dict)]
     if g.get("host_name") and not any(i == g.get("host") for _, i in seats):
         seats.append((None, g.get("host")))  # animateur qui ne joue pas : seul son host_name porte le prénom
-    bad = [(p, i) for p, i in seats if name_refused(p["name"] if p else g.get("host_name"))]
-    if not bad:
+    bad = [(p, i) for p, i in seats if not name_shown(p["name"] if p else g.get("host_name"))]
+    # Salle : prénom d'un joueur parti avant l'arrivée de l'app (tableau de la soirée).
+    gone = [(i, n) for i, n in (g.get("rnames") or {}).items() if not name_shown(n) and i not in {s for _, s in seats}]
+    if not bad and not gone:
         return False
-    aliases = g.setdefault("store_alias", {})
-    taken = {p.get("name") for x in [g, *peers] for p in x.get("players", []) if isinstance(p, dict)}
-    taken |= {a for x in [g, *peers] for a in (x.get("store_alias") or {}).values()}
     copies = {}  # prénom refusé → alias de sa première place (homonymes : chacun son numéro, copies au premier)
     for p, gid in bad:
         old = p["name"] if p else g["host_name"]
-        alias = aliases.get(gid) or next((x["store_alias"][gid] for x in peers if gid in (x.get("store_alias") or {})), None)
-        if not alias:
-            n = 1
-            while f"{ALIAS} {n}" in taken:
-                n += 1
-            alias = f"{ALIAS} {n}"
-        aliases[gid] = alias
-        taken.add(alias)
+        alias = alias_of(g, gid, peers)
         copies.setdefault(old, alias)
         if p:
             p["name"] = alias
         if g.get("host") == gid:
             g["host_name"] = alias
+    for gid, old in gone:
+        copies.setdefault(old, alias_of(g, gid, peers))
+        g["rnames"][gid] = copies[old]
     for old, alias in copies.items():
-        _replace(g, (old, re.compile(r"(?<![^\W\d_])" + re.escape(old) + r"(?![^\W\d_])")), alias)
+        # « Joueur » seul (prénom choisi « Joueur » dans l'app) ou 1-2 lettres : jamais cherché dans une phrase (« Joueur 2 »).
+        word = NEVER if len(old) < 3 or old.startswith(ALIAS) else \
+            re.compile(r"(?<![^\W\d_])" + re.escape(old) + r"(?![^\W\d_])")
+        _replace(g, (old, word), alias)
     return True
 
 

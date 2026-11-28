@@ -101,7 +101,7 @@ def test_markers_cut_lines_blocks_and_keep_the_store_lines():
 
 
 # ── Conditions d'utilisation des jeux (Apple 1.2) ──
-def create(ua, gid, kind="tmc", **extra):
+def create(ua, gid, kind="likely", **extra):  # tmc : caché dans l'app depuis le 28.11 (texte écrit)
     main._game_creations.clear()
     return client(ua).post("/api/games", json={"guest_id": gid, "name": "Léa", "type": kind, **extra})
 
@@ -181,12 +181,15 @@ def test_a_renamed_player_goes_through_the_same_filter_and_box_as_the_entry():
         c.post(f"/api/games/{code}", json={"guest_id": "store-name-host", "name": bad, "action": "pause"})
         assert games.player(g, "store-name-host")["name"] == "Léa"
         assert c.post("/api/presence", json={"guest_id": "store-name-host", "name": bad}).status_code == 400
+    c.get(f"/api/games/{code}", params={"guest_id": "store-name-host", "name": "Zoé"})
+    assert games.player(g, "store-name-host")["name"] == "Zoé" and g["host_name"] == "Zoé"
+    # Décision du 28.11 : un prénom hors de la liste (même propre) devient « Joueur N », jamais le texte tapé.
     c.get(f"/api/games/{code}", params={"guest_id": "store-name-host", "name": "Lucie"})
-    assert games.player(g, "store-name-host")["name"] == "Lucie" and g["host_name"] == "Lucie"
-    # Place prise sans la case (le web) : l'app ne la renomme pas avant la case.
+    assert games.player(g, "store-name-host")["name"] == "Joueur 1" and g["host_name"] == "Joueur 1"
+    # Place prise sans la case (le web) : l'app ne la renomme pas avant la case ; son prénom tapé est déjà « Joueur N ».
     assert act(WEB_UA, code, "web-name-cleo1", "join").status_code == 200
     c.get(f"/api/games/{code}", params={"guest_id": "web-name-cleo1", "name": "Cléo"})
-    assert games.player(g, "web-name-cleo1")["name"] == "web-name-c"
+    assert games.player(g, "web-name-cleo1")["name"] == "Joueur 2"
     # Le web garde le filtre commun (insultes), sans le filtre de boisson de l'app.
     web = client(WEB_UA)
     assert web.post("/api/presence", json={"guest_id": "web-name-cleo1", "name": "connard"}).status_code == 400

@@ -484,8 +484,9 @@ document.getElementById("gamesRoot").innerHTML = `
     <div id="gName" class="hidden">
       <p class="sub">Comment tu t'appelles ?</p>
       <form id="gNameForm" class="row">
-        <input id="gNameInput" class="grow" type="text" aria-label="Ton prénom" spellcheck="false" maxlength="30" placeholder="Ton prénom" autocomplete="given-name" required>
-        <button>OK</button>
+        <input id="gNameInput" class="grow" type="text" aria-label="Ton prénom" spellcheck="false" maxlength="30" placeholder="Ton prénom" autocomplete="given-name" required> <!-- store-cut -->
+        <button>OK</button> <!-- store-cut -->
+        <!-- <store> <input id="gNameInput" type="hidden"><div class="chips name-pick" data-name-pick="gNameInput" role="group" aria-label="Choisis ton prénom"></div> -->
       </form>
       ${STORE ? `<label class="g-terms" id="gTermsBox">
         <input type="checkbox" id="gTermsCheck" aria-describedby="gTermsNote">
@@ -693,6 +694,7 @@ document.getElementById("gamesRoot").innerHTML = `
       </div>
       <!-- </store-cut> -->
 
+      <!-- <store-cut> jeu caché dans l'app App Store (texte écrit par les joueurs, décision du 28.11) -->
       <div class="gcard g-ms">
         ${newBadge("masque")}
         <div class="g-head">
@@ -706,6 +708,7 @@ document.getElementById("gamesRoot").innerHTML = `
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="masque">Créer une partie</button>
       </div>
+      <!-- </store-cut> -->
 
       <div class="gcard g-rf">
         ${newBadge("reflet")}
@@ -840,6 +843,7 @@ document.getElementById("gamesRoot").innerHTML = `
       </div>
       <!-- </store-cut> -->
 
+      <!-- <store-cut> jeu caché dans l'app App Store (texte écrit par les joueurs, décision du 28.11) -->
       <div class="gcard g-tm">
         <div class="g-head">
           <div class="g-icon">${GAME_ICONS.tmc}</div>
@@ -851,6 +855,7 @@ document.getElementById("gamesRoot").innerHTML = `
         <label class="g-opt"><span>Je joue aussi</span><input type="checkbox" class="switch" data-opt="plays" checked></label>
         <button class="g-go" data-create="tmc">Créer une partie</button>
       </div>
+      <!-- </store-cut> -->
 
       <div class="gcard g-dv">
         <div class="g-head">
@@ -1203,6 +1208,7 @@ document.addEventListener("change", (ev) => {
   if (ev.target.id !== "gTermsCheck") return;
   $("gTermsBox").classList.remove("warn");
   setGamesTerms(ev.target.checked);
+  if (ev.target.checked && STORE && $("gNameInput")?.value) return $("gNameForm").requestSubmit();  // prénom déjà touché
   if (ev.target.checked && guestName) refreshGame();  // prénom déjà donné : on retrouve les jeux
 });
 
@@ -1221,14 +1227,58 @@ document.addEventListener("click", (ev) => {
   refreshGame();
 });
 
+// Prénoms de l'app App Store (décision de l'admin du 28.11 : aucun texte libre d'un joueur n'est lu par la table) : une
+// liste fournie par le serveur (/api/games/names), ou « Joueur » (la partie donne « Joueur 1 », « Joueur 2 »…). Toucher un
+// prénom le choisit et l'envoie ; le serveur garde la main (store_app.seat_name).
+let gNames = null, gPickName = false;
+const ANON_NAME = "Joueur";
+async function loadGameNames() {
+  if (gNames) return gNames;
+  try {
+    const r = await fetch("/api/games/names", { cache: "no-store" });
+    gNames = r.ok ? (await r.json()).names || [] : [];
+  } catch { return []; }
+  return gNames;
+}
+if (STORE) loadGameNames();  // la liste est prête pour « + Ajouter » (participant sans téléphone)
+function namePickOptions() {
+  return [ANON_NAME, ...(gNames || [])].map((n) => `<option value="${esc(n)}">${n === ANON_NAME ? "🎲 Joueur (numéro de la partie)" : esc(n)}</option>`).join("");
+}
+async function fillNamePicks() {
+  const boxes = document.querySelectorAll("[data-name-pick]");
+  if (!boxes.length) return;
+  const names = await loadGameNames();
+  boxes.forEach((box) => {
+    const cur = $(box.dataset.namePick)?.value || guestName;
+    box.innerHTML = [ANON_NAME, ...names].map((n) => `<button type="button" class="${n === cur ? "" : "secondary"}" data-pick-name="${esc(n)}" aria-pressed="${n === cur}">${n === ANON_NAME ? "🎲 Joueur" : esc(n)}</button>`).join("");
+  });
+}
+document.addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-pick-name]");
+  if (!b) return;
+  const box = b.closest("[data-name-pick]"), input = $(box.dataset.namePick);
+  if (!input) return;
+  input.value = b.dataset.pickName;
+  box.querySelectorAll("[data-pick-name]").forEach((x) => { x.classList.toggle("secondary", x !== b); x.setAttribute("aria-pressed", x === b); });
+  input.form?.requestSubmit();
+});
+// Le prénom en haut à droite (index.html, changeName) : dans l'app, il se rechoisit ici.
+window.pickGameName = () => {
+  gPickName = true;
+  if ($("gNameInput")) $("gNameInput").value = guestName;
+  if (typeof showTab === "function") showTab("games");
+  refreshGame();
+};
+
 let gSeq = 0;  // numéro du dernier chargement de la partie demandé
 async function refreshGame() {
   // « Plus tard » : sans la case (ou sans prénom), l'accueil des jeux ne garde que Méninges (solo, rien n'est lu par
   // d'autres ; contrôle Apple, tour 4).
   if (STORE && gTermsLater && (!guestName || !gamesTermsOk())) return renderSoloHome();
   const askTerms = STORE && !gamesTermsOk() && !gTermsLater;
-  $("gName").classList.toggle("hidden", !!guestName && !askTerms);
-  if (!guestName || askTerms) {
+  $("gName").classList.toggle("hidden", !!guestName && !askTerms && !gPickName);
+  if (!guestName || askTerms || gPickName) {
+    if (STORE) fillNamePicks();
     if (askTerms && guestName && !$("gNameInput").value) $("gNameInput").value = guestName;
     $("gHome").classList.add("hidden"); $("gamePlay").classList.add("hidden");
     if (typeof maybeInstallSheet === "function") maybeInstallSheet();
@@ -1482,8 +1532,10 @@ function renderGame(g) {
         <div style="margin-top:10px">${wordBox}</div>`;
     } else if (g.phase === "white_guess") {
       body = g.last?.me
-        ? `<div class="title">Démasqué ! Dernière chance 🎩</div><div class="artist">Devine le mot des civils pour gagner :</div>
-           <form data-gform="guess" class="row" style="margin-top:8px"><input class="grow" type="text" id="guessInput" maxlength="40" aria-label="Le mot des civils" placeholder="Le mot des civils…" autocomplete="off"><button>Valider</button></form>`
+        ? `<div class="title">Démasqué ! Dernière chance 🎩</div><div class="artist">${g.last.choices ? "Choisis le mot des civils pour gagner :" : "Devine le mot des civils pour gagner :"}</div>
+           ${g.last.choices ? `<div class="chips g-wchoices" role="group" aria-label="Le mot des civils" style="margin-top:8px">${g.last.choices.map((w, i) => `<button type="button" class="secondary" data-wguess="${i}">${esc(w)}</button>`).join("")}</div>` : ""}
+           ${g.last.choices ? "" : `<form data-gform="guess" class="row" style="margin-top:8px"><input class="grow" type="text" id="guessInput" maxlength="40" aria-label="Le mot des civils" placeholder="Le mot des civils…" autocomplete="off"><button>Valider</button></form>`} <!-- store-cut -->
+           `
         : `<div class="title">${esc(g.last.name)} était le Fantôme !</div><div class="artist">Il tente de deviner le mot des civils…</div>`;
     } else if (g.phase === "reveal") {
       body = `${lastLine}<div class="artist">${g.is_host ? "Lance la manche suivante quand vous êtes prêts." : "L'animateur lance la manche suivante…"}</div>`;
@@ -2535,7 +2587,8 @@ const playerTag = (g, p) => !MANUAL_GAMES.includes(g.type) ? "" : p.manual
   ? ` <span class="pill tag-manual" title="Ajouté·e à la main par l'animateur">✍️ sans téléphone</span>`
   : ` <span class="tag-phone" title="Joue sur son téléphone">📱</span>`;
 const manualForm = (g) => !g.is_host || !MANUAL_GAMES.includes(g.type) || g.phase === "end" ? "" : `
-  <form data-gform="addguest" class="row" style="margin-top:8px"><input class="grow" type="text" name="manualName" maxlength="30" aria-label="Prénom d'un participant sans téléphone" spellcheck="false" placeholder="Prénom (sans téléphone)" autocomplete="off"><button class="secondary">＋ Ajouter</button></form>
+  <form data-gform="addguest" class="row" style="margin-top:8px"><input class="grow" type="text" name="manualName" maxlength="30" aria-label="Prénom d'un participant sans téléphone" spellcheck="false" placeholder="Prénom (sans téléphone)" autocomplete="off"><button class="secondary">＋ Ajouter</button></form> <!-- store-cut -->
+  <!-- <store> <form data-gform="addguest" class="row" style="margin-top:8px"><select class="grow" name="manualName" aria-label="Prénom d'un participant sans téléphone">${namePickOptions()}</select><button class="secondary">＋ Ajouter</button></form> -->
   <div class="artist" style="margin-top:4px">Pour quelqu'un qui joue sans téléphone : c'est toi qui agiras pour lui ou elle.</div>`;
 
 function renderDivanHost(g, btn) {
@@ -2569,7 +2622,8 @@ function tmcHtml(g) {
   const duo = `<div class="tm-duo"><span class="tm-who ${d.role === "guesser" ? "me" : ""}">🔮 ${d.role === "guesser" ? "Toi" : G}<small>devine</small></span>
     <span class="tm-arrow">→</span><span class="tm-who ${d.role === "subject" ? "me" : ""}">🎯 ${d.role === "subject" ? "Toi" : S}<small>répond</small></span></div>`;
   const q = `<div class="tm-q">${esc(d.question)}</div>`;
-  const form = (ph) => `<form data-gform="tanswer" class="row" style="margin-top:10px"><input class="grow" type="text" id="guessInput" maxlength="80" aria-label="${ph}" placeholder="${ph}" autocomplete="off"><button>Valider</button></form>`;
+  const form = (ph) => `<form data-gform="tanswer" class="row" style="margin-top:10px"><input class="grow" type="text" id="guessInput" maxlength="80" aria-label="${ph}" placeholder="${ph}" autocomplete="off"><button>Valider</button></form>`; // <store-cut/>
+  // <store> const form = () => "";  // Tu me connais ? : jeu caché dans l'app (texte écrit, 28.11)
   if (g.phase === "answer") {
     let zone;
     if (d.proxy) zone = `<div class="tm-speak" style="font-size:1rem">📵 ${S} n'a pas de téléphone : passe-lui le tien pour qu'il ou elle écrive sa réponse en secret.</div>${form(`Réponse de ${S}`)}`;
@@ -3382,6 +3436,14 @@ document.addEventListener("click", (ev) => {
   if (a === "treport" && !confirm("Signaler cette réponse ? Elle disparaît pour toute la table et la modération est prévenue.\nTraité sous 24 h · support@vendrediparty.ch")) return;
   pressed(b, gameAction(a, { target: b.dataset.target || "", amount: +(b.dataset.amount || 0), guess: b.dataset.guess || "", who: b.dataset.who || "" }));
 });
+// L'Intrus, partie de l'app (décision du 28.11) : le Fantôme touche un des mots proposés ; le serveur reçoit son numéro.
+document.addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-wguess]");
+  if (!b) return;
+  b.closest(".g-wchoices")?.querySelectorAll("button").forEach((x) => { x.disabled = true; });
+  b.classList.remove("secondary");
+  gameAction("guess", { guess: b.dataset.wguess });
+});
 // Toucher « + Ajouter » ne retire pas le focus du champ : le clavier reste ouvert et l'iPhone ne fait pas défiler la page.
 document.addEventListener("pointerdown", (ev) => { if (ev.target.closest("[data-gform=addguest] button")) ev.preventDefault(); });
 document.addEventListener("submit", (ev) => {
@@ -3389,16 +3451,16 @@ document.addEventListener("submit", (ev) => {
   ev.preventDefault();
   // Le formulaire existe à deux endroits (écran et menu ☰) : on lit le champ de celui qui a été envoyé,
   // on y revient sans faire défiler, et on garde la position de lecture (sinon la page remonte tout en haut).
-  const form = ev.target.closest("[data-gform=addguest]"), input = form.querySelector("input");
+  const form = ev.target.closest("[data-gform=addguest]"), input = form.querySelector("input, select");
   const name = input.value.trim(), where = form.closest("#gDrawer") ? "#gDrawer" : "#gameHost";
   const scrollers = [$("gamePlay"), document.querySelector("#gDrawer .g-drawer-panel"), document.scrollingElement].filter(Boolean);
   const pos = scrollers.map((el) => el.scrollTop);
   const restore = () => scrollers.forEach((el, i) => { if (el.scrollTop !== pos[i]) el.scrollTop = pos[i]; });
   if (!name) return;
-  input.value = "";
+  if (input.tagName === "INPUT") input.value = "";  // app : la liste garde son choix
   gameAction("addguest", { guess: name }).then(() => {
     restore();
-    const field = document.querySelector(`${where} [data-gform=addguest] input`);
+    const field = document.querySelector(`${where} [data-gform=addguest] input, ${where} [data-gform=addguest] select`);
     field?.focus({ preventScroll: true });
     requestAnimationFrame(restore);
   });
@@ -3669,6 +3731,7 @@ $("gNameForm").addEventListener("submit", async (ev) => {
   } finally { if (btn) btn.disabled = false; }
   if (STORE && !gamesTermsOk()) setGamesTerms(true);
   gTermsLater = false;
+  gPickName = false;
   guestName = name; store("vp_name", guestName);
   if (typeof renderNameChip === "function") renderNameChip();
   refreshGame();

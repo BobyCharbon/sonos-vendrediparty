@@ -24,7 +24,9 @@
   <!-- </store-cut> -->
   <link rel="stylesheet" href="/static/debate.css">
   <link rel="stylesheet" href="/static/psy.css">
+  <!-- <store-cut> : jeu caché dans l'app App Store (texte écrit, 28.11 ; app/store_static.py) -->
   <link rel="stylesheet" href="/static/masque.css">
+  <!-- </store-cut> -->
   <link rel="stylesheet" href="/static/ui.css">
   <link rel="stylesheet" href="/static/music.css">
   <link rel="stylesheet" href="/static/games.css">
@@ -80,8 +82,9 @@
   <div id="hello" class="hidden">
     <p class="sub">Ajoute tes sons à la file d'attente. Comment tu t'appelles ?</p>
     <form id="nameForm" class="row">
-      <input id="nameInput" class="grow" type="text" aria-label="Ton prénom" spellcheck="false" maxlength="30" placeholder="Ton prénom" autocomplete="given-name" required>
-      <button>C'est parti</button>
+      <input id="nameInput" class="grow" type="text" aria-label="Ton prénom" spellcheck="false" maxlength="30" placeholder="Ton prénom" autocomplete="given-name" required> <!-- store-cut -->
+      <button>C'est parti</button> <!-- store-cut -->
+      <!-- <store> <input id="nameInput" type="hidden"><div class="chips name-pick" data-name-pick="nameInput" role="group" aria-label="Choisis ton prénom"></div> -->
     </form>
   </div>
 
@@ -374,7 +377,10 @@ async function refresh() {
     if (STORE_APP && !fbIsAdmin()) api("/api/leave", { method: "POST", body: JSON.stringify({ guest_id: guestId }) }).catch(() => {});
     return show("closed");
   }
-  if (!guestName) { if ($("hello").classList.contains("hidden")) show("hello"); return; }
+  if (!guestName) {
+    if ($("hello").classList.contains("hidden")) { show("hello"); if (typeof fillNamePicks === "function") fillNamePicks(); }
+    return;
+  }
   // Le serveur fait foi pour le prénom (l'hôte a pu le changer) : on le reprend AVANT de se présenter,
   // sinon l'ancien prénom gardé sur le téléphone écraserait le renommage.
   if (s.name && s.name !== guestName) {
@@ -470,9 +476,12 @@ function renderNameChip() {
   $("nameChip").textContent = `👤 ${guestName} ✏️`;
 }
 async function changeName() {
+  // App App Store (décision du 28.11) : un prénom de la liste ou « Joueur », jamais tapé, compte Party compris.
+  if (STORE_APP && typeof pickGameName === "function") return pickGameName();
   // Compte Party : le surnom du profil fait foi, il ne se change que dans les Réglages.
   if (account) { showTab("account"); return toast("✏️ Ton surnom se change dans ton profil"); }
-  const name = (prompt("Ton prénom :", guestName) || "").trim().slice(0, 30);
+  const name = (prompt("Ton prénom :", guestName) || "").trim().slice(0, 30); // <store-cut/>
+  // <store> const name = "";  // app : le prénom se choisit dans la liste (pickGameName)
   if (!name || name === guestName) return;
   // Le serveur vérifie d'abord le prénom (filtre commun ; app App Store : ni boisson ni drogue) : refusé, l'ancien reste.
   let r;
@@ -768,7 +777,7 @@ function showAccount() {
 function useIdentity(id, name) {
   const changed = id !== guestId || (name && name !== guestName);
   guestId = id; store("vp_guest", id);
-  if (name) { guestName = name; store("vp_name", name); }
+  if (name && !document.documentElement.classList.contains("party-store")) { guestName = name; store("vp_name", name); }
   if (changed) { registered = false; refresh(); if (typeof refreshGame === "function") refreshGame(); }
 }
 let linkedAt = 0, adminSession = false, adminRenewal = null, adminFailedAt = 0;
@@ -1213,6 +1222,7 @@ $("nameForm").addEventListener("submit", (ev) => {
 });
 $("rename").addEventListener("click", (ev) => {
   ev.preventDefault();
+  if (STORE_APP && typeof pickGameName === "function") return pickGameName();
   if (account) { showTab("account"); return toast("✏️ Ton surnom se change dans ton profil"); }
   $("nameInput").value = guestName; guestName = ""; show("hello"); $("nameInput").focus();
 });
@@ -1563,7 +1573,9 @@ function listen() {
 <script src="/static/likely.js"></script>
 <script src="/static/debate.js"></script>
 <script src="/static/psy.js"></script>
+<!-- <store-cut> : jeu caché dans l'app App Store (texte écrit, 28.11 ; app/store_static.py) -->
 <script src="/static/masque.js"></script>
+<!-- </store-cut> -->
 <script src="/static/reflet.js"></script>
 <!-- <store-cut> : jeu caché dans l'app App Store (app/store_static.py) -->
 <script src="/static/beerpong.js"></script>

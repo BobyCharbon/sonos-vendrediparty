@@ -546,6 +546,14 @@ l'admin. Toujours :
   `2026-11-25-pot-commun-filtre-apply.sql`). Accord IA version 4 depuis le 27.11 (« Modifier avec l'IA » cité ; `CONSENT_VERSION`, `consentVersion` iOS) : « publié sur
   GitHub, où tout le monde peut le lire » ; tout changement de ce qui est envoyé ou de qui le lit = version +1. Fiche :
   « ET AUSSI » cite l'extension Partager › Party et l'Activité en direct de la Musique (4.4).
+- AUCUN TEXTE LIBRE de joueur dans les jeux de l'app (décision de l'admin du 28.11, question 1 choix b ; BETA comprise) :
+  prénom = un de `store_app.PLAYER_NAMES` (`/api/games/names`, sélecteur `data-name-pick` de games.js / index.html) ou
+  « Joueur N » donné par le serveur (`store_app.seat_name` : entrée, création, salle, prénom changé `sync_player_name`,
+  participant sans téléphone ; `scrub_names` réécrit tout autre prénom d'une partie `store`, web et surnom de compte compris,
+  ni photo ni fiche de compte dans la vue de l'app) ; réponses à choisir (Fantôme de L'Intrus : 6 mots, `white_choices`,
+  numéro envoyé). Jeux à texte écrit cachés (`TEXT_GAMES` = Tu me connais ?, Le Masque, dans `HIDDEN_GAMES`). Aucun champ
+  de texte libre de jeu dans `/static-store/` (lignes `<!-- store-cut -->`). Test discriminant (sentinelle dans chaque
+  champ de chaque action, app ET web) : `tests/test_store_sans_texte.py`. Tout nouveau champ de jeu = une liste ou des choix.
 - Tout nouveau jeu, option ou texte : se demander s'il passe dans PartyStore. Tests : `tests/test_store_app.py`,
   `tests/e2e/test_store_app_no_drinks.py`. Le web et Android gardent tout.
 - **La BETA iPhone (TestFlight) = copie EXACTE de l'app envoyée à Apple** (décision de l'admin du 27.11 : « il faut que la bêta

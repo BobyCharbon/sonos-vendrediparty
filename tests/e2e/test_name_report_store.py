@@ -37,15 +37,15 @@ def test_a_player_reports_another_players_name_and_the_table_sees_joueur_n(brows
     page.wait_for_function("game && game.type === 'likely'")
     code = page.evaluate("myGame")
     r = httpx.post(f"{server.url}/api/games/{code}", headers={"User-Agent": UA},
-                   json={"guest_id": "e2e-namerep-bad", "name": "Kevin le roi", "action": "join", "terms": True})
+                   json={"guest_id": "e2e-namerep-bad", "name": "Hugo", "action": "join", "terms": True})
     assert r.status_code == 200, r.text
     page.evaluate("refreshGame()")
-    page.wait_for_function("game.players.some((p) => p.name === 'Kevin le roi')")
+    page.wait_for_function("game.players.some((p) => p.name === 'Hugo')")
     page.evaluate("openDrawer()")
     flag = page.locator('#gDrawerPlayers [data-gact="nreport"]')
     flag.wait_for(state="visible")
     assert flag.count() == 1  # jamais à côté de son propre prénom
-    assert flag.get_attribute("aria-label") == "Signaler le prénom Kevin le roi"
+    assert flag.get_attribute("aria-label") == "Signaler le prénom Hugo"
     assert "Un prénom déplacé" in page.inner_text("#gDrawerPlayers")
     shots = os.environ.get("PARTY_SHOTS")
     if shots:
@@ -55,14 +55,15 @@ def test_a_player_reports_another_players_name_and_the_table_sees_joueur_n(brows
     page.wait_for_function("game.players.some((p) => p.name.startsWith('Joueur '))")
     assert dialogs and "Signaler ce prénom" in dialogs[0] and "Traité sous 24 h · support@vendrediparty.ch" in dialogs[0]
     text = page.inner_text("#gDrawerPlayers")
-    assert "Kevin le roi" not in text and "Joueur 1" in text
+    assert "Joueur 1" in text and "Hugo" not in page.evaluate("game.players.map((p) => p.name)")
+    assert "Hugo" in page.inner_text("#gDrawerPlayers select")  # la liste des prénoms (participant sans téléphone) le garde
     assert page.locator('#gDrawerPlayers [data-gact="nreport"]').count() == 0
     if shots:
         page.wait_for_timeout(500)
         page.screenshot(path=os.path.join(shots, "signaler-prenom-apres.png"))
     # L'autre téléphone (et toute la table) le lit aussi « Joueur 1 ».
     other = httpx.get(f"{server.url}/api/games/{code}?guest_id=e2e-namerep-bad", headers={"User-Agent": UA}).json()
-    assert "Kevin le roi" not in [p["name"] for p in other["players"]]
+    assert "Hugo" not in [p["name"] for p in other["players"]]
     assert errors == [], errors
     assert not server.errors()
     ctx.close()

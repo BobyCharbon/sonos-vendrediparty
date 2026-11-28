@@ -34,7 +34,7 @@ def create(ua, kind, gid, **options):
 def test_store_app_cannot_open_the_hidden_games():
     # Décision de l'admin du 25.11 : tous les jeux à boire par leur origine ou leur mécanique sont BLOQUÉS en 1.0.0.
     assert set(main.STORE_HIDDEN_GAMES) == {"casino", "blackjack", "beerpong", "biskit", "purity", "pyramid", "never",
-                                            "whoof", "roulette"}
+                                            "whoof", "roulette", "tmc", "masque"}  # tmc, masque : texte écrit (28.11)
     for kind in main.STORE_HIDDEN_GAMES:
         r = create(STORE_UA, kind, f"store-{kind}")
         assert r.status_code == 403 and r.json()["detail"] == MESSAGE  # jamais « ouvre-le sur le site »
@@ -100,9 +100,13 @@ def test_a_web_game_already_running_without_the_filter_is_refused_but_a_lobby_is
     lobby = main.store.session.games[create(WEB_UA, "likely", "web-host-b", cats=["family", "friends"]).json()["code"]]
     assert client(STORE_UA).get(f"/api/games/{lobby['code']}?guest_id=store-p1").status_code == 200
     assert lobby["store"] and lobby["likely"]["packs"] == ["family"]  # la suite est tirée sans boisson
-    masque_game = main.store.session.games[create(WEB_UA, "masque", "web-host-m").json()["code"]]
-    assert client(STORE_UA).get(f"/api/games/{masque_game['code']}?guest_id=store-p1").status_code == 200
-    assert masque_game["store"]  # textes écrits filtrés pour la suite
+    debate_game = main.store.session.games[create(WEB_UA, "debate", "web-host-m").json()["code"]]
+    assert client(STORE_UA).get(f"/api/games/{debate_game['code']}?guest_id=store-p1").status_code == 200
+    assert debate_game["store"]  # textes tirés filtrés pour la suite
+    # Le Masque (réponses écrites) : caché dans l'app depuis le 28.11, même en salle d'attente.
+    masque_game = main.store.session.games[create(WEB_UA, "masque", "web-host-m2").json()["code"]]
+    assert client(STORE_UA).get(f"/api/games/{masque_game['code']}?guest_id=store-p1").status_code == 403
+    assert not masque_game.get("store")
     # Pyramide créée sur le web (des gorgées) : jamais ouverte à l'app, même en salle d'attente (contrôle final du 25.11).
     web_pyr = main.store.session.games[create(WEB_UA, "pyramid", "web-host-c").json()["code"]]
     assert web_pyr["phase"] == "lobby"
@@ -310,8 +314,9 @@ def test_every_game_of_the_app_draws_nothing_about_drinking_and_the_web_keeps_it
     from app.masque_cards import MASQUE_CARDS, REFLET_CARDS
     from app.quizbank import BANK, THEMES
     kept = [t for t in games.GAMES if t not in store_app.HIDDEN_GAMES]
-    assert set(kept) >= {"likely", "quiz", "undercover", "president", "debate", "divan", "tmc", "masque", "reflet", "psy",
+    assert set(kept) >= {"likely", "quiz", "undercover", "president", "debate", "divan", "reflet", "psy",
                          "neon", "island", "heist", "room"}
+    assert not {"tmc", "masque"} & set(kept)  # texte écrit par les joueurs : cachés dans l'app (28.11)
     assert not [games.GAMES[t] for t in kept if store_app.drinky(games.GAMES[t])]
     # Banques filtrées dans une partie de l'app (store_app.clean) : la version de l'app ne garde aucune phrase « à boire ».
     banks = {
@@ -408,10 +413,12 @@ def test_questions_asking_to_be_a_drink_are_never_drawn_in_the_app():
 
 
 def test_a_tmc_answer_can_be_reported_and_disappears_for_the_table(monkeypatch):
+    """Tu me connais ? est caché dans l'app depuis le 28.11 (réponse écrite) : le « Signaler » reste sur le web."""
     logged = []
     monkeypatch.setattr(main, "log_game_report", lambda g, me, res, req: logged.append(res))
-    code = create(STORE_UA, "tmc", "store-tmc-host").json()["code"]
-    c = client(STORE_UA)
+    assert create(STORE_UA, "tmc", "store-tmc-x").status_code == 403
+    code = create(WEB_UA, "tmc", "store-tmc-host").json()["code"]
+    c = client(WEB_UA)
     for gid in ("store-tmc-b", "store-tmc-c"):
         assert c.post(f"/api/games/{code}", json={"guest_id": gid, "name": gid, "action": "join", "terms": True}).status_code == 200
     g = main.store.session.games[code]
@@ -729,7 +736,7 @@ def test_apple_check_round_one_texts_promise_only_what_the_reviewer_can_try():
     assert '"+ Proposer" > "Sur invitation" > tick group "Démo Apple" > Publish' in notes
     assert 'tap **Sur invitation**, then tick **Démo Apple · 2**, then **Publier**' in part_b
     assert "J'ai 18 ans ou plus et j'accepte les conditions" in notes and "server-checked" in notes
-    assert "names and answers filtered" in notes and "a first name changed during a game" in part_b
+    assert "no typed text shown" in notes and "a first name changed during a game" in part_b  # décision du 28.11
     assert "messages from a blocked person disappear at once" in notes and "Joindre les 10 messages précédents" in part_b
     assert "photo/voice copied" not in notes  # la copie des photos signalées : guide seulement
     for text in (notes, guide):
@@ -1054,7 +1061,7 @@ def test_apple_check_round_five_texts_match_the_app_store_build():
     part_b = guide.split("## PART B", 1)[1]
     tuto = (_root() / "docs/app-store/tutoriel-reviewer-fr.md").read_text(encoding="utf-8")
     assert len(notes) <= 4000 and notes in guide
-    for words in ('"Plus tard": Méninges only', "Pour ou contre: our dilemmas only",
+    for words in ('"Plus tard": Méninges only', "answers picked",  # 28.11 : plus aucun texte tapé (Pour ou contre compris)
                   "auto-added members' payment details stay hidden", '"Apple-test 2" (+41 79 000 00 01, same code)'):
         assert words in notes, words
     assert "dilemmas proposed in Pour ou contre" not in guide

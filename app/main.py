@@ -1465,6 +1465,13 @@ def check_store_game(request: Request, kind: str):
         raise HTTPException(403, store_app.MESSAGE)
 
 
+@app.get("/api/games/names")
+def game_names():
+    """Prénoms proposés dans les jeux de l'app App Store (décision de l'admin du 28.11 : aucun texte libre de joueur) ;
+    « Joueur » : le serveur donne « Joueur N » à la table."""
+    return JSONResponse({"names": list(store_app.PLAYER_NAMES), "anonymous": store_app.ALIAS}, headers=NO_CACHE)
+
+
 def check_store_access(request: Request, g: dict):
     """L'app App Store lit ou rejoint une partie (code, QR, salle) : refusée si elle a des gorgées, un jeu caché ou un
     mode Hot ; sinon la partie (et sa salle) passe en version App Store pour la suite (questions sans boisson)."""
@@ -1598,6 +1605,8 @@ def create_game(body: GameCreate, request: Request):
     # Prénom de l'animateur : même filtre que /api/presence (app App Store : ni boisson ni drogue ; contrôle du 26.11, tour 2).
     if msg := name_refusal(clean_name(body.name), store_app.is_store(request)):
         raise HTTPException(400, msg)
+    if store_app.is_store(request):  # décision du 28.11 : un prénom de la liste, sinon « Joueur N » (store_app.scrub_names)
+        body.name = store_app.listed_name(body.name) or store_app.ALIAS
     g = build_game(body)
     if store_app.is_store(request):
         store_app.flag(g)  # app App Store : sans gorgées ni mode Hot, questions sans boisson
@@ -1783,7 +1792,12 @@ def with_gate(v: dict, gid: str, request: Request | None, code: str = "") -> dic
 
 def full_view(g: dict, gid: str, request: Request | None = None) -> dict:
     v = full_view_raw(g, gid)
-    return games.store_view(v) if store_app.is_store(request) else v
+    if not store_app.is_store(request):
+        return v
+    for p in v.get("players", []):  # décision du 28.11 : ni photo ni fiche de compte dans les jeux de l'app
+        p.pop("photo", None)
+        p.pop("account", None)
+    return games.store_view(v)
 
 
 def full_view_raw(g: dict, gid: str) -> dict:
@@ -3715,6 +3729,15 @@ def name_refusal(name: str, store: bool) -> str:
     return ""
 
 
+def table_name(g: dict, gid: str, raw: str) -> str:
+    """Prénom d'une place qui entre dans une partie : filtré (clean_name) ; partie de l'app App Store (décision de l'admin
+    du 28.11) : un prénom de la liste s'il est libre à cette table, sinon « Joueur N » (store_app.seat_name)."""
+    name = clean_name(raw)
+    if not g.get("store"):
+        return name
+    return store_app.seat_name(g, gid, name, [room_child(g) if g["type"] == "room" else room_of(g)])
+
+
 def sync_player_name(g: dict, guest_id: str, name: str, request: Request | None = None):
     """Le joueur a changé de prénom (en haut à droite) : la partie en cours le reprend, s'il passe le même filtre qu'à
     l'entrée (contrôle Apple du 26.11) et, dans l'app App Store, case des conditions cochée ; sinon l'ancien reste."""
@@ -3724,6 +3747,10 @@ def sync_player_name(g: dict, guest_id: str, name: str, request: Request | None 
         store = store_app.is_store(request)
         if (store and not p.get("terms")) or name_refusal(clean, store or bool(g.get("store"))):
             return
+        if g.get("store"):  # partie de l'app : la liste ou « Joueur N », jamais le prénom tapé (décision du 28.11)
+            clean = store_app.seat_name(g, guest_id, clean, [room_child(g) if g["type"] == "room" else room_of(g)])
+            if clean == p["name"]:
+                return
         p["name"] = clean
         if g.get("host") == guest_id:
             g["host_name"] = clean
@@ -3870,7 +3897,8 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         # Partie de l'app App Store (ou requête de l'app) : prénom filtré comme à la création (contrôle Apple, tour 4).
         if msg := name_refusal(clean_name(body.name), store_app.is_store(request) or store_game(g)):
             raise HTTPException(400, msg)
-        reclaim_seat(g, body.guest_id, clean_name(body.name), client_ip(request))
+        if not store_game(g):  # partie de l'app : prénoms d'une liste courte, jamais une place reprise par prénom
+            reclaim_seat(g, body.guest_id, clean_name(body.name), client_ip(request))
     body.guest_id = canonical_gid(g, body.guest_id)
     sync_player_name(g, body.guest_id, body.name, request)
     admin_lead(g, request, body.guest_id)
@@ -3947,6 +3975,8 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         raise HTTPException(409, "Dans cette partie, les dilemmes viennent tous de Party.")
     if a == "addguest" and (msg := name_refusal(" ".join(body.guess.split())[:30], store_game(g))):
         raise HTTPException(400, msg)
+    if a == "addguest" and store_game(g):  # décision du 28.11 : un prénom de la liste, sinon « Joueur N » (scrub_store_names)
+        body.guess = store_app.listed_name(body.guess) or store_app.ALIAS
     if g["type"] == "room" and a == "launch":
         if not games.is_lead(g, me):
             raise HTTPException(403, "Seul l'animateur lance les jeux")
@@ -3956,7 +3986,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         save_games(g["code"], g.get("current") or "")
         return full_view(g, me, request)
     actions = {
-        "join": (games.join, me, clean_name(body.name) if a == "join" else ""),
+        "join": (games.join, me, table_name(g, me, body.name) if a == "join" else ""),
         "leave": (games.leave, me), "vote": (games.vote, me, target), "guess": (games.white_guess, me, body.guess),
         "start": (games.start,), "vote_start": (games.start_vote,), "close_vote": (games.close_vote,),
         "eliminate": (games.eliminate, target), "skip_guess": (games.skip_white_guess,),
@@ -4047,7 +4077,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
                 # salle : un invité au bout de ses parties en invité reste dans la salle, sans y être inscrit.
                 if (other["type"] not in ACCOUNT_GAMES or seat_linked(g, me)) \
                         and (g["type"] != "room" or seat_linked(g, me) or gate_enter(other, me, request)):
-                    games.join(other, me, clean_name(body.name))
+                    games.join(other, me, table_name(other, me, body.name))
             elif a == "leave" and games.player(other, me):
                 games.leave(other, me)
             elif a == "remove" and target and games.player(other, target):

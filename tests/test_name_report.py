@@ -1,6 +1,6 @@
 """« 🚩 Signaler ce prénom » (contrôle Apple 1.2, 27.11) : tout joueur signale le prénom d'un AUTRE joueur ; il devient
 « Joueur N » aussitôt pour toute la table, le signalement va au journal `game.report` et à l'admin (« Retours »), une
-fois par signaleur et par joueur."""
+fois par signaleur et par joueur. Dans l'app, les prénoms sont ceux de la liste (décision du 28.11) : « Hugo » signalé."""
 import pytest
 from fastapi.testclient import TestClient
 
@@ -27,10 +27,10 @@ def sent(monkeypatch):
 def test_a_reported_name_shows_as_joueur_n_for_the_whole_table_once_per_reporter(sent):
     c = TestClient(main.app, headers={"User-Agent": STORE_UA})
     code = c.post("/api/games", json={"guest_id": "namerep-host", "name": "Léa", "type": "likely", "terms": True}).json()["code"]
-    for gid, name in (("namerep-bad", "Kevin le roi"), ("namerep-c", "Tom")):
+    for gid, name in (("namerep-bad", "Hugo"), ("namerep-c", "Tom")):
         assert c.post(f"/api/games/{code}", json={"guest_id": gid, "name": name, "action": "join", "terms": True}).status_code == 200
     view = c.get(f"/api/games/{code}?guest_id=namerep-c").json()
-    bad = next(p for p in view["players"] if p["name"] == "Kevin le roi")
+    bad = next(p for p in view["players"] if p["name"] == "Hugo")
     assert not bad.get("name_reported")
     # On ne se signale pas soi-même.
     me = next(p for p in view["players"] if p["name"] == "Tom")
@@ -41,15 +41,15 @@ def test_a_reported_name_shows_as_joueur_n_for_the_whole_table_once_per_reporter
     mine = next(p for p in r.json()["players"] if p["pid"] == bad["pid"])
     assert mine["name"].startswith("Joueur ") and mine["name_reported"]
     # Toute la table (l'animateur compris) le voit « Joueur N », et le prénom ne revient pas s'il le renvoie.
-    for gid, q in (("namerep-host", ""), ("namerep-bad", "&name=Kevin%20le%20roi")):
+    for gid, q in (("namerep-host", ""), ("namerep-bad", "&name=Hugo")):
         names = [p["name"] for p in c.get(f"/api/games/{code}?guest_id={gid}{q}").json()["players"]]
-        assert "Kevin le roi" not in names and mine["name"] in names
+        assert "Hugo" not in names and mine["name"] in names
     host_view = c.get(f"/api/games/{code}?guest_id=namerep-host").json()
     assert not next(p for p in host_view["players"] if p["pid"] == bad["pid"]).get("name_reported")  # l'hôte peut encore signaler
     # Journal et admin : le prénom d'origine, une seule fois pour ce signaleur.
     assert len(sent["journal"]) == 1 and sent["journal"][0][0] == "game.report"
-    assert sent["journal"][0][3]["text"] == "Prénom signalé : Kevin le roi" and sent["journal"][0][3]["author"] == "Kevin le roi"
-    assert len(sent["admin"]) == 1 and sent["admin"][0][1] == "feedback" and "Kevin le roi" in sent["admin"][0][0]["body"]
+    assert sent["journal"][0][3]["text"] == "Prénom signalé : Hugo" and sent["journal"][0][3]["author"] == "Hugo"
+    assert len(sent["admin"]) == 1 and sent["admin"][0][1] == "feedback" and "Hugo" in sent["admin"][0][0]["body"]
     assert c.post(f"/api/games/{code}", json={"guest_id": "namerep-c", "action": "nreport", "target": bad["pid"]}).status_code == 200
     assert len(sent["journal"]) == 1 and len(sent["admin"]) == 1
     # Un autre joueur peut signaler aussi (la modération voit les deux), le numéro ne change pas.
@@ -61,15 +61,15 @@ def test_a_reported_name_shows_as_joueur_n_for_the_whole_table_once_per_reporter
 def test_a_reported_name_is_hidden_in_the_room_and_its_game(sent):
     c = TestClient(main.app, headers={"User-Agent": STORE_UA})
     room = c.post("/api/games", json={"guest_id": "namerep-rh", "name": "Léa", "type": "room", "terms": True}).json()["code"]
-    for gid, name in (("namerep-rb", "Maxou"), ("namerep-rc", "Tom")):
+    for gid, name in (("namerep-rb", "Hugo"), ("namerep-rc", "Tom")):
         assert c.post(f"/api/games/{room}", json={"guest_id": gid, "name": name, "action": "join", "terms": True}).status_code == 200
     r = c.post(f"/api/games/{room}", json={"guest_id": "namerep-rh", "action": "launch", "settings": {"type": "likely"}})
     assert r.status_code == 200, r.text
     child = main.room_child(main.store.session.games[room])
-    bad = next(p for p in c.get(f"/api/games/{room}?guest_id=namerep-rc").json()["players"] if p["name"] == "Maxou")
+    bad = next(p for p in c.get(f"/api/games/{room}?guest_id=namerep-rc").json()["players"] if p["name"] == "Hugo")
     assert c.post(f"/api/games/{room}", json={"guest_id": "namerep-rc", "action": "nreport", "target": bad["pid"]}).status_code == 200
     for x in (main.store.session.games[room], child):
-        assert "Maxou" not in [p["name"] for p in x["players"]]
+        assert "Hugo" not in [p["name"] for p in x["players"]]
     assert {p["name"] for p in main.store.session.games[room]["players"] if p["id"] == "namerep-rb"} == \
            {p["name"] for p in child["players"] if p["id"] == "namerep-rb"}
 
@@ -77,16 +77,16 @@ def test_a_reported_name_is_hidden_in_the_room_and_its_game(sent):
 def test_a_name_reported_in_the_room_stays_joueur_n_in_every_game_launched_after(sent):
     c = TestClient(main.app, headers={"User-Agent": STORE_UA})
     room = c.post("/api/games", json={"guest_id": "namerep-sh", "name": "Léa", "type": "room", "terms": True}).json()["code"]
-    for gid, name in (("namerep-sb", "Maxou"), ("namerep-sc", "Tom")):
+    for gid, name in (("namerep-sb", "Hugo"), ("namerep-sc", "Tom")):
         assert c.post(f"/api/games/{room}", json={"guest_id": gid, "name": name, "action": "join", "terms": True}).status_code == 200
-    bad = next(p for p in c.get(f"/api/games/{room}?guest_id=namerep-sc").json()["players"] if p["name"] == "Maxou")
+    bad = next(p for p in c.get(f"/api/games/{room}?guest_id=namerep-sc").json()["players"] if p["name"] == "Hugo")
     assert c.post(f"/api/games/{room}", json={"guest_id": "namerep-sc", "action": "nreport", "target": bad["pid"]}).status_code == 200
     alias = next(p["name"] for p in main.store.session.games[room]["players"] if p["id"] == "namerep-sb")
     for _ in range(2):  # un jeu, sa fin, puis un autre jeu
         assert c.post(f"/api/games/{room}", json={"guest_id": "namerep-sh", "action": "launch", "settings": {"type": "likely"}}).status_code == 200
         child = main.room_child(main.store.session.games[room])
-        view = c.get(f"/api/games/{child['code']}?guest_id=namerep-sb&name=Maxou").json()
-        assert "Maxou" not in [p["name"] for p in view["players"]] and alias in [p["name"] for p in view["players"]]
+        view = c.get(f"/api/games/{child['code']}?guest_id=namerep-sb&name=Hugo").json()
+        assert "Hugo" not in [p["name"] for p in view["players"]] and alias in [p["name"] for p in view["players"]]
         mine = c.get(f"/api/games/{child['code']}?guest_id=namerep-sc").json()
         pid = next(p["pid"] for p in mine["players"] if p["name"] == alias)
         assert next(p for p in mine["players"] if p["pid"] == pid)["name_reported"]
@@ -98,8 +98,9 @@ def test_a_name_reported_in_the_room_stays_joueur_n_in_every_game_launched_after
 @pytest.mark.parametrize("kind, name", [("room", "room"), ("likely", "likely"), ("room", "lobby"), ("likely", "lobby")])
 def test_a_reported_name_equal_to_a_game_word_never_breaks_the_game(sent, kind, name):
     """Relecture du lot 12 : un joueur « room », « likely » ou « lobby » signalé réécrivait `type` / `phase` (500 puis
-    « Partie introuvable » pour toute la table). Seuls les champs qui portent un prénom changent."""
-    c = TestClient(main.app, headers={"User-Agent": STORE_UA})
+    « Partie introuvable » pour toute la table). Seuls les champs qui portent un prénom changent. Partie du web : dans
+    l'app, un tel prénom (hors de la liste, décision du 28.11) est déjà « Joueur N » à l'entrée."""
+    c = TestClient(main.app, headers={"User-Agent": "Mozilla/5.0 (iPhone) Safari"})
     code = c.post("/api/games", json={"guest_id": "namerep-wh", "name": "Léa", "type": kind, "terms": True}).json()["code"]
     for gid, n in (("namerep-wb", name), ("namerep-wc", "Tom")):
         assert c.post(f"/api/games/{code}", json={"guest_id": gid, "name": n, "action": "join", "terms": True}).status_code == 200
@@ -133,14 +134,14 @@ def test_a_name_reported_in_the_room_while_out_of_its_game_stays_hidden_when_he_
     par la salle sous son vrai prénom."""
     c = TestClient(main.app, headers={"User-Agent": STORE_UA})
     room = c.post("/api/games", json={"guest_id": "namerep-oh", "name": "Léa", "type": "room", "terms": True}).json()["code"]
-    for gid, name in (("namerep-ob", "Maxou"), ("namerep-oc", "Tom")):
+    for gid, name in (("namerep-ob", "Hugo"), ("namerep-oc", "Tom")):
         assert c.post(f"/api/games/{room}", json={"guest_id": gid, "name": name, "action": "join", "terms": True}).status_code == 200
     assert c.post(f"/api/games/{room}", json={"guest_id": "namerep-oh", "action": "launch", "settings": {"type": "likely"}}).status_code == 200
     child = main.room_child(main.store.session.games[room])
     child["players"] = [p for p in child["players"] if p["id"] != "namerep-ob"]  # pas inscrit (plafond, jeu refusé…)
-    bad = next(p for p in c.get(f"/api/games/{room}?guest_id=namerep-oc").json()["players"] if p["name"] == "Maxou")
+    bad = next(p for p in c.get(f"/api/games/{room}?guest_id=namerep-oc").json()["players"] if p["name"] == "Hugo")
     assert c.post(f"/api/games/{room}", json={"guest_id": "namerep-oc", "action": "nreport", "target": bad["pid"]}).status_code == 200
-    assert c.post(f"/api/games/{room}", json={"guest_id": "namerep-ob", "name": "Maxou", "action": "join", "terms": True}).status_code == 200
+    assert c.post(f"/api/games/{room}", json={"guest_id": "namerep-ob", "name": "Hugo", "action": "join", "terms": True}).status_code == 200
     assert main.games.player(child, "namerep-ob"), "rentré dans le jeu par la salle"
     names = [p["name"] for p in c.get(f"/api/games/{child['code']}?guest_id=namerep-oc").json()["players"]]
-    assert "Maxou" not in names and "Maxou" not in str(child)
+    assert "Hugo" not in names and "Hugo" not in str(child)

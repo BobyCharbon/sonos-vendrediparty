@@ -37,9 +37,12 @@ def test_refuse_the_terms_then_come_back_and_accept(browser, server):
     page.wait_for_selector("#gName:not(.hidden) #gTermsCheck")
     box = page.locator("#gTermsBox")
     assert "18 ans ou plus" in box.inner_text() and "tolérance zéro" in box.inner_text()
+    # Décision du 28.11 : le prénom se touche dans la liste du serveur (aucun champ de texte) ; « 🎲 Joueur » d'abord.
+    page.wait_for_selector('#gName [data-pick-name="Léa"]')
+    assert page.locator("#gName input[type=text], #gName textarea").count() == 0
+    assert page.locator("[data-name-pick] [data-pick-name]").first.get_attribute("data-pick-name") == "Joueur"
     # Sans la case : on reste sur l'écran du prénom, qui dit pourquoi.
-    page.fill("#gNameInput", "Léa")
-    page.click("#gNameForm button")
+    page.click('#gName [data-pick-name="Léa"]')
     assert page.locator("#gHome").is_hidden() and "warn" in box.get_attribute("class")
     assert "coche d'abord la case" in page.inner_text("#gTermsNote")
     # Les conditions s'ouvrent sur place (la page ne change pas), puis se ferment.
@@ -54,9 +57,8 @@ def test_refuse_the_terms_then_come_back_and_accept(browser, server):
     page.wait_for_selector("#gName:not(.hidden) #gTermsCheck")
     assert page.evaluate("localStorage.getItem('vp_games_terms')") is None and page.evaluate("localStorage.getItem('vp_name')") is None
     # Cette fois, elle accepte : l'accueil des jeux, et la case n'est plus jamais redemandée sur ce téléphone.
-    page.fill("#gNameInput", "Léa")
     page.check("#gTermsCheck")
-    page.click("#gNameForm button")
+    page.click('#gName [data-pick-name="Léa"]')
     page.wait_for_selector("#gHome:not(.hidden)")
     page.reload()
     page.evaluate("showTab('games')")
@@ -72,16 +74,19 @@ def test_after_accepting_she_writes_and_plays_without_error(browser, server):
     # Salle de jeux puis un prénom ajouté (texte lu par la table) : accepté par le serveur.
     page.click('#gHome [data-create="room"]')
     page.wait_for_selector('[data-room-pick="quiz"]', state="visible")
-    assert page.evaluate("gameAction('addguest', { guess: 'Max' })") is True
-    page.wait_for_function("game.players.some((p) => p.name === 'Max')")
+    assert page.evaluate("gameAction('addguest', { guess: 'Max' })") is True  # hors de la liste : « Joueur N »
+    page.wait_for_function("game.players.some((p) => p.name.startsWith('Joueur ')) && !game.players.some((p) => p.name === 'Max')")
     page.evaluate("gameAction('end')")
     page.wait_for_function("!myGame")
     # Les jeux gardés s'ouvrent avec les scripts de l'app (aucune erreur de script).
     show_game_cards(page)
-    for kind in ("likely", "undercover", "masque", "tmc", "debate"):
+    for kind in ("likely", "undercover", "debate"):  # tmc, masque : cachés dans l'app (28.11)
         page.click(f'#gHome [data-create="{kind}"]')
         page.wait_for_function("(k) => game && game.type === k", arg=kind)
         page.wait_for_selector("#gamePlay:not(.hidden)")
+        if kind == "likely":  # participant sans téléphone : choisi dans la liste, aucun champ de texte (28.11)
+            page.wait_for_selector('[data-gform=addguest] select[name=manualName]', state="attached")
+            assert page.locator('[data-gform=addguest] input').count() == 0
         page.evaluate("gameAction('end')")
         page.wait_for_function("!myGame")
         show_game_cards(page)
@@ -124,19 +129,19 @@ def test_later_is_shown_from_the_start_and_opens_meninges_without_a_name(browser
     ctx.close()
 
 
-def test_a_refused_first_name_is_said_on_the_name_screen(browser, server):
-    """Le formulaire du prénom attend le serveur : refusé (argot, boisson…), il le dit et rien n'est gardé."""
+def test_joueur_gets_a_number_from_the_game(browser, server):
+    """Décision du 28.11 : « 🎲 Joueur » (aucun prénom) ; la partie donne « Joueur N », jamais un texte tapé."""
     ctx, page = phone(browser, server)
     page.wait_for_selector("#gName:not(.hidden) #gTermsCheck")
-    page.fill("#gNameInput", "Pompette")
     page.check("#gTermsCheck")
-    page.click("#gNameForm button")
-    page.wait_for_function("document.getElementById('gTermsNote').textContent.includes('pas accepté')")
-    assert page.locator("#gHome").is_hidden() and page.evaluate("localStorage.getItem('vp_name')") is None
-    page.fill("#gNameInput", "Léa")
-    page.click("#gNameForm button")
+    page.click('#gName [data-pick-name="Joueur"]')
     page.wait_for_selector("#gHome:not(.hidden)")
-    assert page.evaluate("guestName") == "Léa"
+    assert page.evaluate("guestName") == "Joueur"
+    show_game_cards(page)
+    page.click('#gHome [data-create="likely"]')
+    page.wait_for_function("game && game.type === 'likely' && game.players.length === 1")
+    assert page.evaluate("game.players[0].name") == "Joueur 1"
+    assert page.errors == [], page.errors
     ctx.close()
 
 
@@ -168,18 +173,15 @@ def test_reopening_the_app_never_reopens_full_screen_a_game_she_stopped_playing(
     ctx.close()
 
 
-def test_a_refused_new_name_keeps_the_old_one_and_says_why(browser, server):
-    """Contrôle du 26.11 (tour 1) : le prénom changé en haut à droite attend la réponse du serveur ; refusé (insulte,
-    boisson dans l'app), l'ancien reste et la raison s'affiche."""
+def test_the_name_chip_reopens_the_list_never_a_text_field(browser, server):
+    """Décision du 28.11 : le prénom en haut à droite se rechoisit dans la liste (aucune fenêtre de saisie)."""
     ctx, page = phone(browser, server, init='localStorage.setItem("vp_name", "Tom"); localStorage.setItem("vp_games_terms", "1");')
     page.wait_for_selector("#gHome:not(.hidden)")
-    for bad in ("Vodka", "connard"):
-        page.evaluate(f"window.prompt = () => {bad!r}; changeName()")
-        page.wait_for_function("document.getElementById('toast').textContent.includes(\"n'a pas changé\")")
-        assert page.evaluate("guestName") == "Tom" and "Tom" in page.text_content("#nameChip")
-        assert page.evaluate("localStorage.getItem('vp_name')") == "Tom"
-    page.evaluate("window.prompt = () => 'Lucas'; changeName()")
+    page.evaluate("window.prompt = () => { throw new Error('prompt'); }; changeName()")
+    page.wait_for_selector('#gName:not(.hidden) [data-pick-name="Tom"][aria-pressed="true"]')
+    page.click('#gName [data-pick-name="Lucas"]')
     page.wait_for_function("guestName === 'Lucas'")
+    page.wait_for_selector("#gHome:not(.hidden)")
     assert "Lucas" in page.text_content("#nameChip")
-    assert page.errors == []
+    assert page.errors == [], page.errors
     ctx.close()
