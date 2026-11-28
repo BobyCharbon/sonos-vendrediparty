@@ -4,11 +4,11 @@
 (function () {
   var keep = ['Anniversaire de Zoé', 'Raclette chez Inès', 'Soirée jeux de société', 'Karaoké de décembre', 'Week-end au chalet'];
   var card = /, (date à définir|aujourd|demain|hier|lun|mar|mer|jeu|ven|sam|dim|\d)/i;
-  // Fiche : la ligne « Autre choix : Google Agenda » (marque d'un tiers) n'apparaît pas sur une capture de l'App Store.
+  // Fiche : la ligne « Autre agenda : Google, Outlook… » (marques de tiers) n'apparaît pas sur une capture de l'App Store.
   function noThirdParty(doc) {
     doc.querySelectorAll('div,span').forEach(function (el) {
       var t = (el.textContent || '').trim();
-      if (/^Autre choix\s*:\s*Google Agenda$/.test(t) && el.style.display !== 'none') el.style.display = 'none';
+      if (/^Autre (choix|agenda)\s*:\s*(Google|Outlook)/.test(t) && el.style.display !== 'none') el.style.display = 'none';
     });
   }
   function clean(doc) {
@@ -36,17 +36,8 @@
     var b = document.querySelector('#tabs [data-tab="events"] .badge');
     if (b && b.textContent.trim() && b.textContent.trim() !== '2') b.textContent = '2';
   }
-  // Salle de jeux : pas de catégorie « 🍻 Alcool » sur une capture de l'App Store (Apple 1.4.3, 2.3.8).
-  function noDrinks() {
-    if (document.getElementById('visuels-style') || !document.head) return;
-    var st = document.createElement('style');
-    st.id = 'visuels-style';
-    st.textContent = '.g-room-cat[data-cat="drinks"],#gCat-drinks,section[aria-labelledby="gCat-drinks"]{display:none!important}';
-    document.head.appendChild(st);
-  }
   setInterval(function () {
     badge();
-    noDrinks();
     var frames = document.querySelectorAll('iframe');
     for (var i = 0; i < frames.length; i++) {
       try {

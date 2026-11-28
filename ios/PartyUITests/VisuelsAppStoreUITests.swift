@@ -26,9 +26,15 @@ final class VisuelsAppStoreUITests: XCTestCase {
     }
 
     /// Capture de tout l'écran (barre d'état comprise, réglée par `simctl status_bar`).
+    /// L'arbre d'accessibilité est écrit à côté (`.txt`) : on y cherche Musique, bar, Zicou… en plus de l'œil. Jamais
+    /// d'onglet Musique sur une capture (dans l'app App Store, il n'existe qu'après un code de soirée à 6 chiffres).
     private func shot(_ name: String, wait: UInt32 = 2) {
         sleep(wait)
         try? XCUIScreen.main.screenshot().pngRepresentation.write(to: dir.appendingPathComponent("\(name).png"))
+        try? app.debugDescription.write(to: dir.appendingPathComponent("\(name).txt"), atomically: true, encoding: .utf8)
+        for bar in [app.tabBars, app.toolbars] {
+            XCTAssertFalse(bar.buttons["Musique"].exists, "onglet Musique sur \(name)")
+        }
     }
 
     private func any(_ predicate: String) -> XCUIElement {
@@ -48,6 +54,31 @@ final class VisuelsAppStoreUITests: XCTestCase {
         } while Date() < deadline
         XCTFail("onglet \(label)")
         return app.tabBars.buttons.matching(predicate).firstMatch
+    }
+
+    /// Bandeau « Ne rate rien de cet événement » (fiche) : dans l'app, il n'a que « Continuer », qui ouvre la demande
+    /// d'iOS ; on l'accepte une fois (comme un invité qui veut être prévenu) et le bandeau disparaît pour de bon.
+    private func allowNotifications(timeout: TimeInterval) {
+        let more = app.buttons["Continuer"]
+        guard more.waitForExistence(timeout: timeout) else { return }
+        more.tap()
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let allow = springboard.alerts.buttons.matching(NSPredicate(format: "label IN %@", ["Autoriser", "Allow"])).firstMatch
+        if allow.waitForExistence(timeout: 8) { allow.tap() }
+        sleep(3)
+    }
+
+    /// Onglet Jeux de l'app App Store : prénom choisi dans la liste (« Léa », jamais tapé) et case « J'ai 18 ans ou plus… »,
+    /// une fois par appareil.
+    private func enterGames() {
+        tab("Jeux").tap()
+        let terms = app.switches.matching(NSPredicate(format: "label BEGINSWITH %@", "J'ai 18 ans")).firstMatch
+        guard terms.waitForExistence(timeout: 10) else { return }
+        shot("brut-jeux-prenom", wait: 1)
+        if (terms.value as? String) != "1" { terms.tap() }
+        sleep(1)
+        app.switches["Léa"].tap()
+        sleep(3)
     }
 
     private func launch(_ js: String = "") {
@@ -96,19 +127,21 @@ final class VisuelsAppStoreUITests: XCTestCase {
     func testCaptures() {
         launch()
         signIn()
-        let only = env["VISUELS_ONLY"] ?? "events,event,eventchat,poll,ticket,chats,chat,pot,ia,games,music"
+        let only = env["VISUELS_ONLY"] ?? "events,event,eventchat,poll,ticket,chats,chat,pot,ia,meninges,games"
         let steps = Set(only.split(separator: ",").map(String.init))
 
         if steps.contains("events") || steps.contains("event") {
+            // Barre verticale du Duo : après la connexion (page Réglages), elle peut garder « Événements » sélectionné ;
+            // un toucher sur un onglet déjà sélectionné ne fait rien, d'où le passage par Jeux.
+            if tab("Événements").isSelected { tab("Jeux").tap(); sleep(2) }
             tab("Événements").tap()
             XCTAssertTrue(any("label BEGINSWITH 'Raclette chez Inès'").waitForExistence(timeout: 90), "liste des événements")
             shot("brut-evenements", wait: 8)
             if steps.contains("event") {
                 any("label BEGINSWITH 'Anniversaire de Zoé'").tap()
                 XCTAssertTrue(any("label CONTAINS 'Rue de la Fabrique'").waitForExistence(timeout: 60), "fiche de l'événement")
-                // Bandeau « Ne rate rien de cet événement » (notifications de l'appareil éteintes) : « Plus tard ».
-                let later = app.buttons["Plus tard"]
-                if later.waitForExistence(timeout: 3) { later.tap() }
+                // Bandeau « Ne rate rien de cet événement » (notifications de l’appareil éteintes) : accepté une fois.
+                allowNotifications(timeout: 3)
                 shot("brut-fiche", wait: 4)
                 app.swipeUp(velocity: .slow)
                 shot("brut-fiche-2")
@@ -126,8 +159,7 @@ final class VisuelsAppStoreUITests: XCTestCase {
             guard card.waitForExistence(timeout: 60) else { return false }
             card.tap()
             let ok = any("label CONTAINS '\(text)'").waitForExistence(timeout: 60)
-            let later = app.buttons["Plus tard"]
-            if later.waitForExistence(timeout: 2) { later.tap() }
+            allowNotifications(timeout: 2)
             return ok
         }
         func backToList() {
@@ -139,8 +171,7 @@ final class VisuelsAppStoreUITests: XCTestCase {
         if steps.contains("eventchat") {
             // Discussion native de l'événement, ouverte depuis Discussions (comme une notification l'ouvrirait).
             tab("Discussions").tap()
-            let later = app.buttons["Plus tard"]
-            if later.waitForExistence(timeout: 4) { later.tap() }
+            allowNotifications(timeout: 4)
             let row = any("label CONTAINS 'Anniversaire de Zoé'")
             XCTAssertTrue(row.waitForExistence(timeout: 30), "discussion de l'événement dans la liste")
             row.tap()
@@ -179,8 +210,7 @@ final class VisuelsAppStoreUITests: XCTestCase {
 
         if steps.contains("chats") || steps.contains("chat") {
             tab("Discussions").tap()
-            let later = app.buttons["Plus tard"]
-            if later.waitForExistence(timeout: 6) { later.tap() }
+            allowNotifications(timeout: 6)
             XCTAssertTrue(any("label CONTAINS 'Les Lucioles'").waitForExistence(timeout: 30), "liste des discussions")
             shot("brut-discussions", wait: 4)
             if steps.contains("chat") {
@@ -238,8 +268,34 @@ final class VisuelsAppStoreUITests: XCTestCase {
             launch()
         }
 
+        if steps.contains("meninges") {
+            // Méninges (jeu solo) : l'accueil, puis un mini-jeu de l'Échauffement du jour.
+            enterGames()
+            shot("brut-jeux-accueil", wait: 4)
+            let go = any("label == 'Faire chauffer'")
+            XCTAssertTrue(go.waitForExistence(timeout: 30), "Faire chauffer")
+            for _ in 0..<6 where go.exists && !go.isHittable { app.swipeUp(velocity: .slow) }
+            if go.exists {
+                go.tap()
+                shot("brut-meninges", wait: 5)
+                let start = any("label == 'Commencer'")
+                if start.waitForExistence(timeout: 10) {
+                    start.tap()
+                    shot("brut-meninges-2", wait: 3)
+                    let play = any("label == 'C’est parti' OR label == \"C'est parti\"")
+                    if play.waitForExistence(timeout: 10) {
+                        play.tap()
+                        shot("brut-meninges-3", wait: 3)
+                        shot("brut-meninges-4", wait: 2)
+                    }
+                }
+            }
+            app.terminate()
+            launch()
+        }
+
         if steps.contains("games") {
-            tab("Jeux").tap()
+            enterGames()
             let create = app.buttons["Créer une salle"]
             XCTAssertTrue(create.waitForExistence(timeout: 30), "Créer une salle")
             create.tap()
@@ -247,28 +303,16 @@ final class VisuelsAppStoreUITests: XCTestCase {
             XCTAssertTrue(code.waitForExistence(timeout: 20), "code de la salle")
             let room = code.label
             let players = [("Hugo", "quiz"), ("Inès", "quiz"), ("Tom", "president"), ("Zoé", "quiz"), ("Nathan", "heist"), ("Chloé", "neon")]
+            // Prénoms de la liste de l'app (store_app.PLAYER_NAMES, décision du 28.11) : jamais un prénom tapé.
             for (i, (name, vote)) in players.enumerated() {
                 let gid = "visuels-joueur-\(i + 1)"
-                post("/api/games/\(room)", ["guest_id": gid, "name": name, "action": "join"])
-                post("/api/games/\(room)", ["guest_id": gid, "name": name, "action": "rvote", "target": vote])
+                XCTAssertEqual(post("/api/games/\(room)", ["guest_id": gid, "name": name, "action": "join"]), 200, "\(name) rejoint")
+                XCTAssertEqual(post("/api/games/\(room)", ["guest_id": gid, "name": name, "action": "rvote", "target": vote]), 200,
+                               "\(name) vote \(vote)")
             }
             shot("brut-jeux", wait: 5)
             app.swipeUp(velocity: .slow)
             shot("brut-jeux-2")
-        }
-
-        if steps.contains("music") {
-            // Le simulateur n'a pas d'enceinte de soirée : « Gérer la soirée » sur un état figé (PARTY_DEBUG_HOST_DEMO,
-            // tools/appstore_visuels/host_demo.json : titres et artistes inventés).
-            app.terminate()
-            app = XCUIApplication()
-            app.launchEnvironment["PARTY_DEBUG_JS"] = "localStorage.setItem('vp_install_dismissed','1');"
-                + "localStorage.removeItem('vp_game');localStorage.removeItem('vp_room');" + (env["VISUELS_JS"] ?? "")
-            app.launchEnvironment["PARTY_DEBUG_HOST_DEMO"] = env["VISUELS_HOST_DEMO"] ?? ""
-            app.launch()
-            XCTAssertTrue(app.staticTexts["Gérer la soirée"].waitForExistence(timeout: 30), "Gérer la soirée")
-            XCTAssertTrue(any("label CONTAINS 'Paillettes'").waitForExistence(timeout: 10), "file de la soirée")
-            shot("brut-musique", wait: 3)
         }
     }
 

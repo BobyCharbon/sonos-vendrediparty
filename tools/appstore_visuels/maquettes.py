@@ -35,7 +35,7 @@ SHOTS = [  # ordre d'affichage sur l'App Store (les 3 premières : résultats de
     ("06-sondage", "brut-sondage-2", "Fixe la date *avec ta bande*", "Chacun vote : oui, si besoin ou non", "#5BE3A6"),
     ("07-billet", "brut-billet", "Ton billet *dans ta poche*", "Un QR scanné à l’entrée par l’organisateur", "#FF4F9A"),
     ("08-discussions", "brut-discussions", "Groupes, messages *et soirées*", "Toutes tes conversations au même endroit", "#B9A7FF"),
-    ("09-musique", "brut-musique", "La musique de la soirée, *ensemble*", "Chacun propose ses titres, ils rejoignent la file", "#6CC7FF"),
+    ("09-meninges", "brut-meninges", "Méninges, *ton jeu solo*", "Vitesse, mémoire, logique : 5 mini-jeux par jour", "#6CC7FF"),
     ("10-pot-commun", "brut-pot", "Les comptes *sans prise de tête*", "Pot commun : qui a payé quoi, qui doit combien", "#FFB347"),
 ]
 
@@ -120,6 +120,8 @@ def shots(pg, raw: Path, caps: Path, font: str, size: tuple[int, int]):
     dh = round(1320 * h / w)
     pg.set_viewport_size({"width": 1320, "height": dh})
     caps.mkdir(parents=True, exist_ok=True)
+    for old in caps.glob("*.png"):  # une capture retirée de SHOTS (ex. 09-musique) ne repart jamais vers Apple
+        old.unlink()
     for name, src, title, sub, accent in SHOTS:
         shot = raw / f"{src}.png"
         if not shot.exists():

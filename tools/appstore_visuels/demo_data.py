@@ -123,20 +123,20 @@ def create(assets: pathlib.Path):
         ids[k] = sql("select gen_random_uuid() id")[0]["id"]
     event("e_disco", "Anniversaire de Zoé · soirée disco",
           "Ressors tes paillettes : Zoé fête ses 30 ans ! Piste de danse, gâteau à minuit et photomaton. Dress code : disco 🪩",
-          local("2026-11-28", "20:00"), local("2026-11-29", "02:00"), "La Fabrique", "Rue de la Fabrique 8, 1003 Lausanne",
+          local("2026-12-12", "20:00"), local("2026-12-13", "02:00"), "La Fabrique", "Rue de la Fabrique 8, 1003 Lausanne",
           "disco", "zoe", "Soirée")
     event("e_raclette", "Raclette chez Inès", "On sort le four à raclette ! Chacun amène un petit quelque chose 🧀",
-          local("2026-11-20", "19:30"), local("2026-11-20", "23:30"), "Chez Inès", "Chemin des Lilas 3, 1205 Genève",
+          local("2026-12-04", "19:30"), local("2026-12-04", "23:30"), "Chez Inès", "Chemin des Lilas 3, 1205 Genève",
           "raclette", "ines", "Resto")
     event("e_jeux", "Soirée jeux de société", "Jeux de plateau, jeux d'ambiance et tournoi de cartes. Débutants bienvenus 🎲",
-          local("2026-11-25", "19:00"), local("2026-11-25", "23:00"), "Le Comptoir à jeux", "Rue du Marché 14, 2000 Neuchâtel",
+          local("2026-12-09", "19:00"), local("2026-12-09", "23:00"), "Le Comptoir à jeux", "Rue du Marché 14, 2000 Neuchâtel",
           "jeux", "hugo", "Activité")
     event("e_karaoke", "Karaoké de décembre", "Échauffe ta voix : salle privée réservée pour toute la bande 🎤",
-          local("2026-12-04", "20:30"), local("2026-12-04", "23:59"), "Studio Mélodie", "Avenue de la Gare 21, 1950 Sion",
+          local("2026-12-18", "20:30"), local("2026-12-18", "23:59"), "Studio Mélodie", "Avenue de la Gare 21, 1950 Sion",
           "karaoke", "nathan", "Soirée")
     event("e_chalet", "Week-end au chalet", "Deux jours à la montagne : luge, fondue et soirées au coin du feu. Vote pour tes dates !",
           None, None, "Chalet des Mélèzes", "Route des Mayens 5, 1936 Verbier", "chalet", "tom", "Voyage", mode="poll",
-          deadline=local("2026-11-30", "20:00"))
+          deadline=local("2026-12-14", "20:00"))
     rsvps = {"e_disco": ({"zoe", "lea", "hugo", "ines", "tom", "nathan", "camille", "yanis", "chloe", "malik"}, {"sarah", "jules"}),
              "e_raclette": ({"ines", "lea", "sarah", "hugo", "chloe", "tom"}, {"camille"}),
              "e_jeux": ({"hugo", "tom", "yanis", "camille"}, {"malik"}),
@@ -167,18 +167,18 @@ def create(assets: pathlib.Path):
         out.append(f"insert into member_groups (id, name, created_by, emoji, color) values ({P(g)}, {q(name)}, {P(by)}, {q(emoji)}, {q(color)});")
         for m in [by] + members:
             out.append(f"insert into member_group_members (group_id, user_id) values ({P(g)}, {P(m)}) on conflict do nothing;")
-    msgs = [("g_lucioles", "zoe", "2026-11-19", "08:02", "Coucou la bande ! 🎉 Samedi 28, c'est ma soirée disco : vous venez ?"),
-            ("g_lucioles", "hugo", "2026-11-19", "08:05", "Évidemment ! Je m'occupe de la playlist 🎶"),
-            ("g_lucioles", "ines", "2026-11-19", "08:07", "Je ramène des ballons et des guirlandes ✨"),
-            ("g_lucioles", "tom", "2026-11-19", "08:15", "Quelqu'un passe par Renens ? Il me reste 2 places dans la voiture 🚗"),
-            ("g_lucioles", "lea", "2026-11-19", "08:21", "Moi ! Et je fais le gâteau 🎂"),
-            ("g_lucioles", "zoe", "2026-11-19", "08:24", "Vous êtes les meilleurs 🥹"),
-            ("g_lucioles", "nathan", "2026-11-19", "08:30", "Dress code paillettes obligatoire 😎"),
-            ("g_lucioles", "chloe", "2026-11-19", "09:12", "J'ai déjà trouvé ma tenue 🪩"),
-            ("g_lucioles", "camille", "2026-11-19", "09:31", "Trop hâte ! On répète la choré vendredi ? 💃"),
-            ("g_coloc", "sarah", "2026-11-19", "09:05", "Qui a pris la dernière part de tarte ? 😇"),
-            ("g_foot", "malik", "2026-11-19", "08:48", "Ce soir 19 h au terrain du parc, on est 9 ⚽"),
-            ("g_chorale", "chloe", "2026-11-18", "19:40", "Répétition lundi : on attaque le nouveau morceau 🎶")]
+    msgs = [("g_lucioles", "zoe", "2026-11-28", "08:02", "Coucou la bande ! 🎉 Samedi 12, c'est ma soirée disco : vous venez ?"),
+            ("g_lucioles", "hugo", "2026-11-28", "08:05", "Évidemment ! Je m'occupe de la playlist 🎶"),
+            ("g_lucioles", "ines", "2026-11-28", "08:07", "Je ramène des ballons et des guirlandes ✨"),
+            ("g_lucioles", "tom", "2026-11-28", "08:15", "Quelqu'un passe par Renens ? Il me reste 2 places dans la voiture 🚗"),
+            ("g_lucioles", "lea", "2026-11-28", "08:21", "Moi ! Et je fais le gâteau 🎂"),
+            ("g_lucioles", "zoe", "2026-11-28", "08:24", "Vous êtes les meilleurs 🥹"),
+            ("g_lucioles", "nathan", "2026-11-28", "08:30", "Dress code paillettes obligatoire 😎"),
+            ("g_lucioles", "chloe", "2026-11-28", "09:12", "J'ai déjà trouvé ma tenue 🪩"),
+            ("g_lucioles", "camille", "2026-11-28", "09:31", "Trop hâte ! On répète la choré vendredi ? 💃"),
+            ("g_coloc", "sarah", "2026-11-28", "09:05", "Qui a pris la dernière part de tarte ? 😇"),
+            ("g_foot", "malik", "2026-11-28", "08:48", "Ce soir 19 h au terrain du parc, on est 9 ⚽"),
+            ("g_chorale", "chloe", "2026-11-27", "19:40", "Répétition lundi : on attaque le nouveau morceau 🎶")]
     for g, who, day, hm, body in msgs:
         out.append(f"insert into group_messages (group_id, user_id, body) values ({P(g)}, {P(who)}, {q(body)});")
         # La base date le message à l'envoi : on lui redonne son heure (après l'insertion, comme une conversation passée).
@@ -186,21 +186,21 @@ def create(assets: pathlib.Path):
     for d, k in (("d_hugo", "hugo"), ("d_ines", "ines")):
         a, b = sorted([u["lea"], u[k]])
         out.append(f"insert into direct_chats (id, user_a, user_b, created_by, status) values ({P(d)}, {q(a)}, {q(b)}, {P(k)}, 'active');")
-    for d, who, day, hm, body in (("d_hugo", "hugo", "2026-11-19", "09:25", "Tu passes me prendre samedi ? 🚗"),
-                                  ("d_ines", "lea", "2026-11-18", "21:14", "Je ramène le fromage pour vendredi 🧀"),
-                                  ("d_ines", "ines", "2026-11-18", "21:16", "Parfait, merci ! 🙌")):
+    for d, who, day, hm, body in (("d_hugo", "hugo", "2026-11-28", "09:25", "Tu passes me prendre samedi ? 🚗"),
+                                  ("d_ines", "lea", "2026-11-27", "21:14", "Je ramène le fromage pour vendredi 🧀"),
+                                  ("d_ines", "ines", "2026-11-27", "21:16", "Parfait, merci ! 🙌")):
         out.append(f"insert into direct_messages (chat_id, user_id, body) values ({P(d)}, {P(who)}, {q(body)});")
         out.append(f"update direct_messages set created_at = {local(day, hm)} where chat_id = {P(d)} and body = {q(body)};")
     for who, hm, body, ann in (("zoe", "07:40", "Rendez-vous à 20 h, entrée par la cour 🪩", True),
                                ("tom", "07:55", "Je peux prendre 2 personnes depuis Renens 🚗", False),
                                ("ines", "08:10", "Qui s'occupe de la déco de la table ?", False)):
         out.append(f"insert into messages (event_id, user_id, body, created_at, announcement, pinned) values ({P('e_disco')}, "
-                   f"{P(who)}, {q(body)}, {local('2026-11-19', hm)}, {str(ann).lower()}, {str(ann).lower()});")
+                   f"{P(who)}, {q(body)}, {local('2026-11-28', hm)}, {str(ann).lower()}, {str(ann).lower()});")
     # La soirée disco et le karaoké sont des événements des Lucioles (page du groupe : « Prochains événements »).
     for e in ("e_disco", "e_karaoke"):
         out.append(f"insert into event_groups (event_id, group_id, status, announce) values ({P(e)}, {P('g_lucioles')}, 'approved', false);")
     # Réponses données ces derniers jours (pas toutes à l'instant de la création).
-    out.append("update rsvps r set updated_at = timestamptz '2026-11-12 18:00+01' + (abs(hashtext(r.user_id::text)) % 140) "
+    out.append("update rsvps r set updated_at = timestamptz '2026-11-21 18:00+01' + (abs(hashtext(r.user_id::text)) % 140) "
                f"* interval '1 hour' where r.event_id in ({', '.join(P(e) for e in rsvps)});")
     out.append(read_state(ids))
     out.append("delete from notifications where created_at = now();")  # personne n'est prévenu
@@ -228,13 +228,13 @@ def extras(ids: dict, jwt: str, assets: pathlib.Path):
     out = ["begin;", f"update member_groups set photo_path = {q(photo)} where id = {P('g_coloc')};",
            f"update events set tickets_enabled = true where id = {P('e_raclette')};",
            f"select private.ensure_ticket({P('e_raclette')}, {P('lea')});",
-           f"update event_tickets set issued_at = {local('2026-11-18', '20:15')}, issued_by = {P('ines')} "
+           f"update event_tickets set issued_at = {local('2026-11-27', '20:15')}, issued_by = {P('ines')} "
            f"where event_id = {P('e_raclette')} and user_id = {P('lea')};"]
     chat = [("hugo", "08:20", "J'ai fini la playlist : 4 heures de disco 🕺"), ("lea", "08:26", "Le gâteau sera au chocolat 🎂"),
             ("chloe", "08:33", "Je prends des paillettes pour tout le monde ✨"), ("zoe", "08:41", "Vous êtes trop forts, j'ai hâte 🥹")]
     for who, hm, body in chat:
         out.append(f"insert into messages (event_id, user_id, body) values ({P('e_disco')}, {P(who)}, {q(body)});")
-        out.append(f"update messages set created_at = {local('2026-11-19', hm)} where event_id = {P('e_disco')} and body = {q(body)};")
+        out.append(f"update messages set created_at = {local('2026-11-28', hm)} where event_id = {P('e_disco')} and body = {q(body)};")
     out.append(f"""with g as (insert into tc_groups (name, emoji, currency, created_by) values ('Week-end au chalet', '🏔️', 'CHF',
                  {P('tom')}) returning id)
                insert into tc_members (group_id, user_id, name) select g.id, m.u::uuid, m.n from g,
@@ -243,7 +243,7 @@ def extras(ids: dict, jwt: str, assets: pathlib.Path):
         out.append(f"""with g as (select id from tc_groups where created_by = {P('tom')} and name = 'Week-end au chalet'),
                e as (insert into tc_expenses (group_id, title, amount_cents, paid_by, category, created_by, spent_on)
                  select g.id, {q(title)}, {cents}, (select id from tc_members where group_id = g.id and user_id = {P(by)}), {q(cat)},
-                 {P(by)}, date '2026-11-15' from g returning id, group_id)
+                 {P(by)}, date '2026-11-24' from g returning id, group_id)
                insert into tc_shares (expense_id, member_id, weight, amount_cents)
                select e.id, m.id, 1, {cents} / 5 from e join tc_members m on m.group_id = e.group_id;""")
     out += ["delete from notifications where created_at = now();", "commit;"]
@@ -253,8 +253,8 @@ def extras(ids: dict, jwt: str, assets: pathlib.Path):
 def read_state(ids: dict) -> str:
     """Léa a tout lu, sauf le dernier message des Lucioles et celui de Hugo (pastilles « non lu » modestes) ;
     la discussion de Membres Vendredi Party (messages des recettes de la base de TEST) est lue aussi."""
-    lea, read = q(ids["lea"]), local("2026-11-19", "09:40")
-    lucioles = local("2026-11-19", "09:20")
+    lea, read = q(ids["lea"]), local("2026-11-28", "09:40")
+    lucioles = local("2026-11-28", "09:20")
     groups = [(q(ids[g]), read) for g in ("g_coloc", "g_foot", "g_chorale")] + [(q(ids["g_lucioles"]), lucioles)]
     rows = ", ".join(f"({g}, {lea}, {t})" for g, t in groups)
     return f"""
@@ -263,10 +263,10 @@ def read_state(ids: dict) -> str:
       insert into group_chat_settings (group_id, user_id, read_at) select id, {lea}, {read} from member_groups
         where system_key is not null on conflict (group_id, user_id) do update set read_at = excluded.read_at;
       insert into direct_chat_settings (chat_id, user_id, read_at) values ({q(ids['d_ines'])}, {lea}, {read}),
-        ({q(ids['d_hugo'])}, {lea}, {local('2026-11-19', '09:00')})
+        ({q(ids['d_hugo'])}, {lea}, {local('2026-11-28', '09:00')})
         on conflict (chat_id, user_id) do update set read_at = excluded.read_at;
       insert into chat_list_state (user_id, kind, chat_id, read_at) values ({lea}, 'direct', {q(ids['d_ines'])}, {read}),
-        ({lea}, 'direct', {q(ids['d_hugo'])}, {local('2026-11-19', '09:00')}), ({lea}, 'event', {q(ids['e_disco'])}, {read})
+        ({lea}, 'direct', {q(ids['d_hugo'])}, {local('2026-11-28', '09:00')}), ({lea}, 'event', {q(ids['e_disco'])}, {read})
         on conflict (user_id, kind, chat_id) do update set read_at = excluded.read_at;
       insert into event_chat_prefs (event_id, user_id, last_read_at) values ({q(ids['e_disco'])}, {lea}, {read})
         on conflict (event_id, user_id) do update set last_read_at = excluded.last_read_at;"""

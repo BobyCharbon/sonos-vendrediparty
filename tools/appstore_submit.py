@@ -144,6 +144,11 @@ def details(asc: Asc, app: str) -> None:
                     asset = shot["attributes"].get("imageAsset") or {}
                     url = (asset.get("templateUrl") or "").replace("{w}", "600").replace("{h}", "1300").replace("{f}", "png")
                     print(f"    {shot['attributes'].get('fileName')} {url}")
+            for s in asc.data(f"/v1/appStoreVersionLocalizations/{loc['id']}/appPreviewSets"):
+                previews = asc.data(f"/v1/appPreviewSets/{s['id']}/appPreviews")
+                print(f"  aperçus vidéo {s['attributes'].get('previewType')} : {len(previews)}")
+                for preview in previews:
+                    print(f"    {preview['attributes'].get('fileName')}")
     avail = api(asc.key, "GET", f"/v1/apps/{app}/appAvailabilityV2")
     if "error" not in avail:
         terr = asc.data(f"/v2/appAvailabilities/{avail['data']['id']}/territoryAvailabilities?limit=200&include=territory")
@@ -305,6 +310,8 @@ def fill(key: str, version: str) -> int:
 
 SCREENSHOTS_DIR = ROOT / "ios/appstore/screenshots"
 SCREENSHOT_TYPE = "APP_IPHONE_67"          # 6,9" / 6,7" : 1320 × 2868, la taille exigée par Apple pour l'iPhone
+DUO_SCREENSHOTS_DIR = ROOT / "ios/appstore/screenshots-duo"
+DUO_SCREENSHOT_TYPE = "APP_IPHONE_DUO"     # iPhone Duo, écran extérieur : 1398 × 2034 (type lu sur la fiche en ligne)
 IPHONE_TYPES = {"APP_IPHONE_67", "APP_IPHONE_65", "APP_IPHONE_61", "APP_IPHONE_58", "APP_IPHONE_55"}
 ASSET_WAIT_S = 5 * 60
 
@@ -346,11 +353,39 @@ def wait_assets(asc: Asc, ids: list[str]) -> None:
         raise SystemExit(f"Captures pas traitées au bout de {ASSET_WAIT_S // 60} min : {sorted(pending)}")
 
 
+def shot_files(folder: pathlib.Path, required: bool) -> list[pathlib.Path]:
+    """Captures d'un dossier, dans l'ordre des noms : 3 à 10 (Apple), ou aucune pour un jeu facultatif."""
+    files = sorted(folder.glob("*.png"))
+    if (files or required) and not 3 <= len(files) <= 10:
+        raise SystemExit(f"Il faut 3 à 10 captures dans {folder} ({len(files)} trouvées)")
+    return files
+
+
+def replace_set(asc: Asc, loc_id: str, display_type: str, files: list[pathlib.Path]) -> list[str]:
+    """Le jeu `display_type` de la fiche ne contient plus que `files` : les anciennes captures partent AVANT l'envoi
+    (Apple n'en garde que 10 par jeu ; la version est modifiable, rien n'est en ligne)."""
+    sets = asc.data(f"/v1/appStoreVersionLocalizations/{loc_id}/appScreenshotSets")
+    target = next((s for s in sets if s["attributes"]["screenshotDisplayType"] == display_type), None)
+    if target is None:
+        target = asc.call("POST", "/v1/appScreenshotSets", {"data": {
+            "type": "appScreenshotSets", "attributes": {"screenshotDisplayType": display_type},
+            "relationships": {"appStoreVersionLocalization": {"data": {"type": "appStoreVersionLocalizations",
+                                                                        "id": loc_id}}}}})["data"]
+        print(f"Jeu de captures {display_type} créé")
+    for shot in asc.data(f"/v1/appScreenshotSets/{target['id']}/appScreenshots"):
+        asc.call("DELETE", f"/v1/appScreenshots/{shot['id']}")
+        print(f"Ancienne capture retirée : {display_type} {shot['attributes'].get('fileName')}")
+    ids = [upload_screenshot(asc, target["id"], f) for f in files]
+    wait_assets(asc, ids)
+    print(f"{len(ids)} captures {display_type} envoyées : {', '.join(f.name for f in files)}")
+    return ids
+
+
 def screens(key: str, version: str) -> int:
-    """Remplace les captures iPhone de la fiche fr-FR par ios/appstore/screenshots/*.png (6,9", ordre des noms)."""
-    files = sorted(SCREENSHOTS_DIR.glob("*.png"))
-    if not 3 <= len(files) <= 10:
-        raise SystemExit(f"Il faut 3 à 10 captures dans {SCREENSHOTS_DIR} ({len(files)} trouvées)")
+    """Remplace les captures de la fiche fr-FR : iPhone 6,9" par ios/appstore/screenshots/*.png, iPhone Duo par
+    ios/appstore/screenshots-duo/*.png (ordre des noms), retire les autres tailles d'iPhone et les aperçus vidéo."""
+    files = shot_files(SCREENSHOTS_DIR, required=True)
+    duo = shot_files(DUO_SCREENSHOTS_DIR, required=False)
     asc = Asc(key)
     app = app_id(asc)
     v = editable_version(asc, app, version)
@@ -358,27 +393,23 @@ def screens(key: str, version: str) -> int:
                 if x["attributes"]["locale"] == LOCALE), None)
     if loc is None:
         raise SystemExit(f"Pas de fiche {LOCALE}")
-    sets = asc.data(f"/v1/appStoreVersionLocalizations/{loc['id']}/appScreenshotSets")
-    target = next((s for s in sets if s["attributes"]["screenshotDisplayType"] == SCREENSHOT_TYPE), None)
-    if target is None:
-        target = asc.call("POST", "/v1/appScreenshotSets", {"data": {
-            "type": "appScreenshotSets", "attributes": {"screenshotDisplayType": SCREENSHOT_TYPE},
-            "relationships": {"appStoreVersionLocalization": {"data": {"type": "appStoreVersionLocalizations",
-                                                                        "id": loc["id"]}}}}})["data"]
-        print(f"Jeu de captures {SCREENSHOT_TYPE} créé")
-    ids = [upload_screenshot(asc, target["id"], f) for f in files]
-    wait_assets(asc, ids)
-    print(f"{len(ids)} captures {SCREENSHOT_TYPE} envoyées : {', '.join(f.name for f in files)}")
-    # Les anciennes captures iPhone (autres tailles, et celles du jeu 6,9" d'avant) partent : sinon l'App Store
-    # montrerait encore l'ancienne app sur les petits écrans.
+    replace_set(asc, loc["id"], SCREENSHOT_TYPE, files)
+    if duo:
+        replace_set(asc, loc["id"], DUO_SCREENSHOT_TYPE, duo)
+    # Les captures des autres tailles d'iPhone partent : sinon l'App Store montrerait encore l'ancienne app sur les
+    # petits écrans.
     for s in asc.data(f"/v1/appStoreVersionLocalizations/{loc['id']}/appScreenshotSets"):
-        if s["attributes"]["screenshotDisplayType"] not in IPHONE_TYPES:
+        if s["attributes"]["screenshotDisplayType"] not in IPHONE_TYPES - {SCREENSHOT_TYPE}:
             continue
         for shot in asc.data(f"/v1/appScreenshotSets/{s['id']}/appScreenshots"):
-            if shot["id"] not in ids:
-                asc.call("DELETE", f"/v1/appScreenshots/{shot['id']}")
-                print(f"Ancienne capture retirée : {s['attributes']['screenshotDisplayType']} "
-                      f"{shot['attributes'].get('fileName')}")
+            asc.call("DELETE", f"/v1/appScreenshots/{shot['id']}")
+            print(f"Ancienne capture retirée : {s['attributes']['screenshotDisplayType']} "
+                  f"{shot['attributes'].get('fileName')}")
+    # Aperçus vidéo (App Previews) : tous retirés, de chaque taille (l'ancien tour de l'app montrait l'onglet Musique).
+    for s in asc.data(f"/v1/appStoreVersionLocalizations/{loc['id']}/appPreviewSets"):
+        for preview in asc.data(f"/v1/appPreviewSets/{s['id']}/appPreviews"):
+            asc.call("DELETE", f"/v1/appPreviews/{preview['id']}")
+            print(f"Aperçu vidéo retiré : {s['attributes'].get('previewType')} {preview['attributes'].get('fileName')}")
     return 0
 
 

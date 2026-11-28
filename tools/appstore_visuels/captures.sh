@@ -1,12 +1,12 @@
 #!/bin/zsh
-# Captures brutes du simulateur 6,9" pour les visuels App Store (voir docs/app-store/visuels/README.md).
+# Captures brutes du simulateur (6,9" ou iPhone Duo, écran extérieur) pour les visuels App Store (voir docs/app-store/visuels/README.md).
 # Usage : tools/appstore_visuels/captures.sh <UDID du simulateur> <port du serveur local> <dossier brut> [étapes] [test]
-#   étapes : events,event,eventchat,poll,ticket,chats,chat,pot,ia,games,music (défaut) ; groups (page du groupe) en plus ; test : testCaptures (défaut) ou testApercu
+#   étapes : events,event,eventchat,poll,ticket,chats,chat,pot,ia,meninges,games (défaut) ; groups (page du groupe) en plus ; test : testCaptures (défaut) ou testApercu
 # Prérequis : serveur Party local sur la base de TEST (drapeaux de la prod), données de demo_data.py.
 set -euo pipefail
 HERE=${0:A:h}
 ROOT=${HERE:h:h}
-UDID="$1"; PORT="$2"; OUT="${3:A}"; STEPS="${4:-events,event,eventchat,poll,ticket,chats,chat,pot,ia,games,music}"; TEST="${5:-testCaptures}"
+UDID="$1"; PORT="$2"; OUT="${3:A}"; STEPS="${4:-events,event,eventchat,poll,ticket,chats,chat,pot,ia,meninges,games}"; TEST="${5:-testCaptures}"
 mkdir -p "$OUT"
 xcrun simctl boot "$UDID" 2>/dev/null || true
 xcrun simctl bootstatus "$UDID" -b >/dev/null
@@ -17,7 +17,6 @@ cd "$ROOT/ios"
 xcodegen >/dev/null
 TEST_RUNNER_VISUELS_DIR="$OUT" TEST_RUNNER_VISUELS_ONLY="$STEPS" \
 TEST_RUNNER_VISUELS_JS="$(cat "$HERE/demo_only.js")" \
-TEST_RUNNER_VISUELS_HOST_DEMO="$(cat "$HERE/host_demo.json")" \
 TEST_RUNNER_VISUELS_AI_DRAFT="$(cat "$HERE/ia_draft.json")" \
 TEST_RUNNER_VISUELS_AI_SAID="Soirée karaoké chez moi le samedi 12 décembre à 20 h, avenue de la Gare 21 à Sion. Chacun amène un dessert !" \
 TEST_RUNNER_VISUELS_SERVER="http://127.0.0.1:$PORT" \
