@@ -18,8 +18,9 @@ def test_camera_and_photos_texts_name_the_souvenirs():
     """BETA seulement : l'app App Store n'a pas les Souvenirs et ne les cite pas (contrôle Apple du 26.11)."""
     from tests.test_compliance_1411 import targets, usage_texts
     beta, store = usage_texts(targets()["Party"], "STORE_beta"), usage_texts(targets()["Party"])
+    # 28.11 : la BETA (copie exacte de l'app App Store) n'a plus les Souvenirs : aucune des deux ne les cite.
     for key in ("NSCameraUsageDescription", "NSPhotoLibraryAddUsageDescription"):
-        assert "Souvenirs" in beta[key] and "Souvenirs" not in store[key]
+        assert "Souvenirs" not in beta[key] and "Souvenirs" not in store[key]
 
 
 def test_the_fake_camera_of_the_recette_never_reaches_the_app_store_build():

@@ -794,7 +794,8 @@ def test_round_one_store_permission_texts_never_name_souvenirs_nor_the_agenda():
     assert store["NSCalendarsFullAccessUsageDescription"] == store["NSCalendarsUsageDescription"] == (
         "Pour mettre les dates d'un sondage dans ton calendrier, puis retirer celles qui ne sont pas retenues. "
         "Party ne garde ni n'envoie rien d'autre ; rien ne quitte ton iPhone.")
-    assert "Agenda" in beta["NSCalendarsFullAccessUsageDescription"] and "Souvenirs" in beta["NSCameraUsageDescription"]
+    # 28.11 : la BETA est la copie exacte de l'app App Store (sans Souvenirs ni Agenda) : mêmes textes.
+    assert beta == store
     assert 'PARTY_VARIANT: "STORE$(PARTY_BUNDLE_SUFFIX:c99extidentifier)"' in party["text"]
 
 
@@ -1135,3 +1136,12 @@ def test_b5_names_every_feature_the_app_store_build_switches_off_by_itself():
                 "ios/Party/Chats/People/NewChatGroupView.swift",  # liste d'emojis sans 🍻 🍷
                 "ios/PartyTV/CardGames.swift"}  # app Apple TV : pas dans cette version (aucun tvOS joint)
     assert seen - harmless <= set(gates), sorted(seen - harmless - set(gates))
+
+
+def test_the_pot_invitation_on_iphone_can_be_reported_and_b1_says_how_the_music_tab_appears():
+    """Jugement final du 28.11 : l'invitation au Pot commun (iPhone) a « Signaler » comme les pages d'invitation du web ;
+    B1 ne dit plus « no tab » (l'onglet Musique apparaît après le code à 6 chiffres)."""
+    join = (_root() / "ios/Party/Tricount/TricountListView.swift").read_text(encoding="utf-8")
+    assert "🚩 Signaler cette invitation · Traité sous 24 h · \\(TermsView.supportEmail)" in join
+    guide = (_root() / "docs/app-store/notes-for-review.md").read_text(encoding="utf-8")
+    assert "no tab in the App Store app" not in guide and "it appears after the host's 6-digit code" in guide

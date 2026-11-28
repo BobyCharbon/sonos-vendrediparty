@@ -67,10 +67,8 @@ def test_the_calendar_sentence_says_what_leaves_the_iphone():
     keys = ("NSCalendarsFullAccessUsageDescription", "NSCalendarsUsageDescription")
     # 24.11 : l'Agenda ouvre (BETA) ; la phrase dit l'usage réel (Apple 5.1.1) : lecture des rendez-vous de l'iPhone,
     # dates d'un sondage, et, seulement si on partage ses dispos, les heures prises arrondies, jamais titre, lieu ni notes.
-    for line in (beta[k] for k in keys):
-        assert "sondage" in line and "Agenda" in line and "dispos" in line
-        assert "arrondies" in line and "jamais le titre, le lieu ni les notes" in line
-        assert "ne quitte ton iPhone" not in line
+    # 28.11 : la BETA est la copie exacte de l'app App Store (sans Agenda) : même phrase.
+    assert all(beta[k] == store[k] for k in keys)
     # App App Store (contrôle du 26.11) : pas d'Agenda ; seulement les dates d'un sondage, rien ne quitte l'iPhone.
     for line in (store[k] for k in keys):
         assert "sondage" in line and "Agenda" not in line and "rien ne quitte ton iPhone" in line

@@ -232,6 +232,16 @@ struct JoinTricountView: View {
                         if claim == nil {
                             Section("Ton prénom") { TextField("Prénom", text: $name) }
                         }
+                        // Apple 1.2 (jugement final du 28.11) : le nom du pot et les prénoms viennent d'autres personnes ;
+                        // comme les pages d'invitation du web (InviteReportLine), on peut signaler avant d'entrer.
+                        Section {
+                            if let mail = URL(string: "mailto:\(TermsView.supportEmail)?subject=Signalement%20d%27une%20invitation%20au%20Pot%20commun") {
+                                Link(destination: mail) {
+                                    Text("🚩 Signaler cette invitation · Traité sous 24 h · \(TermsView.supportEmail)").font(.footnote)
+                                }
+                                .accessibilityIdentifier("tc-join-report")
+                            }
+                        }
                     }
                 } else if loaded {
                     VStack(spacing: 12) {

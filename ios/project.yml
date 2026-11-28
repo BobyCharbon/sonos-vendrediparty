@@ -72,7 +72,7 @@ targets:
         # ignore ce verrou (Apple) : l'app y suit toute taille et toute orientation (CLAUDE.md, « iPhone Duo »).
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         # Textes par variante (contrôle Apple du 26.11) : l'app App Store ne cite ni Souvenirs ni l'Agenda, absents de
-        # son binaire ; la BETA les garde. PARTY_USAGE_*_STORE (App Store) ou *_STORE_beta (BETA), choisis par
+        # son binaire ; la BETA aussi depuis le 28.11 (copie exacte de l'app App Store : mêmes textes). PARTY_USAGE_*_STORE (App Store) ou *_STORE_beta (BETA), choisis par
         # PARTY_VARIANT (réglages de la cible Party, plus bas).
         NSCameraUsageDescription: "$(PARTY_USAGE_CAMERA_$(PARTY_VARIANT))"
         NSPhotoLibraryUsageDescription: "Pour choisir une photo de profil, d'événement, de groupe, de discussion ou un ticket du Pot commun."
@@ -108,11 +108,11 @@ targets:
         # archive TestFlight, qui passe PARTY_BUNDLE_SUFFIX=.beta). Textes d'autorisation par variante :
         PARTY_VARIANT: "STORE$(PARTY_BUNDLE_SUFFIX:c99extidentifier)"
         PARTY_USAGE_CAMERA_STORE: "Pour scanner un QR code (code de la soirée ou d'un jeu, billet) ou un ticket du Pot commun, et prendre une photo de profil, d'événement, de groupe ou à envoyer dans une discussion."
-        PARTY_USAGE_CAMERA_STORE_beta: "Pour prendre les photos Souvenirs d'une soirée, scanner un QR code (code de la soirée ou d'un jeu, billet) ou un ticket du Pot commun, et prendre une photo de profil, d'événement, de groupe ou à envoyer dans une discussion."
+        PARTY_USAGE_CAMERA_STORE_beta: "Pour scanner un QR code (code de la soirée ou d'un jeu, billet) ou un ticket du Pot commun, et prendre une photo de profil, d'événement, de groupe ou à envoyer dans une discussion."
         PARTY_USAGE_PHOTO_ADD_STORE: "Pour enregistrer dans tes photos une image que tu choisis de garder (photo d'un événement ou d'une discussion, billet QR)."
-        PARTY_USAGE_PHOTO_ADD_STORE_beta: "Pour enregistrer dans tes photos une image que tu choisis de garder (photo de tes Souvenirs, d'un événement ou d'une discussion, billet QR)."
+        PARTY_USAGE_PHOTO_ADD_STORE_beta: "Pour enregistrer dans tes photos une image que tu choisis de garder (photo d'un événement ou d'une discussion, billet QR)."
         PARTY_USAGE_CALENDAR_STORE: "Pour mettre les dates d'un sondage dans ton calendrier, puis retirer celles qui ne sont pas retenues. Party ne garde ni n'envoie rien d'autre ; rien ne quitte ton iPhone."
-        PARTY_USAGE_CALENDAR_STORE_beta: "Pour voir tes rendez-vous de l'iPhone dans l'Agenda de Party et y mettre les dates d'un sondage en un toucher. Si tu partages tes dispos avec un groupe ou un lien, seules les heures où tu es pris partent, arrondies à la demi-heure : jamais le titre, le lieu ni les notes."
+        PARTY_USAGE_CALENDAR_STORE_beta: "Pour mettre les dates d'un sondage dans ton calendrier, puis retirer celles qui ne sont pas retenues. Party ne garde ni n'envoie rien d'autre ; rien ne quitte ton iPhone."
         # iPhone seulement : sur iPad, l'app tourne en mode compatible (pas de captures iPad à fournir).
         # Au niveau de la cible : le préréglage XcodeGen d'une app iOS impose sinon "1,2".
         TARGETED_DEVICE_FAMILY: "1"

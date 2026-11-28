@@ -101,7 +101,7 @@ What you can do with it:
 - **Discussions** — group chats and direct messages between people who know each other.
 - **Games** — party games played together on everyone's phone in a "game room", plus solo brain games. **No drinking
   games**: quizzes, card, word, party and 3D games with points only.
-- **Music** (no tab in the App Store app) — at a party at the host's place, a guest types the host's 6-digit code in
+- **Music** (no tab by default: it appears after the host's 6-digit code, see B4.15) — at a party at the host's place, a guest types the host's 6-digit code in
   Jeux › **Code** and adds songs to the host's queue (the host's own speakers and music account).
 - **Settings** — profile, notifications (one switch per type), groups, shared expenses ("Pot commun"), privacy, terms,
   account deletion.
