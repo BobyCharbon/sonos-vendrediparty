@@ -95,6 +95,7 @@ struct TricountGroupView: View {
                     }
                     Button(role: .destructive) { confirmLeave = true } label: { Label("Quitter ce pot commun", systemImage: "rectangle.portrait.and.arrow.right") }
                 } label: { Image(systemName: "ellipsis.circle") }
+                .accessibilityLabel("Plus d'options")
                 .accessibilityIdentifier("tc-menu")
             }
         }
@@ -196,12 +197,12 @@ struct TricountGroupView: View {
                                 // Signaler (contrôle Apple du 26.11) : aussi dans un pot archivé, où la dépense ne s'ouvre plus.
                                 .contextMenu {
                                     // Pas sur sa propre dépense : la base refuse de signaler son propre contenu (recette de nuit).
-                                    if !e.isTransfer && e.paid_by != g.me {
+                                    if !e.isTransfer && e.reportable(me: g.me) {
                                         Button { reporting = ExpenseEditor.report(expense: e.id, title: e.title) } label: {
                                             Label("Signaler la dépense", systemImage: "flag")
                                         }
                                     }
-                                    if e.receipt_url != nil {
+                                    if e.receipt_url != nil && e.reportable(me: g.me) {
                                         Button { reporting = ExpenseEditor.report(receipt: e.id) } label: {
                                             Label("Signaler la photo du ticket", systemImage: "flag")
                                         }

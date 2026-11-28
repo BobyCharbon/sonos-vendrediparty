@@ -68,7 +68,12 @@ enum TC {
         let shares: [Share]
         let parts: [Part]
         let my_part_cents: Int
+        /// Dépense créée par moi (migration 20261128100000) ; absent avec une base d'avant.
+        let mine: Bool?
         var isTransfer: Bool { kind == "transfer" }
+        /// « Signaler » jamais sur sa propre dépense (la base refuse « self » : le propriétaire est l'auteur, created_by).
+        /// Base d'avant (sans `mine`) : la règle d'avant, pas sur une dépense que j'ai payée.
+        func reportable(me: String?) -> Bool { mine.map { !$0 } ?? (paid_by != me) }
     }
 
     struct Settle: Decodable, Equatable, Hashable {

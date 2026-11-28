@@ -94,7 +94,7 @@ struct ExpenseEditor: View {
                 if receipt != nil || savedReceipt != nil { receiptSection }
                 if draft.id != nil {
                     Section {
-                        if let id = draft.id {
+                        if let id = draft.id, reportable {
                             Button("Signaler cette dépense") { reporting = Self.report(expense: id, title: draft.title) }
                                 .accessibilityIdentifier("tc-report-expense")
                         }
@@ -148,6 +148,11 @@ struct ExpenseEditor: View {
         group.expenses.first { $0.id == draft.id }?.receipt_url.flatMap(URL.init(string:))
     }
 
+    /// « Signaler » jamais sur sa propre dépense (base d'avant, sans `mine` : pas sur une dépense que j'ai payée).
+    private var reportable: Bool {
+        group.expenses.first { $0.id == draft.id }?.reportable(me: group.me) ?? true
+    }
+
     /// Le ticket, en vignette ; un toucher l'ouvre en grand (avis 070af8c56ae4).
     private var receiptSection: some View {
         Section("Ticket") {
@@ -162,7 +167,7 @@ struct ExpenseEditor: View {
                 }
             }
             .accessibilityIdentifier("tc-receipt")
-            if receipt == nil, savedReceipt != nil, let id = draft.id {
+            if receipt == nil, savedReceipt != nil, let id = draft.id, reportable {
                 Button("Signaler la photo du ticket") { reporting = Self.report(receipt: id) }
                     .accessibilityIdentifier("tc-report-receipt")
             }

@@ -92,6 +92,15 @@
          mini-profil propose la demande de message au lieu de « Tu ne peux pas lui écrire pour l'instant », et la personne
          apparaît dans « Tes contacts sur Party » (recette de nuit du 28.11, notes de revue). Même plafond d'empreintes
          qu'`open_direct_chat` (20 fausses / 24 h). Serveur (`app/chat_rpc.py`, RELAY) et nouveau build iPhone avec.
+      18. `2026-11-28-depense-mienne` (20261128100000) : **PRÊT** (apply + rollback, testés sur TEST le 28.11 :
+         `tests/supabase_live/test_depense_mienne_live.py` et `test_blocage_pot_commun_live.py` ; retour arrière essayé
+         (définition d'origine retrouvée, md5) puis réapplication, rejoué sans effet). À appliquer APRÈS le 13
+         (`blocage-pot-commun`). Redéfinit par UNE ancre `private.tc_group_json` (`'split_mode', e.split_mode,
+         'created_at', e.created_at,`, partie « expenses » : vérifiée le 28.11 en lecture seule : `regexp_count` = 1 en prod,
+         non touchée par les fichiers 6, 13 et 14) : chaque dépense porte `mine` (created_by = moi). Serveur (`app/tricount.py`
+         la transmet) et nouveau build iPhone : « Signaler la dépense / le ticket » caché sur sa propre dépense (menu et
+         éditeur ; la base refusait « self »), proposé sur celle saisie par un autre et payée par moi. Sans ce fichier,
+         l'app garde la règle du payeur.
 - [ ] **Revérifier les ancres contre la prod avant d'appliquer** (150000 a réécrit event_changed, event_guest_list,
       apply_waitlist, event_attendance, public_event, chat_event_cards, invite_preview).
       **Fait le 27.11 en LECTURE SEULE** (`sbq.py prod`, `pg_get_functiondef` de la prod ; photo du 27.11, à refaire si

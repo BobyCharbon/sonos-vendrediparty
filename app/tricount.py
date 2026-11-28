@@ -54,7 +54,7 @@ class Tricount:
         for e in g.get("expenses", []):
             parts = tc.split(e)
             expenses.append({**{k: e.get(k) for k in ("id", "kind", "title", "amount_cents", "currency", "rate", "paid_by", "spent_on",
-                                                      "category", "note", "split_mode", "receipt_path", "created_at")},
+                                                      "category", "note", "split_mode", "receipt_path", "created_at", "mine")},
                              "group_amount_cents": tc.group_amount(e), "paid_by_name": names.get(e["paid_by"], "?"),
                              "shares": e.get("shares") or [], "parts": [{"member_id": k, "name": names.get(k, "?"), "amount_cents": v}
                                                                         for k, v in parts.items()],
