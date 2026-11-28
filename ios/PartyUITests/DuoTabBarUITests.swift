@@ -162,4 +162,82 @@ final class DuoTabBarUITests: XCTestCase {
         XCTAssertTrue(app.buttons["posture closed closed"].waitForExistence(timeout: 40), app.debugDescription)
         snapshot(app, "duo-3-posture")
     }
+
+    /// Connexion (28.11) : sur Réglages, l'onglet Discussions apparaît (compte connecté, nouvelle liste d'onglets). La barre
+    /// garde Réglages sélectionné et un toucher sur Événements l'ouvre.
+    func testTheBarFollowsThePageWhenATabAppearsOnSettings() {
+        let app = XCUIApplication()
+        // Départ : Événements. 6 s après le chargement, la page montre l'onglet Discussions, comme après la connexion.
+        app.launchEnvironment["PARTY_DEBUG_JS"] = """
+        localStorage.setItem('vp_tab','events');localStorage.setItem('vp_install_dismissed','1');
+        addEventListener('load', function () { setTimeout(function () {
+          document.querySelector('#tabs [data-tab="chats"]').classList.remove('hidden'); }, 6000); });
+        """
+        app.launch()
+        let bar = ProcessInfo.processInfo.environment["PARTY_DUO_VERTICAL"] == "1" ? app.toolbars : app.tabBars
+        let settings = bar.buttons.matching(NSPredicate(format: "label IN {'Réglages', 'Se connecter'}")).firstMatch
+        let events = bar.buttons["Événements"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 40), app.debugDescription)
+        settings.tap()
+        let selected = NSPredicate(format: "isSelected == true")
+        wait(for: [expectation(for: selected, evaluatedWith: settings)], timeout: 10)
+        XCTAssertTrue(bar.buttons["Discussions"].waitForExistence(timeout: 20), app.debugDescription)
+        sleep(2)
+        snapshot(app, "duo-8-onglet-ajoute")
+        XCTAssertTrue(settings.isSelected, "Réglages affiché : la barre doit le garder sélectionné\n\(app.debugDescription)")
+        XCTAssertFalse(events.isSelected, "Événements sélectionné alors que la page montre Réglages")
+        events.tap()
+        wait(for: [expectation(for: selected, evaluatedWith: events)], timeout: 10)
+        XCTAssertFalse(settings.isSelected)
+    }
+
+    /// Vraie connexion par SMS (Release E2E_HOOKS + serveur local + base de TEST, numéro de test à code fixe :
+    /// TEST_RUNNER_PARTY_DUO_PHONE / TEST_RUNNER_PARTY_DUO_CODE). Retour du 28.11 : après la connexion par Réglages, l'onglet
+    /// Événements (sélectionné) montrait la page Réglages du module pour un compte pas encore actif (profil incomplet).
+    func testAfterSignInTheBarShowsSettingsAndEventsOpens() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let phone = env["PARTY_DUO_PHONE"], let code = env["PARTY_DUO_CODE"] else {
+            throw XCTSkip("Recette réelle : TEST_RUNNER_PARTY_DUO_PHONE et TEST_RUNNER_PARTY_DUO_CODE")
+        }
+        let app = XCUIApplication()
+        app.launchEnvironment["PARTY_DEBUG_JS"] = "localStorage.setItem('vp_install_dismissed','1');"
+        app.launch()
+        let bar = env["PARTY_DUO_VERTICAL"] == "1" ? app.toolbars : app.tabBars
+        let settings = bar.buttons.matching(NSPredicate(format: "label IN {'Réglages', 'Se connecter'}")).firstMatch
+        let events = bar.buttons["Événements"]
+        XCTAssertTrue(settings.waitForExistence(timeout: 40), app.debugDescription)
+        settings.tap()
+        let signIn = app.staticTexts["Se connecter"].firstMatch
+        XCTAssertTrue(signIn.waitForExistence(timeout: 15), app.debugDescription)
+        signIn.tap()
+        let field = app.textFields["login-phone"]
+        XCTAssertTrue(field.waitForExistence(timeout: 10), "champ du numéro")
+        field.tap()
+        app.typeText(phone)
+        app.buttons["login-send"].tap()
+        let codeField = app.textFields["login-code"]
+        XCTAssertTrue(codeField.waitForExistence(timeout: 20), "champ du code")
+        codeField.tap()
+        app.typeText(code)
+        XCTAssertTrue(bar.buttons["Réglages"].waitForExistence(timeout: 30), "connecté : onglet « Réglages »")
+        // Aussitôt, comme une personne (et la recette des captures) : le module Événements se recharge encore.
+        snapshot(app, "duo-9-apres-connexion")
+        let selected = NSPredicate(format: "isSelected == true")
+        XCTAssertTrue(bar.buttons["Réglages"].isSelected, "Réglages affiché : la barre doit le garder sélectionné\n\(app.debugDescription)")
+        XCTAssertFalse(events.isSelected, "Événements sélectionné alors que la page montre Réglages")
+        events.tap()
+        wait(for: [expectation(for: selected, evaluatedWith: events)], timeout: 10)
+        // Onglet Événements : jamais la page Réglages du module dans son cadre (elle y restait, profil incomplet ou
+        // Événements fermés au compte), ni après un second toucher sur l'onglet.
+        let moduleSettings = app.webViews.staticTexts["Réglages"]
+        let gone = NSPredicate(format: "exists == false")
+        sleep(6)
+        snapshot(app, "duo-10-evenements")
+        let firstTap = !moduleSettings.exists
+        events.tap()
+        sleep(8)
+        snapshot(app, "duo-11-evenements-retouche")
+        XCTAssertTrue(firstTap, "Événements : la page Réglages du module est restée dans le cadre")
+        wait(for: [expectation(for: gone, evaluatedWith: moduleSettings)], timeout: 5)
+    }
 }

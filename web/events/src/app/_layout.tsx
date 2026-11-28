@@ -147,9 +147,11 @@ function Gate() {
   useEffect(() => {
     // Réglages : ouverts à tout compte connecté ; le reste attend la validation du membre.
     // Réglages, liens d'invitation et lien public : ouverts dès la connexion (ils demandent eux-mêmes le profil complet).
-    const open = intent.current === '/account' || /^\/(?:(?:group-|prono-)?invite|join|share)\//.test(intent.current ?? '');
+    // L'accueil aussi (onglet Événements de Party) : un compte pas encore actif (profil incomplet, Événements fermés) y
+    // reçoit « welcome ». Sinon il gardait la page Réglages du module sous l'onglet Événements (iPhone Duo, 28.11).
+    const open = intent.current === '/' || intent.current === '/account' || /^\/(?:(?:group-|prono-)?invite|join|share)\//.test(intent.current ?? '');
     if (!loading && session && (active || open) && !profileError && intent.current) {
-      const target = intent.current;
+      const target = intent.current === '/' && !active ? '/welcome' : intent.current;
       intent.current = null;
       forgetStoredIntent();
       if (path !== target) {

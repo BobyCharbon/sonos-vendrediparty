@@ -68,11 +68,12 @@ def browser(request):
             p.stop()
 
 
-def mock_services(page, pending=False, events=1, people=(), roles=None, unread=(), rsvps=(), event_extra=None):
+def mock_services(page, pending=False, events=1, people=(), roles=None, unread=(), rsvps=(), event_extra=None, profile_extra=None):
     # Tests du module ouvert seul : pas de renvoi vers la page Party (lib/partyShell.ts, leaveIfAlone).
     page.add_init_script("try { if (window.top === window) localStorage.setItem('party_module_alone', '1'); } catch (e) {}")
     calls = []
     profile = {'id': USER, 'display_name': 'Compte de démonstration', 'phone': '41791234567', 'role': 'guest' if pending else 'admin', 'status': 'active', 'avatar_url': f'{USER}/photo.jpg', 'first_name': 'Camille', 'last_name': 'Demo', 'created_at': '2026-10-19T08:00:00Z'}
+    profile.update(profile_extra or {})  # profil incomplet, autre rôle… pour un test
     category = {'id': 'ed69d11e-34dd-43fe-b211-10d0dd158ba9', 'name': 'Soirée', 'color': '#FFB347', 'sort': 0, 'archived': False, 'icon': None}
     event = {'id': EVENT, 'title': 'Sortie de démonstration (test local)', 'description': 'Données fictives réservées aux tests.', 'created_by': USER,
              'status': 'published', 'date_mode': 'fixed', 'starts_at': '2030-11-14T18:00:00Z', 'ends_at': None,
@@ -237,6 +238,29 @@ def test_new_account_is_told_it_is_signed_in_without_join_request(browser,events
         assert not any(path.endswith('/rpc/request_join') or path.endswith('/join_requests') for _,path,_ in calls)
     finally: context.close()
 
+
+
+def test_the_events_tab_never_keeps_the_settings_page_of_an_account_not_yet_active(browser, events_origin):
+    """iPhone Duo, 28.11 : connexion par l'onglet Réglages, profil incomplet, puis onglet Événements : le cadre gardait la
+    page Réglages du module (la page « / » demandée par Party n'était servie qu'aux comptes actifs). Il montre l'accueil
+    du compte (« Faisons connaissance »), au premier toucher comme au second, et même pendant un rechargement du module."""
+    context=browser.new_context(viewport={'width':390,'height':844})
+    page=context.new_page();mock_services(page,profile_extra={'first_name':None,'last_name':None})
+    try:
+        page.goto(events_origin+'/?tab=account',wait_until='domcontentloaded')
+        frame=page.frame_locator('#eventsFrame');login(frame)
+        settings=frame.get_by_text('Complète ton profil',exact=True)
+        pw.expect(settings).to_be_visible(timeout=15000)
+        welcome=frame.get_by_text('Faisons connaissance',exact=True)
+        # Comme l'app après la connexion : le module se recharge (accountChanged) pendant qu'on touche Événements.
+        page.evaluate("document.getElementById('eventsFrame').contentWindow.location.reload()")
+        page.evaluate("document.querySelector('#tabs [data-tab=events]').click()")
+        pw.expect(welcome).to_be_visible(timeout=15000)
+        pw.expect(settings).to_have_count(0)
+        page.evaluate("document.querySelector('#tabs [data-tab=events]').click()")  # second toucher : rechargé, même page
+        pw.expect(welcome).to_be_visible(timeout=15000)
+        pw.expect(settings).to_have_count(0)
+    finally: context.close()
 
 IPHONE='Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
 ANDROID='Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36'
