@@ -38,6 +38,9 @@ def test_audio_session_calls_stay_off_the_main_thread():
     body = voice.split("nonisolated static func useBuiltInMicrophone", 1)
     rest = body[0] + body[1].split("\n    }\n", 1)[1]
     for m in re.finditer(r"AVAudioSession\.sharedInstance\(\)\.(setActive|setCategory|recordPermission)", rest):
-        line = rest[rest.rfind("\n", 0, m.start()):m.start()]
-        block = rest[max(0, m.start() - 400):m.start()]
-        assert "AudioSessionQueue" in line or "AudioSessionQueue.run {" in block or "perform {" in line, line
+        # L'appel doit être DANS une fermeture encore ouverte d'un `AudioSessionQueue.run / perform(...)` (accolades
+        # comptées depuis le dernier appel à la file ; lot 19 : `perform(within: délai, { … }, late: { … })`).
+        start = rest.rfind("AudioSessionQueue.", 0, m.start())
+        assert start >= 0, rest[rest.rfind("\n", 0, m.start()):m.start()]
+        between = rest[start:m.start()]
+        assert between.count("{") > between.count("}"), between[-300:]
