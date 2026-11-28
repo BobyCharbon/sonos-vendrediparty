@@ -2613,7 +2613,7 @@ def view(g: dict, gid: str) -> dict:
                        # Le mot proposé par le Fantôme n'est jamais montré à la table (contrôle du 26.11, Apple 1.2) :
                        # seulement s'il a proposé un mot (raté ; trouvé, la partie est gagnée par le Fantôme).
                        "role": ROLE_LABELS.get(last["role"]), "guess": bool(last.get("guess")), "me": last["eliminated"] == gid}
-        if last.get("choices") and g["phase"] == "white_guess":
+        if last.get("choices") and g["phase"] == "white_guess" and last["eliminated"] == gid:
             out["last"]["choices"] = last["choices"]  # mots de la banque (partie de l'app) : le Fantôme en choisit un
     elif last.get("tie"):
         out["last"] = {"tie": True}

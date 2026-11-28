@@ -554,6 +554,11 @@ l'admin. Toujours :
   numéro envoyé). Jeux à texte écrit cachés (`TEXT_GAMES` = Tu me connais ?, Le Masque, dans `HIDDEN_GAMES`). Aucun champ
   de texte libre de jeu dans `/static-store/` (lignes `<!-- store-cut -->`). Test discriminant (sentinelle dans chaque
   champ de chaque action, app ET web) : `tests/test_store_sans_texte.py`. Tout nouveau champ de jeu = une liste ou des choix.
+  Recette du 28.11 : Musique NATIVE = même liste (feuille `namePicker` de MusicView, `api.gameNames`), et le serveur pose
+  la liste ou « Joueur » pour toute requête de l'app (`guest_name` : /api/hello, /api/queue, /api/message, présence des jeux) ;
+  « + Ajouter » passe par `seat_name` (doublon → « Joueur N », salle et jeu) ; 6 mots du Fantôme au Fantôme seul ; case des
+  CGU AVANT la liste des prénoms (jamais sous la barre d'onglets) ; pastille = prénom de la table (`gameSeatName`) ; nom
+  entier dans ☰ › Participants (`.g-pname`). Tests : `tests/test_store_sans_texte_recette.py`, `tests/e2e/test_store_noms_recette.py`.
 - Tout nouveau jeu, option ou texte : se demander s'il passe dans PartyStore. Tests : `tests/test_store_app.py`,
   `tests/e2e/test_store_app_no_drinks.py`. Le web et Android gardent tout.
 - **La BETA iPhone (TestFlight) = copie EXACTE de l'app envoyée à Apple** (décision de l'admin du 27.11 : « il faut que la bêta

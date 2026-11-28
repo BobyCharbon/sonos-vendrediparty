@@ -1834,7 +1834,7 @@ def game_presence(request: Request, guest_id: str, name: str):
         return
     clean = " ".join((name or "").split())[:30]
     if clean and not name_refusal(clean, store_app.is_store(request)):  # prénom refusé : jamais dans la liste de l'hôte
-        store.register_guest(guest_id, clean, client_ip(request), via="games")
+        store.register_guest(guest_id, guest_name(request, clean), client_ip(request), via="games")
     store.seen(guest_id)  # signe de vie : sert à savoir qui est encore là (présence dans les parties)
 
 
@@ -3975,8 +3975,10 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         raise HTTPException(409, "Dans cette partie, les dilemmes viennent tous de Party.")
     if a == "addguest" and (msg := name_refusal(" ".join(body.guess.split())[:30], store_game(g))):
         raise HTTPException(400, msg)
-    if a == "addguest" and store_game(g):  # décision du 28.11 : un prénom de la liste, sinon « Joueur N » (scrub_store_names)
-        body.guess = store_app.listed_name(body.guess) or store_app.ALIAS
+    manual_id = None
+    if a == "addguest" and store_game(g):  # décision du 28.11 : un prénom de la liste libre à cette table, sinon « Joueur N »
+        manual_id = "manual-" + secrets.token_hex(6)
+        body.guess = store_app.seat_name(g, manual_id, body.guess, [room_child(g) if g["type"] == "room" else room_of(g)])
     if g["type"] == "room" and a == "launch":
         if not games.is_lead(g, me):
             raise HTTPException(403, "Seul l'animateur lance les jeux")
@@ -4001,7 +4003,7 @@ def perform_game_action(code: str, body: GameAction, request: Request):
         "cundo": (games.casino_undo, seat), "cready": (games.casino_ready, seat, random),
         "dnext": (games.divan_next, me), "djoker": (games.divan_joker, me), "dback": (games.divan_back, me), "dheart": (games.divan_heart, me),
         "tanswer": (games.tmc_answer, me, body.guess), "tjudge": (games.tmc_judge, me, body.amount),
-        "addguest": (games.add_guest, body.guess), "mvote": (games.vote_for, target, body.guess),
+        "addguest": (games.add_guest, body.guess, manual_id), "mvote": (games.vote_for, target, body.guess),
         "rvote": (games.room_vote, me, body.target),
         "pause": (games.pause_game, me), "resume": (games.resume_game,),
         "bpset": (games.bp_call, beerpong.configure if g["phase"] == "lobby" else beerpong.configure_live, body.settings),
@@ -5258,6 +5260,12 @@ def clean_name(raw: str) -> str:
         raise HTTPException(400, str(e))
 
 
+def guest_name(request: Request, name: str) -> str:
+    """Prénom vu par l'hôte et les invités : dans l'app App Store (écrans natifs compris), la liste ou « Joueur »
+    (décision du 28.11, jamais un texte tapé) ; le web garde le sien."""
+    return store_app.listed_or_alias(name) if store_app.is_store(request) else name
+
+
 def check_guest_id(guest_id: str):
     if not GUEST_ID_RE.match(guest_id):
         raise HTTPException(400, "Requête invalide")
@@ -5272,7 +5280,7 @@ class Hello(BaseModel):
 def hello(body: Hello, request: Request):
     """L'invité a saisi son prénom : il apparaît dans l'admin."""
     check_guest_id(body.guest_id)
-    store.register_guest(body.guest_id, clean_name(body.guest_name), client_ip(request))
+    store.register_guest(body.guest_id, guest_name(request, clean_name(body.guest_name)), client_ip(request))
     store.link_token(body.guest_id, guest_token(request))
     store.seen(body.guest_id)
     return {"ok": True}
@@ -5302,7 +5310,7 @@ def send_message(body: Message, request: Request):
     unread = sum(1 for m in store.session.messages if m["guest_id"] == body.guest_id and not m["read"])
     if unread >= 3:
         raise HTTPException(429, "L'hôte n'a pas encore lu tes messages, patience 🙂")
-    name = clean_name(body.guest_name)
+    name = guest_name(request, clean_name(body.guest_name))
     store.register_guest(body.guest_id, name, ip)
     store.add_message(body.guest_id, name, text)
     _last_message[body.guest_id] = time.time()
@@ -5351,7 +5359,7 @@ def enqueue(body: Enqueue, request: Request, response: Response):
         raise HTTPException(403, msg)
     if spotify is None:
         raise HTTPException(503, "Recherche Spotify non configurée")
-    name = clean_name(body.guest_name)
+    name = guest_name(request, clean_name(body.guest_name))
     check_guest_id(body.guest_id)
     if not re.match(r"^[A-Za-z0-9]{22}$", body.track_id):
         raise HTTPException(400, "Requête invalide")

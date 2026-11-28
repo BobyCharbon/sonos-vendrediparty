@@ -78,6 +78,10 @@ final class PartyAPI {
         try await post("/api/leave", body: ["guest_id": guestID])
     }
 
+    func gameNames() async throws -> GameNames {
+        try await get("/api/games/names", query: [:])
+    }
+
     func hello(guestID: String, name: String) async throws {
         try await post("/api/hello", body: ["guest_id": guestID, "guest_name": name])
     }
