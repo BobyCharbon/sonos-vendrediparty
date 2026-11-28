@@ -629,7 +629,7 @@ export function DatePollSection({
 // --------------------------------------------------------------------------
 export function PollSection({
   poll,
-  options,
+  options: allOptions,
   results,
   myVotes,
   voters,
@@ -655,7 +655,7 @@ export function PollSection({
   const [newOption, setNewOption] = useState('');
   // Choix proposé par une personne que j'ai bloquée : masqué (comme ses messages dans la discussion).
   const blocked = useBlockedIds();
-  options = options.filter((o) => !o.created_by || !blocked.has(o.created_by));
+  const options = allOptions.filter((o) => !o.created_by || !blocked.has(o.created_by));
   // CGU avant le premier choix proposé (contenu lu par les autres invités) ; « Signaler » un choix ou la question.
   const terms = useTermsGate();
   const [report, setReport] = useState<ReportTarget | null>(null);
@@ -761,7 +761,7 @@ export function PollSection({
 // Qui amène quoi
 // --------------------------------------------------------------------------
 export function BringSection({
-  items,
+  items: allItems,
   me,
   eventId,
   names,
@@ -777,11 +777,11 @@ export function BringSection({
 }) {
   const [error, setError] = useState<string | null>(null);
   const [label, setLabel] = useState('');
-  const grew = useChangedSinceMount(items.length);
-  const claimsChanged = useChangedSinceMount(items.map((it) => it.claimed_by ?? '').join());
+  const grew = useChangedSinceMount(allItems.length);
+  const claimsChanged = useChangedSinceMount(allItems.map((it) => it.claimed_by ?? '').join());
   // Objet ajouté par une personne que j'ai bloquée : masqué (comme ses messages dans la discussion).
   const blocked = useBlockedIds();
-  items = items.filter((it) => !it.added_by || !blocked.has(it.added_by));
+  const items = allItems.filter((it) => !it.added_by || !blocked.has(it.added_by));
   // CGU avant le premier objet ajouté (lu par tous les invités) ; « Signaler » l'objet d'un autre.
   const terms = useTermsGate();
   const [report, setReport] = useState<ReportTarget | null>(null);
