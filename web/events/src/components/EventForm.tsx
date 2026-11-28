@@ -856,8 +856,9 @@ export function EventForm({ eventId, group, prefill }: { eventId?: string; group
           <>
             <T muted size={12}>Chacun vote Oui / Si besoin / Non sur chaque créneau.</T>
             {d.slots.map((sl, i) => (
-              <Reveal key={sl.id ?? `new-${i}`} kind={slotsGrew ? 'rise' : null} style={[s.row, { alignItems: 'flex-end' }]}>
-                <View style={{ flex: 1 }}>
+              <Reveal key={sl.id ?? `new-${i}`} kind={slotsGrew ? 'rise' : null} style={[s.row, { alignItems: 'flex-end', flexWrap: 'wrap' }]}>
+                {/* La question « Retirer et ses votes » passe dessous au lieu d'écraser le champ (recette de nuit du 28.11). */}
+                <View style={{ flexGrow: 1, flexBasis: 220 }}>
                   <DateTimeField label={`Créneau ${i + 1}`} value={sl.text} onChangeText={(text) => set({ slots: d.slots.map((x, j) => (j === i ? { ...x, text } : x)) })} />
                 </View>
                 {/* Créneau enregistré : l'enregistrement efface aussi ses votes, on confirme (comme les sondages, contrôle du 27.11). */}

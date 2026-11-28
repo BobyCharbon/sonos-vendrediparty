@@ -466,6 +466,13 @@ def test_editing_a_fixed_date_keeps_the_poll_dates_and_their_votes(browser, even
         # ✕ d'un créneau enregistré (27.11) : confirmation, ses votes partiraient à l'enregistrement ; « Garder » le laisse.
         frame.get_by_role('button', name='Retirer le créneau 2', exact=True).click()
         pw.expect(frame.get_by_role('button', name='Retirer et ses votes', exact=True)).to_be_visible()
+        # Recette de nuit (28.11) : la question ne doit pas écraser le champ du créneau ni se poser dessus.
+        day = frame.get_by_label('Créneau 2 : jour', exact=True).bounding_box()
+        keep = frame.get_by_role('button', name='Garder', exact=True).bounding_box()
+        assert day['width'] > 120, day
+        overlap = not (keep['x'] >= day['x'] + day['width'] or keep['x'] + keep['width'] <= day['x']
+                       or keep['y'] >= day['y'] + day['height'] or keep['y'] + keep['height'] <= day['y'])
+        assert not overlap, (day, keep)
         frame.get_by_role('button', name='Garder', exact=True).click()
         pw.expect(frame.get_by_label('Créneau 2 : jour', exact=True)).to_be_visible()
         frame.get_by_role('button', name='Enregistrer', exact=True).click()
