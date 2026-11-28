@@ -204,7 +204,7 @@ struct TermsAcceptSheet: View {
                     }
                     .padding(.vertical, 6)
                     // Nouvel arrivant : il sait ce qu'il garde sans elles, rien ne le bloque (contrôle du 26.11).
-                    Text("Sans elles, tu gardes les jeux. Écrire, publier, choisir ton surnom ou répondre à un événement te les redemanderont.")
+                    Text("Sans elles, tu gardes les jeux. Écrire, publier ou choisir ton surnom te les redemanderont.")
                         .font(.footnote).foregroundStyle(PronoTheme.t2).multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("terms-later-hint")

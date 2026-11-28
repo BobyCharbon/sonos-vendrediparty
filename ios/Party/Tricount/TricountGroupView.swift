@@ -195,7 +195,8 @@ struct TricountGroupView: View {
                                 .buttonStyle(PressableStyle(scale: 0.98))
                                 // Signaler (contrôle Apple du 26.11) : aussi dans un pot archivé, où la dépense ne s'ouvre plus.
                                 .contextMenu {
-                                    if !e.isTransfer {
+                                    // Pas sur sa propre dépense : la base refuse de signaler son propre contenu (recette de nuit).
+                                    if !e.isTransfer && e.paid_by != g.me {
                                         Button { reporting = ExpenseEditor.report(expense: e.id, title: e.title) } label: {
                                             Label("Signaler la dépense", systemImage: "flag")
                                         }

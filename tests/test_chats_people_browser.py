@@ -268,7 +268,7 @@ def test_later_on_the_terms_says_why_and_the_same_button_opens_them_again(phone,
     sheet.get_by_test_id('mini-write').click()
     terms = frame.get_by_label('Conditions d’utilisation')
     # Comme l'iPhone (contrôle Apple, tour 2) : sous « Plus tard », ce que la personne garde sans elles.
-    pw.expect(terms.get_by_text('Sans elles, tu gardes les jeux. Écrire, publier, choisir ton surnom ou répondre à un événement te les redemanderont.')).to_be_visible()
+    pw.expect(terms.get_by_text('Sans elles, tu gardes les jeux. Écrire, publier ou choisir ton surnom te les redemanderont.')).to_be_visible()
     terms.get_by_role('button', name='Plus tard', exact=True).click()
     pw.expect(frame.get_by_label('Conditions d’utilisation')).to_have_count(0)
     pw.expect(sheet.get_by_role('alert')).to_have_text(

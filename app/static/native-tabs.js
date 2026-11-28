@@ -84,5 +84,8 @@
     /** La page a changé quelque chose hors de la barre (pastille de « Ton avis ») : nouvelle description. */
     refresh: schedule,
   };
-  send();
+  // Première description seulement une fois la page lue : sinon l'app App Store recevait d'abord l'onglet Musique, caché
+  // juste après par index.html (STORE_APP), et le montrait un instant au démarrage (recette de nuit du 28.11).
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", send, { once: true });
+  else send();
 })();

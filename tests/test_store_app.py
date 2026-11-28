@@ -770,8 +770,8 @@ def test_round_one_native_app_souvenirs_bridge_terms_and_shared_expense_reports(
     sheets = (ios / "Settings/Moderation/ModerationSheets.swift").read_text(encoding="utf-8")
     assert "Tolérance zéro : un contenu choquant est retiré et son auteur peut être banni." in sheets
     assert "Les points des jeux n'ont aucune valeur en argent." in sheets and "objets du jeu" not in sheets
-    assert ("Sans elles, tu gardes les jeux. Écrire, publier, choisir ton surnom ou "
-            "répondre à un événement te les redemanderont.") in sheets
+    # Recette de nuit (28.11) : répondre « Présent » ne les demande pas ; la phrase ne le promet plus.
+    assert "Sans elles, tu gardes les jeux. Écrire, publier ou choisir ton surnom te les redemanderont." in sheets
     assert "Écris à l'équipe de Party" in (ios / "Settings/SettingsView.swift").read_text(encoding="utf-8")
     # Pot commun : Signaler (dépense, ticket) et CGU avant d'enregistrer.
     editor = (ios / "Tricount/ExpenseEditor.swift").read_text(encoding="utf-8")

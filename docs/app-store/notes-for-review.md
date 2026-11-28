@@ -50,12 +50,12 @@ CHANGES SINCE THE 1.4.3 REJECTION (new build + server)
 Removed: every drinking-related game (Pyramide, Je n'ai jamais, Qui de nous ?, Roulette, Beer pong, Biskit, Purify Test), every drink option, Hot/Mix questions, the party bar, Casino and Blackjack. Not renamed; our server refuses them, even by code or QR.
 
 SIGN-IN
-Phone + 6-digit SMS code. Demo "Apple-test": number and code in the sign-in fields (no SMS).
+Phone + 6-digit code. Demo "Apple-test": number and code in the sign-in fields, no SMS.
 
 TRY IT
 1. Events > "Soirée démo Vendredi Party" (co-organiser): answer "Présent", event chat, then "Remettre à tous les présents": your QR ticket.
 2. Events > "+ Proposer" > "Sur invitation" > tick group "Démo Apple" > Publish: live at once. Public events: moderated first (1.2).
-3. Discussions > "Démo Apple": long-press > "Signaler"; "Nouveau message"; "Demandes".
+3. Discussions > "Démo Apple": long-press a message > "Signaler"; "Nouveau message"; "Demandes".
 4. Games > "Créer une salle" > Quiz, or Méninges.
 
 NATIVE (4.2)
@@ -122,7 +122,7 @@ has a **fixed code** (also in "Sign-in information", Password field): no SMS is 
 | Event **"Soirée démo Vendredi Party"** (12 Dec.) | Organised by us, invitation only; the demo account is invited AND co-organiser: answer (**Présent**), see who comes, event discussion; organiser side: guests and their answers, ZONE ORGANISATEUR. QR tickets are on: answer **Présent**, then in the organiser card **Billets QR** of the event page tap **Remettre à tous les présents** (you are co-organiser) to get your own ticket (card **Ton billet**, Apple Wallet, B4.10); payment and carpool are off on this event (options of the organiser, described below for completeness). |
 | Group **"Démo Apple"** | The demo account + one of our admins, with a few messages. |
 | Direct message | One message from our admin to the demo account. |
-| "Pot commun" | No pot is prepared: create one in Réglages › Pot commun › Nouveau pot commun; "Rembourser" appears on a transfer you owe: in the pot, **Membres** › "Ajouter quelqu'un" › type a first name › **Ajouter**, then **Ajouter une dépense** with "Payé par" that member. A member added by hand has no payment details, so the "Rembourser" sheet says they have not filled in their payment profile yet; an IBAN or Revolut/Twint link only shows for a member who joined with their own account (link of the pot) and filled in "Mon profil de paiement". |
+| "Pot commun" | No pot is prepared: create one in Réglages › Pot commun › Nouveau pot commun; "Rembourser" appears on a transfer you owe: in the pot, ⋯ (top right) › **Membres** › "Ajouter quelqu'un" › type a first name › **Ajouter**, then **Ajouter une dépense** with "Payé par" that member. A member added by hand has no payment details, so the "Rembourser" sheet says they have not filled in their payment profile yet; an IBAN or Revolut/Twint link only shows for a member who joined with their own account (link of the pot) and filled in "Mon profil de paiement". |
 | Second demo account **"Apple-test 2"** | Number **+41 79 000 00 01**, same fixed code as the first demo account (no SMS; checked by signing in on the day of submission). Shares no group or private event with "Apple-test" and has sent it a **message request** (Discussions › **Demandes**). Sign in with it to see the sender side ("Demande envoyée", input closed until accepted). |
 
 If you test account deletion: please do it last. Signing in again with the same number then creates a new, empty

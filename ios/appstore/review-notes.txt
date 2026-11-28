@@ -5,12 +5,12 @@ CHANGES SINCE THE 1.4.3 REJECTION (new build + server)
 Removed: every drinking-related game (Pyramide, Je n'ai jamais, Qui de nous ?, Roulette, Beer pong, Biskit, Purify Test), every drink option, Hot/Mix questions, the party bar, Casino and Blackjack. Not renamed; our server refuses them, even by code or QR.
 
 SIGN-IN
-Phone + 6-digit SMS code. Demo "Apple-test": number and code in the sign-in fields (no SMS).
+Phone + 6-digit code. Demo "Apple-test": number and code in the sign-in fields, no SMS.
 
 TRY IT
 1. Events > "Soirée démo Vendredi Party" (co-organiser): answer "Présent", event chat, then "Remettre à tous les présents": your QR ticket.
 2. Events > "+ Proposer" > "Sur invitation" > tick group "Démo Apple" > Publish: live at once. Public events: moderated first (1.2).
-3. Discussions > "Démo Apple": long-press > "Signaler"; "Nouveau message"; "Demandes".
+3. Discussions > "Démo Apple": long-press a message > "Signaler"; "Nouveau message"; "Demandes".
 4. Games > "Créer une salle" > Quiz, or Méninges.
 
 NATIVE (4.2)

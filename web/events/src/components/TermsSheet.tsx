@@ -111,7 +111,7 @@ export function useTermsGate(title = 'Avant de publier') {
             <View testID="terms-read-all-bottom"><Button small variant="ghost" label="Lire les conditions" onPress={readTerms} /></View>
             <View style={{ flex: 1 }}><Button variant="secondary" label="Plus tard" onPress={() => finish(false)} /></View>
           </View>
-          <T muted size={12} style={{ textAlign: 'center' }}>Sans elles, tu gardes les jeux. Écrire, publier, choisir ton surnom ou répondre à un événement te les redemanderont.</T>
+          <T muted size={12} style={{ textAlign: 'center' }}>Sans elles, tu gardes les jeux. Écrire, publier ou choisir ton surnom te les redemanderont.</T>
         </View>
       </View>
     </Modal>
