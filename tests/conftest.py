@@ -32,3 +32,13 @@ def no_real_sonos_watch():
     from app import main
     main.watch_sonos = lambda: None
     yield
+
+
+@pytest.fixture(autouse=True)
+def fresh_pin_limiters():
+    """Les verrous des codes PIN (admin, invité) sont des objets du module : sans remise à zéro, les échecs voulus d'un
+    test bloquaient les connexions des suivants (429 dans la CI, plus rapide et dans un autre ordre, 28.11)."""
+    from app import main
+    for lim in (main.admin_limiter, main.guest_limiter):
+        lim.__init__(lim.per_ip, lim.ip_lock, lim.global_max, lim.global_window, lim.global_lock, lim.cooldown)
+    yield
