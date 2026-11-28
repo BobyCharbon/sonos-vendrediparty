@@ -5,6 +5,8 @@ import SwiftUI
 struct ReportSheet: View {
     @ObservedObject var store: ModerationStore
     let target: ReportTarget
+    /// Repli si la base refuse (ex. base d'avant pour une invitation de groupe reçue) : écrire au support.
+    var fallbackMail: URL? = nil
     @Environment(\.dismiss) private var dismiss
     @State private var reason: ReportReason?
     @State private var comment = ""
@@ -49,7 +51,13 @@ struct ReportSheet: View {
                         Text("Un modérateur reçoit ton signalement et une copie du contenu. Traité sous 24 h · \(TermsView.supportEmail)")
                     }
                     if let error = store.error {
-                        Section { Text(error).foregroundStyle(.red) }
+                        Section {
+                            Text(error).foregroundStyle(.red)
+                            if let fallbackMail {
+                                Link("Signaler par e-mail · \(TermsView.supportEmail)", destination: fallbackMail)
+                                    .accessibilityIdentifier("report-mail-fallback")
+                            }
+                        }
                     }
                 }
             }

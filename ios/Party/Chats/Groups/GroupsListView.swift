@@ -11,6 +11,7 @@ struct GroupsListView: View {
     @State private var showOthers = false
     @State private var busy = false
     @State private var path: GroupScreen?
+    @State private var reporting: ReportTarget?
 
     var body: some View {
         List {
@@ -40,7 +41,13 @@ struct GroupsListView: View {
         .refreshable { await load() }
         .onAppear { Task { await load() } }  // relue au retour des réglages ou d'un groupe
         .motion(Motion.smooth, value: home == nil)
+        .sheet(item: $reporting) { target in
+            if let people { ReportSheet(store: people.moderation, target: target, fallbackMail: Self.reportMail) }
+        }
     }
+
+    /// Repli du signalement d'une invitation (base sans 20261128110000 : l'invité n'est pas encore dans le groupe).
+    private static let reportMail = URL(string: "mailto:\(TermsView.supportEmail)?subject=Signalement%20d%27une%20invitation%20de%20groupe")
 
     @ViewBuilder private func content(_ home: GroupsHome) -> some View {
         let q = query.trimmingCharacters(in: .whitespaces)
@@ -116,6 +123,13 @@ struct GroupsListView: View {
                 PeoplePinkButton(title: "Rejoindre", busy: busy) { answer(inv, accept: true) }
                 PeopleGhostButton(title: "Refuser") { answer(inv, accept: false) }.disabled(busy)
             }
+            // Apple 1.2 : le nom du groupe et de qui invite viennent d'autres personnes ; on peut signaler sans entrer.
+            Button {
+                reporting = ReportTarget(kind: .group, id: inv.groupId, label: "le groupe « \(inv.group) »")
+            } label: {
+                Text("🚩 Signaler · Traité sous 24 h · \(TermsView.supportEmail)").font(.footnote).foregroundStyle(PronoTheme.t2)
+            }
+            .accessibilityIdentifier("group-invitation-report")
         }
         .padding(14)
         .background(PronoTheme.pink.opacity(0.12), in: RoundedRectangle(cornerRadius: PronoTheme.Radius.card, style: .continuous))

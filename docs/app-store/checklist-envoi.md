@@ -101,6 +101,18 @@
          la transmet) et nouveau build iPhone : « Signaler la dépense / le ticket » caché sur sa propre dépense (menu et
          éditeur ; la base refusait « self »), proposé sur celle saisie par un autre et payée par moi. Sans ce fichier,
          l'app garde la règle du payeur.
+      19. `2026-11-28-invitations-groupe-signaler` (20261128110000) : **PRÊT** (apply + rollback, testés sur TEST le 28.11 :
+         `tests/supabase_live/test_invitations_groupe_signaler_live.py` dans une transaction annulée ; retour arrière
+         essayé pour de vrai (md5 d'origine de `my_group_invitations` retrouvé) puis réappliqué, rejoué sans effet). À
+         appliquer APRÈS le 6 (`pot-paiement-geste`, seul à créer `private.group_report_snapshot` ; sans lui, refus et rien
+         n'est modifié) ; en dernier. Son retour arrière passe AVANT celui du 6. Par ancre (une fois chacune) :
+         `public.my_group_invitations` (`    and not exists (select 1 from public.member_group_members m where m.group_id =
+         g.id and m.user_id = auth.uid());` : vérifiée le 28.11 en lecture seule, prod = TEST avant le fichier, md5
+         e5dae488… ; aucun des fichiers 1 à 18 ne la redéfinit) ne montre plus une invitation si je suis en blocage avec
+         qui invite ou le créateur du groupe ; `private.group_report_snapshot` (` or private.manages_group(mg.id));`, texte
+         du fichier 6) permet « Signaler » le groupe à qui a une invitation en attente. Apple 1.2 : sous chaque invitation
+         reçue (web `/groups`, iPhone Réglages › Groupes, nouveau build), « 🚩 Signaler · Traité sous 24 h · support@… » ;
+         sans ce fichier, la base refuse et l'écran propose le signalement par e-mail.
 - [ ] **Revérifier les ancres contre la prod avant d'appliquer** (150000 a réécrit event_changed, event_guest_list,
       apply_waitlist, event_attendance, public_event, chat_event_cards, invite_preview).
       **Fait le 27.11 en LECTURE SEULE** (`sbq.py prod`, `pg_get_functiondef` de la prod ; photo du 27.11, à refaire si

@@ -18,11 +18,13 @@ type Props = {
   reasons?: readonly { key: ReportReason; label: string; hint?: string }[];
   /** Phrase après l'envoi (photo Souvenirs : masquée aussitôt, organisation et modération prévenues). */
   thanks?: string;
+  /** Repli affiché sous un refus (base d'avant : invitation de groupe reçue) : signaler par e-mail. */
+  fallback?: React.ReactNode;
 };
 
 /** « Signaler » (Apple 1.2, Google UGC) : une raison, un commentaire facultatif ; la file des modérateurs le reçoit.
  * La personne signalée n'est pas prévenue ; la base garde une copie du contenu au moment du signalement. */
-export function ReportSheet({ target, onClose, send: sendOwn, allowContext = false, reasons = REPORT_REASONS, thanks }: Props) {
+export function ReportSheet({ target, onClose, send: sendOwn, allowContext = false, reasons = REPORT_REASONS, thanks, fallback }: Props) {
   const [reason, setReason] = useState<ReportReason | null>(null);
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState(false);
@@ -100,6 +102,7 @@ export function ReportSheet({ target, onClose, send: sendOwn, allowContext = fal
               <Input accessibilityLabel="Commentaire" placeholder="Commentaire (facultatif)" value={comment}
                 onChangeText={setComment} maxLength={500} multiline style={{ minHeight: 70 }} />
               <ErrorText error={error} />
+              {error && fallback ? fallback : null}
               <T muted size={12}>Traité sous 24 h · {SUPPORT_EMAIL}</T>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 <Button variant="secondary" label="Annuler" style={{ flex: 1 }} onPress={close} />

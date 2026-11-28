@@ -123,7 +123,7 @@ def group_services(page, groups=GROUPS, row_for=group_row, rank=None):
         elif path.endswith('/rpc/my_groups_overview'):
             result = state['groups']
         elif path.endswith('/rpc/my_group_invitations') or path.endswith('/rpc/my_privacy'):
-            result = [] if 'invitations' in path else {'phone_groups': []}
+            result = state.get('invitations', []) if 'invitations' in path else {'phone_groups': []}
         elif path.endswith('/rpc/my_terms'):
             result = {'version': '2026-11-16', 'accepted': True, 'accepted_at': None, 'contact_email': None, 'enforced': True}
         elif path.endswith('/rpc/group_invite_link'):
@@ -513,4 +513,41 @@ def test_a_group_link_opened_alone_reopens_party_on_the_group_page(phone, events
     page.wait_for_timeout(1500)
     pw.expect(frame.get_by_test_id('group-joined')).to_be_visible()
     assert state['joins'] == 1
+    assert not errors, errors
+
+
+def test_a_received_invitation_can_be_reported_with_a_mail_fallback(phone, events_origin):
+    """Apple 1.2 (lot 21) : sous chaque invitation reçue, « 🚩 Signaler · Traité sous 24 h · support@… » ouvre la feuille
+    de signalement (type group, id du groupe) ; si la base d'avant refuse, repli par e-mail."""
+    page, errors = phone
+    state = group_services(page)
+    state['invitations'] = [{'id': 'inv-1', 'group_id': DISCO, 'group': 'Soirées du vendredi', 'emoji': '🪩', 'color': 'pink',
+                             'invited_by': 'Chloé', 'at': '2026-11-28T08:00:00Z'}]
+    sent = []
+
+    def report(route):
+        if route.request.method == 'OPTIONS':
+            return route.fulfill(status=204, headers=CORS)
+        sent.append(json.loads(route.request.post_data))
+        if len(sent) == 1:  # base sans 20261128110000 : l'invité n'est pas encore dans le groupe
+            return route.fulfill(status=400, content_type='application/json', headers=CORS,
+                                 body=json.dumps({'code': 'PT404', 'message': "not_found: ce contenu n'existe plus ou ne t'est pas visible"}))
+        route.fulfill(status=200, content_type='application/json', body=json.dumps('r-1'), headers=CORS)
+
+    page.route('**/rpc/report_content', report)
+    signed_in(page, events_origin, '/groups')
+    line = page.get_by_test_id('group-invitation-report')
+    pw.expect(line).to_be_visible(timeout=15000)
+    pw.expect(line).to_contain_text('🚩 Signaler · Traité sous 24 h · support@')
+    line.click()
+    pw.expect(page.get_by_text('Signaler le groupe « Soirées du vendredi »', exact=True)).to_be_visible()
+    page.get_by_role('radio', name='Spam').click()
+    page.get_by_role('button', name='Envoyer').click()
+    mail = page.get_by_test_id('invite-report')
+    pw.expect(mail).to_be_visible()
+    assert DISCO in (mail.get_attribute('href') or ''), mail.get_attribute('href')
+    page.get_by_role('button', name='Envoyer').click()
+    pw.expect(page.get_by_text('Merci, c’est envoyé', exact=True)).to_be_visible()
+    assert [(b['p_kind'], b['p_target']) for b in sent] == [('group', DISCO)] * 2, sent
+    shot(page, 'groupes-invitation-signaler.png')
     assert not errors, errors

@@ -4,11 +4,15 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { CreateGroupHero, EmptyGroups, GroupRow, GroupTile } from '@/components/GroupBits';
 import { CLOSE, Icon } from '@/components/HomeHeader';
+import { InviteReportLine } from '@/components/InviteReportLine';
+import { ReportSheet } from '@/components/ReportSheet';
 import { Button, ErrorText, Input, Reveal, Screen, Skeleton, T, Title } from '@/components/ui';
 import { useAuth, useMe } from '@/lib/auth';
 import { useQuery, useRealtime, useSignal } from '@/lib/data';
 import { fetchMyGroups, groupName, type GroupColor } from '@/lib/groups';
 import { duration, enter, pressTransition, transition } from '@/lib/motion';
+import type { ReportTarget } from '@/lib/moderation';
+import { SUPPORT_EMAIL } from '@/lib/contact';
 import { roleRank } from '@/lib/roles';
 import { supabase } from '@/lib/supabase';
 import { colors, radius } from '@/lib/theme';
@@ -37,6 +41,7 @@ export default function GroupsScreen() {
   const [search, setSearch] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [report, setReport] = useState<ReportTarget | null>(null);
 
   const { data, reload, error: loadError } = useQuery(async () => {
     const [groups, invitations, others] = await Promise.all([
@@ -112,6 +117,11 @@ export default function GroupsScreen() {
                 <Button small label="Rejoindre" style={{ flex: 1 }} disabled={busy} onPress={() => void answer(i, true)} />
                 <Button small variant="secondary" label="Refuser" style={{ flex: 1 }} disabled={busy} onPress={() => void answer(i, false)} />
               </View>
+              {/* Apple 1.2 : nom du groupe et de qui invite viennent d'autres personnes ; on signale sans entrer. */}
+              <Pressable accessibilityRole="button" accessibilityLabel={`Signaler le groupe ${i.group}`} testID="group-invitation-report"
+                onPress={() => setReport({ kind: 'group', id: i.group_id, label: `le groupe « ${i.group} »` })}>
+                <T muted size={12}>🚩 Signaler · Traité sous 24 h · {SUPPORT_EMAIL}</T>
+              </Pressable>
             </Reveal>
           ))}
         </View>
@@ -163,6 +173,8 @@ export default function GroupsScreen() {
           )) : null}
         </View>
       ) : null}
+      <ReportSheet target={report} onClose={() => setReport(null)}
+        fallback={report ? <InviteReportLine subject={`invitation au groupe ${report.label.replace(/^le groupe /, '')} (${report.id})`} /> : null} />
     </Screen>
   );
 }
