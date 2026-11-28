@@ -97,13 +97,12 @@ Texte prêt pour la prochaine version (1.0.1), à mettre dans `ios/appstore/what
 
 iPhone seulement (`TARGETED_DEVICE_FAMILY: 1`) : **6,9 pouces (1320 × 2868)**, de 3 à 10 captures, sur la PRODUCTION
 (compagnon éteint) avec un compte de démo et des **données fictives** (aucun vrai nom, numéro ou visage sans accord).
-Les captures en place (`ios/appstore/screenshots/` et `screenshots-duo/`, 10 chacune) sont PÉRIMÉES : elles montrent
-l'onglet Musique et la 09 est `09-musique.png`. **À refaire avec le binaire App Store** (barre à 4 onglets : Jeux,
-Événements, Discussions, Réglages ; sans Musique), 6,9" et Duo, la 09 remplacée par Méninges ou la Salle de jeux, puis
-envoyées par `tools/appstore_submit.py screens` (case de `checklist-envoi.md`). Règle 2.3.8 : captures adaptées à tous
-les publics même pour une app 18+ → **aucune boisson alcoolisée, aucune catégorie « 🍻 Alcool », aucun 🍻, ni bar, ni
-Casino, ni Blackjack, ni Zicou**. Mode d'emploi du binaire App Store pour les captures : `checklist-envoi.md` (workflow
-`ios-screenshots.yml` sans la condition BETA, `ios/scripts/screenshots.sh`).
+Captures refaites le 28.11 avec le binaire App Store (`ios/appstore/screenshots/` et `screenshots-duo/`, 10 chacune,
+détail dans `docs/app-store/visuels/README.md`) : barre à 4 onglets (Jeux, Événements, Discussions, Réglages ; sans
+Musique), la 09 est `09-meninges.png` (remplace `09-musique.png`), salle de jeux aux prénoms de la liste de l'app ;
+envoyées par `tools/appstore_submit.py screens` (6,9" et Duo, aperçus vidéo retirés). Règle 2.3.8 : captures adaptées
+à tous les publics même pour une app 18+ → **aucune boisson alcoolisée, aucune catégorie « 🍻 Alcool », aucun 🍻, ni
+bar, ni Casino, ni Blackjack, ni Zicou**.
 
 Ordre proposé (fichiers `NN-nom.png`, envoyés dans l'ordre des noms) :
 
