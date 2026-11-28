@@ -75,6 +75,8 @@ final class MusicStore: ObservableObject {
     @Published var notice: Notice?
     /// Prénom demandé avant le premier ajout (même règle que la page web).
     @Published var asksName = false
+    /// Prénoms proposés (liste du serveur, « Joueur » d'abord) : jamais un champ de texte (décision du 28.11).
+    @Published var nameChoices: [String] = []
     @Published private(set) var notifyWhenPlaying = false
     /// Type « titre qui passe » choisi sur le serveur (nil : pas encore lu).
     private var trackWanted: Bool?
@@ -249,6 +251,7 @@ final class MusicStore: ObservableObject {
         guard let me = await currentIdentity() else { return }
         guard !me.name.isEmpty else {
             waitingTrack = track
+            if nameChoices.isEmpty { nameChoices = (try? await api.gameNames())?.choices ?? ["Joueur"] }
             asksName = true
             return
         }

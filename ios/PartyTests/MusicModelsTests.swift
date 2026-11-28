@@ -30,6 +30,14 @@ struct MusicModelsTests {
         #expect(state.messages.first?.reply == "OK 👍" && state.played.count == 1)
     }
 
+    @Test("Prénom de la Musique : « Joueur » puis la liste du serveur, jamais un prénom tapé (décision du 28.11)")
+    func decodesTheListOfNames() throws {
+        let names: GameNames = try decode(#"{"names": ["Adam", "Léa"], "anonymous": "Joueur"}"#)
+        #expect(names.choices == ["Joueur", "Adam", "Léa"])
+        let old: GameNames = try decode(#"{"names": ["Adam"]}"#)
+        #expect(old.choices == ["Joueur", "Adam"])
+    }
+
     @Test("Invité sans compte : titres restants ce soir, puis compte requis (app/guest_gate.py)")
     func decodesGuestTracksLimit() throws {
         let some: PartyState = try decode(#"{"active": true, "guest_tracks": {"used": 1, "limit": 3, "left": 2}}"#)

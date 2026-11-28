@@ -441,6 +441,11 @@ def listed_name(name) -> str | None:
     return _PLAYER_KEYS.get(_name_key(name)) if isinstance(name, str) else None
 
 
+def listed_or_alias(name) -> str:
+    """Prénom posé par l'app hors d'une partie (Musique : vu par l'hôte et les invités) : la liste, « Joueur N », sinon « Joueur »."""
+    return listed_name(name) or (name if isinstance(name, str) and ALIAS_RE.fullmatch(name) else ALIAS)
+
+
 def name_shown(name) -> bool:
     """Prénom qu'une partie de l'app peut garder : un de la liste, un « Joueur N », un prénom écrit par le serveur."""
     return not name or not isinstance(name, str) or name in PLAYER_NAMES or bool(ALIAS_RE.fullmatch(name)) \

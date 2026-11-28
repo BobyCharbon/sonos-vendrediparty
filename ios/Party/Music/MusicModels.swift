@@ -157,6 +157,14 @@ struct EnqueueResult: Decodable {
 }
 
 /// Petit bandeau « +5 🪙 pour Zicou » (kind reward) ou proposition d'adopter un Zicou, une seule fois (kind adopt).
+/// GET /api/games/names : prénoms de l'app (décision de l'admin du 28.11) ; aucun prénom tapé n'est montré aux autres.
+struct GameNames: Decodable, Equatable {
+    var names: [String]
+    var anonymous: String?
+    /// « 🎲 Joueur » d'abord, puis la liste du serveur.
+    var choices: [String] { [anonymous ?? "Joueur"] + names }
+}
+
 struct ZicouReaction: Decodable, Equatable {
     let kind: String
     let text: String

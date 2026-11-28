@@ -483,16 +483,17 @@ if (STORE) Object.assign(GAME_RULES, {
 document.getElementById("gamesRoot").innerHTML = `
     <div id="gName" class="hidden">
       <p class="sub">Comment tu t'appelles ?</p>
+      ${STORE ? `<label class="g-terms" id="gTermsBox">
+        <input type="checkbox" id="gTermsCheck" aria-describedby="gTermsNote">
+        <span>J'ai 18 ans ou plus et j'accepte les <button type="button" class="g-terms-link" data-gterms="open">conditions d'utilisation</button> (tolérance zéro pour les contenus abusifs)</span>
+      </label>
+      <p class="g-terms-note" id="gTermsNote" role="status">Ton prénom et ce que tu écris dans les jeux sont lus par les autres joueurs : coche la case pour jouer avec eux. Tu peux aussi revenir plus tard.</p>` : ""}
       <form id="gNameForm" class="row">
         <input id="gNameInput" class="grow" type="text" aria-label="Ton prénom" spellcheck="false" maxlength="30" placeholder="Ton prénom" autocomplete="given-name" required> <!-- store-cut -->
         <button>OK</button> <!-- store-cut -->
         <!-- <store> <input id="gNameInput" type="hidden"><div class="chips name-pick" data-name-pick="gNameInput" role="group" aria-label="Choisis ton prénom"></div> -->
       </form>
-      ${STORE ? `<label class="g-terms" id="gTermsBox">
-        <input type="checkbox" id="gTermsCheck" aria-describedby="gTermsNote">
-        <span>J'ai 18 ans ou plus et j'accepte les <button type="button" class="g-terms-link" data-gterms="open">conditions d'utilisation</button> (tolérance zéro pour les contenus abusifs)</span>
-      </label>
-      <p class="g-terms-note" id="gTermsNote" role="status">Ton prénom et ce que tu écris dans les jeux sont lus par les autres joueurs : coche la case pour jouer avec eux. Tu peux aussi revenir plus tard.</p>
+      ${STORE ? `<button type="button" class="secondary g-name-cancel" data-gname-cancel>Annuler</button>
       <button type="button" class="secondary g-terms-later" id="gTermsLater" data-gterms="later">Plus tard · jouer seul à Méninges</button>
       <div id="gTermsSheet" class="g-modal hidden" role="dialog" aria-modal="true" aria-labelledby="gTermsTitle">
         <div class="g-sheet g-terms-sheet">
@@ -1262,6 +1263,13 @@ document.addEventListener("click", (ev) => {
   box.querySelectorAll("[data-pick-name]").forEach((x) => { x.classList.toggle("secondary", x !== b); x.setAttribute("aria-pressed", x === b); });
   input.form?.requestSubmit();
 });
+document.addEventListener("click", (ev) => {
+  if (!ev.target.closest("[data-gname-cancel]")) return;
+  gPickName = false;
+  refreshGame();
+});
+// La pastille du prénom dit le prénom de la TABLE (« Joueur 4 » si le prénom choisi y était déjà pris ; recette du 28.11).
+window.gameSeatName = () => STORE && game?.me ? game.players.find((p) => p.pid === game.me.pid)?.name || "" : "";
 // Le prénom en haut à droite (index.html, changeName) : dans l'app, il se rechoisit ici.
 window.pickGameName = () => {
   gPickName = true;
@@ -1279,6 +1287,7 @@ async function refreshGame() {
   $("gName").classList.toggle("hidden", !!guestName && !askTerms && !gPickName);
   if (!guestName || askTerms || gPickName) {
     if (STORE) fillNamePicks();
+    $("gName").querySelector("[data-gname-cancel]")?.classList.toggle("hidden", !(gPickName && guestName));  // rouvert : « Annuler »
     if (askTerms && guestName && !$("gNameInput").value) $("gNameInput").value = guestName;
     $("gHome").classList.add("hidden"); $("gamePlay").classList.add("hidden");
     if (typeof maybeInstallSheet === "function") maybeInstallSheet();
@@ -1442,6 +1451,7 @@ function renderGame(g) {
   if (g?.type !== "heist" || !pyrFull || g.kicked || g.excluded) Heist.stop();
   if (g?.type !== "island" || !pyrFull || g.kicked || g.excluded) Island.stop();
   game = g;
+  if (STORE && typeof renderNameChip === "function") renderNameChip();
   window.ZicouHome?.gameSeen?.(g);   // invité sans compte : « Adopte ton Zicou » une fois, après sa 1re partie // <store-cut/>
   window.GuestGate?.gameSeen(g);     // invité sans compte : « Garde tes scores », puis compte requis (guest-gate.js)
   GameAudio.observe(g, g ? myTurnKey(g) : "");
@@ -3308,7 +3318,7 @@ function hostRow(g) {
 function renderDrawer(g) {
   const lead = g.is_host, movable = lead && g.phase === "lobby";
   patch.gDrawerPlayers = `<h2>Participants (${g.players.length})</h2>
-    <div class="list">${g.players.map((p, i) => `<div class="track ${p.online === false && p.pid !== g.me?.pid ? "g-away" : ""}">${p.account ? `<span ${profileAttrs(g, p)}>${avatar(p, "qs-av-sm")}</span>` : avatar(p, "qs-av-sm")}<div class="meta"><div class="title">${p.account ? `<span ${profileAttrs(g, p)}>${esc(p.name)}</span>` : esc(p.name)}${p.host ? " 🎲" : ""}${p.pid === g.me?.pid ? " (toi)" : ""}${presenceTag(p.pid === g.me?.pid ? { ...p, online: true } : p)}${playerTag(g, p)}${p.pending ? " ⏳" : ""}${tallyBadge(p)}</div></div>
+    <div class="list">${g.players.map((p, i) => `<div class="track ${p.online === false && p.pid !== g.me?.pid ? "g-away" : ""}">${p.account ? `<span ${profileAttrs(g, p)}>${avatar(p, "qs-av-sm")}</span>` : avatar(p, "qs-av-sm")}<div class="meta"><div class="title"><span class="g-pname">${p.account ? `<span ${profileAttrs(g, p)}>${esc(p.name)}</span>` : esc(p.name)}</span>${p.host ? " 🎲" : ""}${p.pid === g.me?.pid ? " (toi)" : ""}${presenceTag(p.pid === g.me?.pid ? { ...p, online: true } : p)}${playerTag(g, p)}${p.pending ? " ⏳" : ""}${tallyBadge(p)}</div></div>
       <div class="icon-btns">
         ${movable && i > 0 ? `<button class="secondary" data-gact="up" data-target="${esc(p.pid)}" title="Monter" aria-label="Monter">⬆</button>` : ""}
         ${movable && i < g.players.length - 1 ? `<button class="secondary" data-gact="down" data-target="${esc(p.pid)}" title="Descendre" aria-label="Descendre">⬇</button>` : ""}
@@ -3710,7 +3720,9 @@ $("gNameForm").addEventListener("submit", async (ev) => {
     if (!$("gTermsCheck").checked) {
       $("gTermsNote").textContent = "Pour jouer avec les autres, coche d'abord la case : ton prénom et tes réponses sont lus par toute la table.";
       $("gTermsBox").classList.add("warn");
-      $("gTermsCheck").focus();
+      // La case au milieu de l'écran : un simple focus la laissait sous la barre d'onglets (recette iPhone du 28.11).
+      $("gTermsCheck").focus({ preventScroll: true });
+      $("gTermsBox").scrollIntoView({ block: "center", behavior: "smooth" });
       return;
     }
   }

@@ -473,7 +473,7 @@ function clearResults() {
 // 👤 Prénom en haut à droite : le joueur peut le changer à tout moment (musique, jeux, parties en cours).
 function renderNameChip() {
   $("nameChip").classList.toggle("hidden", !guestName);
-  $("nameChip").textContent = `👤 ${guestName} ✏️`;
+  $("nameChip").textContent = `👤 ${window.gameSeatName?.() || guestName} ✏️`;
 }
 async function changeName() {
   // App App Store (décision du 28.11) : un prénom de la liste ou « Joueur », jamais tapé, compte Party compris.

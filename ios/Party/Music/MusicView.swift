@@ -10,7 +10,6 @@ struct MusicView: View {
     /// Connexion native (Réglages › Se connecter), ouverte par « Créer mon compte » quand la limite invité est atteinte.
     var signIn: AccountStore?
 
-    @State private var name = ""
     @State private var message = ""
     @State private var scanning = false
     @State private var signingIn = false
@@ -46,13 +45,9 @@ struct MusicView: View {
         .refreshable { await store.reload() }
         .background(AppConfig.background.ignoresSafeArea())
         .overlay(alignment: .bottom) { noticeBanner }
-        .alert("Ton prénom", isPresented: $store.asksName) {
-            TextField("Prénom", text: $name).textInputAutocapitalization(.words)
-            Button("Annuler", role: .cancel) {}
-            Button("Ajouter") { Task { await store.confirm(name: name) } }
-        } message: {
-            Text("Il s'affiche à côté de tes titres dans la file.")
-        }
+        // App App Store (décision du 28.11) : le prénom se choisit dans la liste du serveur, jamais tapé (le serveur
+        // remplace tout autre prénom par « Joueur » : guest_name, app/main.py).
+        .sheet(isPresented: $store.asksName) { namePicker }
         .confirmationDialog(removing.map { "Retirer « \($0.title) » de la file ?" } ?? "",
                             isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } }),
                             titleVisibility: .visible, presenting: removing) { item in
@@ -257,6 +252,30 @@ struct MusicView: View {
             }
             .motionTransition()
         }
+    }
+
+    private var namePicker: some View {
+        NavigationStack {
+            ScrollView {
+                Text("Il s'affiche à côté de tes titres dans la file.")
+                    .font(.subheadline).foregroundStyle(.secondary)
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 8)], spacing: 8) {
+                    ForEach(Array(store.nameChoices.enumerated()), id: \.element) { index, pick in
+                        Button(index == 0 ? "🎲 \(pick)" : pick) {
+                            store.asksName = false
+                            Task { await store.confirm(name: pick) }
+                        }
+                        .buttonStyle(.bordered).tint(Palette.accent)
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("Ton prénom")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Annuler") { store.asksName = false } } }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 
     // MARK: Messages à l'hôte
