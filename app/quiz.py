@@ -610,7 +610,8 @@ def leaderboard(limit: int = 20, store: bool = False) -> dict:
     aliases, taken = {}, {x["name"] for _, x in items if not numbered.fullmatch(x["name"])}
 
     def shown(key, x):
-        if not store or (store_name(x["name"]) == x["name"] and not numbered.fullmatch(x["name"])):
+        # Décision du 28.11 : dans l'app, seulement un prénom de la liste (store_app.PLAYER_NAMES), sinon « Joueur N ».
+        if not store or (x["name"] in store_app.PLAYER_NAMES and not numbered.fullmatch(x["name"])):
             return x["name"]
         if key not in aliases:
             n = len(aliases) + 1

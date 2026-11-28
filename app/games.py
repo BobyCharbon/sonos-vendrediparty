@@ -2352,16 +2352,47 @@ def eliminate(g: dict, target: str):
     g.update(votes={}, candidates=None, last={"eliminated": target, "role": p["role"], "round": g["round"]})
     if p["role"] == "white":
         g["phase"] = "white_guess"
+        if g.get("store"):
+            g["last"]["choices"] = white_choices(g)
     else:
         _check_end(g) or g.update(phase="reveal")
+
+
+WHITE_CHOICES = 6
+
+
+def white_choices(g: dict, rng: random.Random = random) -> list[str]:
+    """Partie de l'app App Store (décision du 28.11 : aucun texte libre) : le Fantôme choisit le mot des civils parmi
+    6 mots de la banque (les deux mots de la manche et 4 leurres, sans boisson), fixés à son élimination."""
+    civil, under = g["words"]["civil"], g["words"]["undercover"]
+    every = store_app.clean(list(range(len(WORD_PAIRS))), lambda i: " ".join(WORD_PAIRS[i]))
+    seen = {normalize(civil), normalize(under)}
+    pool = []
+    for i in every:
+        for w in WORD_PAIRS[i][:2]:
+            if normalize(w) not in seen:
+                seen.add(normalize(w))
+                pool.append(w)
+    choices = [civil, under] + rng.sample(pool, min(WHITE_CHOICES - 2, len(pool)))
+    rng.shuffle(choices)
+    return choices
 
 
 def white_guess(g: dict, gid: str, guess: str):
     if g["phase"] != "white_guess" or not g["last"] or g["last"]["eliminated"] != gid:
         raise GameError("Ce n'est pas à toi de deviner")
-    guess = guess.strip()[:40]
-    if guess:
-        guess = shown_text(guess, "answer", g.get("store"))
+    choices = g["last"].get("choices")
+    if g.get("store") or choices:  # app : le numéro d'un mot proposé, jamais un mot tapé
+        choices = choices or white_choices(g)
+        g["last"]["choices"] = choices
+        i = int(guess) if str(guess).strip().isdigit() else -1
+        if not 0 <= i < len(choices):
+            raise GameError("Choisis un des mots proposés")
+        guess = choices[i]
+    else:
+        guess = guess.strip()[:40]
+        if guess:
+            guess = shown_text(guess, "answer", g.get("store"))
     g["last"]["guess"] = guess
     if normalize(guess) == normalize(g["words"]["civil"]):
         g.update(winner="white", phase="end")
@@ -2582,6 +2613,8 @@ def view(g: dict, gid: str) -> dict:
                        # Le mot proposé par le Fantôme n'est jamais montré à la table (contrôle du 26.11, Apple 1.2) :
                        # seulement s'il a proposé un mot (raté ; trouvé, la partie est gagnée par le Fantôme).
                        "role": ROLE_LABELS.get(last["role"]), "guess": bool(last.get("guess")), "me": last["eliminated"] == gid}
+        if last.get("choices") and g["phase"] == "white_guess":
+            out["last"]["choices"] = last["choices"]  # mots de la banque (partie de l'app) : le Fantôme en choisit un
     elif last.get("tie"):
         out["last"] = {"tie": True}
     if g["results"] and g["type"] == "never":

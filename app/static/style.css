@@ -1830,3 +1830,11 @@ html.native-tabs body.has-mini[data-tab="events"] .events-panel, html.native-tab
 .gate-link:focus-visible { box-shadow: var(--focus); border-radius: 4px; }
 .gate-sheet h2 { margin: 0; }
 .gate-sheet .sub { margin: 0; white-space: normal; }
+
+/* Prénom choisi dans une liste (app App Store, décision du 28.11 : aucun texte libre dans les jeux) : des pastilles qui
+   prennent toute la largeur du formulaire ; « 🎲 Joueur » d'abord, seul sur sa ligne. */
+.name-pick { flex: 1 1 100%; justify-content: center; margin: 4px 0 2px; }
+.name-pick button { transition: transform .15s ease, background-color .2s ease, color .2s ease; }
+.name-pick button:active { transform: scale(.94); }
+.name-pick button[data-pick-name="Joueur"] { flex-basis: 100%; }
+.g-wchoices button { flex: 1 1 40%; }

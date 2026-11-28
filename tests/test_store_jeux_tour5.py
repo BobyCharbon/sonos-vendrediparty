@@ -138,7 +138,10 @@ def test_names_are_stored_in_nfkc_and_capped():
     assert main.clean_name("Ｌéａ") == "Léa"
     assert not store_app.name_chars_ok("A" * 31)
     code = create(STORE_UA, "quiz", "store5-h", "Ｍａｘ")
-    assert main.store.session.games[code]["players"][0]["name"] == "Max"
+    # Décision du 28.11 : « Max » n'est pas dans la liste de l'app (« Ｓａｍ » → « Sam » l'est).
+    assert main.store.session.games[code]["players"][0]["name"] == "Joueur 1"
+    code = create(STORE_UA, "quiz", "store5-h3", "Ｓａｍ")
+    assert main.store.session.games[code]["players"][0]["name"] == "Sam"
 
 
 def test_a_store_request_cannot_enter_a_name_outside_the_alphabet():

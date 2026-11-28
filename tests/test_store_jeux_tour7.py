@@ -51,7 +51,7 @@ def test_the_app_sees_the_real_title_of_every_game(kind):
     assert seen["room_info"]["history"][0]["winner"] == "Joueur"
 
 
-@pytest.mark.parametrize("kind", ["likely", "tmc", "psy", "debate", "quiz"])
+@pytest.mark.parametrize("kind", ["likely", "psy", "debate", "quiz"])  # tmc : caché depuis le 28.11
 def test_the_app_receives_the_title_of_a_game_it_creates(kind):
     c = TestClient(main.app, headers={"User-Agent": STORE_UA})
     r = c.post("/api/games", json={"guest_id": f"tour7-host-{kind}", "name": "Léa", "type": kind, "terms": True})
@@ -108,19 +108,19 @@ def test_the_name_of_a_host_who_does_not_play_can_be_reported(monkeypatch):
     monkeypatch.setattr(main.journal, "record", lambda *a, **k: sent.append(a))
     monkeypatch.setattr(main, "notify_admin", lambda *a, **k: None)
     c = TestClient(main.app, headers={"User-Agent": STORE_UA})
-    code = c.post("/api/games", json={"guest_id": "tour7-host-x", "name": "Kevin le roi", "type": "likely", "terms": True}).json()["code"]
+    code = c.post("/api/games", json={"guest_id": "tour7-host-x", "name": "Hugo", "type": "likely", "terms": True}).json()["code"]
     g = main.store.session.games[code]
     g["players"] = [p for p in g["players"] if p["id"] != "tour7-host-x"]  # l'animateur ne joue pas
-    assert c.post(f"/api/games/{code}", json={"guest_id": "tour7-ana-x", "name": "Ana", "action": "join", "terms": True}).status_code == 200
+    assert c.post(f"/api/games/{code}", json={"guest_id": "tour7-ana-x", "name": "Aya", "action": "join", "terms": True}).status_code == 200
     # L'animateur, qui ne joue pas, signale lui aussi ; et on ne signale pas son propre prénom.
     assert c.post(f"/api/games/{code}", json={"guest_id": "tour7-host-x", "action": "nreport", "target": "host"}).status_code == 409
-    ana = next(p for p in c.get(f"/api/games/{code}?guest_id=tour7-ana-x").json()["players"] if p["name"] == "Ana")
+    ana = next(p for p in c.get(f"/api/games/{code}?guest_id=tour7-ana-x").json()["players"] if p["name"] == "Aya")
     assert c.post(f"/api/games/{code}", json={"guest_id": "tour7-host-x", "action": "nreport", "target": ana["pid"]}).status_code == 200
     r = c.post(f"/api/games/{code}", json={"guest_id": "tour7-ana-x", "action": "nreport", "target": "host"})
     assert r.status_code == 200, r.text
     assert r.json()["host_name"].startswith("Joueur ") and r.json()["host_name_reported"]
     assert g["host_name"].startswith("Joueur ")
-    assert [a[3]["text"] for a in sent] == ["Prénom signalé : Ana", "Prénom signalé : Kevin le roi"]
+    assert [a[3]["text"] for a in sent] == ["Prénom signalé : Aya", "Prénom signalé : Hugo"]  # liste de l'app (28.11)
     js = (STATIC / "games.js").read_text()
     assert "function hostRow(g)" in js and 'data-target="host"' in js and "(g.me || g.is_owner) && p.pid !== g.me?.pid" in js
 

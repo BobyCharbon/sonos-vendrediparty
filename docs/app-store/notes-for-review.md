@@ -40,7 +40,7 @@
 
 ---
 
-## PART A — Text for the "Notes" field (3,991 characters, limit 4,000)
+## PART A — Text for the "Notes" field (3,999 characters, limit 4,000)
 
 ```text
 ABOUT
@@ -77,7 +77,7 @@ AI (5.1.2(i))
 "Avec l'IA", "Ton avis" and receipts go to Anthropic (Claude) only after "J'accepte" (withdraw in Settings).
 
 GAMES (18+)
-No drinking games: quizzes, card, word, 3D games; points only; first-party. No gambling, purchase, prize. Players first tick "J'ai 18 ans ou plus et j'accepte les conditions" (server-checked; "Plus tard": Méninges only); names and answers filtered; Pour ou contre: our dilemmas only; "Signaler" on written answers. Anyone can leave; host can ban.
+No drinking games: quizzes, card, word, 3D games; points only; first-party. No gambling, purchase, prize. Players first tick "J'ai 18 ans ou plus et j'accepte les conditions" (server-checked; "Plus tard": Méninges only); no typed text shown: names from a list or "Joueur N", answers picked; Tu me connais ?/Le Masque gone. Leave anytime; host bans.
 
 DELETION
 Settings > "Gérer mon compte" > type SUPPRIMER > "Supprimer définitivement mon compte".
@@ -351,9 +351,10 @@ Tab **Jeux**:
 - **No drinking games** (since the 1.4.3 review, 25.11). Removed from the App Store app, permanently for this version:
   every game linked to drinking by its origin, rules or texts (**Pyramide, Je n'ai jamais, Qui de nous ?, Roulette,
   Beer pong, Biskit, Purify Test**), every drink option of the other games, the "Hot" / "Mix" question modes and the
-  "WTF" theme of Pour ou contre. They are not renamed or turned into points: they are simply absent. The remaining games
-  are Quiz, Qui est le plus… ?, L'Intrus, Président, Pour ou contre, Le Divan, Tu me connais ?, Le Masque, Le Reflet,
-  Qui es-tu vraiment ?, the 3D games and Méninges; their questions and words never mention alcohol, drunkenness or
+  "WTF" theme of Pour ou contre. They are not renamed or turned into points: they are simply absent. **Tu me connais ?**
+  and **Le Masque** are also absent from the App Store app (28.11): they need answers typed by the players, and in this
+  app no text typed by a player is ever shown to the others (see "Players" below). The remaining games are Quiz, Qui est
+  le plus… ?, L'Intrus, Président, Pour ou contre, Le Divan, Le Reflet, Qui es-tu vraiment ?, the 3D games and Méninges; their questions and words never mention alcohol, drunkenness or
   drugs. Our server refuses the removed games to the App Store app at creation, by code, by QR, in a game room and
   when reading a game.
 - There is **no gambling**: no bets, no money, no prizes, no purchases. Casino and Blackjack are hidden and refused by
@@ -361,19 +362,24 @@ Tab **Jeux**:
 - In the App Store app, games stay **unlimited without an account**; an account (phone number) is needed only for
   events, groups and chats.
 - **Players**: before joining or creating a game, each player ticks "J'ai 18 ans ou plus et j'accepte les conditions
-  d'utilisation" (the words "conditions d'utilisation" open the terms). Our server refuses any text shown to the table
-  (first name, answer, proposal) from a player who has not ticked it. First names and written answers pass the word
-  filter, including a first name changed during a game. Any player can leave a game at any time; the host can remove
-  and ban a player; written answers can be reported ("Signaler") and are then hidden for the whole table.
-  Tap 🚩 next to another player's name (☰ › Participants): "🚩 Signaler ce prénom" — shown as "Joueur N" to the table at once, sent to moderation.
-  A player who taps **Plus tard · jouer seul à Méninges** only sees Méninges (nothing they type is shown to anyone);
+  d'utilisation" (the words "conditions d'utilisation" open the terms); our server checks it.
+- **No text typed by a player is ever shown to the other players** in the App Store app (decision of 28.11). Under
+  "Comment tu t'appelles ?" the player taps a first name in a list of 50 neutral first names (Alex, Camille, Léa,
+  Hugo…) sent by our server, or **🎲 Joueur** (the game then shows "Joueur 1", "Joueur 2"…); a player without a phone
+  added by the host is picked in the same list. There is no free text field in any game of the app: in L'Intrus, the
+  eliminated "Fantôme" picks the civilians' word among 6 proposed words; Pour ou contre only uses Party's own dilemmas.
+  Our server enforces it, not only the screen: in a game the app has entered, any other first name (typed on the
+  website, a Party nickname, a first name changed during a game) is stored and shown as "Joueur N" to the whole table,
+  website players included. Any player can leave a game at any time; the host can remove and ban a player. Tap 🚩 next
+  to another player's name (☰ › Participants): "🚩 Signaler ce prénom" — shown as "Joueur N" to the table at once, sent
+  to moderation.
+  A player who taps **Plus tard · jouer seul à Méninges** only sees Méninges (nothing is shown to anyone);
   **👥 Jouer avec les autres** brings the first-name screen back.
-- In the App Store app, Pour ou contre only uses Party's own dilemmas: players cannot write or propose any.
 - **Index of games (4.7.4)**: all games are first-party, written and hosted by the developer; there are no third-party
   mini apps or games. Universal link to the games: https://party.bobycharbon.ch/?tab=games (opens the **Jeux** tab of
   the app). Games offered in the App Store app: Quiz, Qui est le plus… ?, L'Intrus, Président, Pour ou contre, Le Divan,
-  Tu me connais ?, Le Masque, Le Reflet, Qui es-tu vraiment ?, the 3D games Néon Knockout, L’île qui s’effondre and
-  Braquage en miniature (13 games), and Méninges (solo).
+  Le Reflet, Qui es-tu vraiment ?, the 3D games Néon Knockout, L’île qui s’effondre and Braquage en miniature
+  (11 games), and Méninges (solo).
 
 #### B4.15 Music
 
@@ -475,10 +481,10 @@ the app never opens its games.
   first name, last name, nickname).
 - **Terms of use** must be accepted before the first content (message, event, group, nickname…); they forbid harassment,
   hate, sexual or violent content, illegal content, spam; zero tolerance. Users must be **18 or older**.
-- **Word filter** on messages, nicknames, names, group names, places and texts shown in games.
-- **Signaler** (report) on every message, profile, profile photo, event and poll, and on the players' written answers
-  shown to the table in Le Masque and Tu me connais ? (hidden at once for
-  everyone, logged for moderators), on group names and photos (**Signaler le groupe**), and on "Pot commun" expenses and receipt photos. In every game the host can remove or ban a player.
+- **Word filter** on messages, nicknames, names, group names and places. In the games of the App Store app no text
+  typed by a player is shown at all (first names from a list or "Joueur N", answers picked among choices).
+- **Signaler** (report) on every message, profile, profile photo, event and poll, on a player's first name in a game
+  ("Joueur N" at once for everyone, logged for moderators), on group names and photos (**Signaler le groupe**), and on "Pot commun" expenses and receipt photos. In every game the host can remove or ban a player.
 - **Bloquer** (block) from a profile, a mini-profile, a direct chat or a message request; messages from a blocked
   person disappear at once and the block is reported to moderators.
 - **Message requests**: people without a real link can only send one text message, which the recipient accepts or not;
@@ -511,7 +517,7 @@ New build, and our server, permanent for this version of the App Store app:
 - Pronos, Agenda, the companion and Souvenirs are not available in this app (only a future version, submitted for
   review, could add them); the
   "bar" tag is not listed in Settings › Notifications; song suggestions at a music party never require an account.
-- Le Masque and Tu me connais ? draw no question about drinks; Tu me connais ? answers can be reported ("Signaler").
+- Le Masque and Tu me connais ? (answers typed by the players) are not in the App Store app.
 - Support URL: a dedicated support page (contact, publisher, FAQ); privacy URL: the app version of the policy.
 - Wallet tickets show the issuer's contact on the back (publisher, support e-mail, support page).
 - The share extension ("Party !" in the share sheet) only offers "Créer l'événement" (an event drafted from a link by the AI

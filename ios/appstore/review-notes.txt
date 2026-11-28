@@ -32,7 +32,7 @@ AI (5.1.2(i))
 "Avec l'IA", "Ton avis" and receipts go to Anthropic (Claude) only after "J'accepte" (withdraw in Settings).
 
 GAMES (18+)
-No drinking games: quizzes, card, word, 3D games; points only; first-party. No gambling, purchase, prize. Players first tick "J'ai 18 ans ou plus et j'accepte les conditions" (server-checked; "Plus tard": Méninges only); names and answers filtered; Pour ou contre: our dilemmas only; "Signaler" on written answers. Anyone can leave; host can ban.
+No drinking games: quizzes, card, word, 3D games; points only; first-party. No gambling, purchase, prize. Players first tick "J'ai 18 ans ou plus et j'accepte les conditions" (server-checked; "Plus tard": Méninges only); no typed text shown: names from a list or "Joueur N", answers picked; Tu me connais ?/Le Masque gone. Leave anytime; host bans.
 
 DELETION
 Settings > "Gérer mon compte" > type SUPPRIMER > "Supprimer définitivement mon compte".

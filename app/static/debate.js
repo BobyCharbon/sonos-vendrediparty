@@ -213,6 +213,7 @@ function dbCloseSheet() {
   document.querySelector(".db-sheet-modal")?.remove();
 }
 
+// <store-cut> app App Store : aucun dilemme écrit par un joueur (bank_only ; décision de l'admin du 28.11)
 function dbOpenSheet() {
   const v = game?.debate;
   if (!v) return;
@@ -241,6 +242,8 @@ function dbOpenSheet() {
   document.body.append(wrap);
   area.focus();
 }
+// </store-cut>
+// <store> function dbOpenSheet() {}
 
 function dbVote(b) {
   if (!game.debate) return;

@@ -161,12 +161,16 @@ salle, on vote, l'animateur lance (**Quiz** se joue seul) ; **🎮 Changer de je
 **Méninges** › **Faire chauffer**. **?** = règles. Dans l'app App Store (refus 1.4.3, décision du 25.11), **retirés pour la
 1.0.0** : Pyramide, Je n'ai jamais, Qui de nous ?, Roulette, Beer pong, Biskit, Purify Test, Casino, Blackjack, toute
 option de gorgées (aucun « mode points » à la place), modes Hot / Mix, thème WTF de Pour ou contre, paquet « Entre amis »
-de Qui est le plus… ; ni mise, ni argent, ni lot. Chaque joueur coche d'abord « J'ai 18 ans ou plus et j'accepte les
-conditions d'utilisation » (lien vers les conditions) : sans elle, le serveur refuse tout texte montré à la table ;
-prénoms (même changés en cours de partie) et réponses écrites passent le filtre ; « Signaler » sur les réponses écrites.
-**Plus tard · jouer seul à Méninges** : le joueur ne voit que Méninges (rien de ce qu'il écrit n'est montré à personne) ;
-**👥 Jouer avec les autres** rouvre « Comment tu t'appelles ? ». Pour ou contre, dans l'app App Store : seulement les
-dilemmes de Party, aucun dilemme écrit ou proposé par un joueur.
+de Qui est le plus… ; ni mise, ni argent, ni lot. **Aucun texte tapé par un joueur n'est montré aux autres** (décision
+du 28.11) : Tu me connais ? et Le Masque (réponses écrites) sont retirés de l'app ; sous « Comment tu t'appelles ? », on
+touche un prénom dans une liste de 50 prénoms donnée par le serveur, ou **🎲 Joueur** (la partie affiche « Joueur 1 »,
+« Joueur 2 »…) ; un participant sans téléphone se choisit dans la même liste ; à L'Intrus, le Fantôme choisit le mot des
+civils parmi 6 mots proposés ; Pour ou contre : seulement les dilemmes de Party. Le serveur le garantit : dans une partie
+où l'app est entrée, tout autre prénom (tapé sur le site, surnom de compte, prénom changé en cours de partie) devient
+« Joueur N » pour toute la table. Chaque joueur coche d'abord « J'ai 18 ans ou plus et j'accepte les conditions
+d'utilisation » (lien vers les conditions), vérifiée par le serveur ; 🚩 « Signaler ce prénom » sur un autre joueur.
+**Plus tard · jouer seul à Méninges** : le joueur ne voit que Méninges (rien n'est montré à personne) ;
+**👥 Jouer avec les autres** rouvre « Comment tu t'appelles ? ».
 Sans compte : parties illimitées dans l'app. 📸 (salle ou Quiz, **sans**
 catégorie « 🍻 Alcool »)
 
