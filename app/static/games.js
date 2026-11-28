@@ -1243,7 +1243,7 @@ async function loadGameNames() {
 }
 if (STORE) loadGameNames();  // la liste est prête pour « + Ajouter » (participant sans téléphone)
 function namePickOptions() {
-  return [ANON_NAME, ...(gNames || [])].map((n) => `<option value="${esc(n)}">${n === ANON_NAME ? "🎲 Joueur (numéro de la partie)" : esc(n)}</option>`).join("");
+  return [ANON_NAME, ...(gNames || [])].map((n) => `<option value="${esc(n)}">${n === ANON_NAME ? "🎲 Joueur" : esc(n)}</option>`).join("");
 }
 async function fillNamePicks() {
   const boxes = document.querySelectorAll("[data-name-pick]");

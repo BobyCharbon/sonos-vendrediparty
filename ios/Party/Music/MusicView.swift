@@ -17,6 +17,7 @@ struct MusicView: View {
     @State private var removing: QueueItem?
     @State private var leaving = false
     @FocusState private var searchFocused: Bool
+    @FocusState private var messageFocused: Bool
 
     var body: some View {
         ScrollView {
@@ -296,8 +297,10 @@ struct MusicView: View {
         }
         HStack {
             TextField("Ton message", text: $message, axis: .vertical).lineLimit(1...4)
+                .focused($messageFocused)
             Button("Envoyer") {
                 Haptics.tap()
+                messageFocused = false  // clavier fermé : « Quitter la soirée » et la barre d'onglets restent visibles (recette du 28.11)
                 Task { if await store.send(message: message) { message = "" } }
             }
             .buttonStyle(.borderedProminent)
